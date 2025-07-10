@@ -27,6 +27,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }} Valkey ${{ matrix.valkey }}
     strategy:
+      fail-fast: false
       matrix:
         ruby:
           - 3.4
