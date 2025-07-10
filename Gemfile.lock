@@ -3,7 +3,7 @@ PATH
   specs:
     valkey (0.1.0)
       ffi (~> 1.17.0)
-      google-protobuf (~> 3.25)
+      google-protobuf (>= 3.25)
 
 GEM
   remote: https://rubygems.org/
