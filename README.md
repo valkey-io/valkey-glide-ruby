@@ -24,6 +24,11 @@ valkey.get("mykey")
 # => "hello world"
 ```
 
+
+Checkout [the implementation status of the Valkey commands][commands-implementation-progress].
+
+
 [valkey-home]: https://valkey.io
 [valkey-glide-home]: https://github.com/valkey-io/valkey-glide
+[commands-implementation-progress]: https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands
 
