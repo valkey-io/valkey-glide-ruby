@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Lint
-  module Strings
+  module StringCommands
     def test_set_and_get
       r.set("foo", "s1")
 

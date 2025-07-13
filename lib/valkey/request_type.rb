@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 class Valkey
+  #
+  # this module defines constants for request types used in Valkey.
+  # Each constant represents a specific command or operation that can be performed.
+  #
   module RequestType
     INVALID_REQUEST = 0
     CUSTOM_COMMAND = 1

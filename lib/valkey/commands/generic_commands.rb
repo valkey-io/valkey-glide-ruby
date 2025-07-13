@@ -2,17 +2,21 @@
 
 class Valkey
   module Commands
-    module Keys
+    # this module contains generic commands that are not specific to any data type
+    #
+    # @see https://valkey.io/commands/#generic
+    #
+    module GenericCommands
       # Scan the keyspace
       #
       # @example Retrieve the first batch of keys
-      #   redis.scan(0)
+      #   valkey.scan(0)
       #     # => ["4", ["key:21", "key:47", "key:42"]]
       # @example Retrieve a batch of keys matching a pattern
-      #   redis.scan(4, :match => "key:1?")
+      #   valkey.scan(4, :match => "key:1?")
       #     # => ["92", ["key:13", "key:18"]]
       # @example Retrieve a batch of keys of a certain type
-      #   redis.scan(92, :type => "zset")
+      #   valkey.scan(92, :type => "zset")
       #     # => ["173", ["sortedset:14", "sortedset:78"]]
       #
       # @param [String, Integer] cursor the cursor of the iteration
@@ -23,7 +27,6 @@ class Valkey
       #
       # @return [String, Array<String>] the next cursor and all found keys
       #
-      # See the [Redis Server SCAN documentation](https://redis.io/docs/latest/commands/scan/) for further details
       # def scan(cursor, **options)
       #   _scan(:scan, cursor, [], **options)
       # end
@@ -31,14 +34,14 @@ class Valkey
       # Scan the keyspace
       #
       # @example Retrieve all of the keys (with possible duplicates)
-      #   redis.scan_each.to_a
+      #   valkey.scan_each.to_a
       #     # => ["key:21", "key:47", "key:42"]
       # @example Execute block for each key matching a pattern
-      #   redis.scan_each(:match => "key:1?") {|key| puts key}
+      #   valkey.scan_each(:match => "key:1?") {|key| puts key}
       #     # => key:13
       #     # => key:18
       # @example Execute block for each key of a type
-      #   redis.scan_each(:type => "hash") {|key| puts redis.type(key)}
+      #   valkey.scan_each(:type => "hash") {|key| puts valkey.type(key)}
       #     # => "hash"
       #     # => "hash"
       #
@@ -49,7 +52,6 @@ class Valkey
       #
       # @return [Enumerator] an enumerator for all found keys
       #
-      # See the [Redis Server SCAN documentation](https://redis.io/docs/latest/commands/scan/) for further details
       # def scan_each(**options, &block)
       #   return to_enum(:scan_each, **options) unless block_given?
       #
@@ -122,10 +124,10 @@ class Valkey
       # @param [String] key
       # @return [Integer] remaining time to live in seconds.
       #
-      # In Redis 2.6 or older the command returns -1 if the key does not exist or if
+      # In valkey 2.6 or older the command returns -1 if the key does not exist or if
       # the key exist but has no associated expire.
       #
-      # Starting with Redis 2.8 the return value in case of error changed:
+      # Starting with valkey 2.8 the return value in case of error changed:
       #
       #     - The command returns -2 if the key does not exist.
       #     - The command returns -1 if the key exists but has no associated expire.
@@ -185,10 +187,10 @@ class Valkey
       #
       # @param [String] key
       # @return [Integer] remaining time to live in milliseconds
-      # In Redis 2.6 or older the command returns -1 if the key does not exist or if
+      # In valkey 2.6 or older the command returns -1 if the key does not exist or if
       # the key exist but has no associated expire.
       #
-      # Starting with Redis 2.8 the return value in case of error changed:
+      # Starting with valkey 2.8 the return value in case of error changed:
       #
       #     - The command returns -2 if the key does not exist.
       #     - The command returns -1 if the key exists but has no associated expire.
@@ -211,7 +213,7 @@ class Valkey
       # @param [String] serialized_value
       # @param [Hash] options
       #   - `:replace => Boolean`: if false, raises an error if key already exists
-      # @raise [Redis::CommandError]
+      # @raise [valkey::CommandError]
       # @return [String] `"OK"`
       # def restore(key, ttl, serialized_value, replace: nil)
       #   args = [:restore, key, ttl, serialized_value]
@@ -287,7 +289,6 @@ class Valkey
       # @param [String] pattern
       # @return [Array<String>]
       #
-      # See the [Redis Server KEYS documentation](https://redis.io/docs/latest/commands/keys/) for further details
       # def keys(pattern = "*")
       #   send_command([:keys, pattern]) do |reply|
       #     if reply.is_a?(String)
@@ -301,17 +302,17 @@ class Valkey
       # Move a key to another database.
       #
       # @example Move a key to another database
-      #   redis.set "foo", "bar"
+      #   valkey.set "foo", "bar"
       #     # => "OK"
-      #   redis.move "foo", 2
+      #   valkey.move "foo", 2
       #     # => true
-      #   redis.exists "foo"
+      #   valkey.exists "foo"
       #     # => false
-      #   redis.select 2
+      #   valkey.select 2
       #     # => "OK"
-      #   redis.exists "foo"
+      #   valkey.exists "foo"
       #     # => true
-      #   redis.get "foo"
+      #   valkey.get "foo"
       #     # => "bar"
       #
       # @param [String] key
@@ -324,21 +325,21 @@ class Valkey
       # Copy a value from one key to another.
       #
       # @example Copy a value to another key
-      #   redis.set "foo", "value"
+      #   valkey.set "foo", "value"
       #     # => "OK"
-      #   redis.copy "foo", "bar"
+      #   valkey.copy "foo", "bar"
       #     # => true
-      #   redis.get "bar"
+      #   valkey.get "bar"
       #     # => "value"
       #
       # @example Copy a value to a key in another database
-      #   redis.set "foo", "value"
+      #   valkey.set "foo", "value"
       #     # => "OK"
-      #   redis.copy "foo", "bar", db: 2
+      #   valkey.copy "foo", "bar", db: 2
       #     # => true
-      #   redis.select 2
+      #   valkey.select 2
       #     # => "OK"
-      #   redis.get "bar"
+      #   valkey.get "bar"
       #     # => "value"
       #
       # @param [String] source
@@ -386,10 +387,10 @@ class Valkey
       # Sort the elements in a list, set or sorted set.
       #
       # @example Retrieve the first 2 elements from an alphabetically sorted "list"
-      #   redis.sort("list", :order => "alpha", :limit => [0, 2])
+      #   valkey.sort("list", :order => "alpha", :limit => [0, 2])
       #     # => ["a", "b"]
       # @example Store an alphabetically descending list in "target"
-      #   redis.sort("list", :order => "desc alpha", :store => "target")
+      #   valkey.sort("list", :order => "desc alpha", :store => "target")
       #     # => 26
       #
       # @param [String] key

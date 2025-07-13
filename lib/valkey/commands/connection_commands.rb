@@ -3,13 +3,15 @@
 class Valkey
   module Commands
     # This module contains commands related to connection management.
-    module Connection
+    #
+    # @see https://valkey.io/commands/#connection
+    #
+    module ConnectionCommands
       # Authenticate to the server.
       #
       # @param [Array<String>] args includes both username and password
       #   or only password
       # @return [String] `OK`
-      # @see https://redis.io/commands/auth AUTH command
       def auth(*args)
         send_command(RequestType::AUTH, args)
       end

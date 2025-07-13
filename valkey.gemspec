@@ -5,12 +5,11 @@ require_relative "lib/valkey/version"
 Gem::Specification.new do |spec|
   spec.name = "valkey"
   spec.version = Valkey::VERSION
-  spec.authors = ["Mohsen Alizadeh"]
-  spec.email = ["mohsen@alizadeh.us"]
+  spec.authors = ["Valkey GLIDE Maintainers"]
 
-  spec.summary = "A Ruby client library for Valkey based on redis-rb."
-  spec.description = "A Ruby client library for Valkey based on redis-rb."
-  spec.homepage = "https://github.com/mohsen-alizadeh/valkey-rb"
+  spec.summary = "A Ruby client library for Valkey"
+  spec.description = "A Ruby client library for Valkey"
+  spec.homepage = "https://github.com/valkey-io/valkey-glide-ruby"
   spec.required_ruby_version = '>= 2.6.0'
 
   spec.metadata["homepage_uri"] = spec.homepage

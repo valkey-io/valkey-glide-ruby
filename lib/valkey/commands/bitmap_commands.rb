@@ -2,7 +2,11 @@
 
 class Valkey
   module Commands
-    module Bitmaps
+    # this module contains commands related to BITMAP data type.
+    #
+    # @see https://valkey.io/commands/#bitmap
+    #
+    module BitmapCommands
       # Sets or clears the bit at offset in the string value stored at key.
       #
       # @param [String] key

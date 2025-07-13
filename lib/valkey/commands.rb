@@ -1,18 +1,30 @@
 # frozen_string_literal: true
 
-require "valkey/commands/strings"
-require "valkey/commands/connection"
-require "valkey/commands/server"
-require "valkey/commands/keys"
-require "valkey/commands/bitmaps"
+require "valkey/commands/string_commands"
+require "valkey/commands/connection_commands"
+require "valkey/commands/server_commands"
+require "valkey/commands/generic_commands"
+require "valkey/commands/bitmap_commands"
 
 class Valkey
+  # Valkey commands module
+  #
+  # This module includes various command modules that provide methods
+  # for interacting with a Valkey server. Each command module corresponds to a
+  # specific set of commands that can be executed against the Valkey server.
+  #
+  # The commands are organized into groups based on their functionality,
+  # such as string operations, connection management, server information,
+  # key management, and bitmap operations.
+  #
+  # @see https://valkey.io/commands/ Valkey Commands Documentation
+  #
   module Commands
-    include Strings
-    include Connection
-    include Server
-    include Keys
-    include Bitmaps
+    include StringCommands
+    include ConnectionCommands
+    include ServerCommands
+    include GenericCommands
+    include BitmapCommands
 
     # # Commands returning 1 for true and 0 for false may be executed in a pipeline
     # # where the method call will return nil. Propagate the nil instead of falsely

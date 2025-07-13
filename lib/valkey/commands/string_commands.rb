@@ -2,12 +2,15 @@
 
 class Valkey
   module Commands
-    # This module contains commands related to strings.
-    module Strings
+    # This module contains commands on the String data type.
+    #
+    # @see https://valkey.io/commands/#string
+    #
+    module StringCommands
       # Decrement the integer value of a key by one.
       #
       # @example
-      #   redis.decr("value")
+      #   valkey.decr("value")
       #     # => 4
       #
       # @param [String] key
@@ -19,7 +22,7 @@ class Valkey
       # Decrement the integer value of a key by the given number.
       #
       # @example
-      #   redis.decrby("value", 5)
+      #   valkey.decrby("value", 5)
       #     # => 0
       #
       # @param [String] key
@@ -32,7 +35,7 @@ class Valkey
       # Increment the integer value of a key by one.
       #
       # @example
-      #   redis.incr("value")
+      #   valkey.incr("value")
       #     # => 6
       #
       # @param [String] key
@@ -44,7 +47,7 @@ class Valkey
       # Increment the integer value of a key by the given integer number.
       #
       # @example
-      #   redis.incrby("value", 5)
+      #   valkey.incrby("value", 5)
       #     # => 10
       #
       # @param [String] key
@@ -57,7 +60,7 @@ class Valkey
       # Increment the numeric value of a key by the given float number.
       #
       # @example
-      #   redis.incrbyfloat("value", 1.23)
+      #   valkey.incrbyfloat("value", 1.23)
       #     # => 1.23
       #
       # @param [String] key
@@ -132,7 +135,7 @@ class Valkey
       # Set one or more values.
       #
       # @example
-      #   redis.mset("key1", "v1", "key2", "v2")
+      #   valkey.mset("key1", "v1", "key2", "v2")
       #     # => "OK"
       #
       # @param [Array<String>] args array of keys and values
@@ -146,7 +149,7 @@ class Valkey
       # Set one or more values.
       #
       # @example
-      #   redis.mapped_mset({ "f1" => "v1", "f2" => "v2" })
+      #   valkey.mapped_mset({ "f1" => "v1", "f2" => "v2" })
       #     # => "OK"
       #
       # @param [Hash] hash keys mapping to values
@@ -160,7 +163,7 @@ class Valkey
       # Set one or more values, only if none of the keys exist.
       #
       # @example
-      #   redis.msetnx("key1", "v1", "key2", "v2")
+      #   valkey.msetnx("key1", "v1", "key2", "v2")
       #     # => true
       #
       # @param [Array<String>] args array of keys and values
@@ -174,7 +177,7 @@ class Valkey
       # Set one or more values, only if none of the keys exist.
       #
       # @example
-      #   redis.mapped_msetnx({ "key1" => "v1", "key2" => "v2" })
+      #   valkey.mapped_msetnx({ "key1" => "v1", "key2" => "v2" })
       #     # => true
       #
       # @param [Hash] hash keys mapping to values
@@ -196,7 +199,7 @@ class Valkey
       # Get the values of all the given keys.
       #
       # @example
-      #   redis.mget("key1", "key2")
+      #   valkey.mget("key1", "key2")
       #     # => ["v1", "v2"]
       #
       # @param [Array<String>] keys
@@ -211,7 +214,7 @@ class Valkey
       # Get the values of all the given keys.
       #
       # @example
-      #   redis.mapped_mget("key1", "key2")
+      #   valkey.mapped_mget("key1", "key2")
       #     # => { "key1" => "v1", "key2" => "v2" }
       #
       # @param [Array<String>] keys array of keys

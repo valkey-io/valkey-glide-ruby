@@ -2,8 +2,11 @@
 
 class Valkey
   module Commands
-    # This module contains commands related to server config.
-    module Server
+    # this module contains commands related to server management.
+    #
+    # @see https://valkey.io/commands/#server
+    #
+    module ServerCommands
       # Asynchronously rewrite the append-only file.
       #
       # @return [String] `OK`
