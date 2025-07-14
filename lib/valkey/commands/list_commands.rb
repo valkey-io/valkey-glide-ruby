@@ -12,7 +12,7 @@ class Valkey
       # @param [String] key
       # @return [Integer]
       def llen(key)
-        send_command([:llen, key])
+        send_command(RequestType::LLEN, [key])
       end
 
       # Remove the first/last element in a list, append/prepend it to another list and return it.
@@ -31,18 +31,18 @@ class Valkey
       def lmove(source, destination, where_source, where_destination)
         where_source, where_destination = _normalize_move_wheres(where_source, where_destination)
 
-        send_command([:lmove, source, destination, where_source, where_destination])
+        send_command(RequestType::LMOVE, [source, destination, where_source, where_destination])
       end
 
       # Remove the first/last element in a list and append/prepend it
       # to another list and return it, or block until one is available.
       #
       # @example With timeout
-      #   element = redis.blmove("foo", "bar", "LEFT", "RIGHT", timeout: 5)
+      #   element = valkey.blmove("foo", "bar", "LEFT", "RIGHT", timeout: 5)
       #     # => nil on timeout
       #     # => "element" on success
       # @example Without timeout
-      #   element = redis.blmove("foo", "bar", "LEFT", "RIGHT")
+      #   element = valkey.blmove("foo", "bar", "LEFT", "RIGHT")
       #     # => "element"
       #
       # @param [String] source source key
@@ -59,8 +59,8 @@ class Valkey
       def blmove(source, destination, where_source, where_destination, timeout: 0)
         where_source, where_destination = _normalize_move_wheres(where_source, where_destination)
 
-        command = [:blmove, source, destination, where_source, where_destination, timeout]
-        send_blocking_command(command, timeout)
+        args = [:blmove, source, destination, where_source, where_destination, timeout]
+        send_command(RequestType::BLMOVE, args)
       end
 
       # Prepend one or more values to a list, creating the list if it doesn't exist
@@ -68,8 +68,8 @@ class Valkey
       # @param [String] key
       # @param [String, Array<String>] value string value, or array of string values to push
       # @return [Integer] the length of the list after the push operation
-      def lpush(key, value)
-        send_command(RequestType::LPUSH, [key, value])
+      def lpush(key, *value)
+        send_command(RequestType::LPUSH, [key, *value])
       end
 
       # Prepend a value to a list, only if the list exists.
@@ -78,7 +78,7 @@ class Valkey
       # @param [String] value
       # @return [Integer] the length of the list after the push operation
       def lpushx(key, value)
-        send_command([:lpushx, key, value])
+        send_command(RequestType::LPUSHX, [key, value])
       end
 
       # Append one or more values to a list, creating the list if it doesn't exist
@@ -100,7 +100,7 @@ class Valkey
       # @param [String] value
       # @return [Integer] the length of the list after the push operation
       def rpushx(key, value)
-        send_command([:rpushx, key, value])
+        send_command(RequestType::RPUSHX, [key, value])
       end
 
       # Remove and get the first elements in a list.
@@ -109,9 +109,9 @@ class Valkey
       # @param [Integer] count number of elements to remove
       # @return [nil, String, Array<String>] the values of the first elements
       def lpop(key, count = nil)
-        command = [:lpop, key]
-        command << Integer(count) if count
-        send_command(command)
+        args = [key]
+        args << Integer(count) if count
+        send_command(RequestType::LPOP, args)
       end
 
       # Remove and get the last elements in a list.
@@ -120,9 +120,9 @@ class Valkey
       # @param [Integer] count number of elements to remove
       # @return [nil, String, Array<String>] the values of the last elements
       def rpop(key, count = nil)
-        command = [:rpop, key]
-        command << Integer(count) if count
-        send_command(command)
+        args = [key]
+        args << Integer(count) if count
+        send_command(RequestType::RPOP, args)
       end
 
       # Remove the last element in a list, append it to another list and return it.
@@ -131,20 +131,20 @@ class Valkey
       # @param [String] destination destination key
       # @return [nil, String] the element, or nil when the source key does not exist
       def rpoplpush(source, destination)
-        send_command([:rpoplpush, source, destination])
+        send_command(RequestType::RPOPLPUSH, [source, destination])
       end
 
       # Remove and get the first element in a list, or block until one is available.
       #
       # @example With timeout
-      #   list, element = redis.blpop("list", :timeout => 5)
+      #   list, element = valkey.blpop("list", :timeout => 5)
       #     # => nil on timeout
       #     # => ["list", "element"] on success
       # @example Without timeout
-      #   list, element = redis.blpop("list")
+      #   list, element = valkey.blpop("list")
       #     # => ["list", "element"]
       # @example Blocking pop on multiple lists
-      #   list, element = redis.blpop(["list", "another_list"])
+      #   list, element = valkey.blpop(["list", "another_list"])
       #     # => ["list", "element"]
       #
       # @param [String, Array<String>] keys one or more keys to perform the
@@ -172,7 +172,7 @@ class Valkey
       #
       # @see #blpop
       def brpop(*args)
-        _bpop(:brpop, args)
+        _bpop(RequestType::BRPOP, args.flatten)
       end
 
       # Pop a value from a list, push it to another list and return it; or block
@@ -187,18 +187,18 @@ class Valkey
       #   - `nil` when the operation timed out
       #   - the element was popped and pushed otherwise
       def brpoplpush(source, destination, timeout: 0)
-        command = [:brpoplpush, source, destination, timeout]
-        send_blocking_command(command, timeout)
+        args = [:brpoplpush, source, destination, timeout]
+        send_blocking_command(RequestType::BRPOPLPUSH, args, timeout)
       end
 
       # Pops one or more elements from the first non-empty list key from the list
       # of provided key names. If lists are empty, blocks until timeout has passed.
       #
       # @example Popping a element
-      #   redis.blmpop(1.0, 'list')
+      #   valkey.blmpop(1.0, 'list')
       #   #=> ['list', ['a']]
       # @example With count option
-      #   redis.blmpop(1.0, 'list', count: 2)
+      #   valkey.blmpop(1.0, 'list', count: 2)
       #   #=> ['list', ['a', 'b']]
       #
       # @params timeout [Float] a float value specifying the maximum number of seconds to block) elapses.
@@ -213,20 +213,20 @@ class Valkey
       def blmpop(timeout, *keys, modifier: "LEFT", count: nil)
         raise ArgumentError, "Pick either LEFT or RIGHT" unless %w[LEFT RIGHT].include?(modifier)
 
-        args = [:blmpop, timeout, keys.size, *keys, modifier]
+        args = [timeout, keys.size, *keys, modifier]
         args << "COUNT" << Integer(count) if count
 
-        send_blocking_command(args, timeout)
+        send_command(RequestType::BLMPOP, args)
       end
 
       # Pops one or more elements from the first non-empty list key from the list
       # of provided key names.
       #
       # @example Popping a element
-      #   redis.lmpop('list')
+      #   valkey.lmpop('list')
       #   #=> ['list', ['a']]
       # @example With count option
-      #   redis.lmpop('list', count: 2)
+      #   valkey.lmpop('list', count: 2)
       #   #=> ['list', ['a', 'b']]
       #
       # @params key [String, Array<String>] one or more keys with lists
@@ -239,10 +239,12 @@ class Valkey
       def lmpop(*keys, modifier: "LEFT", count: nil)
         raise ArgumentError, "Pick either LEFT or RIGHT" unless %w[LEFT RIGHT].include?(modifier)
 
-        args = [:lmpop, keys.size, *keys, modifier]
+        args = [keys.size, *keys, modifier]
         args << "COUNT" << Integer(count) if count
 
-        send_command(args)
+        # pp args
+
+        send_command(RequestType::LMPOP, args)
       end
 
       # Get an element from a list by its index.
@@ -251,7 +253,7 @@ class Valkey
       # @param [Integer] index
       # @return [String]
       def lindex(key, index)
-        send_command([:lindex, key, Integer(index)])
+        send_command(RequestType::LINDEX, [key, Integer(index)])
       end
 
       # Insert an element before or after another element in a list.
@@ -263,7 +265,7 @@ class Valkey
       # @return [Integer] length of the list after the insert operation, or `-1`
       #   when the element `pivot` was not found
       def linsert(key, where, pivot, value)
-        send_command([:linsert, key, where, pivot, value])
+        send_command(RequestType::LINSERT, [key, where, pivot, value])
       end
 
       # Get a range of elements from a list.
@@ -286,7 +288,7 @@ class Valkey
       # @param [String] value
       # @return [Integer] the number of removed elements
       def lrem(key, count, value)
-        send_command([:lrem, key, Integer(count), value])
+        send_command(RequestType::LREM, [key, Integer(count), value])
       end
 
       # Set the value of an element in a list by its index.
@@ -296,7 +298,7 @@ class Valkey
       # @param [String] value
       # @return [String] `OK`
       def lset(key, index, value)
-        send_command([:lset, key, Integer(index), value])
+        send_command(RequestType::LSET, [key, Integer(index), value])
       end
 
       # Trim a list to the specified range.
@@ -306,7 +308,7 @@ class Valkey
       # @param [Integer] stop stop index
       # @return [String] `OK`
       def ltrim(key, start, stop)
-        send_command([:ltrim, key, Integer(start), Integer(stop)])
+        send_command(RequestType::LTRIM, [key, Integer(start), Integer(stop)])
       end
 
       private
@@ -323,9 +325,8 @@ class Valkey
         end
 
         args.flatten!(1)
-        command = [cmd].concat(args)
-        command << timeout
-        send_blocking_command(command, timeout, &blk)
+        args << timeout
+        send_blocking_command(cmd, args, &blk)
       end
 
       def _normalize_move_wheres(where_source, where_destination)

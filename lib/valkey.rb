@@ -71,6 +71,8 @@ class Valkey
     result = result[:response]
 
     convert_response = lambda { |result|
+      # puts "response type : #{result[:response_type]}"
+
       # TODO: handle all types of responses
       case result[:response_type]
       when ResponseType::STRING
@@ -89,6 +91,20 @@ class Valkey
           item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
           convert_response.call(item)
         end
+      when ResponseType::MAP
+        key = if result[:map_key].null?
+                nil
+              else
+                convert_response.call(result[:map_key])
+              end
+
+        value = if result[:map_value].null?
+                  nil
+                else
+                  convert_response.call(result[:map_value])
+                end
+
+        [key, value]
       when ResponseType::NULL
         nil
       when ResponseType::OK
