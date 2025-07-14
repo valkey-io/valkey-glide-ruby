@@ -4,7 +4,13 @@ class Valkey
   module Bindings
     extend FFI::Library
 
-    ffi_lib File.expand_path("./libglide_ffi.so", __dir__)
+    ffi_lib_path = if RUBY_PLATFORM =~ /darwin/
+                     File.expand_path("./libglide_ffi.dylib", __dir__)
+                   else
+                     File.expand_path("./libglide_ffi.so", __dir__)
+                   end
+
+    ffi_lib ffi_lib_path
 
     class ClientType < FFI::Struct
       layout(
