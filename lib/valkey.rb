@@ -71,8 +71,6 @@ class Valkey
     result = result[:response]
 
     convert_response = lambda { |result|
-      # puts "response type : #{result[:response_type]}"
-
       # TODO: handle all types of responses
       case result[:response_type]
       when ResponseType::STRING
