@@ -58,6 +58,10 @@ class Valkey
         send_command(RequestType::BIT_FIELD, [key] + args.map(&:to_s))
       end
 
+      def bitfield_ro(key, *args)
+        send_command(RequestType::BIT_FIELD_READ_ONLY, [key] + args.map(&:to_s))
+      end
+
       # Return the position of the first bit set to 1 or 0 in a string.
       #
       # @param [String] key
