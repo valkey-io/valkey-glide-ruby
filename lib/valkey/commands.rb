@@ -8,6 +8,7 @@ require "valkey/commands/bitmap_commands"
 require "valkey/commands/list_commands"
 require "valkey/commands/geo_commands"
 require "valkey/commands/hyper_log_log_commands"
+require "valkey/commands/sorted_set_commands"
 
 class Valkey
   # Valkey commands module
@@ -31,6 +32,7 @@ class Valkey
     include ListCommands
     include GeoCommands
     include HyperLogLogCommands
+    include SortedSetCommands
 
     # there are a few commands that are not implemented by design
     #
