@@ -32,6 +32,15 @@ class Valkey
       def geopos(key, *members)
         send_command(RequestType::GEO_POS, [key, *members])
       end
+
+      # Returns geohash string representing position for specified members of the specified key.
+      #
+      # @param [String] key
+      # @param [String, Array<String>] member one member or array of members
+      # @return [Array<String, nil>] returns array containg geohash string if member is present, nil otherwise
+      def geohash(key, *member)
+        send_command(RequestType::GEO_HASH, [key, *member])
+      end
     end
   end
 end
