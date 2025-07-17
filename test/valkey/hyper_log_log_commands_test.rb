@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class HyperLogLogCommandsTest < Minitest::Test
+class TestHyperLogLogCommands < Minitest::Test
   include Helper::Client
   include Lint::HyperLogLog
 end

@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class TestCommandsOnLists < Minitest::Test
+class TestListCommands < Minitest::Test
   include Helper::Client
   include Lint::Lists
 end

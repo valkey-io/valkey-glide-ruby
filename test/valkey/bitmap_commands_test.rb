@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class TestBitpos < Minitest::Test
+class TestBitmapCommands < Minitest::Test
   include Helper::Client
   include Lint::BitmapCommands
 end

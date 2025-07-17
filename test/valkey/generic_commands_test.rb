@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-class TestCommandsOnString < Minitest::Test
+class TestGenericCommands < Minitest::Test
   include Helper::Client
   include Lint::GenericCommands
 
