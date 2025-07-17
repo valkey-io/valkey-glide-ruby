@@ -22,6 +22,8 @@ class Valkey
   include PubSubCallback
 
   def send_command(command_type, command_args = [], &block)
+    # puts "Sending command: #{command_type} with args: #{command_args.inspect}"
+
     channel = 0
     route = ""
 
