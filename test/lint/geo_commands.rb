@@ -33,5 +33,18 @@ module Lint
       geohashes = r.geohash("Sicily", "Palermo", "Rome")
       assert_equal ["sqc8b49rny0", nil], geohashes
     end
+
+    def test_geodist
+      distination_in_meters = r.geodist("Sicily", "Palermo", "Catania")
+      assert_equal 166_274.1516, distination_in_meters
+
+      distination_in_feet = r.geodist("Sicily", "Palermo", "Catania", 'ft')
+      assert_equal 545_518.8700, distination_in_feet
+    end
+
+    def test_geodist_with_nonexistant_location
+      distination = r.geodist("Sicily", "Palermo", "Rome")
+      assert_nil distination
+    end
   end
 end

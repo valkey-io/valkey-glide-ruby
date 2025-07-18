@@ -41,6 +41,16 @@ class Valkey
       def geohash(key, *member)
         send_command(RequestType::GEO_HASH, [key, *member])
       end
+
+      # Returns the distance between two members of a geospatial index
+      #
+      # @param [String] key
+      # @param [Array<String>] members
+      # @param ['m', 'km', 'mi', 'ft'] unit
+      # @return [String, nil] returns distance in specified unit if both members present, nil otherwise.
+      def geodist(key, member1, member2, unit = 'm')
+        send_command(RequestType::GEO_DIST, [key, member1, member2, unit])
+      end
     end
   end
 end
