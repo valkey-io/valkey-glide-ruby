@@ -116,9 +116,9 @@ class Valkey
     GEO_DIST = 502
     GEO_HASH = 503
     GEO_POS = 504
-    GEO_RADIUS = 505
+    GEO_RADIUS = 505 # deprecated in 6.2.0
     GEO_RADIUS_READ_ONLY = 506 # deprecated in 6.2.0
-    GEO_RADIUS_BY_MEMBER = 507
+    GEO_RADIUS_BY_MEMBER = 507 # deprecated in 6.2.0
     GEO_RADIUS_BY_MEMBER_READ_ONLY = 508 # deprecated in 6.2.0
     GEO_SEARCH = 509
     GEO_SEARCH_STORE = 510
