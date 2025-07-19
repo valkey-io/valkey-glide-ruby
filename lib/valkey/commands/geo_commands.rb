@@ -51,6 +51,37 @@ class Valkey
       def geodist(key, member1, member2, unit = 'm')
         send_command(RequestType::GEO_DIST, [key, member1, member2, unit])
       end
+
+      # Perform raw GEOSEARCH command with direct arguments like Redis
+      #
+      # @example
+      #   valkey.geosearch("places", "FROMMEMBER", "berlin", "BYRADIUS", 1000, "km", "WITHDIST")
+      #
+      # @param [Array<String>] args full argument list for GEOSEARCH
+      # @return [Array] raw result from server
+      def geosearch(*args)
+        send_command(RequestType::GEO_SEARCH, args)
+      end
+
+      # Store the result of a GEOSEARCH query into a new sorted set key.
+      #
+      # @example
+      #   valkey.geosearchstore(
+      #     "nearby:berlin",       # destination key
+      #     "Places",               # source key
+      #     "FROMMEMBER", "Berlin",
+      #     "BYRADIUS", 200, "km",
+      #     "ASC", "COUNT", 10
+      #   )
+      #   # => 2 (number of items stored)
+      #
+      # @param [String] destination the name of the key where results will be stored
+      # @param [String] source the name of the source geo key to search from
+      # @param [Array<String, Integer>] args full argument list like GEOSEARCH (e.g., FROMMEMBER, BYRADIUS, COUNT, etc.)
+      # @return [Integer] the number of items stored in the destination key
+      def geosearchstore(destination, source, *args)
+        send_command(RequestType::GEO_SEARCH_STORE, [destination, source, *args])
+      end
     end
   end
 end

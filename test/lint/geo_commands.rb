@@ -46,5 +46,79 @@ module Lint
       distination = r.geodist("Sicily", "Palermo", "Rome")
       assert_nil distination
     end
+
+    def test_geosearch_by_member_basic
+      result = r.geosearch("Sicily", "FROMMEMBER", "Palermo", "BYRADIUS", 200, "km")
+      assert_kind_of Array, result
+      assert_includes result, "Palermo"
+      assert_includes result, "Catania"
+    end
+
+    def test_geosearch_with_dist_coord
+      result = r.geosearch("Sicily", "FROMMEMBER", "Palermo", "BYRADIUS", 200, "km", "WITHDIST", "WITHCOORD")
+
+      result.each do |entry|
+        # Check the structure: entry is [member_name, [distance, [lon, lat]]]
+        member_name, (distance, coords) = entry
+
+        # Assert member_name is a string
+        assert_kind_of String, member_name
+
+        # Assert distance is numeric and non-negative
+        assert_kind_of Numeric, distance
+        assert_operator distance, :>=, 0.0
+
+        # Assert coordinates is an array with exactly 2 numeric elements
+        assert_kind_of Array, coords
+        assert_equal 2, coords.size
+        coords.each { |coord| assert_kind_of Numeric, coord }
+      end
+    end
+
+    def test_geosearch_sorted_and_limited
+      result = r.geosearch("Sicily", "FROMMEMBER", "Palermo", "BYRADIUS", 200, "km", "ASC", "COUNT", 1)
+      assert_equal 1, result.size
+    end
+
+    def test_geosearch_fromlonlat
+      result = r.geosearch("Sicily", "FROMLONLAT", "13.361389", "38.115556", "BYRADIUS", 200, "km")
+      assert_includes result, "Palermo"
+    end
+
+    def test_geosearch_box
+      result = r.geosearch("Sicily", "FROMMEMBER", "Palermo", "BYBOX", 400, 400, "km")
+      assert_includes result, "Palermo"
+      assert_includes result, "Catania"
+    end
+
+    def test_geosearch_with_invalid_args
+      assert_raises Valkey::CommandError do
+        # Invalid clause name
+        r.geosearch("Sicily", "InvalidClause", "Palermo", "BYRADIUS", 100, "km", "WITHDIST")
+      end
+
+      assert_raises Valkey::CommandError do
+        # Invalid distance unit
+        r.geosearch("Sicily", "FROMMEMBER", "Palermo", "BYRADIUS", 100, "InvalidDistance", "WITHDIST")
+      end
+
+      assert_raises Valkey::CommandError do
+        # Invalid trailing keyword
+        r.geosearch("Sicily", "FROMMEMBER", "Palermo", "BYRADIUS", 100, "km", "InvalidKeyword")
+      end
+    end
+
+    def test_geosearchstore_saves_expected_items
+      stored_count = r.geosearchstore(
+        "nearby:palermo",
+        "Sicily",
+        "FROMMEMBER", "Palermo",
+        "BYRADIUS", 200, "km",
+        "ASC", "COUNT", 10
+      )
+
+      # We expect both "Palermo" and "Catania" to be within 200km radius
+      assert_equal 2, stored_count
+    end
   end
 end
