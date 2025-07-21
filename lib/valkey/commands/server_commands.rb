@@ -11,16 +11,14 @@ class Valkey
       #
       # @return [String] `OK`
       def bgrewriteaof
-        # TODO: not implemented yet
-        # send_command([:bgrewriteaof])
+        send_command(RequestType::BG_REWRITE_AOF)
       end
 
       # Asynchronously save the dataset to disk.
       #
       # @return [String] `OK`
       def bgsave
-        # TODO: not implemented yet
-        # send_command([:bgsave])
+        send_command(RequestType::BG_SAVE)
       end
 
       # Get or set server configuration parameters.
@@ -183,9 +181,7 @@ class Valkey
       # @return [Array<Integer>] tuple of seconds since UNIX epoch and
       #   microseconds in the current second
       def time
-        send_command([:time]) do |reply|
-          reply&.map(&:to_i)
-        end
+        send_command(RequestType::TIME)
       end
 
       def debug(*args)
