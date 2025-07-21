@@ -120,6 +120,48 @@ class Valkey
         end
       end
 
+      # Removes and returns up to count members with the highest scores in the sorted set stored at keys,
+      #   or block until one is available.
+      #
+      # @example Popping a member from a sorted set
+      #   valkey.bzpopmax('zset', 1)
+      #   #=> ['zset', 'b', 2.0]
+      # @example Popping a member from multiple sorted sets
+      #   valkey.bzpopmax('zset1', 'zset2', 1)
+      #   #=> ['zset1', 'b', 2.0]
+      #
+      # @params keys [Array<String>] one or multiple keys of the sorted sets
+      # @params timeout [Integer] the maximum number of seconds to block
+      #
+      # @return [Array<String, String, Float>] a touple of key, member and score
+      # @return [nil] when no element could be popped and the timeout expired
+      def bzpopmax(*args)
+        _bpop(:bzpopmax, args) do |reply|
+          reply.is_a?(Array) ? [reply[0], reply[1], Floatify.call(reply[2])] : reply
+        end
+      end
+
+      # Removes and returns up to count members with the lowest scores in the sorted set stored at keys,
+      #   or block until one is available.
+      #
+      # @example Popping a member from a sorted set
+      #   valkey.bzpopmin('zset', 1)
+      #   #=> ['zset', 'a', 1.0]
+      # @example Popping a member from multiple sorted sets
+      #   valkey.bzpopmin('zset1', 'zset2', 1)
+      #   #=> ['zset1', 'a', 1.0]
+      #
+      # @params keys [Array<String>] one or multiple keys of the sorted sets
+      # @params timeout [Integer] the maximum number of seconds to block
+      #
+      # @return [Array<String, String, Float>] a touple of key, member and score
+      # @return [nil] when no element could be popped and the timeout expired
+      def bzpopmin(*args)
+        _bpop(:bzpopmin, args) do |reply|
+          reply.is_a?(Array) ? [reply[0], reply[1], Floatify.call(reply[2])] : reply
+        end
+      end
+
       # Get the score associated with the given member in a sorted set.
       #
       # @example Get the score for member "a"
@@ -131,6 +173,55 @@ class Valkey
       # @return [Float] score of the member
       def zscore(key, member)
         send_command(RequestType::Z_SCORE, [key, member], &Utils::Floatify)
+      end
+
+      # Get the scores associated with the given members in a sorted set.
+      #
+      # @example Get the scores for members "a" and "b"
+      #   valkey.zmscore("zset", "a", "b")
+      #     # => [32.0, 48.0]
+      #
+      # @param [String] key
+      # @param [String, Array<String>] members
+      # @return [Array<Float>] scores of the members
+      def zmscore(key, *members)
+        send_command(RequestType::Z_MSCORE, [key, *members]) do |reply|
+          reply.map(&Utils::Floatify)
+        end
+      end
+
+      # Select a range of members in a sorted set, by index, score or lexicographical ordering
+      # and store the resulting sorted set in a new key.
+      #
+      # @example
+      #   valkey.zadd("foo", [[1.0, "s1"], [2.0, "s2"], [3.0, "s3"]])
+      #   valkey.zrangestore("bar", "foo", 0, 1)
+      #     # => 2
+      #   valkey.zrange("bar", 0, -1)
+      #     # => ["s1", "s2"]
+      #
+      # @return [Integer] the number of elements in the resulting sorted set
+      # @see #zrange
+      def zrangestore(dest_key, src_key, start, stop, byscore: false, by_score: byscore,
+                      bylex: false, by_lex: bylex, rev: false, limit: nil)
+        raise ArgumentError, "only one of :by_score or :by_lex can be specified" if by_score && by_lex
+
+        args = [dest_key, src_key, start, stop]
+
+        if by_score
+          args << "BYSCORE"
+        elsif by_lex
+          args << "BYLEX"
+        end
+
+        args << "REV" if rev
+
+        if limit
+          args << "LIMIT"
+          args.concat(limit.map { |l| Integer(l) })
+        end
+
+        send_command(RequestType::Z_RANGE_STORE, args)
       end
 
       # Determine the index of a member in a sorted set.
@@ -184,6 +275,196 @@ class Valkey
         end
 
         send_command(RequestType::Z_REV_RANK, args, &block)
+      end
+
+      # Remove all members in a sorted set within the given indexes.
+      #
+      # @example Remove first 5 members
+      #   valkey.zremrangebyrank("zset", 0, 4)
+      #     # => 5
+      # @example Remove last 5 members
+      #   valkey.zremrangebyrank("zset", -5, -1)
+      #     # => 5
+      #
+      # @param [String] key
+      # @param [Integer] start start index
+      # @param [Integer] stop stop index
+      # @return [Integer] number of members that were removed
+      def zremrangebyrank(key, start, stop)
+        send_command(RequestType::Z_REM_RANGE_BY_RANK, [key, start, stop])
+      end
+
+      # Count the members, with the same score in a sorted set, within the given lexicographical range.
+      #
+      # @example Count members matching a
+      #   valkey.zlexcount("zset", "[a", "[a\xff")
+      #     # => 1
+      # @example Count members matching a-z
+      #   valkey.zlexcount("zset", "[a", "[z\xff")
+      #     # => 26
+      #
+      # @param [String] key
+      # @param [String] min
+      #   - inclusive minimum is specified by prefixing `(`
+      #   - exclusive minimum is specified by prefixing `[`
+      # @param [String] max
+      #   - inclusive maximum is specified by prefixing `(`
+      #   - exclusive maximum is specified by prefixing `[`
+      #
+      # @return [Integer] number of members within the specified lexicographical range
+      def zlexcount(key, min, max)
+        send_command(RequestType::Z_LEX_COUNT, [key, min, max])
+      end
+
+      # Remove all members in a sorted set within the given scores.
+      #
+      # @example Remove members with score `>= 5` and `< 100`
+      #   valkey.zremrangebyscore("zset", "5", "(100")
+      #     # => 2
+      # @example Remove members with scores `> 5`
+      #   valkey.zremrangebyscore("zset", "(5", "+inf")
+      #     # => 2
+      #
+      # @param [String] key
+      # @param [String] min
+      #   - inclusive minimum score is specified verbatim
+      #   - exclusive minimum score is specified by prefixing `(`
+      # @param [String] max
+      #   - inclusive maximum score is specified verbatim
+      #   - exclusive maximum score is specified by prefixing `(`
+      # @return [Integer] number of members that were removed
+      def zremrangebyscore(key, min, max)
+        send_command(RequestType::Z_REM_RANGE_BY_SCORE, [key, min, max])
+      end
+
+      # Count the members in a sorted set with scores within the given values.
+      #
+      # @example Count members with score `>= 5` and `< 100`
+      #   valkey.zcount("zset", "5", "(100")
+      #     # => 2
+      # @example Count members with scores `> 5`
+      #   valkey.zcount("zset", "(5", "+inf")
+      #     # => 2
+      #
+      # @param [String] key
+      # @param [String] min
+      #   - inclusive minimum score is specified verbatim
+      #   - exclusive minimum score is specified by prefixing `(`
+      # @param [String] max
+      #   - inclusive maximum score is specified verbatim
+      #   - exclusive maximum score is specified by prefixing `(`
+      # @return [Integer] number of members in within the specified range
+      def zcount(key, min, max)
+        send_command(RequestType::Z_COUNT, [key, min, max])
+      end
+
+      # Intersect multiple sorted sets and store the resulting sorted set in a new
+      # key.
+      #
+      # @example Compute the intersection of `2*zsetA` with `1*zsetB`, summing their scores
+      #   valkey.zinterstore("zsetC", ["zsetA", "zsetB"], :weights => [2.0, 1.0], :aggregate => "sum")
+      #     # => 4
+      #
+      # @param [String] destination destination key
+      # @param [Array<String>] keys source keys
+      # @param [Hash] options
+      #   - `:weights => [Array<Float>]`: weights to associate with source
+      #   sorted sets
+      #   - `:aggregate => String`: aggregate function to use (sum, min, max)
+      # @return [Integer] number of elements in the resulting sorted set
+      def zinterstore(*args)
+        _zsets_operation_store(RequestType::Z_INTER_STORE, *args)
+      end
+      ruby2_keywords(:zinterstore) if respond_to?(:ruby2_keywords, true)
+
+      # Add multiple sorted sets and store the resulting sorted set in a new key.
+      #
+      # @example Compute the union of `2*zsetA` with `1*zsetB`, summing their scores
+      #   valkey.zunionstore("zsetC", ["zsetA", "zsetB"], :weights => [2.0, 1.0], :aggregate => "sum")
+      #     # => 8
+      #
+      # @param [String] destination destination key
+      # @param [Array<String>] keys source keys
+      # @param [Hash] options
+      #   - `:weights => [Float, Float, ...]`: weights to associate with source
+      #   sorted sets
+      #   - `:aggregate => String`: aggregate function to use (sum, min, max, ...)
+      # @return [Integer] number of elements in the resulting sorted set
+      def zunionstore(*args)
+        _zsets_operation_store(RequestType::Z_UNION_STORE, *args)
+      end
+      ruby2_keywords(:zunionstore) if respond_to?(:ruby2_keywords, true)
+
+      # Compute the difference between the first and all successive input sorted sets
+      # and store the resulting sorted set in a new key
+      #
+      # @example
+      #   valkey.zadd("zsetA", [[1.0, "v1"], [2.0, "v2"]])
+      #   valkey.zadd("zsetB", [[3.0, "v2"], [2.0, "v3"]])
+      #   valkey.zdiffstore("zsetA", "zsetB")
+      #     # => 1
+      #
+      # @param [String] destination destination key
+      # @param [Array<String>] keys source keys
+      # @return [Integer] number of elements in the resulting sorted set
+      def zdiffstore(*args)
+        _zsets_operation_store(RequestType::Z_DIFF_STORE, *args)
+      end
+      ruby2_keywords(:zdiffstore) if respond_to?(:ruby2_keywords, true)
+
+      # Scan a sorted set
+      #
+      # @example Retrieve the first batch of key/value pairs in a hash
+      #   valkey.zscan("zset", 0)
+      #
+      # @param [String, Integer] cursor the cursor of the iteration
+      # @param [Hash] options
+      #   - `:match => String`: only return keys matching the pattern
+      #   - `:count => Integer`: return count keys at most per iteration
+      #
+      # @return [String, Array<[String, Float]>] the next cursor and all found
+      #   members and scores
+      #
+      # See the [Valkey Server ZSCAN documentation](https://valkey.io/docs/latest/commands/zscan/) for further details
+      def zscan(key, cursor, **options)
+        _scan(RequestType::Z_SCAN, cursor, [key], **options) do |reply|
+          [reply[0], Utils::FloatifyPairs.call(reply[1])]
+        end
+      end
+
+      private
+
+      def _zsets_operation(cmd, *keys, weights: nil, aggregate: nil, with_scores: false)
+        keys.flatten!(1)
+        command_args = [keys.size].concat(keys)
+
+        if weights
+          command_args << "WEIGHTS"
+          command_args.concat(weights)
+        end
+
+        command_args << "AGGREGATE" << aggregate if aggregate
+
+        if with_scores
+          command_args << "WITHSCORES"
+          block = Utils::FloatifyPairs
+        end
+
+        send_command(cmd, command_args, &block)
+      end
+
+      def _zsets_operation_store(cmd, destination, keys, weights: nil, aggregate: nil)
+        keys.flatten!(1)
+        command_args = [destination, keys.size].concat(keys)
+
+        if weights
+          command_args << "WEIGHTS"
+          command_args.concat(weights)
+        end
+
+        command_args << "AGGREGATE" << aggregate if aggregate
+
+        send_command(cmd, command_args)
       end
     end
   end
