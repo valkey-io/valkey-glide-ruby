@@ -11,6 +11,8 @@
 # AllowedMethods: refine
 Metrics/BlockLength:
   Max: 35
+  Exclude:
+    - 'lib/valkey.rb'
 
 # Offense count: 1
 # Configuration parameters: CountComments, CountAsOne.

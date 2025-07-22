@@ -200,12 +200,18 @@ class Valkey
     host = options[:host] || "127.0.0.1"
     port = options[:port] || 6379
 
+    nodes = options[:nodes] || [{ host: host, port: port }]
+
+    cluster_mode_enabled = options[:cluster_mode] || false
+
     request = ConnectionRequest::ConnectionRequest.new(
-      addresses: [ConnectionRequest::NodeAddress.new(host: host, port: port)]
+      cluster_mode_enabled: cluster_mode_enabled,
+      request_timeout: options[:timeout] || 3.0,
+      addresses: nodes.map { |node| ConnectionRequest::NodeAddress.new(host: node[:host], port: node[:port]) }
     )
 
     client_type = Bindings::ClientType.new
-    client_type[:tag] = 1 # AsyncClient
+    client_type[:tag] = 1 # SyncClient
 
     request_str = ConnectionRequest::ConnectionRequest.encode(request)
     request_buf = FFI::MemoryPointer.new(:char, request_str.bytesize)

@@ -40,32 +40,6 @@ module Helper
       super
     end
 
-    def init(valkey)
-      valkey.select 14
-      valkey.flushdb
-      valkey.select 15
-      valkey.flushdb
-      valkey
-    rescue Valkey::CannotConnectError
-      puts <<-MSG
-
-        Cannot connect to Valkey.
-
-        Make sure Valkey is running on localhost, port #{PORT}.
-        This testing suite connects to the database 15.
-
-        Try this once:
-
-          $ make clean
-
-        Then run the build again:
-
-          $ make
-
-      MSG
-      exit 1
-    end
-
     def assert_in_range(range, value)
       assert range.include?(value), "expected #{value} to be in #{range.inspect}"
     end
