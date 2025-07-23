@@ -114,7 +114,7 @@ class Valkey
       #
       # @return [Integer]
       def lastsave
-        send_command([:lastsave])
+        send_command(RequestType::LAST_SAVE)
       end
 
       # Listen for all requests received by the server in real time.
@@ -137,7 +137,7 @@ class Valkey
       #
       # @return [String]
       def save
-        send_command([:save])
+        send_command(RequestType::SAVE)
       end
 
       # Synchronously save the dataset to disk and then shut down the server.
@@ -154,7 +154,7 @@ class Valkey
 
       # Make the server a slave of another instance, or promote it as master.
       def slaveof(host, port)
-        send_command([:slaveof, host, port])
+        send_command(RequestType::SLAVE_OF, [host, port])
       end
 
       # Interact with the slowlog (get, len, reset)
@@ -170,7 +170,7 @@ class Valkey
 
       # Internal command used for replication.
       def sync
-        send_command([:sync])
+        send_command(RequestType::SYNC)
       end
 
       # Return the server time.
@@ -184,6 +184,7 @@ class Valkey
         send_command(RequestType::TIME)
       end
 
+      # RequestType::DEBUG not exist
       def debug(*args)
         send_command(RequestType::DEBUG, args)
       end
