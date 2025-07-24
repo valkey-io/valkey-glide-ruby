@@ -285,17 +285,16 @@ module Lint
       assert_nil response['{1}baz']
     end
 
-    # TODO: pipeline is not supported
-    # def test_mapped_mget_in_a_pipeline_returns_hash
-    #   r.set('{1}foo', 's1')
-    #   r.set('{1}bar', 's2')
-    #
-    #   result = r.pipelined do |pipeline|
-    #     pipeline.mapped_mget('{1}foo', '{1}bar')
-    #   end
-    #
-    #   assert_equal({ '{1}foo' => 's1', '{1}bar' => 's2' }, result[0])
-    # end
+    def test_mapped_mget_in_a_pipeline_returns_hash
+      r.set('{1}foo', 's1')
+      r.set('{1}bar', 's2')
+
+      result = r.pipelined do |pipeline|
+        pipeline.mapped_mget('{1}foo', '{1}bar')
+      end
+
+      assert_equal({ '{1}foo' => 's1', '{1}bar' => 's2' }, result[0])
+    end
 
     def test_mset
       r.mset('{1}foo', 's1', '{1}bar', 's2')

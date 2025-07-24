@@ -16,3 +16,5 @@ Metrics/BlockLength:
 # Configuration parameters: CountComments, CountAsOne.
 Metrics/ClassLength:
   Max: 111
+  Exclude:
+    - 'lib/valkey.rb'

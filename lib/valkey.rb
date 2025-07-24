@@ -15,18 +15,73 @@ require "valkey/utils"
 require "valkey/commands"
 require "valkey/errors"
 require "valkey/pubsub_callback"
+require "valkey/pipeline"
 
 class Valkey
   include Utils
   include Commands
   include PubSubCallback
 
-  def send_command(command_type, command_args = [], &block)
-    # puts "Sending command: #{command_type} with args: #{command_args.inspect}"
+  def pipelined(exception: true)
+    pipeline = Pipeline.new
 
-    channel = 0
-    route = ""
+    yield pipeline
 
+    return if pipeline.commands.empty?
+
+    send_batch_commands(pipeline.commands, exception: exception)
+  end
+
+  def send_batch_commands(commands, exception: true)
+    cmds = []
+    blocks = []
+
+    commands.each do |command_type, command_args, block|
+      arg_ptrs, arg_lens = build_command_args(command_args)
+
+      cmd = Bindings::CmdInfo.new
+      cmd[:request_type] = command_type
+      cmd[:args] = arg_ptrs
+      cmd[:arg_count] = command_args.size
+      cmd[:args_len] = arg_lens
+
+      cmds << cmd
+      blocks << block
+    end
+
+    batch_info = Bindings::BatchInfo.new
+    batch_info[:cmd_count] = cmds.size
+    batch_info[:cmds] = FFI::MemoryPointer.new(Bindings::CmdInfo, cmds.size)
+
+    cmds.each_with_index do |cmd, i|
+      batch_info[:cmds].put_pointer(i * Bindings::CmdInfo.size, cmd.to_ptr)
+    end
+
+    batch_options = Bindings::BatchOptionsInfo.new
+    batch_options[:retry_server_error] = true
+    batch_options[:retry_connection_error] = true
+    batch_options[:has_timeout] = false
+    batch_options[:timeout] = 0 # No timeout
+
+    res = Bindings.batch(
+      @connection, # Assuming @connection is set after create
+      0,
+      batch_info,
+      exception,
+      batch_options,
+      0
+    )
+
+    results = convert_response(res)
+
+    blocks.each_with_index do |block, i|
+      results[i] = block.call(results[i]) if block
+    end
+
+    results
+  end
+
+  def build_command_args(command_args)
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
     arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
     buffers = []
@@ -40,19 +95,10 @@ class Valkey
       arg_lens.put_ulong(i * 8, arg.bytesize)
     end
 
-    route_buf = FFI::MemoryPointer.from_string(route)
+    [arg_ptrs, arg_lens]
+  end
 
-    res = Bindings.command(
-      @connection, # Assuming @connection is set after create
-      channel,
-      command_type,
-      command_args.size,
-      arg_ptrs,
-      arg_lens,
-      route_buf,
-      route.bytesize
-    )
-
+  def convert_response(res, &block)
     result = Bindings::CommandResult.new(res)
 
     if result[:response].null?
@@ -121,6 +167,28 @@ class Valkey
     else
       response
     end
+  end
+
+  def send_command(command_type, command_args = [], &block)
+    channel = 0
+    route = ""
+
+    route_buf = FFI::MemoryPointer.from_string(route)
+
+    arg_ptrs, arg_lens = build_command_args(command_args)
+
+    res = Bindings.command(
+      @connection, # Assuming @connection is set after create
+      channel,
+      command_type,
+      command_args.size,
+      arg_ptrs,
+      arg_lens,
+      route_buf,
+      route.bytesize
+    )
+
+    convert_response(res, &block)
   end
 
   def initialize(options = {})

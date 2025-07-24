@@ -26,6 +26,33 @@ class Valkey
       )
     end
 
+    class BatchOptionsInfo < FFI::Struct
+      layout(
+        :retry_server_error, :bool,
+        :retry_connection_error, :bool,
+        :has_timeout, :bool,
+        :timeout, :uint, # Assuming u32 is represented as uint in C
+        :route_info, :pointer # *const RouteInfo
+      )
+    end
+
+    class CmdInfo < FFI::Struct
+      layout(
+        :request_type, :int,  # Assuming RequestType is repr(C) enum
+        :args, :pointer,      # *const *const u8 (pointer to array of pointers to args)
+        :arg_count, :ulong,   # usize (number of arguments)
+        :args_len, :pointer   # *const usize (pointer to array of argument lengths)
+      )
+    end
+
+    class BatchInfo < FFI::Struct
+      layout(
+        :cmd_count, :ulong,  # usize
+        :cmds, :pointer,     # *const *const CmdInfo
+        :is_atomic, :bool    # bool
+      )
+    end
+
     class CommandResponse < FFI::Struct
       layout(
         :response_type, :int,         # Assuming ResponseType is repr(C) enum
@@ -95,5 +122,14 @@ class Valkey
       :pointer,     # route_bytes
       :ulong        # route_bytes_len
     ], :pointer     # returns *mut CommandResult
+
+    attach_function :batch, [
+      :pointer,        # client_ptr
+      :ulong,          # callback_index
+      BatchInfo.by_ref, # *const BatchInfo
+      :bool,           # raise_on_error
+      :pointer,        # *const BatchOptionsInfo
+      :ulong           # span_ptr (u64)
+    ], :pointer # returns *mut CommandResult
   end
 end
