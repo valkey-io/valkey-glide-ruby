@@ -27,15 +27,29 @@ class Valkey
       # @return [String, Hash] string reply, or hash when retrieving more than one
       #   property with `CONFIG GET`
       def config(action, *args)
-        # TODO: not implemented yet
+        send("config_#{action.to_s.downcase}", *args)
+      end
 
-        # send_command([:config, action] + args) do |reply|
-        #   if reply.is_a?(Array) && action == :get
-        #     Hashify.call(reply)
-        #   else
-        #     reply
-        #   end
-        # end
+      def config_get(*args)
+        send_command(RequestType::CONFIG_GET, args) do |reply|
+          if reply.is_a?(Array)
+            Hash[*reply]
+          else
+            reply
+          end
+        end
+      end
+
+      def config_set(*args)
+        send_command(RequestType::CONFIG_SET, args)
+      end
+
+      def config_resetstat
+        send_command(RequestType::CONFIG_RESET_STAT)
+      end
+
+      def config_rewrite
+        send_command(RequestType::CONFIG_REWRITE)
       end
 
       # Manage client connections.

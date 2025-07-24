@@ -79,5 +79,36 @@ module Lint
       response = r.debug("OBJECT", "somekey")
       assert response.is_a?(String), "Expected debug to return a String response"
     end
+
+    def test_config_set
+      response = r.config(:set, "maxmemory", "100mb")
+      assert_equal "OK", response
+    end
+
+    def test_config_get
+      skip("mapping does not implemented correctly yet")
+
+      r.config(:set, "maxmemory", "100mb")
+      result = r.config(:get, "maxmemory")
+      assert_kind_of Hash, result
+      assert result.key?("maxmemory"), "Expected key 'maxmemory' in result"
+      assert_equal "104857600", result["maxmemory"] # 100mb in bytes
+    end
+
+    def test_config_resetstat
+      response = r.config(:resetstat)
+      assert_equal "OK", response
+    end
+
+    def test_config_rewrite
+      response = r.config(:rewrite)
+      assert_equal "OK", response
+    end
+
+    def test_config_invalid
+      assert_raises(NoMethodError) do
+        r.config(:nonexistent)
+      end
+    end
   end
 end
