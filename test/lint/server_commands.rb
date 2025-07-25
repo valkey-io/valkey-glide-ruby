@@ -86,8 +86,6 @@ module Lint
     end
 
     def test_config_get
-      skip("mapping does not implemented correctly yet")
-
       r.config(:set, "maxmemory", "100mb")
       result = r.config(:get, "maxmemory")
       assert_kind_of Hash, result
