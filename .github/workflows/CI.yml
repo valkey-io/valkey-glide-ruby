@@ -45,7 +45,7 @@ jobs:
 
     services:
       valkey:
-        image: ${{ matrix.valkey }}
+        image: valkey/valkey:${{ matrix.valkey }}
         ports:
           - 6379:6379
         options: >-
