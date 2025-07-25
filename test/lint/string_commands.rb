@@ -333,5 +333,38 @@ module Lint
       assert_equal 's2', r.get('{1}foo')
       assert_equal 's3', r.get('{1}bar')
     end
+
+    def test_lcs
+      target_version "7.0" do
+        r.mset('key1', 'ohmytext', 'key2', 'mynewtext')
+        assert_equal "mytext", r.lcs('key1', 'key2')
+
+        assert_equal ["matches", [
+          [
+            [4, 7],
+            [5, 8]
+          ],
+          [
+            [2, 3],
+            [0, 1]
+          ]
+        ], "len", 6], r.lcs('key1', 'key2', idx: true)
+
+        assert_equal ["matches", [
+          [
+            [4, 7],
+            [5, 8]
+          ]
+        ], "len", 6], r.lcs('key1', 'key2', idx: true, min_match_len: 4)
+      end
+
+      assert_equal ["matches", [
+        [
+          [4, 7],
+          [5, 8],
+          4
+        ]
+      ], "len", 6], r.lcs('key1', 'key2', idx: true, min_match_len: 4, with_match_len: true)
+    end
   end
 end

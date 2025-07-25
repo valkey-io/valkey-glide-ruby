@@ -314,6 +314,26 @@ class Valkey
       def strlen(key)
         send_command(RequestType::STRLEN, [key])
       end
+
+      # This command implements longest common subsequence algorithm.
+      #
+      # @param [String] key1
+      # @param [String] key2
+      # @param [Integer] len length of the longest common subsequence
+      # @param [Boolean] idx
+      # @param [Integer] min_match_len minimum length of the match
+      # @param [Boolean] with_match_len
+      #
+      # @see https://valkey.io/commands/#lcs
+      def lcs(key1, key2, len: nil, idx: nil, min_match_len: nil, with_match_len: nil)
+        args = [key1, key2]
+        args << "LEN" << len if len
+        args << "IDX" if idx
+        args << "MINMATCHLEN" << min_match_len if min_match_len
+        args << "WITHMATCHLEN" if with_match_len
+
+        send_command(RequestType::LCS, args)
+      end
     end
   end
 end
