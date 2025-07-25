@@ -25,7 +25,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }} Valkey ${{ matrix.valkey }}
+    name: Ruby ${{ matrix.ruby }} Valkey Server ${{ matrix.valkey }}
     strategy:
       fail-fast: false
       matrix:
@@ -38,14 +38,14 @@ jobs:
           - 2.7
           - 2.6
           - jruby
-        valkey:
-          - 7.0
-          - 7.2.9
-          - 8
+        valkey-server-version:
+          - valkey/valkey:7.0
+          - valkey/valkey:7.2.9
+          - valkey/valkey:8
 
     services:
       valkey:
-        image: valkey/valkey:$${ matrix.valkey }
+        image: $${ matrix.valkey-server-version }
         ports:
           - 6379:6379
         options: >-
