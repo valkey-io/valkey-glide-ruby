@@ -25,7 +25,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    name: Ruby ${{ matrix.ruby }} Valkey Server ${{ matrix.valkey }}
+    name: Ruby ${{ matrix.ruby }} Valkey Server ${{ matrix.valkey-server-version }}
     strategy:
       fail-fast: false
       matrix:
