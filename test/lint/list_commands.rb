@@ -187,47 +187,31 @@ module Lint
       end
     end
 
-    # def test_rpoplpush
-    #   r.rpush 'foo', 's1'
-    #   r.rpush 'foo', 's2'
-    #
-    #   assert_equal 's2', r.rpoplpush('foo', 'bar')
-    #   assert_equal ['s2'], r.lrange('bar', 0, -1)
-    #   assert_equal 's1', r.rpoplpush('foo', 'bar')
-    #   assert_equal %w[s1 s2], r.lrange('bar', 0, -1)
-    # end
+    def test_blmpop
+      target_version('7.0') do
+        assert_nil r.blmpop(0.1, '{1}foo')
 
-    # def test_variadic_rpoplpush_expand
-    #   valkey.rpush('{1}foo', %w[a b c])
-    #   valkey.rpush('{1}bar', %w[d e f])
-    #   assert_equal 'c', valkey.rpoplpush('{1}foo', '{1}bar')
-    # end
+        r.lpush('{1}foo', %w[a b c d e f g])
+        assert_equal ['{1}foo', ['g']], r.blmpop(0.1, '{1}foo')
+        assert_equal ['{1}foo', %w[f e]], r.blmpop(0.1, '{1}foo', count: 2)
 
-    # def test_blmpop
-    #   target_version('7.0') do
-    #     assert_nil r.blmpop(0.1, '{1}foo')
-    #
-    #     r.lpush('{1}foo', %w[a b c d e f g])
-    #     assert_equal ['{1}foo', ['g']], r.blmpop(0.1, '{1}foo')
-    #     assert_equal ['{1}foo', %w[f e]], r.blmpop(0.1, '{1}foo', count: 2)
-    #
-    #     r.lpush('{1}foo2', %w[a b])
-    #     assert_equal ['{1}foo', ['a']], r.blmpop(0.1, '{1}foo', '{1}foo2', modifier: "RIGHT")
-    #   end
-    # end
+        r.lpush('{1}foo2', %w[a b])
+        assert_equal ['{1}foo', ['a']], r.blmpop(0.1, '{1}foo', '{1}foo2', modifier: "RIGHT")
+      end
+    end
 
-    # def test_lmpop
-    #   target_version('7.0') do
-    #     assert_nil r.lmpop('{1}foo')
-    #
-    #     r.lpush('{1}foo', %w[a b c d e f g])
-    #
-    #     assert_equal ['{1}foo', ['g']], r.lmpop('{1}foo')
-    #     assert_equal ['{1}foo', ['f', 'e']], r.lmpop('{1}foo', count: 2)
-    #
-    #     r.lpush('{1}foo2', %w[a b])
-    #     assert_equal ['{1}foo', ['a']], r.lmpop('{1}foo', '{1}foo2', modifier: "RIGHT")
-    #   end
-    # end
+    def test_lmpop
+      target_version('7.0') do
+        assert_nil r.lmpop('{1}foo')
+
+        r.lpush('{1}foo', %w[a b c d e f g])
+
+        assert_equal ['{1}foo', ['g']], r.lmpop('{1}foo')
+        assert_equal ['{1}foo', %w[f e]], r.lmpop('{1}foo', count: 2)
+
+        r.lpush('{1}foo2', %w[a b])
+        assert_equal ['{1}foo', ['a']], r.lmpop('{1}foo', '{1}foo2', modifier: "RIGHT")
+      end
+    end
   end
 end

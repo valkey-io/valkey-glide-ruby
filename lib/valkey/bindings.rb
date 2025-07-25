@@ -114,13 +114,14 @@ class Valkey
 
     attach_function :command, [
       :pointer,     # client_adapter_ptr
-      :ulong,       # channel
+      :ulong,       # request_id
       :int,         # command_type
       :ulong,       # arg_count
       :pointer,     # args (pointer to usize[])
       :pointer,     # args_len (pointer to c_ulong[])
       :pointer,     # route_bytes
-      :ulong        # route_bytes_len
+      :ulong,       # route_bytes_len
+      :ulong        # span_ptr (u64)
     ], :pointer     # returns *mut CommandResult
 
     attach_function :batch, [

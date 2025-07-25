@@ -138,19 +138,23 @@ class Valkey
           convert_response.call(item)
         end
       when ResponseType::MAP
-        key = if result[:map_key].null?
-                nil
-              else
-                convert_response.call(result[:map_key])
-              end
+        return nil if result[:array_value].null?
 
-        value = if result[:map_value].null?
-                  nil
-                else
-                  convert_response.call(result[:map_value])
-                end
+        ptr = result[:array_value]
+        count = result[:array_value_len].to_i
+        map = {}
 
-        [key, value]
+        Array.new(count) do |i|
+          item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
+
+          map_key = convert_response.call(Bindings::CommandResponse.new(item[:map_key]))
+          map_value = convert_response.call(Bindings::CommandResponse.new(item[:map_value]))
+
+          map[map_key] = map_value
+        end
+
+        # technically it has to return a Hash, but as of now we return just one pair
+        map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::NULL
         nil
       when ResponseType::OK
@@ -185,7 +189,8 @@ class Valkey
       arg_ptrs,
       arg_lens,
       route_buf,
-      route.bytesize
+      route.bytesize,
+      0
     )
 
     convert_response(res, &block)
