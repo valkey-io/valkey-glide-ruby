@@ -45,7 +45,7 @@ jobs:
 
     services:
       valkey:
-        image: $${ matrix.valkey-server-version }
+        image: ${{ matrix.valkey-server-version }}
         ports:
           - 6379:6379
         options: >-
