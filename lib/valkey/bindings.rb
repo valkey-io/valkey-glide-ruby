@@ -45,6 +45,14 @@ class Valkey
       )
     end
 
+    class ScriptHashBuffer < FFI::Struct
+      layout(
+        :ptr, :pointer,  # *mut u8 (pointer to the script hash)
+        :len, :ulong,    # usize (length of the script hash)
+        :capacity, :ulong # usize (capacity of the buffer)
+      )
+    end
+
     class BatchInfo < FFI::Struct
       layout(
         :cmd_count, :ulong,  # usize
@@ -131,6 +139,25 @@ class Valkey
       :bool,           # raise_on_error
       :pointer,        # *const BatchOptionsInfo
       :ulong           # span_ptr (u64)
+    ], :pointer # returns *mut CommandResult
+
+    attach_function :store_script, [
+      :pointer, # *const u8 (script_bytes)
+      :ulong # usize (script_len)
+    ], :pointer # returns *mut ScriptHashBuffer
+
+    attach_function :invoke_script, [
+      :pointer,        # client_ptr
+      :ulong,          # request_id
+      :pointer,        # hash (pointer to C string)
+      :ulong,          # keys_count (number of keys)
+      :pointer,        # keys (pointer to usize[])
+      :pointer,        # keys_len (pointer to c_ulong[])
+      :ulong,          # args_count (number of args)
+      :pointer,        # args (pointer to usize[])
+      :pointer,        # args_len (pointer to c_ulong[])
+      :pointer,        # route_bytes (pointer to u8)
+      :ulong           # route_bytes_len (usize)
     ], :pointer # returns *mut CommandResult
   end
 end
