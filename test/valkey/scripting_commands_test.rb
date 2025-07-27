@@ -38,6 +38,6 @@ class TestScriptingCommands < Minitest::Test
 
   def test_script_kill
     # there is no script running
-    assert_raises(Valkey::CommandError) { r.script("kill") }
+    assert_raises(Valkey::CommandError) { r.script_kill }
   end
 end

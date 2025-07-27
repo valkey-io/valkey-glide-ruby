@@ -19,7 +19,7 @@ class Valkey
           args << member
         end
 
-        send_command(RequestType::PFADD, args, &Utils::Boolify)
+        send_command(RequestType::PFADD, args)
       end
 
       # Get the approximate cardinality of members added to HyperLogLog structure.

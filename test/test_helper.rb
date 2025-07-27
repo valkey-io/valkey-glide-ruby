@@ -4,10 +4,13 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "valkey"
 
 require "minitest/autorun"
+require 'minitest/reporters'
 
 require_relative 'support/helper/generic'
 require_relative 'support/helper/version'
 require_relative 'support/helper/client'
+
+Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
 $VERBOSE = true
 
