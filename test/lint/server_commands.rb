@@ -99,7 +99,9 @@ module Lint
     end
 
     def test_config_rewrite
-      assert_equal "OK", r.config(:rewrite)
+      assert_raises(Valkey::CommandError, "Rewriting config file: Read-only file system") do
+        r.config(:rewrite)
+      end
     end
 
     def test_config_invalid
