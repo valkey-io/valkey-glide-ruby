@@ -2,16 +2,6 @@
 
 module Lint
   module SetCommands
-    def setup
-      super
-      r.flushdb
-    end
-
-    def teardown
-      r.flushdb
-      super
-    end
-
     def test_sadd
       assert_equal 1, r.sadd("foo", "s1")
       assert_equal 1, r.sadd("foo", "s2")
@@ -122,14 +112,14 @@ module Lint
     end
 
     def test_sismember
-      r.spop("foo", "s1")
+      r.del("foo")
       assert_equal false, r.sismember("foo", "s1")
 
       r.sadd "foo", "s1"
 
       assert_equal true,  r.sismember("foo", "s1")
       assert_equal false, r.sismember("foo", "s2")
-      r.spop("foo", "s1")
+      r.del("foo")
     end
 
     def test_smismember
