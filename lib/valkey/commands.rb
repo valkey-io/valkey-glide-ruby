@@ -9,6 +9,7 @@ require "valkey/commands/list_commands"
 require "valkey/commands/geo_commands"
 require "valkey/commands/hyper_log_log_commands"
 require "valkey/commands/sorted_set_commands"
+require "valkey/commands/set_commands"
 require "valkey/commands/scripting_commands"
 
 class Valkey
@@ -34,6 +35,7 @@ class Valkey
     include GeoCommands
     include HyperLogLogCommands
     include SortedSetCommands
+    include SetCommands
     include ScriptingCommands
 
     # there are a few commands that are not implemented by design
