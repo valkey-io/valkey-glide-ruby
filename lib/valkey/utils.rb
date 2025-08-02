@@ -11,16 +11,7 @@ class Valkey
   #
   module Utils
     Boolify = lambda { |value|
-      case value
-      when nil
-        nil
-      when 0, "0"
-        false
-      when 1, "1"
-        true
-      else
-        value != 0
-      end
+      value != 0 unless value.nil?
     }
 
     BoolifySet = lambda { |value|
