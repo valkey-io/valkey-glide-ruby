@@ -101,8 +101,6 @@ class Valkey
   def convert_response(res, &block)
     result = Bindings::CommandResult.new(res)
 
-    puts result
-
     if result[:response].null?
       error = result[:command_error]
 
@@ -120,7 +118,7 @@ class Valkey
 
     result = result[:response]
 
-    puts result
+    puts result[:response_type]
 
     convert_response = lambda { |result|
       # TODO: handle all types of responses
