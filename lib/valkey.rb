@@ -118,8 +118,6 @@ class Valkey
 
     result = result[:response]
 
-    puts result[:response_type]
-
     convert_response = lambda { |result|
       # TODO: handle all types of responses
       case result[:response_type]
