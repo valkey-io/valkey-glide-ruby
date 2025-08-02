@@ -116,14 +116,11 @@ module Lint
     end
 
     def test_sismember
-      p "TESTT #{r.sismember("foo", "s1")}"
       assert_equal false, r.sismember("foo", "s1")
 
       r.sadd "foo", "s1"
 
-      p "TESTT #{r.sismember("foo", "s1")}"
       assert_equal true,  r.sismember("foo", "s1")
-      p "TESTT #{r.sismember("foo", "s1")}"
       assert_equal false, r.sismember("foo", "s2")
     end
 
