@@ -112,14 +112,12 @@ module Lint
     end
 
     def test_sismember
-      r.flushdb
       assert_equal false, r.sismember("foo", "s1")
 
       r.sadd "foo", "s1"
 
       assert_equal true,  r.sismember("foo", "s1")
       assert_equal false, r.sismember("foo", "s2")
-      r.flushdb
     end
 
     def test_smismember
