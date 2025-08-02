@@ -159,7 +159,9 @@ class Valkey
         map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
         puts "TESTT"
-        puts result.inspect
+        p result.inspect
+        p result.to_h.inspect
+        puts result.to_h.inspect
         return [] if result[:array_value].null?
 
         ptr = result[:array_value]
