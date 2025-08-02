@@ -156,8 +156,6 @@ class Valkey
         # technically it has to return a Hash, but as of now we return just one pair
         map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
-        return [] if result[:sets_value].null?
-
         ptr = result[:sets_value]
         count = result[:sets_value_len].to_i
 
