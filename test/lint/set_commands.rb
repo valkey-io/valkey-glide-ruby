@@ -122,9 +122,6 @@ module Lint
     end
 
     def test_sismember
-      p "TESTT #{r.sismember("foo", "s1")}"
-      r.spop("foo", "s1")
-      p "TESTT1 #{r.sismember("foo", "s1")}"
       assert_equal false, r.sismember("foo", "s1")
 
       r.sadd "foo", "s1"
@@ -135,11 +132,9 @@ module Lint
 
     def test_smismember
       target_version("6.2") do
-        p "TESTT #{r.smismember("foo", "s1")}"
         assert_equal [false], r.smismember("foo", "s1")
 
         r.sadd "foo", "s1"
-        p "TESTT #{r.smismember("foo", "s1")}"
         assert_equal [true], r.smismember("foo", "s1")
 
         r.sadd "foo", "s3"
