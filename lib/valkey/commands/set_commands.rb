@@ -32,7 +32,7 @@ class Valkey
       # @return [Boolean] Whether at least one member was successfully added.
       def sadd?(key, *members)
         members.flatten!(1)
-        send_command(RequestType::SADD, [key].concat(members), &Boolify)
+        send_command(RequestType::SADD, [key].concat(members), &Utils::Boolify)
       end
 
       # Remove one or more members from a set.
@@ -52,7 +52,7 @@ class Valkey
       # @return [Boolean] Whether at least one member was successfully removed.
       def srem?(key, *members)
         members.flatten!(1)
-        send_command(RequestType::S_REM, [key].concat(members), &Boolify)
+        send_command(RequestType::S_REM, [key].concat(members), &Utils::Boolify)
       end
 
       # Remove and return one or more random member from a set.
@@ -88,7 +88,7 @@ class Valkey
       # @param [String] member member to move from `source` to `destination`
       # @return [Boolean]
       def smove(source, destination, member)
-        send_command(RequestType::S_MOVE, [source, destination, member], &Boolify)
+        send_command(RequestType::S_MOVE, [source, destination, member], &Utils::Boolify)
       end
 
       # Determine if a given value is a member of a set.
@@ -97,7 +97,7 @@ class Valkey
       # @param [String] member
       # @return [Boolean]
       def sismember(key, member)
-        send_command(RequestType::SISMEMBER, [key, member], &Boolify)
+        send_command(RequestType::SISMEMBER, [key, member], &Utils::Boolify)
       end
 
       # Determine if multiple values are members of a set.
@@ -108,7 +108,7 @@ class Valkey
       def smismember(key, *members)
         members.flatten!(1)
         send_command(RequestType::SMISMEMBER, [key].concat(members)) do |reply|
-          reply.map(&Boolify)
+          reply.map(&Utils::Boolify)
         end
       end
 
@@ -191,7 +191,7 @@ class Valkey
       #
       # See the [Valkey Server SSCAN documentation](https://valkey.io/commands/sscan/) for further details
       def sscan(key, cursor, **options)
-        _scan(:sscan, cursor, [key], **options)
+        _scan(RequestType::S_SCAN, cursor, [key], **options)
       end
 
       # Scan a set
