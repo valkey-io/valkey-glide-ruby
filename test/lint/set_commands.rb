@@ -2,7 +2,13 @@
 
 module Lint
   module SetCommands
+    def setup
+      super
+      r.flushdb
+    end
+
     def teardown
+      r.flushdb
       super
     end
 
@@ -116,6 +122,9 @@ module Lint
     end
 
     def test_sismember
+      p "TESTT #{r.sismember("foo", "s1")}"
+      r.spop("foo", "s1")
+      p "TESTT1 #{r.sismember("foo", "s1")}"
       assert_equal false, r.sismember("foo", "s1")
 
       r.sadd "foo", "s1"

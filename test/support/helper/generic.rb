@@ -36,7 +36,6 @@ module Helper
     end
 
     def teardown
-      valkey&.flushdb
       valkey&.close
       super
     end
