@@ -158,6 +158,8 @@ class Valkey
         # technically it has to return a Hash, but as of now we return just one pair
         map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
+        puts "TESTT"
+        puts result.inspect
         return [] if result[:array_value].null?
 
         ptr = result[:array_value]
