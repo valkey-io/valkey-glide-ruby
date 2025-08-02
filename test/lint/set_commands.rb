@@ -2,6 +2,10 @@
 
 module Lint
   module SetCommands
+    def teardown
+      super
+    end
+
     def test_sadd
       assert_equal 1, r.sadd("foo", "s1")
       assert_equal 1, r.sadd("foo", "s2")

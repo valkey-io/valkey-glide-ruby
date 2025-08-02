@@ -38,7 +38,6 @@ module Helper
     def teardown
       valkey&.close
       super
-      p "tear down happened"
     end
 
     def assert_in_range(range, value)
