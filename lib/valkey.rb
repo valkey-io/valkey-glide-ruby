@@ -158,14 +158,10 @@ class Valkey
         # technically it has to return a Hash, but as of now we return just one pair
         map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
-        puts "TESTT"
-        p result.inspect
-        p result.to_h.inspect
-        puts result.to_h.inspect
-        return [] if result[:array_value].null?
+        return [] if result[:sets_value].null?
 
-        ptr = result[:array_value]
-        count = result[:array_value_len].to_i
+        ptr = result[:sets_value]
+        count = result[:sets_value_len].to_i
 
         Array.new(count) do |i|
           item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
