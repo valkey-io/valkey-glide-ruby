@@ -88,7 +88,7 @@ class Valkey
       # @param [String] member member to move from `source` to `destination`
       # @return [Boolean]
       def smove(source, destination, member)
-        send_command(RequestType::S_MOVE, [source, destination, member], &Utils::Boolify)
+        send_command(RequestType::S_MOVE, [source, destination, member])
       end
 
       # Determine if a given value is a member of a set.
@@ -97,7 +97,7 @@ class Valkey
       # @param [String] member
       # @return [Boolean]
       def sismember(key, member)
-        send_command(RequestType::SISMEMBER, [key, member], &Utils::Boolify)
+        send_command(RequestType::SISMEMBER, [key, member])
       end
 
       # Determine if multiple values are members of a set.
@@ -107,9 +107,7 @@ class Valkey
       # @return [Array<Boolean>]
       def smismember(key, *members)
         members.flatten!(1)
-        send_command(RequestType::SMISMEMBER, [key].concat(members)) do |reply|
-          reply.map(&Utils::Boolify)
-        end
+        send_command(RequestType::SMISMEMBER, [key].concat(members))
       end
 
       # Get all the members in a set.
