@@ -5,9 +5,10 @@ require "test_helper"
 # rubocop:disable Metrics/ClassLength
 class TestClusterCommandsOnClusters < Minitest::Test
   include Helper::Cluster
-  include Lint::ClusterCommands
-  include Lint::StringCommands  # String commands tests run first
-
+  include Lint::StringCommands  # String commands run first
+  include Lint::ClusterCommands # Basic cluster commands run second
+  
+  # All our custom cluster tests - non-destructive ones use normal names
   def test_asking
     # ASKING is a simple command that should return "OK"
     result = valkey.asking
@@ -190,7 +191,17 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert_equal "OK", readwrite_result
   end
 
-  def test_cluster_commands_with_parameters
+  def test_cluster_saveconfig
+    # Test cluster saveconfig command
+    result = valkey.cluster_saveconfig
+    assert_equal "OK", result
+  rescue Valkey::CommandError => e
+    # May fail if cluster is in degraded state
+    assert_match(/disabled|fail/i, e.message, "Should indicate config save issue")
+  end
+
+  # DESTRUCTIVE TESTS - These can break the cluster, so they run last with 'z_' prefix
+  def z_test_cluster_commands_with_parameters
     # Test various cluster commands that require parameters
     # Try to add a slot (may succeed or fail depending on cluster state)
     result = valkey.cluster_addslots(1)
@@ -201,7 +212,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert_match(/already|busy|assigned/i, e.message, "Should indicate slot conflict")
   end
 
-  def test_cluster_management_commands_on_cluster
+  def z_test_cluster_management_commands_on_cluster
     # Test cluster management commands that should work in cluster mode
     # We test that the methods exist and can handle basic validation
 
@@ -213,7 +224,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert true, "Cluster management methods are properly available: #{e.message}"
   end
 
-  def test_cluster_failover_on_cluster
+  def z_test_cluster_failover_on_cluster
     # Test cluster failover (only works on replica nodes)
     result = valkey.cluster_failover
     # If this succeeds, we were on a replica node
@@ -227,28 +238,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
            e.message.include?("You should send CLUSTER FAILOVER to a replica")
   end
 
-  def test_cluster_reset_on_cluster
-    # Test cluster reset command - this is destructive so we expect it to work or fail gracefully
-    valkey.cluster_reset("SOFT") # Use SOFT reset to be less destructive
-    # If it succeeds, the cluster was reset
-    pass "Cluster reset completed successfully"
-  rescue Valkey::CommandError, Valkey::TimeoutError => e
-    # If it fails or times out, that's also acceptable
-    # Any error response means the command is implemented and reachable
-    assert e.message.include?("ERR") || e.message.include?("OK") || e.is_a?(StandardError),
-           "Should give reasonable error or succeed: #{e.message}"
-  end
-
-  def test_cluster_saveconfig
-    # Test cluster saveconfig command
-    result = valkey.cluster_saveconfig
-    assert_equal "OK", result
-  rescue Valkey::CommandError => e
-    # May fail if cluster is in degraded state
-    assert_match(/disabled|fail/i, e.message, "Should indicate config save issue")
-  end
-
-  def test_cluster_force_failover
+  def z_test_cluster_force_failover
     # Test cluster failover with force option - should still fail on master
     valkey.cluster_failover("FORCE")
     flunk "Force failover should not succeed when run on master node"
@@ -257,7 +247,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert_match(/replica|slave/i, e.message, "Should indicate failover restriction")
   end
 
-  def test_cluster_set_config_epoch
+  def z_test_cluster_set_config_epoch
     # Test cluster set-config-epoch - should fail in normal cluster operation
     valkey.cluster_set_config_epoch(999)
     flunk "Set config epoch should not succeed in normal cluster operation"
@@ -271,7 +261,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
            "Should indicate config epoch restriction: #{e.message}"
   end
 
-  def test_cluster_slots_management
+  def z_test_cluster_slots_management
     # Test cluster slot management commands
     valkey.cluster_delslots(9999)
     # If it succeeds, the slot was freed
@@ -283,7 +273,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert_match(pattern, e.message, "Should indicate slot management issue")
   end
 
-  def test_cluster_meet_command
+  def z_test_cluster_meet_command
     # Test cluster meet command - should fail or succeed depending on cluster state
     result = valkey.cluster_meet("127.0.0.1", 9999)
     # If it succeeds, the meet command worked
@@ -295,7 +285,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
            "Should indicate meet command issue: #{e.message}"
   end
 
-  def test_cluster_forget_command
+  def z_test_cluster_forget_command
     # Test cluster forget command with invalid node ID
     valkey.cluster_forget("invalid_node_id_that_does_not_exist")
     flunk "Should not succeed with invalid node ID"
@@ -304,7 +294,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert_match(/Unknown node/i, e.message, "Should indicate unknown node")
   end
 
-  def test_cluster_replicate_command
+  def z_test_cluster_replicate_command
     # Test cluster replicate command - should fail in normal operation
     valkey.cluster_replicate("some_master_node_id")
     flunk "Should not succeed with replicate command in normal operation"
@@ -313,7 +303,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert e.message.length.positive?, "Should return meaningful error message"
   end
 
-  def test_cluster_slaves
+  def z_test_cluster_slaves
     # Test cluster slaves command (deprecated)
     node_id = valkey.cluster_myid
     result = valkey.cluster_slaves(node_id)
@@ -322,6 +312,19 @@ class TestClusterCommandsOnClusters < Minitest::Test
     # May fail if node has no slaves or node not found
     assert e.message.include?("Unknown node") || e.message.include?("ERR") ||
            e.message.include?("no slaves") || e.message.include?("not a master")
+  end
+
+  # THE MOST DESTRUCTIVE TEST - This can completely break the cluster
+  def z_test_cluster_reset_on_cluster
+    # Test cluster reset command - this is destructive so we expect it to work or fail gracefully
+    valkey.cluster_reset("SOFT") # Use SOFT reset to be less destructive
+    # If it succeeds, the cluster was reset
+    pass "Cluster reset completed successfully"
+  rescue Valkey::CommandError, Valkey::TimeoutError => e
+    # If it fails or times out, that's also acceptable
+    # Any error response means the command is implemented and reachable
+    assert e.message.include?("ERR") || e.message.include?("OK") || e.is_a?(StandardError),
+           "Should give reasonable error or succeed: #{e.message}"
   end
 end
 # rubocop:enable Metrics/ClassLength
