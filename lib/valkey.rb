@@ -187,10 +187,10 @@ class Valkey
       raise "Connection is nil"
     elsif @connection.null?
       raise "Connection pointer is null"
-    elsif @connection.address == 0
+    elsif @connection.address.zero?
       raise "Connection address is 0"
     end
-    
+
     channel = 0
     route = ""
 
@@ -264,6 +264,7 @@ class Valkey
 
   def close
     return if @connection.nil? || @connection.null?
+
     Bindings.close_client(@connection)
     @connection = nil
   end

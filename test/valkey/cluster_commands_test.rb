@@ -112,13 +112,11 @@ class ValkeyClusterCommandsTest < Minitest::Test
 
   def test_cluster_links
     # Test cluster links - only available in Redis 7.0+
-    begin
-      result = valkey.cluster_links
-      assert_instance_of Array, result
-    rescue Valkey::CommandError => e
-      # Skip if command not available in this Redis version
-      skip("CLUSTER LINKS not available in Redis 6.2") if e.message.include?("Unknown subcommand")
-    end
+    result = valkey.cluster_links
+    assert_instance_of Array, result
+  rescue Valkey::CommandError => e
+    # Skip if command not available in this Redis version
+    skip("CLUSTER LINKS not available in Redis 6.2") if e.message.include?("Unknown subcommand")
   end
 
   def test_cluster_replicas
@@ -277,14 +275,12 @@ class ValkeyClusterCommandsTest < Minitest::Test
 
   def test_cluster_slaves
     # Test cluster slaves command (deprecated)
-    begin
-      node_id = valkey.cluster_myid
-      result = valkey.cluster_slaves(node_id)
-      assert_instance_of Array, result
-    rescue => e
-      # May fail if node has no slaves or node not found
-      assert e.message.include?("Unknown node") || e.message.include?("ERR") ||
-             e.message.include?("no slaves") || e.message.include?("not a master")
-    end
+    node_id = valkey.cluster_myid
+    result = valkey.cluster_slaves(node_id)
+    assert_instance_of Array, result
+  rescue StandardError => e
+    # May fail if node has no slaves or node not found
+    assert e.message.include?("Unknown node") || e.message.include?("ERR") ||
+           e.message.include?("no slaves") || e.message.include?("not a master")
   end
 end
