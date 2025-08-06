@@ -17,7 +17,7 @@ $VERBOSE = true
 
 PORT        = 6379
 DB          = 15
-TIMEOUT     = Float(ENV["TIMEOUT"] || 5.0)  # Increased from 3.0 to 5.0 for CI stability
+TIMEOUT = Float(ENV["TIMEOUT"] || 5.0) # Increased from 3.0 to 5.0 for CI stability
 LOW_TIMEOUT = Float(ENV["LOW_TIMEOUT"] || 0.01) # for blocking-command tests
 
 CLUSTER_NODES = 6.times.map do |i|

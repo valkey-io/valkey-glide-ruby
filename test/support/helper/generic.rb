@@ -104,13 +104,11 @@ module Helper
     def cluster_mode?
       # Check if we're running in cluster mode by examining the client configuration
       # or by checking if cluster_info returns cluster_state:ok
-      begin
-        cluster_info = r.cluster_info
-        cluster_info["cluster_state"] == "ok"
-      rescue Valkey::CommandError => e
-        # If cluster commands are disabled, we're in standalone mode
-        e.message.include?("cluster support disabled") ? false : false
-      end
+      cluster_info = r.cluster_info
+      cluster_info["cluster_state"] == "ok"
+    rescue Valkey::CommandError
+      # If cluster commands are disabled, we're in standalone mode
+      false
     end
 
     def skip_unless_cluster_mode
@@ -122,46 +120,37 @@ module Helper
     end
 
     # Enhanced helper for cluster command testing
-    def assert_cluster_command_behavior(command_name, &block)
+    def assert_cluster_command_behavior(command_name, &_block)
       case cluster_command_category(command_name)
       when :cluster_only
         skip_unless_cluster_mode
-        yield
       when :standalone_only
         skip_if_cluster_mode
-        yield
-      when :mode_dependent
-        # Run the block which should handle both modes internally
-        yield
-      when :universal
-        # Command works identically in both modes
-        yield
-      else
-        # Unknown command, run normally
-        yield
       end
+      # Run the block for all cases (including mode_dependent and universal)
+      yield
     end
 
     private
 
     def cluster_command_category(command_name)
       # Categorize cluster commands based on their behavior
-      cluster_only_commands = [
-        :cluster_failover, :cluster_meet, :cluster_setslot, 
-        :cluster_set_config_epoch, :cluster_addslots, :cluster_delslots,
-        :cluster_addslotsrange, :cluster_delslotsrange, :cluster_bumpepoch,
-        :cluster_flushslots, :cluster_replicate
+      cluster_only_commands = %i[
+        cluster_failover cluster_meet cluster_setslot
+        cluster_set_config_epoch cluster_addslots cluster_delslots
+        cluster_addslotsrange cluster_delslotsrange cluster_bumpepoch
+        cluster_flushslots cluster_replicate
       ]
-      
-      mode_dependent_commands = [
-        :cluster_nodes, :cluster_slots, :cluster_info, :cluster_replicas,
-        :cluster_slaves, :cluster_count_failure_reports, :cluster_forget,
-        :cluster_reset, :cluster_saveconfig
+
+      mode_dependent_commands = %i[
+        cluster_nodes cluster_slots cluster_info cluster_replicas
+        cluster_slaves cluster_count_failure_reports cluster_forget
+        cluster_reset cluster_saveconfig
       ]
-      
-      universal_commands = [
-        :cluster_keyslot, :cluster_countkeysinslot, :cluster_getkeysinslot,
-        :cluster_myid, :readonly, :readwrite
+
+      universal_commands = %i[
+        cluster_keyslot cluster_countkeysinslot cluster_getkeysinslot
+        cluster_myid readonly readwrite
       ]
       
       if cluster_only_commands.include?(command_name)

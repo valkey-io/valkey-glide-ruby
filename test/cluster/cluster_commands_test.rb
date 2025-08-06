@@ -11,16 +11,15 @@ class TestClusterCommandsOnClusters < Minitest::Test
     result = valkey.cluster_info
     assert result.is_a?(Hash)
     assert result.key?("cluster_state")
-    
     # In cluster mode, cluster_state can be "ok" or "fail" depending on timing
     # During tests, it might briefly show "fail" during cluster operations
-    valid_states = ["ok", "fail"]
-    assert valid_states.include?(result["cluster_state"]), 
-           "Expected cluster_state to be one of #{valid_states}, got '#{result["cluster_state"]}'"
-    
+    valid_states = %w[ok fail]
+    assert valid_states.include?(result["cluster_state"]),
+           "Expected cluster_state to be one of #{valid_states}, got '#{result['cluster_state']}'"
+
     # Additional checks to ensure we're actually in cluster mode
     assert result.key?("cluster_slots_assigned")
-    assert result.key?("cluster_known_nodes") 
+    assert result.key?("cluster_known_nodes")
     assert result["cluster_known_nodes"].to_i >= 6, "Should have at least 6 nodes in test cluster"
   end
 
@@ -41,21 +40,21 @@ class TestClusterCommandsOnClusters < Minitest::Test
     
     # Verify slot ranges cover the full keyspace (0-16383)
     total_slots = result.sum { |slot_info| slot_info["end_slot"] - slot_info["start_slot"] + 1 }
-    assert_equal 16384, total_slots, "All 16384 slots should be assigned"
+    assert_equal 16_384, total_slots, "All 16_384 slots should be assigned"
   end
 
   def test_cluster_myid_on_cluster
     # Test cluster myid command on actual cluster
     result = valkey.cluster_myid
     assert result.is_a?(String)
-    assert result.length > 0, "Node ID should not be empty"
+    assert !result.empty?, "Node ID should not be empty"
   end
 
   def test_cluster_keyslot_on_cluster
     # Test cluster keyslot command on actual cluster
     result = valkey.cluster_keyslot("test_key")
     assert result.is_a?(Integer)
-    assert result >= 0 && result <= 16383, "Slot should be between 0 and 16383"
+    assert result >= 0 && result <= 16_383, "Slot should be between 0 and 16_383"
   end
 
   def test_cluster_countkeysinslot_on_cluster
@@ -105,10 +104,10 @@ class TestClusterCommandsOnClusters < Minitest::Test
       result = valkey.cluster_failover
       # If this succeeds, we were on a replica node
       assert_equal "OK", result
-    rescue => e
+    rescue StandardError => e
       # Expected to fail if we're on a master node or in certain cluster states
-      assert e.message.include?("ERR") || 
-             e.message.include?("replica") || 
+      assert e.message.include?("ERR") ||
+             e.message.include?("replica") ||
              e.message.include?("MOVED") ||
              e.message.include?("You should send CLUSTER FAILOVER to a replica")
     end
@@ -117,8 +116,8 @@ class TestClusterCommandsOnClusters < Minitest::Test
     # Just test that the command exists and gives appropriate error
     begin
       # Use a dry-run approach - cluster reset with invalid option should fail gracefully
-      valkey.cluster_reset("SOFT")  # This should work or give a reasonable error
-    rescue => e
+      valkey.cluster_reset("SOFT") # This should work or give a reasonable error
+    rescue StandardError => e
       # Any error response means the command is implemented and reachable
       assert e.message.include?("ERR") || e.message.include?("OK") || e.is_a?(StandardError)
     end

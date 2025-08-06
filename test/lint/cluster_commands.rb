@@ -8,7 +8,7 @@ module Lint
         result = r.cluster_keyslot("test_key")
         assert result.is_a?(Integer)
         assert result >= 0
-        assert result <= 16383
+        assert result <= 16_383
       end
     end
 
@@ -18,17 +18,17 @@ module Lint
         result = r.cluster_info
         assert result.is_a?(Hash)
         assert result.key?("cluster_state")
-        
+
         if cluster_mode?
           # In cluster mode, state can be "ok" or "fail" depending on cluster operations timing
-          assert ["ok", "fail"].include?(result["cluster_state"]),
-                 "Expected cluster_state to be 'ok' or 'fail' in cluster mode, got '#{result["cluster_state"]}'"
+          assert %w[ok fail].include?(result["cluster_state"]),
+                 "Expected cluster_state to be 'ok' or 'fail' in cluster mode, got '#{result['cluster_state']}'"
           # Additional cluster-specific checks
           assert result.key?("cluster_known_nodes")
           assert result["cluster_known_nodes"].to_i >= 1
         else
           # In standalone mode, cluster_state is typically "fail"
-          assert ["ok", "fail"].include?(result["cluster_state"])
+          assert %w[ok fail].include?(result["cluster_state"])
         end
       end
     end
@@ -150,7 +150,7 @@ module Lint
       # Test cluster myid command
       result = r.cluster_myid
       assert result.is_a?(String)
-      assert result.length > 0
+      assert !result.empty?
     end
 
     def test_cluster_replicas
