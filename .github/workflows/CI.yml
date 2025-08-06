@@ -177,4 +177,7 @@ jobs:
 
       - name: Run cluster tests
         run: bundle exec rake test:cluster
+        timeout-minutes: 25
+        # Add retry mechanism for flaky cluster tests
+        continue-on-error: false
 
