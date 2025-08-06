@@ -103,9 +103,10 @@ module Helper
 
     def cluster_mode?
       # Check if we're running in cluster mode by examining the client configuration
-      # or by checking if cluster_info returns cluster_state:ok
+      # or by checking if cluster_info returns cluster_state (ok or fail both indicate cluster mode)
       cluster_info = r.cluster_info
-      cluster_info["cluster_state"] == "ok"
+      # Both "ok" and "fail" indicate we're in cluster mode - "fail" just means degraded
+      %w[ok fail].include?(cluster_info["cluster_state"])
     rescue Valkey::CommandError
       # If cluster commands are disabled, we're in standalone mode
       false
