@@ -27,8 +27,12 @@ class TestClusterCommandsOnClusters < Minitest::Test
     # Test cluster slots command on actual cluster
     result = valkey.cluster_slots
     assert result.is_a?(Array)
-    # Should have slot information for all 16384 slots
-    assert result.length > 0, "Should have slot information"
+    # Should have slot information - in a healthy cluster with 3 masters, expect 3 slot ranges
+    assert result.length >= 3, "Should have slot information for cluster masters (got #{result.length})"
+    
+    # Verify slot ranges cover the full keyspace (0-16383)
+    total_slots = result.sum { |slot_info| slot_info["end_slot"] - slot_info["start_slot"] + 1 }
+    assert_equal 16384, total_slots, "All 16384 slots should be assigned"
   end
 
   def test_cluster_myid_on_cluster

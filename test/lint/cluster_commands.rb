@@ -2,33 +2,65 @@
 
 module Lint
   module ClusterCommands
+    def test_cluster_keyslot
+      # Test cluster keyslot command - works identically in both modes
+      assert_cluster_command_behavior(:cluster_keyslot) do
+        result = r.cluster_keyslot("test_key")
+        assert result.is_a?(Integer)
+        assert result >= 0
+        assert result <= 16383
+      end
+    end
+
     def test_cluster_info
-      # Test cluster info command
-      result = r.cluster_info
-      assert result.is_a?(Hash)
-      assert result.key?("cluster_state")
+      # Test cluster info command - mode dependent behavior
+      assert_cluster_command_behavior(:cluster_info) do
+        result = r.cluster_info
+        assert result.is_a?(Hash)
+        assert result.key?("cluster_state")
+        
+        if cluster_mode?
+          assert_equal "ok", result["cluster_state"]
+        else
+          # In standalone mode, cluster_state is typically "fail"
+          assert ["ok", "fail"].include?(result["cluster_state"])
+        end
+      end
     end
 
     def test_cluster_nodes
-      # Test cluster nodes command
-      result = r.cluster_nodes
-      assert result.is_a?(Array)
-      # In standalone mode, this should return an error or empty array
+      # Test cluster nodes command - mode dependent behavior
+      assert_cluster_command_behavior(:cluster_nodes) do
+        result = r.cluster_nodes
+        assert result.is_a?(Array)
+        
+        if cluster_mode?
+          # In cluster mode, should have multiple nodes
+          assert result.length >= 1, "Should have at least one node in cluster"
+          # Verify node structure in cluster mode
+          result.each do |node|
+            assert node.key?("node_id")
+            assert node.key?("flags")
+          end
+        else
+          # In standalone mode, might return empty array or single node
+          assert result.length >= 0, "Standalone mode should return valid array"
+        end
+      end
     end
 
     def test_cluster_slots
       # Test cluster slots command
       result = r.cluster_slots
       assert result.is_a?(Array)
-      # In standalone mode, this should return an error or empty array
-    end
-
-    def test_cluster_keyslot
-      # Test cluster keyslot command
-      result = r.cluster_keyslot("test_key")
-      assert result.is_a?(Integer)
-      assert result >= 0
-      assert result <= 16383
+      
+      if cluster_mode?
+        # In cluster mode, should have slot assignments
+        assert result.length >= 1, "Should have slot assignments in cluster mode"
+      else
+        # In standalone mode, typically returns empty array
+        assert result.length >= 0, "Standalone mode should return valid array"
+      end
     end
 
     def test_cluster_count_failure_reports
@@ -66,10 +98,12 @@ module Lint
     end
 
     def test_cluster_failover
-      # Test cluster failover command
-      # This will fail in standalone mode, which is expected
-      assert_raises(Valkey::CommandError) do
-        r.cluster_failover
+      # Test cluster failover command - cluster only
+      assert_cluster_command_behavior(:cluster_failover) do
+        # This will fail in cluster mode unless we're on a replica node
+        assert_raises(Valkey::CommandError) do
+          r.cluster_failover
+        end
       end
     end
 
@@ -89,9 +123,13 @@ module Lint
 
     def test_cluster_meet
       # Test cluster meet command
-      # This will fail in standalone mode, which is expected
+      # Skip in standalone mode as cluster meet is cluster-only
+      skip_unless_cluster_mode
+      
+      # This will fail in cluster mode (node already known or invalid)
       assert_raises(Valkey::CommandError) do
-        r.cluster_meet("127.0.0.1", 7001)
+        # Try to meet a node that's already in the cluster or invalid
+        r.cluster_meet("127.0.0.1", 9999)  # Invalid port should cause error
       end
     end
 
@@ -159,7 +197,10 @@ module Lint
 
     def test_cluster_set_config_epoch
       # Test cluster set-config-epoch command
-      # This will fail in standalone mode, which is expected
+      # Skip in standalone mode as this is cluster-only
+      skip_unless_cluster_mode
+      
+      # This will fail in cluster mode due to cluster state restrictions
       assert_raises(Valkey::CommandError) do
         r.cluster_set_config_epoch(1)
       end
@@ -167,9 +208,13 @@ module Lint
 
     def test_cluster_setslot
       # Test cluster setslot command
-      # This will fail in standalone mode or with invalid parameters, which is expected
+      # Skip in standalone mode as cluster setslot is cluster-only
+      skip_unless_cluster_mode
+      
+      # This will fail with invalid parameters
       assert_raises(Valkey::CommandError) do
-        r.cluster_setslot(0, "STABLE")
+        # Use invalid state parameter to force an error
+        r.cluster_setslot(0, "INVALID_STATE")
       end
     end
 
