@@ -66,26 +66,20 @@ jobs:
   cluster:
     runs-on: ubuntu-latest
     name: Cluster / Ruby ${{ matrix.ruby }}
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         ruby:
           - 3.4
-          # - 3.3
-          # - 3.2
-          # - 3.1
-          # - 3.0
-          # - 2.7
-          # - 2.6
-          # - jruby
-        # valkey:
-        #   - 7.0
-        #   - 7.2.9
-        #   - 8
+          - 3.3
+          - 3.2
+          - 3.1
+          - 3.0
 
     services:
       valkey-cluster:
-        image: grokzen/redis-cluster:7.0.15 # TODO: create our own image
+        image: grokzen/redis-cluster:7.0.15
         ports:
           - 7000:7000
           - 7001:7001
@@ -94,10 +88,10 @@ jobs:
           - 7004:7004
           - 7005:7005
         options: >-
-          --health-cmd "redis-cli -p 7000 ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd "redis-cli -p 7000 ping && redis-cli -p 7001 ping && redis-cli -p 7002 ping"
+          --health-interval 15s
+          --health-timeout 10s
+          --health-retries 15
 
     steps:
       - uses: actions/checkout@v4
@@ -107,18 +101,80 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
 
-      - name: List running containers
-        run: docker ps -a
-
-      - name: disable protected mode
+      - name: Debug container status
         run: |
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7000 config set protected-mode no
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7001 config set protected-mode no
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7002 config set protected-mode no
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7003 config set protected-mode no
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7004 config set protected-mode no
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7005 config set protected-mode no
+          echo "=== Docker containers ==="
+          docker ps -a
+          echo ""
+          echo "=== Container logs ==="
+          docker logs $(docker ps -q | head -n1) | tail -20
 
-      - name: tests
+      - name: Configure cluster nodes
+        run: |
+          echo "=== Disabling protected mode on all nodes ==="
+          for port in 7000 7001 7002 7003 7004 7005; do
+            echo "Configuring port $port..."
+            docker exec $(docker ps -q | head -n1) redis-cli -p $port config set protected-mode no || echo "Failed to configure port $port"
+          done
+
+      - name: Wait for cluster to be ready
+        run: |
+          echo "=== Waiting for Redis cluster to be fully ready ==="
+          max_attempts=60
+          attempt=1
+          
+          while [ $attempt -le $max_attempts ]; do
+            echo "Attempt $attempt/$max_attempts: Checking cluster state..."
+            
+            # Check if all nodes are responding
+            all_nodes_up=true
+            for port in 7000 7001 7002 7003 7004 7005; do
+              if ! docker exec $(docker ps -q | head -n1) redis-cli -p $port ping > /dev/null 2>&1; then
+                echo "  Node $port is not responding"
+                all_nodes_up=false
+                break
+              fi
+            done
+            
+            if [ "$all_nodes_up" = true ]; then
+              # Check cluster state
+              cluster_state=$(docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster info | grep "cluster_state" | cut -d: -f2 | tr -d '\r')
+              echo "  Cluster state: $cluster_state"
+              
+              if [ "$cluster_state" = "ok" ]; then
+                echo "✅ Cluster is ready!"
+                break
+              fi
+            fi
+            
+            echo "  Cluster not ready yet, waiting 5 seconds..."
+            sleep 5
+            attempt=$((attempt + 1))
+          done
+          
+          if [ $attempt -gt $max_attempts ]; then
+            echo "❌ Cluster failed to become ready within timeout"
+            echo "=== Final cluster info ==="
+            docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster info || echo "Failed to get cluster info"
+            echo "=== Cluster nodes ==="
+            docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster nodes || echo "Failed to get cluster nodes"
+            exit 1
+          fi
+
+      - name: Verify cluster status
+        run: |
+          echo "=== Final cluster verification ==="
+          echo "Cluster info:"
+          docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster info
+          echo ""
+          echo "Cluster nodes:"
+          docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster nodes
+          echo ""
+          echo "Testing basic cluster operations:"
+          docker exec $(docker ps -q | head -n1) redis-cli -c -p 7000 set test:key "hello"
+          docker exec $(docker ps -q | head -n1) redis-cli -c -p 7000 get test:key
+          docker exec $(docker ps -q | head -n1) redis-cli -c -p 7000 del test:key
+
+      - name: Run cluster tests
         run: bundle exec rake test:cluster
 
