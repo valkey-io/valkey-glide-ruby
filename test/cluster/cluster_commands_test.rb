@@ -7,7 +7,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
   include Helper::Cluster
   include Lint::StringCommands  # String commands run first
   include Lint::ClusterCommands # Basic cluster commands run second
-  
+
   # All our custom cluster tests - non-destructive ones use normal names
   def test_asking
     # ASKING is a simple command that should return "OK"
