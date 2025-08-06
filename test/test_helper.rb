@@ -20,7 +20,7 @@ DB          = 15
 TIMEOUT     = Float(ENV["TIMEOUT"] || 3.0)
 LOW_TIMEOUT = Float(ENV["LOW_TIMEOUT"] || 0.01) # for blocking-command tests
 
-CLUSTER_NODES = 3.times.map do |i|
+CLUSTER_NODES = 6.times.map do |i|
   { host: "127.0.0.1", port: 7000 + i }
 end
 
