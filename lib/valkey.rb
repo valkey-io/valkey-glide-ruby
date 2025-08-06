@@ -182,15 +182,32 @@ class Valkey
   end
 
   def send_command(command_type, command_args = [], &block)
+    # Validate connection
+    if @connection.nil?
+      raise "Connection is nil"
+    elsif @connection.null?
+      raise "Connection pointer is null"
+    elsif @connection.address == 0
+      raise "Connection address is 0"
+    end
+    
     channel = 0
     route = ""
 
     route_buf = FFI::MemoryPointer.from_string(route)
 
-    arg_ptrs, arg_lens = build_command_args(command_args)
+    # Handle empty command_args case
+    if command_args.empty?
+      arg_ptrs = FFI::MemoryPointer.new(:pointer, 1)
+      arg_lens = FFI::MemoryPointer.new(:ulong, 1)
+      arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
+      arg_lens.put_ulong(0, 0)
+    else
+      arg_ptrs, arg_lens = build_command_args(command_args)
+    end
 
     res = Bindings.command(
-      @connection, # Assuming @connection is set after create
+      @connection,
       channel,
       command_type,
       command_args.size,
@@ -236,11 +253,19 @@ class Valkey
 
     res = Bindings::ConnectionResponse.new(response_ptr)
 
+    # Check if connection was successful
+    if res[:conn_ptr].null?
+      error_message = res[:connection_error_message]
+      raise CannotConnectError, "Failed to connect to cluster: #{error_message}"
+    end
+
     @connection = res[:conn_ptr]
   end
 
   def close
+    return if @connection.nil? || @connection.null?
     Bindings.close_client(@connection)
+    @connection = nil
   end
 
   alias disconnect! close
