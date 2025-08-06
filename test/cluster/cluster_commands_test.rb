@@ -6,6 +6,7 @@ require "test_helper"
 class TestClusterCommandsOnClusters < Minitest::Test
   include Helper::Cluster
   include Lint::ClusterCommands
+  include Lint::StringCommands  # String commands tests run first
 
   def test_asking
     # ASKING is a simple command that should return "OK"
