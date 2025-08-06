@@ -64,13 +64,13 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert result.length >= 1, "Should have at least 1 node in the cluster (got #{result.length})"
 
     # Check structure of first node if any nodes exist
-    if result.any?
-      first_node = result.first
-      assert_instance_of Hash, first_node
-      assert first_node.key?("node_id"), "Node should have node_id"
-      assert first_node.key?("ip_port"), "Node should have ip_port"
-      assert first_node.key?("flags"), "Node should have flags"
-    end
+    return unless result.any?
+
+    first_node = result.first
+    assert_instance_of Hash, first_node
+    assert first_node.key?("node_id"), "Node should have node_id"
+    assert first_node.key?("ip_port"), "Node should have ip_port"
+    assert first_node.key?("flags"), "Node should have flags"
   end
 
   def test_cluster_slots_on_cluster
