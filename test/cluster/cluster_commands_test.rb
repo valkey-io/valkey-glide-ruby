@@ -37,7 +37,6 @@ class TestClusterCommandsOnClusters < Minitest::Test
     assert result.is_a?(Array)
     # Should have slot information - in a healthy cluster with 3 masters, expect 3 slot ranges
     assert result.length >= 3, "Should have slot information for cluster masters (got #{result.length})"
-    
     # Verify slot ranges cover the full keyspace (0-16383)
     total_slots = result.sum { |slot_info| slot_info["end_slot"] - slot_info["start_slot"] + 1 }
     assert_equal 16_384, total_slots, "All 16_384 slots should be assigned"
@@ -98,7 +97,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
 
   def test_cluster_management_commands_on_cluster
     # Test cluster management commands that should work in cluster mode
-    
+
     # Test cluster failover (only works on replica nodes)
     begin
       result = valkey.cluster_failover
@@ -122,4 +121,4 @@ class TestClusterCommandsOnClusters < Minitest::Test
       assert e.message.include?("ERR") || e.message.include?("OK") || e.is_a?(StandardError)
     end
   end
-end 
+end

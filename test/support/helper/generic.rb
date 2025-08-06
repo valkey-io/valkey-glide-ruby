@@ -152,7 +152,7 @@ module Helper
         cluster_keyslot cluster_countkeysinslot cluster_getkeysinslot
         cluster_myid readonly readwrite
       ]
-      
+
       if cluster_only_commands.include?(command_name)
         :cluster_only
       elsif mode_dependent_commands.include?(command_name)
