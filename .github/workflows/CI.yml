@@ -26,6 +26,7 @@ jobs:
   standalone:
     runs-on: ubuntu-latest
     name: Standalone / Ruby ${{ matrix.ruby }} Valkey ${{ matrix.valkey }}
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -60,7 +61,7 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: tests
+      - name: Run standalone tests
         run: bundle exec rake test:valkey
 
   cluster:
@@ -100,14 +101,6 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-
-      - name: Debug container status
-        run: |
-          echo "=== Docker containers ==="
-          docker ps -a
-          echo ""
-          echo "=== Container logs ==="
-          docker logs $(docker ps -q | head -n1) | tail -20
 
       - name: Configure cluster nodes
         run: |
@@ -161,23 +154,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify cluster status
-        run: |
-          echo "=== Final cluster verification ==="
-          echo "Cluster info:"
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster info
-          echo ""
-          echo "Cluster nodes:"
-          docker exec $(docker ps -q | head -n1) redis-cli -p 7000 cluster nodes
-          echo ""
-          echo "Testing basic cluster operations:"
-          docker exec $(docker ps -q | head -n1) redis-cli -c -p 7000 set test:key "hello"
-          docker exec $(docker ps -q | head -n1) redis-cli -c -p 7000 get test:key
-          docker exec $(docker ps -q | head -n1) redis-cli -c -p 7000 del test:key
-
       - name: Run cluster tests
         run: bundle exec rake test:cluster
         timeout-minutes: 25
-        # Add retry mechanism for flaky cluster tests
-        continue-on-error: false
 
