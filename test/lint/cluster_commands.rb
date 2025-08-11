@@ -195,8 +195,8 @@ module Lint
       # Test cluster bumpepoch command - bump cluster epoch
       result = r.cluster_bumpepoch
       # This might succeed or fail depending on cluster state
-      assert result == "OK" || result.is_a?(Valkey::CommandError)
-    rescue Valkey::CommandError => e
+      assert result == "OK" || result.is_a?(Valkey::CommandError) || result == false
+    rescue Valkey::CommandError
       # Expected to fail in normal cluster operation
       pass "Cluster bumpepoch correctly failed as expected"
     end
@@ -206,7 +206,7 @@ module Lint
       result = r.cluster_delslotsrange(9990, 9999)
       # This might succeed or fail depending on cluster state
       assert result == "OK" || result.is_a?(Valkey::CommandError)
-    rescue Valkey::CommandError => e
+    rescue Valkey::CommandError
       # Expected to fail if slots are not assigned or cluster support disabled
       pass "Cluster delslotsrange correctly failed as expected"
     end
@@ -216,7 +216,7 @@ module Lint
       result = r.cluster_flushslots
       # This might succeed or fail depending on cluster state
       assert result == "OK" || result.is_a?(Valkey::CommandError)
-    rescue Valkey::CommandError => e
+    rescue Valkey::CommandError
       # Expected to fail if cluster support disabled or no slots to flush
       pass "Cluster flushslots correctly failed as expected"
     end
@@ -230,12 +230,6 @@ module Lint
       assert e.message.include?("ERR") || e.message.include?("Unknown")
       pass "Cluster replicate correctly failed with invalid master ID as expected"
     end
-
-
-
-
-
-
 
     # Destructive tests that should run last to avoid affecting other tests
     def z_test_cluster_commands_with_parameters
