@@ -195,7 +195,16 @@ module Lint
       # Test cluster bumpepoch command - bump cluster epoch
       result = r.cluster_bumpepoch
       # This might succeed or fail depending on cluster state
-      assert result == "OK" || result.is_a?(Valkey::CommandError) || result == false
+      # Accept OK, false, or CommandError as valid responses
+      if result == "OK"
+        pass "Cluster bumpepoch succeeded as expected"
+      elsif result == false
+        pass "Cluster bumpepoch returned false (cluster not ready for epoch bump)"
+      elsif result.is_a?(Valkey::CommandError)
+        pass "Cluster bumpepoch correctly failed as expected"
+      else
+        flunk "Unexpected result from cluster_bumpepoch: #{result.inspect}"
+      end
     rescue Valkey::CommandError
       # Expected to fail in normal cluster operation
       pass "Cluster bumpepoch correctly failed as expected"
@@ -205,7 +214,13 @@ module Lint
       # Test cluster delslotsrange command - delete slots in a range
       result = r.cluster_delslotsrange(9990, 9999)
       # This might succeed or fail depending on cluster state
-      assert result == "OK" || result.is_a?(Valkey::CommandError)
+      if result == "OK"
+        pass "Cluster delslotsrange succeeded as expected"
+      elsif result.is_a?(Valkey::CommandError)
+        pass "Cluster delslotsrange correctly failed as expected"
+      else
+        flunk "Unexpected result from cluster_delslotsrange: #{result.inspect}"
+      end
     rescue Valkey::CommandError
       # Expected to fail if slots are not assigned or cluster support disabled
       pass "Cluster delslotsrange correctly failed as expected"
@@ -215,7 +230,13 @@ module Lint
       # Test cluster flushslots command - flush all slots
       result = r.cluster_flushslots
       # This might succeed or fail depending on cluster state
-      assert result == "OK" || result.is_a?(Valkey::CommandError)
+      if result == "OK"
+        pass "Cluster flushslots succeeded as expected"
+      elsif result.is_a?(Valkey::CommandError)
+        pass "Cluster flushslots correctly failed as expected"
+      else
+        flunk "Unexpected result from cluster_flushslots: #{result.inspect}"
+      end
     rescue Valkey::CommandError
       # Expected to fail if cluster support disabled or no slots to flush
       pass "Cluster flushslots correctly failed as expected"
@@ -237,7 +258,13 @@ module Lint
       # Try to add a slot (may succeed or fail depending on cluster state)
       result = r.cluster_addslots(1)
       # This might succeed or fail depending on cluster state
-      assert result == "OK" || result.is_a?(Valkey::CommandError)
+      if result == "OK"
+        pass "Cluster addslots succeeded as expected"
+      elsif result.is_a?(Valkey::CommandError)
+        pass "Cluster addslots correctly failed as expected"
+      else
+        flunk "Unexpected result from cluster_addslots: #{result.inspect}"
+      end
     rescue Valkey::CommandError
       # Expected to fail if slot is already assigned or cluster support disabled
       pass "Cluster addslots correctly failed as expected"
@@ -258,7 +285,13 @@ module Lint
       # Test cluster failover (only works on replica nodes)
       result = r.cluster_failover
       # This will fail on master nodes, which is expected
-      assert result == "OK" || result.is_a?(Valkey::CommandError)
+      if result == "OK"
+        pass "Cluster failover succeeded as expected"
+      elsif result.is_a?(Valkey::CommandError)
+        pass "Cluster failover correctly failed as expected"
+      else
+        flunk "Unexpected result from cluster_failover: #{result.inspect}"
+      end
     rescue Valkey::CommandError => e
       # Expected to fail on master nodes
       assert e.message.include?("ERR") || e.message.include?("failover")
