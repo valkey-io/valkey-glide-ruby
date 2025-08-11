@@ -182,7 +182,7 @@ module Lint
 
     # Additional cluster commands that were missing tests
     # Destructive tests that should run last to avoid affecting other tests
-    def z_test_cluster_addslotsrange
+    def test_cluster_addslotsrange
       # Test cluster addslotsrange command - add slots in a range
       result = r.cluster_addslotsrange(9990, 9999)
       # This might succeed or fail depending on cluster state
@@ -214,7 +214,7 @@ module Lint
       pass "Cluster bumpepoch correctly failed as expected"
     end
 
-    def z_test_cluster_delslotsrange
+    def test_cluster_delslotsrange
       # Test cluster delslotsrange command - delete slots in a range
       result = r.cluster_delslotsrange(9990, 9999)
       # This might succeed or fail depending on cluster state
@@ -231,7 +231,7 @@ module Lint
       pass "Cluster delslotsrange correctly failed as expected"
     end
 
-    def z_test_cluster_flushslots
+    def test_cluster_flushslots
       # Test cluster flushslots command - flush all slots
       result = r.cluster_flushslots
       # This might succeed or fail depending on cluster state
@@ -259,7 +259,7 @@ module Lint
     end
 
     # Destructive tests that should run last to avoid affecting other tests
-    def z_test_cluster_commands_with_parameters
+    def test_cluster_commands_with_parameters
       # Test various cluster commands that require parameters
       # Try to add a slot (may succeed or fail depending on cluster state)
       result = r.cluster_addslots(1)
@@ -277,7 +277,7 @@ module Lint
       pass "Cluster addslots correctly failed as expected"
     end
 
-    def z_test_cluster_management_commands_on_cluster
+    def test_cluster_management_commands_on_cluster
       # Test cluster management commands that should work in cluster mode
       # We test that the methods exist and can handle basic validation
 
@@ -288,7 +288,7 @@ module Lint
       pass "Cluster setslot correctly failed with invalid parameters"
     end
 
-    def z_test_cluster_failover_on_cluster
+    def test_cluster_failover_on_cluster
       # Test cluster failover (only works on replica nodes)
       result = r.cluster_failover
       # This will fail on master nodes, which is expected
@@ -306,7 +306,7 @@ module Lint
       pass "Cluster failover correctly failed on master node as expected"
     end
 
-    def z_test_cluster_force_failover
+    def test_cluster_force_failover
       # Test cluster failover with force option - should still fail on master
       r.cluster_failover("FORCE")
     rescue Valkey::CommandError => e
@@ -315,7 +315,7 @@ module Lint
       pass "Cluster force failover correctly failed on master node as expected"
     end
 
-    def z_test_cluster_set_config_epoch
+    def test_cluster_set_config_epoch
       # Test cluster set-config-epoch - should fail in normal cluster operation
       r.cluster_set_config_epoch(999)
     rescue Valkey::CommandError => e
@@ -324,7 +324,7 @@ module Lint
       pass "Cluster set-config-epoch correctly failed as expected"
     end
 
-    def z_test_cluster_slots_management
+    def test_cluster_slots_management
       # Test cluster slot management commands
       r.cluster_delslots(9999)
       # This might succeed or fail depending on cluster state
@@ -334,7 +334,7 @@ module Lint
       pass "Cluster delslots correctly failed as expected"
     end
 
-    def z_test_cluster_meet_command
+    def test_cluster_meet_command
       # Test cluster meet command - should fail or succeed depending on cluster state
       result = r.cluster_meet("127.0.0.1", 9999)
       # If it succeeds, should return "OK"
@@ -347,7 +347,7 @@ module Lint
              e.message.include?("meet"))
     end
 
-    def z_test_cluster_forget_command
+    def test_cluster_forget_command
       # Test cluster forget command with invalid node ID
       r.cluster_forget("invalid_node_id_that_does_not_exist")
     rescue Valkey::CommandError => e
@@ -356,7 +356,7 @@ module Lint
       pass "Cluster forget correctly failed with invalid node ID as expected"
     end
 
-    def z_test_cluster_replicate_command
+    def test_cluster_replicate_command
       # Test cluster replicate command - should fail in normal operation
       r.cluster_replicate("some_master_node_id")
     rescue Valkey::CommandError => e
@@ -365,7 +365,7 @@ module Lint
       pass "Cluster replicate correctly failed with invalid master ID as expected"
     end
 
-    def z_test_cluster_slaves
+    def test_cluster_slaves
       # Test cluster slaves command (deprecated)
       node_id = r.cluster_myid
       result = r.cluster_slaves(node_id)
@@ -377,7 +377,7 @@ module Lint
              e.message.include?("ERR")
     end
 
-    def z_test_cluster_reset_on_cluster
+    def test_cluster_reset_on_cluster
       # Test cluster reset command - this is destructive so we expect it to work or fail gracefully
       r.cluster_reset("SOFT") # Use SOFT reset to be less destructive
       # If it succeeds, that's also valid
