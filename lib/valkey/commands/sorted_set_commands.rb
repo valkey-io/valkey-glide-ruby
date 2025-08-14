@@ -120,45 +120,49 @@ class Valkey
         end
       end
 
-      # Removes and returns up to count members with the highest scores in the sorted set stored at keys,
-      #   or block until one is available.
+      # Removes and returns up to count members with the highest scores in the sorted set stored at key.
       #
-      # @example Popping a member from a sorted set
-      #   valkey.bzpopmax('zset', 1)
-      #   #=> ['zset', 'b', 2.0]
-      # @example Popping a member from multiple sorted sets
-      #   valkey.bzpopmax('zset1', 'zset2', 1)
-      #   #=> ['zset1', 'b', 2.0]
+      # @example Popping a member
+      #   valkey.zpopmax('zset')
+      #   #=> ['b', 2.0]
+      # @example With count option
+      #   valkey.zpopmax('zset', 2)
+      #   #=> [['b', 2.0], ['a', 1.0]]
       #
-      # @params keys [Array<String>] one or multiple keys of the sorted sets
-      # @params timeout [Integer] the maximum number of seconds to block
+      # @params key [String] a key of the sorted set
+      # @params count [Integer] a number of members
       #
-      # @return [Array<String, String, Float>] a touple of key, member and score
-      # @return [nil] when no element could be popped and the timeout expired
-      def bzpopmax(*args)
-        _bpop(:bzpopmax, args) do |reply|
-          reply.is_a?(Array) ? [reply[0], reply[1], Floatify.call(reply[2])] : reply
+      # @return [Array<String, Float>] element and score pair if count is not specified
+      # @return [Array<Array<String, Float>>] list of popped elements and scores
+      def zpopmax(key, count = nil)
+        command_args = [key]
+        command_args << Integer(count) if count
+        send_command(RequestType::Z_POP_MAX, command_args) do |members|
+          members = Utils::FloatifyPairs.call(members)
+          count.to_i > 1 ? members : members.first
         end
       end
 
-      # Removes and returns up to count members with the lowest scores in the sorted set stored at keys,
-      #   or block until one is available.
+      # Removes and returns up to count members with the lowest scores in the sorted set stored at key.
       #
-      # @example Popping a member from a sorted set
-      #   valkey.bzpopmin('zset', 1)
-      #   #=> ['zset', 'a', 1.0]
-      # @example Popping a member from multiple sorted sets
-      #   valkey.bzpopmin('zset1', 'zset2', 1)
-      #   #=> ['zset1', 'a', 1.0]
+      # @example Popping a member
+      #   valkey.zpopmin('zset')
+      #   #=> ['a', 1.0]
+      # @example With count option
+      #   valkey.zpopmin('zset', 2)
+      #   #=> [['a', 1.0], ['b', 2.0]]
       #
-      # @params keys [Array<String>] one or multiple keys of the sorted sets
-      # @params timeout [Integer] the maximum number of seconds to block
+      # @params key [String] a key of the sorted set
+      # @params count [Integer] a number of members
       #
-      # @return [Array<String, String, Float>] a touple of key, member and score
-      # @return [nil] when no element could be popped and the timeout expired
-      def bzpopmin(*args)
-        _bpop(:bzpopmin, args) do |reply|
-          reply.is_a?(Array) ? [reply[0], reply[1], Floatify.call(reply[2])] : reply
+      # @return [Array<String, Float>] element and score pair if count is not specified
+      # @return [Array<Array<String, Float>>] list of popped elements and scores
+      def zpopmin(key, count = nil)
+        command_args = [key]
+        command_args << Integer(count) if count
+        send_command(RequestType::Z_POP_MIN, command_args) do |members|
+          members = Utils::FloatifyPairs.call(members)
+          count.to_i > 1 ? members : members.first
         end
       end
 
@@ -188,6 +192,56 @@ class Valkey
         send_command(RequestType::Z_MSCORE, [key, *members]) do |reply|
           reply.map(&Utils::Floatify)
         end
+      end
+
+      # Return a range of members in a sorted set, by index, score or lexicographical ordering.
+      #
+      # @example Retrieve all members from a sorted set, by index
+      #   valkey.zrange("zset", 0, -1)
+      #     # => ["a", "b"]
+      # @example Retrieve all members and their scores from a sorted set
+      #   valkey.zrange("zset", 0, -1, :with_scores => true)
+      #     # => [["a", 32.0], ["b", 64.0]]
+      #
+      # @param [String] key
+      # @param [Integer] start start index
+      # @param [Integer] stop stop index
+      # @param [Hash] options
+      #   - `:by_score => false`: return members by score
+      #   - `:by_lex => false`: return members by lexicographical ordering
+      #   - `:rev => false`: reverse the ordering, from highest to lowest
+      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of
+      #   `count` members
+      #   - `:with_scores => true`: include scores in output
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      def zrange(key, start, stop, byscore: false, by_score: byscore, bylex: false, by_lex: bylex,
+                 rev: false, limit: nil, withscores: false, with_scores: withscores)
+        raise ArgumentError, "only one of :by_score or :by_lex can be specified" if by_score && by_lex
+
+        args = [key, start, stop]
+
+        if by_score
+          args << "BYSCORE"
+        elsif by_lex
+          args << "BYLEX"
+        end
+
+        args << "REV" if rev
+
+        if limit
+          args << "LIMIT"
+          args.concat(limit.map { |l| Integer(l) })
+        end
+
+        if with_scores
+          args << "WITHSCORES"
+          block = Utils::FloatifyPairs
+        end
+
+        send_command(RequestType::Z_RANGE, args, &block)
       end
 
       # Select a range of members in a sorted set, by index, score or lexicographical ordering
@@ -358,6 +412,30 @@ class Valkey
         send_command(RequestType::Z_COUNT, [key, min, max])
       end
 
+      # Return the intersection of multiple sorted sets
+      #
+      # @example Retrieve the intersection of `2*zsetA` and `1*zsetB`
+      #   valkey.zinter("zsetA", "zsetB", :weights => [2.0, 1.0])
+      #     # => ["v1", "v2"]
+      # @example Retrieve the intersection of `2*zsetA` and `1*zsetB`, and their scores
+      #   valkey.zinter("zsetA", "zsetB", :weights => [2.0, 1.0], :with_scores => true)
+      #     # => [["v1", 3.0], ["v2", 6.0]]
+      #
+      # @param [String, Array<String>] keys one or more keys to intersect
+      # @param [Hash] options
+      #   - `:weights => [Float, Float, ...]`: weights to associate with source
+      #   sorted sets
+      #   - `:aggregate => String`: aggregate function to use (sum, min, max, ...)
+      #   - `:with_scores => true`: include scores in output
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      def zinter(*args)
+        _zsets_operation(RequestType::Z_INTER, *args)
+      end
+      ruby2_keywords(:zinter) if respond_to?(:ruby2_keywords, true)
+
       # Intersect multiple sorted sets and store the resulting sorted set in a new
       # key.
       #
@@ -377,6 +455,30 @@ class Valkey
       end
       ruby2_keywords(:zinterstore) if respond_to?(:ruby2_keywords, true)
 
+      # Return the union of multiple sorted sets
+      #
+      # @example Retrieve the union of `2*zsetA` and `1*zsetB`
+      #   valkey.zunion("zsetA", "zsetB", :weights => [2.0, 1.0])
+      #     # => ["v1", "v2"]
+      # @example Retrieve the union of `2*zsetA` and `1*zsetB`, and their scores
+      #   valkey.zunion("zsetA", "zsetB", :weights => [2.0, 1.0], :with_scores => true)
+      #     # => [["v1", 3.0], ["v2", 6.0]]
+      #
+      # @param [String, Array<String>] keys one or more keys to union
+      # @param [Hash] options
+      #   - `:weights => [Array<Float>]`: weights to associate with source
+      #   sorted sets
+      #   - `:aggregate => String`: aggregate function to use (sum, min, max)
+      #   - `:with_scores => true`: include scores in output
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      def zunion(*args)
+        _zsets_operation(RequestType::Z_UNION, *args)
+      end
+      ruby2_keywords(:zunion) if respond_to?(:ruby2_keywords, true)
+
       # Add multiple sorted sets and store the resulting sorted set in a new key.
       #
       # @example Compute the union of `2*zsetA` with `1*zsetB`, summing their scores
@@ -394,6 +496,30 @@ class Valkey
         _zsets_operation_store(RequestType::Z_UNION_STORE, *args)
       end
       ruby2_keywords(:zunionstore) if respond_to?(:ruby2_keywords, true)
+
+      # Return the difference between the first and all successive input sorted sets
+      #
+      # @example
+      #   valkey.zadd("zsetA", [[1.0, "v1"], [2.0, "v2"]])
+      #   valkey.zadd("zsetB", [[3.0, "v2"], [2.0, "v3"]])
+      #   valkey.zdiff("zsetA", "zsetB")
+      #     => ["v1"]
+      # @example With scores
+      #   valkey.zadd("zsetA", [[1.0, "v1"], [2.0, "v2"]])
+      #   valkey.zadd("zsetB", [[3.0, "v2"], [2.0, "v3"]])
+      #   valkey.zdiff("zsetA", "zsetB", :with_scores => true)
+      #     => [["v1", 1.0]]
+      #
+      # @param [String, Array<String>] keys one or more keys to compute the difference
+      # @param [Hash] options
+      #   - `:with_scores => true`: include scores in output
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      def zdiff(*keys, with_scores: false)
+        _zsets_operation(RequestType::Z_DIFF, *keys, with_scores: with_scores)
+      end
 
       # Compute the difference between the first and all successive input sorted sets
       # and store the resulting sorted set in a new key
