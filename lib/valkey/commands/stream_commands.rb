@@ -117,7 +117,14 @@ class Valkey
         args.concat(Array(ids))
 
         send_command(RequestType::X_READ, args) do |reply|
-          Utils::HashifyStreams.call(reply)
+          # Backend returns Array format: [stream_name, entries, stream_name2, entries2, ...]
+          # Convert to Hash format first
+          if reply.is_a?(Array)
+            stream_hash = reply.each_slice(2).to_h
+            Utils::HashifyStreams.call(stream_hash)
+          else
+            Utils::HashifyStreams.call(reply)
+          end
         end
       end
 
@@ -148,7 +155,14 @@ class Valkey
         args.concat(Array(ids))
 
         send_command(RequestType::X_READ_GROUP, args) do |reply|
-          Utils::HashifyStreams.call(reply)
+          # Backend returns Array format: [stream_name, entries, stream_name2, entries2, ...]
+          # Convert to Hash format first
+          if reply.is_a?(Array)
+            stream_hash = reply.each_slice(2).to_h
+            Utils::HashifyStreams.call(stream_hash)
+          else
+            Utils::HashifyStreams.call(reply)
+          end
         end
       end
 

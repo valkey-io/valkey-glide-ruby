@@ -8,10 +8,12 @@ module Lint
         id1 = r.xadd("mystream", { "field1" => "value1", "field2" => "value2" })
         assert_match(/\d+-\d+/, id1)
 
-        # Add entry with specific ID (use a timestamp that's definitely in the future)
-        timestamp = (Time.now.to_f * 1000).to_i
-        id2 = r.xadd("mystream", { "field1" => "value1" }, id: "#{timestamp}-0")
-        assert_equal "#{timestamp}-0", id2
+        # Parse the first ID to ensure the second one is greater
+        timestamp, _sequence = id1.split("-").map(&:to_i)
+        # Use a timestamp that's definitely greater (add 1000ms to be safe)
+        future_timestamp = timestamp + 1000
+        id2 = r.xadd("mystream", { "field1" => "value1" }, id: "#{future_timestamp}-0")
+        assert_equal "#{future_timestamp}-0", id2
 
         # Verify stream length
         assert_equal 2, r.xlen("mystream")
@@ -22,13 +24,13 @@ module Lint
 
     def test_xadd_with_options
       target_version "5.0" do
-        # Add with maxlen trimming
+        # Add with maxlen trimming (approximate trimming may keep a few more entries)
         r.xadd("mystream", { "field1" => "value1" }, maxlen: 3, approximate: true)
         r.xadd("mystream", { "field2" => "value2" }, maxlen: 3, approximate: true)
         r.xadd("mystream", { "field3" => "value3" }, maxlen: 3, approximate: true)
         r.xadd("mystream", { "field4" => "value4" }, maxlen: 3, approximate: true)
-        # Stream should be trimmed to 3 entries
-        assert_operator r.xlen("mystream"), :<=, 3
+        # Approximate trimming may keep a few more entries, so check it's reasonable
+        assert_operator r.xlen("mystream"), :<=, 5
 
         r.del "mystream"
 
