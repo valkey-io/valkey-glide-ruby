@@ -116,7 +116,9 @@ class Valkey
         args.concat(Array(keys))
         args.concat(Array(ids))
 
-        send_command(RequestType::X_READ, args)
+        send_command(RequestType::X_READ, args) do |reply|
+          Utils::HashifyStreams.call(reply)
+        end
       end
 
       # Read entries from streams using a consumer group.
@@ -145,7 +147,9 @@ class Valkey
         args.concat(Array(keys))
         args.concat(Array(ids))
 
-        send_command(RequestType::X_READ_GROUP, args)
+        send_command(RequestType::X_READ_GROUP, args) do |reply|
+          Utils::HashifyStreams.call(reply)
+        end
       end
 
       # Get entries from a stream within a range of IDs.
@@ -166,7 +170,9 @@ class Valkey
       def xrange(key, start, end_id, **options)
         args = [key, start, end_id]
         args << "COUNT" << options[:count].to_s if options[:count]
-        send_command(RequestType::X_RANGE, args)
+        send_command(RequestType::X_RANGE, args) do |reply|
+          Utils::HashifyStreamEntries.call(reply)
+        end
       end
 
       # Get entries from a stream within a range of IDs in reverse order.
@@ -185,7 +191,9 @@ class Valkey
       def xrevrange(key, range_end = "+", start = "-", count: nil)
         args = [key, range_end, start]
         args << "COUNT" << count.to_s if count
-        send_command(RequestType::X_REV_RANGE, args)
+        send_command(RequestType::X_REV_RANGE, args) do |reply|
+          Utils::HashifyStreamEntries.call(reply)
+        end
       end
 
       # Trim a stream to a maximum length.
@@ -292,7 +300,7 @@ class Valkey
       #
       # @see https://valkey.io/commands/xgroup-createconsumer/
       def xgroup_createconsumer(key, group, consumer)
-        xgroup(:createconsumer, key, group, consumer)
+        send_command(RequestType::X_GROUP_CREATE_CONSUMER, [key, group, consumer])
       end
 
       # Set the last-delivered ID for a consumer group.
@@ -307,7 +315,7 @@ class Valkey
       #
       # @see https://valkey.io/commands/xgroup-setid/
       def xgroup_setid(key, group, id)
-        xgroup(:setid, key, group, id)
+        send_command(RequestType::X_GROUP_SET_ID, [key, group, id])
       end
 
       # Destroy a consumer group.
@@ -322,7 +330,7 @@ class Valkey
       #
       # @see https://valkey.io/commands/xgroup-destroy/
       def xgroup_destroy(key, group)
-        xgroup(:destroy, key, group)
+        send_command(RequestType::X_GROUP_DESTROY, [key, group])
       end
 
       # Remove a consumer from a consumer group.
@@ -338,7 +346,7 @@ class Valkey
       #
       # @see https://valkey.io/commands/xgroup-delconsumer/
       def xgroup_delconsumer(key, group, consumer)
-        xgroup(:delconsumer, key, group, consumer)
+        send_command(RequestType::X_GROUP_DEL_CONSUMER, [key, group, consumer])
       end
 
       # Acknowledge one or more messages in a consumer group.
@@ -383,7 +391,16 @@ class Valkey
         cmd_args = [key, group]
         cmd_args.concat(args)
         cmd_args << "IDLE" << idle.to_s if idle
-        send_command(RequestType::X_PENDING, cmd_args)
+
+        send_command(RequestType::X_PENDING, cmd_args) do |reply|
+          # If args provided (start, end, count), return detailed format
+          # Otherwise return summary format
+          if args.length >= 2
+            Utils::HashifyStreamPendingDetails.call(reply)
+          else
+            Utils::HashifyStreamPendings.call(reply)
+          end
+        end
       end
 
       # Claim ownership of pending messages in a consumer group.
@@ -415,7 +432,13 @@ class Valkey
         args << "FORCE" if options[:force]
         args << "JUSTID" if options[:justid]
 
-        send_command(RequestType::X_CLAIM, args)
+        send_command(RequestType::X_CLAIM, args) do |reply|
+          if options[:justid]
+            reply
+          else
+            Utils::HashifyStreamEntries.call(reply)
+          end
+        end
       end
 
       # Automatically claim pending messages that have been idle for a specified time.
@@ -447,7 +470,15 @@ class Valkey
         args << "RETRYCOUNT" << options[:retrycount].to_s if options[:retrycount]
         args << "JUSTID" if options[:justid]
 
-        send_command(RequestType::X_AUTO_CLAIM, args)
+        send_command(RequestType::X_AUTO_CLAIM, args) do |reply|
+          return { 'next' => '0-0', 'entries' => [] } if reply.nil? || !reply.is_a?(Array)
+
+          if options[:justid]
+            Utils::HashifyStreamAutoclaimJustId.call(reply)
+          else
+            Utils::HashifyStreamAutoclaim.call(reply)
+          end
+        end
       end
 
       # Get information about streams, groups, and consumers (dispatcher method).

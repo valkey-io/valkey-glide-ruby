@@ -8,9 +8,10 @@ module Lint
         id1 = r.xadd("mystream", { "field1" => "value1", "field2" => "value2" })
         assert_match(/\d+-\d+/, id1)
 
-        # Add entry with specific ID
-        id2 = r.xadd("mystream", { "field1" => "value1" }, id: "1234567890-1")
-        assert_equal "1234567890-1", id2
+        # Add entry with specific ID (use a timestamp that's definitely in the future)
+        timestamp = (Time.now.to_f * 1000).to_i
+        id2 = r.xadd("mystream", { "field1" => "value1" }, id: "#{timestamp}-0")
+        assert_equal "#{timestamp}-0", id2
 
         # Verify stream length
         assert_equal 2, r.xlen("mystream")
@@ -76,14 +77,18 @@ module Lint
 
     def test_xrange
       target_version "5.0" do
+        # Clean up any existing stream first
+        r.del "mystream"
+
         id1 = r.xadd("mystream", { "field1" => "value1" }, id: "1000-0")
         r.xadd("mystream", { "field2" => "value2" }, id: "2000-0")
         r.xadd("mystream", { "field3" => "value3" }, id: "3000-0")
 
-        # Get all entries
+        # Get all entries (converted to [id, hash] format)
         entries = r.xrange("mystream", "-", "+")
         assert_equal 3, entries.length
         assert_equal id1, entries[0][0]
+        assert_kind_of Hash, entries[0][1] # field-value hash
 
         # Get entries with count
         entries = r.xrange("mystream", "-", "+", count: 2)
@@ -103,10 +108,11 @@ module Lint
         r.xadd("mystream", { "field2" => "value2" }, id: "2000-0")
         id3 = r.xadd("mystream", { "field3" => "value3" }, id: "3000-0")
 
-        # Get all entries in reverse
+        # Get all entries in reverse (converted to [id, hash] format)
         entries = r.xrevrange("mystream")
         assert_equal 3, entries.length
         assert_equal id3, entries[0][0] # Last entry first
+        assert_kind_of Hash, entries[0][1] # field-value hash
 
         # Get last entry
         entries = r.xrevrange("mystream", "+", "-", count: 1)
@@ -166,8 +172,10 @@ module Lint
 
         # Read from consumer group
         result = r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
+        # After HashifyStreams conversion, should be Hash format
         assert_kind_of Hash, result
         assert result.key?("mystream")
+        # Entries are converted to [id, hash] format
         assert_operator result["mystream"].length, :>=, 2
 
         r.del "mystream"
@@ -231,11 +239,11 @@ module Lint
 
     def test_xgroup_delconsumer
       target_version "5.0" do
-        r.xadd("mystream", "*", { "field1" => "value1" })
+        r.xadd("mystream", { "field1" => "value1" })
         r.xgroup_create("mystream", "mygroup", "0")
 
         # Read some messages to create pending
-        r.xreadgroup("mygroup", "consumer1", { "mystream" => ">" })
+        r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
 
         # Delete consumer
         result = r.xgroup_delconsumer("mystream", "mygroup", "consumer1")
@@ -273,15 +281,23 @@ module Lint
         # Read messages (creates pending)
         r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
 
-        # Get pending summary
+        # Get pending summary (converted to Hash)
         pending = r.xpending("mystream", "mygroup")
-        assert_kind_of Array, pending
-        assert_operator pending[0], :>=, 0 # pending count
+        assert_kind_of Hash, pending
+        assert pending.key?("size")
+        assert_operator pending["size"], :>=, 0
 
-        # Get detailed pending entries
+        # Get detailed pending entries (converted to Array of Hashes)
         entries = r.xpending("mystream", "mygroup", "-", "+", 10)
         assert_kind_of Array, entries
         assert_operator entries.length, :>=, 0
+        # Each entry should be a Hash with entry_id, consumer, elapsed, count
+        if entries.any?
+          entries.each do |entry|
+            assert_kind_of Hash, entry
+            assert entry.key?("entry_id")
+          end
+        end
 
         r.del "mystream"
       end
@@ -298,10 +314,19 @@ module Lint
         # Wait a bit for idle time
         sleep(0.1)
 
-        # Claim message for consumer2
+        # Claim message for consumer2 (converted to [id, hash] format)
         claimed = r.xclaim("mystream", "mygroup", "consumer2", 100, [id1])
         assert_kind_of Array, claimed
         assert_operator claimed.length, :>=, 0
+        # Each entry should be [id, hash] format
+        if claimed.any?
+          claimed.each do |entry|
+            assert_kind_of Array, entry
+            assert_equal 2, entry.length
+            assert_kind_of String, entry[0] # ID
+            assert_kind_of Hash, entry[1] # field-value hash
+          end
+        end
 
         r.del "mystream"
       end
@@ -318,10 +343,12 @@ module Lint
         # Wait a bit for idle time
         sleep(0.1)
 
-        # Auto-claim for consumer2
+        # Auto-claim for consumer2 (converted to Hash with 'next' and 'entries')
         result = r.xautoclaim("mystream", "mygroup", "consumer2", 100, "0-0")
-        assert_kind_of Array, result
-        assert_equal 2, result.length # [next_id, [claimed_entries]]
+        assert_kind_of Hash, result
+        assert result.key?("next")
+        assert result.key?("entries")
+        assert_kind_of Array, result["entries"]
 
         r.del "mystream"
       end
