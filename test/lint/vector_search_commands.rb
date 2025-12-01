@@ -20,7 +20,7 @@ module Lint
       super
       # RediSearch requires database 0 - switch to it
       r.select(0)
-      
+
       # Try to ensure RediSearch module is loaded
       ensure_redisearch_loaded
 
