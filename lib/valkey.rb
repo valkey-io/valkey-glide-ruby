@@ -153,8 +153,8 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # technically it has to return a Hash, but as of now we return just one pair
-        map.to_a.flatten(1) # Flatten to get pairs
+        # Return the Hash as-is to preserve nested structures (needed for RediSearch responses)
+        map
       when ResponseType::SETS
         ptr = result[:sets_value]
         count = result[:sets_value_len].to_i

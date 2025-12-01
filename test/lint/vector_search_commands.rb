@@ -141,20 +141,9 @@ module Lint
           r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
           # Get index info
-          # Note: FT.INFO returns a complex Map structure that may not be fully supported yet
-          begin
-            info = r.ft_info(TEST_INDEX)
-            assert_kind_of Array, info
-
-            # Info should contain index_name
-            assert info.include?("index_name") || info.any? { |item| item.is_a?(Array) && item.include?("index_name") },
-                   "Info should contain index_name"
-          rescue Valkey::CommandError => e
-            # The Map response type from FT.INFO might not be fully supported in the FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.INFO Map response type not yet fully supported in FFI bindings")
-          end
+          info = r.ft_info(TEST_INDEX)
+          # FT.INFO returns a Hash with index metadata
+          assert_kind_of Hash, info
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -222,19 +211,9 @@ module Lint
           sleep 0.1
 
           # Search for documents
-          begin
-            results = r.ft_search(TEST_INDEX, "hello")
-            assert_kind_of Array, results
-
-            # First element should be the count
-            count = results[0]
-            assert count.is_a?(Integer) || count.is_a?(String), "First element should be result count"
-          rescue Valkey::CommandError => e
-            # FT.SEARCH can return Map types that aren't fully supported in FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
-          end
+          results = r.ft_search(TEST_INDEX, "hello")
+          # FT.SEARCH returns a Hash with search results
+          assert_kind_of Hash, results
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -256,15 +235,9 @@ module Lint
           sleep 0.1
 
           # Search with LIMIT and RETURN options
-          begin
-            results = r.ft_search(TEST_INDEX, "world", "LIMIT", "0", "1", "RETURN", "1", "title")
-            assert_kind_of Array, results
-          rescue Valkey::CommandError => e
-            # FT.SEARCH can return Map types that aren't fully supported in FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
-          end
+          results = r.ft_search(TEST_INDEX, "world", "LIMIT", "0", "1", "RETURN", "1", "title")
+          # FT.SEARCH returns a Hash with search results
+          assert_kind_of Hash, results
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -288,16 +261,10 @@ module Lint
           sleep 0.1
 
           # Run aggregation
-          begin
-            results = r.ft_aggregate(TEST_INDEX, "*", "GROUPBY", "1", "@category",
-                                     "REDUCE", "COUNT", "0", "AS", "count")
-            assert_kind_of Array, results
-          rescue Valkey::CommandError => e
-            # FT.AGGREGATE can return Map types that aren't fully supported in FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.AGGREGATE Map response type not yet fully supported in FFI bindings")
-          end
+          results = r.ft_aggregate(TEST_INDEX, "*", "GROUPBY", "1", "@category",
+                                   "REDUCE", "COUNT", "0", "AS", "count")
+          # FT.AGGREGATE returns a Hash with aggregation results
+          assert_kind_of Hash, results
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -413,15 +380,9 @@ module Lint
           sleep 0.1
 
           # Profile a search query
-          begin
-            result = r.ft_profile(TEST_INDEX, "SEARCH", "QUERY", "hello")
-            assert_kind_of Array, result
-          rescue Valkey::CommandError => e
-            # FT.PROFILE can return Map types that aren't fully supported in FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.PROFILE Map response type not yet fully supported in FFI bindings")
-          end
+          result = r.ft_profile(TEST_INDEX, "SEARCH", "QUERY", "hello")
+          # FT.PROFILE returns a Hash with profiling data
+          assert_kind_of Hash, result
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -441,16 +402,10 @@ module Lint
           sleep 0.1
 
           # Profile an aggregation query
-          begin
-            result = r.ft_profile(TEST_INDEX, "AGGREGATE", "QUERY", "*",
-                                  "GROUPBY", "1", "@category")
-            assert_kind_of Array, result
-          rescue Valkey::CommandError => e
-            # FT.PROFILE can return Map types that aren't fully supported in FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.PROFILE Map response type not yet fully supported in FFI bindings")
-          end
+          result = r.ft_profile(TEST_INDEX, "AGGREGATE", "QUERY", "*",
+                                "GROUPBY", "1", "@category")
+          # FT.PROFILE returns a Hash with profiling data
+          assert_kind_of Hash, result
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -493,15 +448,9 @@ module Lint
 
           sleep 0.1
 
-          begin
-            results = r.ft(:search, TEST_INDEX, "hello")
-            assert_kind_of Array, results
-          rescue Valkey::CommandError => e
-            # FT.SEARCH can return Map types that aren't fully supported in FFI bindings yet
-            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-
-            skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
-          end
+          results = r.ft(:search, TEST_INDEX, "hello")
+          # FT.SEARCH returns a Hash with search results
+          assert_kind_of Hash, results
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
