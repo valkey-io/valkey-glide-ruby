@@ -10,10 +10,6 @@ module Lint
 
     def setup
       super
-      # RediSearch requires database 0, so we need to switch to it
-      # Store the current database to restore later
-      @original_db = 15 # Default test database
-      
       # Check if RediSearch module is already loaded
       @module_was_loaded = redisearch_loaded?
     rescue Valkey::CommandError => e
@@ -23,8 +19,9 @@ module Lint
     end
 
     def teardown
-      # Switch to database 0 for cleanup
+      # Clean up database 0 (where indexes are created)
       begin
+        # Temporarily switch to DB 0 for cleanup
         r.select(0)
         
         # Clean up test index if it exists
@@ -61,16 +58,19 @@ module Lint
           end
         end
       end
-      
-      # Switch back to original database
-      begin
-        r.select(@original_db)
-      rescue StandardError => e
-        warn "Warning: Could not switch back to database #{@original_db}: #{e.message}"
-      end
     rescue StandardError => e
       warn "Warning: Error in teardown: #{e.message}"
     ensure
+      # CRITICAL: ALWAYS restore to database 15 (the standard test database)
+      # This must happen in the ensure block so it runs even if cleanup fails
+      # This is essential for other tests (like test_move, test_copy) that depend on being on DB 15
+      begin
+        r.select(15) if r && !r.nil?
+      rescue StandardError => e
+        warn "CRITICAL: Could not restore database to 15: #{e.message}"
+      end
+      
+      # Call parent teardown
       super
     end
 
@@ -478,9 +478,15 @@ module Lint
     # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB
     def with_db0(&block)
       r.select(0)
-      block.call
+      result = block.call
+      result
     ensure
-      r.select(@original_db) if @original_db
+      # Always restore to database 15 (the standard test database), even on error
+      begin
+        r.select(15)
+      rescue StandardError => e
+        warn "Warning: Could not restore database to 15: #{e.message}"
+      end
     end
 
     def redisearch_loaded?
