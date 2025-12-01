@@ -18,40 +18,26 @@ module Lint
 
     def setup
       super
-      # RediSearch requires database 0 - switch to it
-      r.select(0)
-
-      # Try to ensure RediSearch module is loaded
-      ensure_redisearch_loaded
-
-      # Clean up any existing index/alias from previous test runs
-      begin
-        r.ft_drop_index(INDEX_NAME)
-      rescue Valkey::CommandError
-        # Index doesn't exist, that's fine
-      end
-      begin
-        r.ft_alias_del(ALIAS_NAME)
-      rescue Valkey::CommandError
-        # Alias doesn't exist, that's fine
+      # Try to ensure RediSearch module is loaded (on DB 0)
+      with_redisearch_db do
+        ensure_redisearch_loaded
       end
     end
 
     def teardown
       # Clean up test index and alias (on database 0)
-      r.select(0)
-      begin
-        r.ft_drop_index(INDEX_NAME)
-      rescue Valkey::CommandError
-        # Ignore errors during cleanup
+      with_redisearch_db do
+        begin
+          r.ft_drop_index(INDEX_NAME)
+        rescue Valkey::CommandError
+          # Ignore errors during cleanup
+        end
+        begin
+          r.ft_alias_del(ALIAS_NAME)
+        rescue Valkey::CommandError
+          # Ignore errors during cleanup
+        end
       end
-      begin
-        r.ft_alias_del(ALIAS_NAME)
-      rescue Valkey::CommandError
-        # Ignore errors during cleanup
-      end
-      # Switch back to test database (15)
-      r.select(15)
       super
     end
 
@@ -59,9 +45,11 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # FT.LIST should return an array
-        list = r.ft_list
-        assert_kind_of Array, list
+        with_redisearch_db do
+          # FT.LIST should return an array
+          list = r.ft_list
+          assert_kind_of Array, list
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -72,13 +60,15 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create a simple index with schema (schema is required)
-        result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
-        assert_equal "OK", result
+        with_redisearch_db do
+          # Create a simple index with schema (schema is required)
+          result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+          assert_equal "OK", result
 
-        # Verify index exists in list
-        list = r.ft_list
-        assert_includes list, INDEX_NAME
+          # Verify index exists in list
+          list = r.ft_list
+          assert_includes list, INDEX_NAME
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -89,13 +79,15 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create an index with schema
-        result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
-        assert_equal "OK", result
+        with_redisearch_db do
+          # Create an index with schema
+          result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
+          assert_equal "OK", result
 
-        # Verify index exists
-        list = r.ft_list
-        assert_includes list, INDEX_NAME
+          # Verify index exists
+          list = r.ft_list
+          assert_includes list, INDEX_NAME
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -106,16 +98,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index first (with schema)
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index first (with schema)
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Drop the index
-        result = r.ft_drop_index(INDEX_NAME)
-        assert_equal "OK", result
+          # Drop the index
+          result = r.ft_drop_index(INDEX_NAME)
+          assert_equal "OK", result
 
-        # Verify index is gone
-        list = r.ft_list
-        refute_includes list, INDEX_NAME
+          # Verify index is gone
+          list = r.ft_list
+          refute_includes list, INDEX_NAME
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -126,12 +120,14 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index first (with schema)
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index first (with schema)
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Drop the index with DD option
-        result = r.ft_drop_index(INDEX_NAME, dd: true)
-        assert_equal "OK", result
+          # Drop the index with DD option
+          result = r.ft_drop_index(INDEX_NAME, dd: true)
+          assert_equal "OK", result
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -142,13 +138,15 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index first (with schema)
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index first (with schema)
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Get index info
-        info = r.ft_info(INDEX_NAME)
-        assert_kind_of Array, info
-        assert !info.empty?, "Info should contain data"
+          # Get index info
+          info = r.ft_info(INDEX_NAME)
+          assert_kind_of Array, info
+          assert !info.empty?, "Info should contain data"
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -159,16 +157,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index first (with schema)
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index first (with schema)
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Add alias
-        result = r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
-        assert_equal "OK", result
+          # Add alias
+          result = r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
+          assert_equal "OK", result
 
-        # Verify alias exists
-        aliases = r.ft_alias_list
-        assert_includes aliases, ALIAS_NAME
+          # Verify alias exists
+          aliases = r.ft_alias_list
+          assert_includes aliases, ALIAS_NAME
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -179,17 +179,19 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index and alias first (with schema)
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
-        r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
+        with_redisearch_db do
+          # Create index and alias first (with schema)
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+          r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
 
-        # Delete alias
-        result = r.ft_alias_del(ALIAS_NAME)
-        assert_equal "OK", result
+          # Delete alias
+          result = r.ft_alias_del(ALIAS_NAME)
+          assert_equal "OK", result
 
-        # Verify alias is gone
-        aliases = r.ft_alias_list
-        refute_includes aliases, ALIAS_NAME
+          # Verify alias is gone
+          aliases = r.ft_alias_list
+          refute_includes aliases, ALIAS_NAME
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -200,14 +202,16 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index and alias first (with schema)
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
-        r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
+        with_redisearch_db do
+          # Create index and alias first (with schema)
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+          r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
 
-        # List aliases
-        aliases = r.ft_alias_list
-        assert_kind_of Array, aliases
-        assert_includes aliases, ALIAS_NAME
+          # List aliases
+          aliases = r.ft_alias_list
+          assert_kind_of Array, aliases
+          assert_includes aliases, ALIAS_NAME
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -218,22 +222,24 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create two indexes (with schemas)
-        index1 = "#{INDEX_NAME}_1"
-        index2 = "#{INDEX_NAME}_2"
-        r.ft_create(index1, "ON", "HASH", "PREFIX", "1", "doc1:", "SCHEMA", "title", "TEXT")
-        r.ft_create(index2, "ON", "HASH", "PREFIX", "1", "doc2:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create two indexes (with schemas)
+          index1 = "#{INDEX_NAME}_1"
+          index2 = "#{INDEX_NAME}_2"
+          r.ft_create(index1, "ON", "HASH", "PREFIX", "1", "doc1:", "SCHEMA", "title", "TEXT")
+          r.ft_create(index2, "ON", "HASH", "PREFIX", "1", "doc2:", "SCHEMA", "title", "TEXT")
 
-        # Add alias pointing to first index
-        r.ft_alias_add(ALIAS_NAME, index1)
+          # Add alias pointing to first index
+          r.ft_alias_add(ALIAS_NAME, index1)
 
-        # Update alias to point to second index
-        result = r.ft_alias_update(ALIAS_NAME, index2)
-        assert_equal "OK", result
+          # Update alias to point to second index
+          result = r.ft_alias_update(ALIAS_NAME, index2)
+          assert_equal "OK", result
 
-        # Clean up
-        r.ft_drop_index(index1)
-        r.ft_drop_index(index2)
+          # Clean up
+          r.ft_drop_index(index1)
+          r.ft_drop_index(index2)
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -244,17 +250,19 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
 
-        # Add some documents using send_command (hset not available as method)
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "body", "test content"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "body", "another test"])
+          # Add some documents using send_command (hset not available as method)
+          r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "body", "test content"])
+          r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "body", "another test"])
 
-        # Search
-        results = r.ft_search(INDEX_NAME, "hello")
-        assert_kind_of Array, results
-        assert !results.empty?, "Search should return results"
+          # Search
+          results = r.ft_search(INDEX_NAME, "hello")
+          assert_kind_of Array, results
+          assert !results.empty?, "Search should return results"
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -265,16 +273,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
 
-        # Add some documents using send_command (hset not available as method)
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "body", "test content"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "body", "another test"])
+          # Add some documents using send_command (hset not available as method)
+          r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "body", "test content"])
+          r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "body", "another test"])
 
-        # Search with LIMIT and RETURN options
-        results = r.ft_search(INDEX_NAME, "*", "LIMIT", "0", "10", "RETURN", "1", "title")
-        assert_kind_of Array, results
+          # Search with LIMIT and RETURN options
+          results = r.ft_search(INDEX_NAME, "*", "LIMIT", "0", "10", "RETURN", "1", "title")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -285,16 +295,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
-        # Add some documents
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
+          # Add some documents
+          r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
+          r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
-        # Aggregate query
-        results = r.ft_aggregate(INDEX_NAME, "*")
-        assert_kind_of Array, results
+          # Aggregate query
+          results = r.ft_aggregate(INDEX_NAME, "*")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -305,16 +317,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
-        # Add some documents
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
+          # Add some documents
+          r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
+          r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
-        # Aggregate with GROUPBY
-        results = r.ft_aggregate(INDEX_NAME, "*", "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0")
-        assert_kind_of Array, results
+          # Aggregate with GROUPBY
+          results = r.ft_aggregate(INDEX_NAME, "*", "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -325,13 +339,15 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Explain query
-        explanation = r.ft_explain(INDEX_NAME, "hello world")
-        assert_kind_of String, explanation
-        assert !explanation.empty?, "Explanation should not be empty"
+          # Explain query
+          explanation = r.ft_explain(INDEX_NAME, "hello world")
+          assert_kind_of String, explanation
+          assert !explanation.empty?, "Explanation should not be empty"
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -342,13 +358,15 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Explain query in CLI format (returns Array of lines)
-        explanation = r.ft_explain_cli(INDEX_NAME, "hello world")
-        assert_kind_of Array, explanation
-        assert !explanation.empty?, "Explanation should not be empty"
+          # Explain query in CLI format (returns Array of lines)
+          explanation = r.ft_explain_cli(INDEX_NAME, "hello world")
+          assert_kind_of Array, explanation
+          assert !explanation.empty?, "Explanation should not be empty"
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -359,16 +377,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Add some documents
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar"])
+          # Add some documents
+          r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
+          r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar"])
 
-        # Profile a search query (QUERY keyword is required)
-        results = r.ft_profile(INDEX_NAME, "SEARCH", "QUERY", "hello")
-        assert_kind_of Array, results
+          # Profile a search query (QUERY keyword is required)
+          results = r.ft_profile(INDEX_NAME, "SEARCH", "QUERY", "hello")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -379,16 +399,18 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create index with schema
-        r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
+        with_redisearch_db do
+          # Create index with schema
+          r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
-        # Add some documents
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
+          # Add some documents
+          r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
+          r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
-        # Profile an aggregate query (QUERY keyword is required)
-        results = r.ft_profile(INDEX_NAME, "AGGREGATE", "QUERY", "*", "GROUPBY", "1", "@category")
-        assert_kind_of Array, results
+          # Profile an aggregate query (QUERY keyword is required)
+          results = r.ft_profile(INDEX_NAME, "AGGREGATE", "QUERY", "*", "GROUPBY", "1", "@category")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
@@ -397,9 +419,21 @@ module Lint
 
     private
 
+    # Helper to run RediSearch commands on DB 0 (required by RediSearch)
+    # and automatically switch back to the original DB
+    def with_redisearch_db
+      original_db = 15 # Test DB
+      r.select(0) # RediSearch requires DB 0
+      yield
+    ensure
+      r.select(original_db) # Always switch back
+    end
+
     def redisearch_available?
       # Try to list indexes - if it works, RediSearch is available
-      r.ft_list
+      with_redisearch_db do
+        r.ft_list
+      end
       true
     rescue Valkey::CommandError => e
       return false if e.message.include?("unknown command") || e.message.include?("FT")
