@@ -147,20 +147,14 @@ class Valkey
         Array.new(count) do |i|
           item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
 
-          # map_key and map_value are pointers to CommandResponse structs
-          key_ptr = item[:map_key]
-          value_ptr = item[:map_value]
-
-          next if key_ptr.null? || value_ptr.null?
-
-          map_key = convert_response.call(Bindings::CommandResponse.new(key_ptr))
-          map_value = convert_response.call(Bindings::CommandResponse.new(value_ptr))
+          map_key = convert_response.call(Bindings::CommandResponse.new(item[:map_key]))
+          map_value = convert_response.call(Bindings::CommandResponse.new(item[:map_value]))
 
           map[map_key] = map_value
         end
 
-        # Convert map to flat array of key-value pairs (for compatibility)
-        map.to_a.flatten(1)
+        # technically it has to return a Hash, but as of now we return just one pair
+        map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
         ptr = result[:sets_value]
         count = result[:sets_value_len].to_i
