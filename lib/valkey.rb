@@ -229,10 +229,20 @@ class Valkey
 
     cluster_mode_enabled = options[:cluster_mode] || false
 
+    # Protocol defaults to RESP2 for stability with RediSearch commands
+    # Users can explicitly set protocol: :resp3 if needed
+    protocol = case options[:protocol]
+               when :resp3, "resp3", 3
+                 ConnectionRequest::ProtocolVersion::RESP3
+               else
+                 # Default to RESP2 for stability (RediSearch compatibility)
+                 ConnectionRequest::ProtocolVersion::RESP2
+               end
+
     request = ConnectionRequest::ConnectionRequest.new(
       cluster_mode_enabled: cluster_mode_enabled,
       request_timeout: options[:timeout] || 3.0,
-      protocol: ConnectionRequest::ProtocolVersion::RESP2,
+      protocol: protocol,
       addresses: nodes.map { |node| ConnectionRequest::NodeAddress.new(host: node[:host], port: node[:port]) }
     )
 
