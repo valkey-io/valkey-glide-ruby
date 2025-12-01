@@ -177,13 +177,13 @@ class Valkey
       # Profile the execution of a query.
       #
       # @example
-      #   valkey.ft_profile("idx", "SEARCH", "hello world")
+      #   valkey.ft_profile("idx", "SEARCH", "QUERY", "hello world")
       # @example Profile with aggregation
-      #   valkey.ft_profile("idx", "AGGREGATE", "*", "GROUPBY", "1", "@field")
+      #   valkey.ft_profile("idx", "AGGREGATE", "QUERY", "*", "GROUPBY", "1", "@field")
       #
       # @param [String] index the index name
       # @param [String] type the query type ("SEARCH" or "AGGREGATE")
-      # @param [Array<String>] args query arguments
+      # @param [Array<String>] args query arguments (must include "QUERY" keyword before the query string)
       # @return [Array] profiling results
       #
       # @see https://redis.io/commands/ft-profile/
