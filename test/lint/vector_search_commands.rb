@@ -16,6 +16,9 @@ module Lint
 
     def setup
       super
+      # RediSearch requires database 0 - switch to it
+      r.select(0)
+      
       # Try to ensure RediSearch module is loaded
       ensure_redisearch_loaded
 
@@ -33,7 +36,8 @@ module Lint
     end
 
     def teardown
-      # Clean up test index and alias
+      # Clean up test index and alias (on database 0)
+      r.select(0)
       begin
         r.ft_drop_index(INDEX_NAME)
       rescue Valkey::CommandError
@@ -44,6 +48,8 @@ module Lint
       rescue Valkey::CommandError
         # Ignore errors during cleanup
       end
+      # Switch back to test database (15)
+      r.select(15)
       super
     end
 
