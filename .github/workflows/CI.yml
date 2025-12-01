@@ -47,13 +47,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Copy RedisBloom module for testing
+      - name: Copy modules for testing
         run: |
           echo "Copying RedisBloom module for MODULE commands testing..."
           mkdir -p test/fixtures
           cp .github/files/redisbloom-amd64-v2.6.12.so test/fixtures/redisbloom.so
           chmod +x test/fixtures/redisbloom.so
           ls -lh test/fixtures/redisbloom.so
+          
+          echo "Copying RediSearch module for Vector Search commands testing..."
+          cp .github/files/redisearch-amd64-v2.10.24.so test/fixtures/redisearch.so
+          chmod +x test/fixtures/redisearch.so
+          ls -lh test/fixtures/redisearch.so
       
       - name: Start Valkey with MODULE commands enabled
         run: |
@@ -78,8 +83,9 @@ jobs:
           echo "Verifying MODULE commands are enabled..."
           docker exec valkey-test valkey-cli CONFIG GET enable-module-command
           
-          echo "Verifying module file is accessible..."
+          echo "Verifying module files are accessible..."
           docker exec valkey-test ls -lh /tmp/modules/redisbloom.so
+          docker exec valkey-test ls -lh /tmp/modules/redisearch.so
       
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1

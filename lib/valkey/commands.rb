@@ -15,6 +15,7 @@ require "valkey/commands/function_commands"
 require "valkey/commands/module_commands"
 require "valkey/commands/pubsub_commands"
 require "valkey/commands/cluster_commands"
+require "valkey/commands/vector_search_commands"
 
 class Valkey
   # Valkey commands module
@@ -45,6 +46,7 @@ class Valkey
     include ModuleCommands
     include PubSubCommands
     include ClusterCommands
+    include VectorSearchCommands
 
     # there are a few commands that are not implemented by design
     #
