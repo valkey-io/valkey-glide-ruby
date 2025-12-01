@@ -4,9 +4,21 @@ module Lint
   module VectorSearchCommands
     INDEX_NAME = "test_idx"
     ALIAS_NAME = "test_alias"
+    # Common RediSearch module paths - adjust based on your installation
+    # CI mounts modules at /tmp/modules, so that's checked first
+    REDISEARCH_MODULE_PATHS = [
+      "/tmp/modules/redisearch.so", # CI/Docker mount path
+      "/usr/lib/redis/modules/redisearch.so",
+      "/opt/redis-stack/lib/redisearch.so",
+      "/usr/local/lib/redis/modules/redisearch.so",
+      ENV["REDISEARCH_MODULE_PATH"]
+    ].compact.freeze
 
     def setup
       super
+      # Try to ensure RediSearch module is loaded
+      ensure_redisearch_loaded
+
       # Clean up any existing index/alias from previous test runs
       begin
         r.ft_drop_index(INDEX_NAME)
@@ -37,6 +49,8 @@ module Lint
 
     def test_ft_list
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # FT.LIST should return an array
         list = r.ft_list
         assert_kind_of Array, list
@@ -48,6 +62,8 @@ module Lint
 
     def test_ft_create
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create a simple index
         result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
         assert_equal "OK", result
@@ -63,6 +79,8 @@ module Lint
 
     def test_ft_create_with_schema
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create an index with schema
         result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
         assert_equal "OK", result
@@ -78,6 +96,8 @@ module Lint
 
     def test_ft_drop_index
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index first
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
 
@@ -96,6 +116,8 @@ module Lint
 
     def test_ft_drop_index_with_dd
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index first
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
 
@@ -110,6 +132,8 @@ module Lint
 
     def test_ft_info
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index first
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
 
@@ -125,6 +149,8 @@ module Lint
 
     def test_ft_alias_add
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index first
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
 
@@ -143,6 +169,8 @@ module Lint
 
     def test_ft_alias_del
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index and alias first
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
         r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
@@ -162,6 +190,8 @@ module Lint
 
     def test_ft_alias_list
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index and alias first
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
         r.ft_alias_add(ALIAS_NAME, INDEX_NAME)
@@ -178,6 +208,8 @@ module Lint
 
     def test_ft_alias_update
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create two indexes
         index1 = "#{INDEX_NAME}_1"
         index2 = "#{INDEX_NAME}_2"
@@ -202,6 +234,8 @@ module Lint
 
     def test_ft_search
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
 
@@ -221,6 +255,8 @@ module Lint
 
     def test_ft_search_with_options
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
 
@@ -239,6 +275,8 @@ module Lint
 
     def test_ft_aggregate
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
@@ -257,6 +295,8 @@ module Lint
 
     def test_ft_aggregate_with_groupby
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
@@ -275,6 +315,8 @@ module Lint
 
     def test_ft_explain
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
@@ -290,6 +332,8 @@ module Lint
 
     def test_ft_explain_cli
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
@@ -305,6 +349,8 @@ module Lint
 
     def test_ft_profile
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
@@ -323,6 +369,8 @@ module Lint
 
     def test_ft_profile_aggregate
       target_version "2.0" do
+        skip("RediSearch module not available") unless redisearch_available?
+
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
@@ -337,6 +385,51 @@ module Lint
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
         raise
       end
+    end
+
+    private
+
+    def redisearch_available?
+      # Try to list indexes - if it works, RediSearch is available
+      r.ft_list
+      true
+    rescue Valkey::CommandError => e
+      return false if e.message.include?("unknown command") || e.message.include?("FT")
+
+      raise
+    end
+
+    def ensure_redisearch_loaded
+      return if redisearch_available?
+
+      # Try to load RediSearch module from common paths
+      loaded = false
+      REDISEARCH_MODULE_PATHS.each do |path|
+        next unless path && File.exist?(path)
+
+        # Skip empty files (created as placeholders when download fails)
+        next if File.size(path).zero?
+
+        begin
+          r.module_load(path)
+          # Give it a moment to load
+          sleep 0.2
+          if redisearch_available?
+            loaded = true
+            break
+          end
+        rescue Valkey::CommandError => e
+          # If MODULE commands aren't enabled, we can't load modules
+          break if e.message.include?("MODULE command not allowed")
+
+          # If file doesn't exist or can't be loaded, try next path
+          next if e.message.include?("No such file") || e.message.include?("cannot open")
+        end
+      end
+      loaded
+    rescue StandardError => e
+      # Ignore errors during module loading attempt
+      warn "Warning: Could not load RediSearch module: #{e.message}" if ENV["VERBOSE"]
     end
   end
 end

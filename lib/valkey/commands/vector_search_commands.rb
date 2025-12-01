@@ -164,10 +164,10 @@ class Valkey
       #
       # @example
       #   valkey.ft_info("idx")
-      #     # => {"index_name" => "idx", "index_definition" => {...}, ...}
+      #     # => ["index_name", "idx", "index_definition", [...], ...]
       #
       # @param [String] index the index name
-      # @return [Hash] index information and statistics
+      # @return [Array] index information and statistics as a flat array of key-value pairs
       #
       # @see https://redis.io/commands/ft-info/
       def ft_info(index)

@@ -55,6 +55,14 @@ jobs:
           chmod +x test/fixtures/redisbloom.so
           ls -lh test/fixtures/redisbloom.so
       
+      - name: Copy RediSearch module for testing
+        run: |
+          echo "Copying RediSearch module for Vector Search commands testing..."
+          mkdir -p test/fixtures
+          cp .github/files/redisearch-amd64-v2.10.24.so test/fixtures/redisearch.so
+          chmod +x test/fixtures/redisearch.so
+          ls -lh test/fixtures/redisearch.so
+      
       - name: Start Valkey with MODULE commands enabled
         run: |
           echo "Starting Valkey ${{ matrix.valkey }} with MODULE commands enabled..."
@@ -78,8 +86,15 @@ jobs:
           echo "Verifying MODULE commands are enabled..."
           docker exec valkey-test valkey-cli CONFIG GET enable-module-command
           
-          echo "Verifying module file is accessible..."
-          docker exec valkey-test ls -lh /tmp/modules/redisbloom.so
+          echo "Verifying module files are accessible..."
+          docker exec valkey-test ls -lh /tmp/modules/redisbloom.so || echo "RedisBloom module not found"
+          docker exec valkey-test ls -lh /tmp/modules/redisearch.so || echo "RediSearch module not found"
+          
+          echo "Loading RediSearch module if available..."
+          docker exec valkey-test valkey-cli MODULE LOAD /tmp/modules/redisearch.so || echo "Could not load RediSearch module (may not be available)"
+          
+          echo "Verifying loaded modules..."
+          docker exec valkey-test valkey-cli MODULE LIST || echo "MODULE LIST failed"
       
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
