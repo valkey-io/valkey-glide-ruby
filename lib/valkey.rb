@@ -153,8 +153,8 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # Return the Hash as-is to preserve nested structures (needed for RediSearch responses)
-        map
+        # technically it has to return a Hash, but as of now we return just one pair
+        map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
         ptr = result[:sets_value]
         count = result[:sets_value_len].to_i
@@ -232,6 +232,7 @@ class Valkey
     request = ConnectionRequest::ConnectionRequest.new(
       cluster_mode_enabled: cluster_mode_enabled,
       request_timeout: options[:timeout] || 3.0,
+      protocol: ConnectionRequest::ProtocolVersion::RESP2,
       addresses: nodes.map { |node| ConnectionRequest::NodeAddress.new(host: node[:host], port: node[:port]) }
     )
 
