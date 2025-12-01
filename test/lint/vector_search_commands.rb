@@ -10,6 +10,10 @@ module Lint
 
     def setup
       super
+      # RediSearch requires database 0, so we need to switch to it
+      # Store the current database to restore later
+      @original_db = 15 # Default test database
+      
       # Check if RediSearch module is already loaded
       @module_was_loaded = redisearch_loaded?
     rescue Valkey::CommandError => e
@@ -19,21 +23,36 @@ module Lint
     end
 
     def teardown
-      # Clean up test index if it exists
+      # Switch to database 0 for cleanup
       begin
-        r.ft_dropindex(TEST_INDEX, dd: true) if index_exists?(TEST_INDEX)
-      rescue Valkey::CommandError => e
-        # Ignore errors if index doesn't exist or command not available
-        unless e.message.include?("Unknown Index") || e.message.include?("unknown command")
-          warn "Warning: Could not drop test index: #{e.message}"
+        r.select(0)
+        
+        # Clean up test index if it exists
+        begin
+          r.ft_dropindex(TEST_INDEX, dd: true) if index_exists?(TEST_INDEX)
+        rescue Valkey::CommandError => e
+          # Ignore errors if index doesn't exist or command not available
+          unless e.message.include?("Unknown Index") || e.message.include?("unknown command")
+            warn "Warning: Could not drop test index: #{e.message}"
+          end
         end
+        
+        # Clean up any other test indexes
+        begin
+          r.ft_dropindex("#{TEST_INDEX}_2", dd: true) if index_exists?("#{TEST_INDEX}_2")
+        rescue Valkey::CommandError
+          # Ignore - index doesn't exist
+        end
+        
+        # Flush database 0 to clean up any leftover data
+        r.flushdb
+      rescue StandardError => e
+        warn "Warning: Error cleaning up database 0: #{e.message}"
       end
 
       # Only unload module if we loaded it
       if !@module_was_loaded && redisearch_loaded?
         begin
-          r.flushall
-          sleep 0.1
           r.module_unload(REDISEARCH_MODULE_NAME)
         rescue Valkey::CommandError => e
           # RediSearch might not support unloading in some versions
@@ -41,6 +60,13 @@ module Lint
             warn "Warning: Unexpected error unloading RediSearch: #{e.message}"
           end
         end
+      end
+      
+      # Switch back to original database
+      begin
+        r.select(@original_db)
+      rescue StandardError => e
+        warn "Warning: Could not switch back to database #{@original_db}: #{e.message}"
       end
     rescue StandardError => e
       warn "Warning: Error in teardown: #{e.message}"
@@ -52,9 +78,11 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Should return an array (might be empty if no indexes)
-        list = r.ft_list
-        assert_kind_of Array, list
+        with_db0 do
+          # Should return an array (might be empty if no indexes)
+          list = r.ft_list
+          assert_kind_of Array, list
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -64,12 +92,14 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create a simple text index
-        result = r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
-        assert_equal "OK", result
+        with_db0 do
+          # Create a simple text index
+          result = r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
+          assert_equal "OK", result
 
-        # Verify index exists
-        assert index_exists?(TEST_INDEX), "Index should exist after creation"
+          # Verify index exists
+          assert index_exists?(TEST_INDEX), "Index should exist after creation"
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -79,22 +109,24 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index with a vector field
-        result = r.ft_create(
-          TEST_INDEX,
-          "ON", "HASH",
-          "PREFIX", "1", "doc:",
-          "SCHEMA",
-          "title", "TEXT",
-          "embedding", "VECTOR", "FLAT", "6",
-          "TYPE", "FLOAT32",
-          "DIM", "128",
-          "DISTANCE_METRIC", "COSINE"
-        )
-        assert_equal "OK", result
+        with_db0 do
+          # Create an index with a vector field
+          result = r.ft_create(
+            TEST_INDEX,
+            "ON", "HASH",
+            "PREFIX", "1", "doc:",
+            "SCHEMA",
+            "title", "TEXT",
+            "embedding", "VECTOR", "FLAT", "6",
+            "TYPE", "FLOAT32",
+            "DIM", "128",
+            "DISTANCE_METRIC", "COSINE"
+          )
+          assert_equal "OK", result
 
-        # Verify index exists
-        assert index_exists?(TEST_INDEX), "Index should exist after creation"
+          # Verify index exists
+          assert index_exists?(TEST_INDEX), "Index should exist after creation"
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -104,16 +136,18 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index first
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create an index first
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
-        # Get index info
-        info = r.ft_info(TEST_INDEX)
-        assert_kind_of Array, info
+          # Get index info
+          info = r.ft_info(TEST_INDEX)
+          assert_kind_of Array, info
 
-        # Info should contain index_name
-        assert info.include?("index_name") || info.any? { |item| item.is_a?(Array) && item.include?("index_name") },
-               "Info should contain index_name"
+          # Info should contain index_name
+          assert info.include?("index_name") || info.any? { |item| item.is_a?(Array) && item.include?("index_name") },
+                 "Info should contain index_name"
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -123,16 +157,18 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
-        assert index_exists?(TEST_INDEX)
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+          assert index_exists?(TEST_INDEX)
 
-        # Drop the index
-        result = r.ft_dropindex(TEST_INDEX)
-        assert_equal "OK", result
+          # Drop the index
+          result = r.ft_dropindex(TEST_INDEX)
+          assert_equal "OK", result
 
-        # Verify index no longer exists
-        assert !index_exists?(TEST_INDEX), "Index should not exist after drop"
+          # Verify index no longer exists
+          assert !index_exists?(TEST_INDEX), "Index should not exist after drop"
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -142,19 +178,21 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Add a document
-        r.send_command(RequestType::HSET, ["doc:1", "title", "test document"])
+          # Add a document
+          r.send_command(RequestType::HSET, ["doc:1", "title", "test document"])
 
-        # Drop the index with DD flag (delete documents)
-        result = r.ft_dropindex(TEST_INDEX, dd: true)
-        assert_equal "OK", result
+          # Drop the index with DD flag (delete documents)
+          result = r.ft_dropindex(TEST_INDEX, dd: true)
+          assert_equal "OK", result
 
-        # Verify document was deleted
-        exists = r.exists("doc:1")
-        assert_equal 0, exists, "Document should be deleted with DD flag"
+          # Verify document was deleted
+          exists = r.exists("doc:1")
+          assert_equal 0, exists, "Document should be deleted with DD flag"
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -164,23 +202,25 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Add documents
-        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
-        r.send_command(RequestType::HSET, ["doc:2", "title", "goodbye world"])
+          # Add documents
+          r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
+          r.send_command(RequestType::HSET, ["doc:2", "title", "goodbye world"])
 
-        # Small delay to allow indexing
-        sleep 0.1
+          # Small delay to allow indexing
+          sleep 0.1
 
-        # Search for documents
-        results = r.ft_search(TEST_INDEX, "hello")
-        assert_kind_of Array, results
+          # Search for documents
+          results = r.ft_search(TEST_INDEX, "hello")
+          assert_kind_of Array, results
 
-        # First element should be the count
-        count = results[0]
-        assert count.is_a?(Integer) || count.is_a?(String), "First element should be result count"
+          # First element should be the count
+          count = results[0]
+          assert count.is_a?(Integer) || count.is_a?(String), "First element should be result count"
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -190,18 +230,20 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Add documents
-        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
-        r.send_command(RequestType::HSET, ["doc:2", "title", "goodbye world"])
+          # Add documents
+          r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
+          r.send_command(RequestType::HSET, ["doc:2", "title", "goodbye world"])
 
-        sleep 0.1
+          sleep 0.1
 
-        # Search with LIMIT and RETURN options
-        results = r.ft_search(TEST_INDEX, "world", "LIMIT", "0", "1", "RETURN", "1", "title")
-        assert_kind_of Array, results
+          # Search with LIMIT and RETURN options
+          results = r.ft_search(TEST_INDEX, "world", "LIMIT", "0", "1", "RETURN", "1", "title")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -211,21 +253,23 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
-                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                      "SCHEMA", "category", "TAG", "price", "NUMERIC")
 
-        # Add documents
-        r.send_command(RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
-        r.send_command(RequestType::HSET, ["product:2", "category", "electronics", "price", "200"])
-        r.send_command(RequestType::HSET, ["product:3", "category", "books", "price", "50"])
+          # Add documents
+          r.send_command(RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
+          r.send_command(RequestType::HSET, ["product:2", "category", "electronics", "price", "200"])
+          r.send_command(RequestType::HSET, ["product:3", "category", "books", "price", "50"])
 
-        sleep 0.1
+          sleep 0.1
 
-        # Run aggregation
-        results = r.ft_aggregate(TEST_INDEX, "*", "GROUPBY", "1", "@category",
-                                 "REDUCE", "COUNT", "0", "AS", "count")
-        assert_kind_of Array, results
+          # Run aggregation
+          results = r.ft_aggregate(TEST_INDEX, "*", "GROUPBY", "1", "@category",
+                                   "REDUCE", "COUNT", "0", "AS", "count")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -235,15 +279,17 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
-        # Add an alias
-        result = r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
-        assert_equal "OK", result
+          # Add an alias
+          result = r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
+          assert_equal "OK", result
 
-        # Clean up alias
-        r.ft_alias_del("#{TEST_INDEX}_alias")
+          # Clean up alias
+          r.ft_alias_del("#{TEST_INDEX}_alias")
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -253,13 +299,15 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index and alias
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
-        r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
+        with_db0 do
+          # Create an index and alias
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+          r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
 
-        # Delete the alias
-        result = r.ft_alias_del("#{TEST_INDEX}_alias")
-        assert_equal "OK", result
+          # Delete the alias
+          result = r.ft_alias_del("#{TEST_INDEX}_alias")
+          assert_equal "OK", result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -269,20 +317,22 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create two indexes
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
-        r.ft_create("#{TEST_INDEX}_2", "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create two indexes
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+          r.ft_create("#{TEST_INDEX}_2", "SCHEMA", "title", "TEXT")
 
-        # Create alias for first index
-        r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
+          # Create alias for first index
+          r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
 
-        # Update alias to point to second index
-        result = r.ft_alias_update("#{TEST_INDEX}_alias", "#{TEST_INDEX}_2")
-        assert_equal "OK", result
+          # Update alias to point to second index
+          result = r.ft_alias_update("#{TEST_INDEX}_alias", "#{TEST_INDEX}_2")
+          assert_equal "OK", result
 
-        # Clean up
-        r.ft_alias_del("#{TEST_INDEX}_alias")
-        r.ft_dropindex("#{TEST_INDEX}_2")
+          # Clean up
+          r.ft_alias_del("#{TEST_INDEX}_alias")
+          r.ft_dropindex("#{TEST_INDEX}_2")
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -292,12 +342,14 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
 
-        # Explain a query
-        result = r.ft_explain(TEST_INDEX, "@title:hello @price:[0 100]")
-        assert_kind_of String, result
+          # Explain a query
+          result = r.ft_explain(TEST_INDEX, "@title:hello @price:[0 100]")
+          assert_kind_of String, result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -307,12 +359,14 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
-        # Explain query in CLI format
-        result = r.ft_explain_cli(TEST_INDEX, "@title:hello")
-        assert_kind_of String, result
+          # Explain query in CLI format
+          result = r.ft_explain_cli(TEST_INDEX, "@title:hello")
+          assert_kind_of String, result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -322,15 +376,17 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
-        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+          r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
 
-        sleep 0.1
+          sleep 0.1
 
-        # Profile a search query
-        result = r.ft_profile(TEST_INDEX, "SEARCH", "QUERY", "hello")
-        assert_kind_of Array, result
+          # Profile a search query
+          result = r.ft_profile(TEST_INDEX, "SEARCH", "QUERY", "hello")
+          assert_kind_of Array, result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -340,17 +396,19 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
-                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
-        r.send_command(RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
+        with_db0 do
+          # Create an index
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                      "SCHEMA", "category", "TAG", "price", "NUMERIC")
+          r.send_command(RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
 
-        sleep 0.1
+          sleep 0.1
 
-        # Profile an aggregation query
-        result = r.ft_profile(TEST_INDEX, "AGGREGATE", "QUERY", "*",
-                              "GROUPBY", "1", "@category")
-        assert_kind_of Array, result
+          # Profile an aggregation query
+          result = r.ft_profile(TEST_INDEX, "AGGREGATE", "QUERY", "*",
+                                "GROUPBY", "1", "@category")
+          assert_kind_of Array, result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -360,8 +418,10 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        list = r.ft(:list)
-        assert_kind_of Array, list
+        with_db0 do
+          list = r.ft(:list)
+          assert_kind_of Array, list
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -371,8 +431,10 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        result = r.ft(:create, TEST_INDEX, "SCHEMA", "title", "TEXT")
-        assert_equal "OK", result
+        with_db0 do
+          result = r.ft(:create, TEST_INDEX, "SCHEMA", "title", "TEXT")
+          assert_equal "OK", result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -382,13 +444,15 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
-        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
+        with_db0 do
+          r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+          r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
 
-        sleep 0.1
+          sleep 0.1
 
-        results = r.ft(:search, TEST_INDEX, "hello")
-        assert_kind_of Array, results
+          results = r.ft(:search, TEST_INDEX, "hello")
+          assert_kind_of Array, results
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -398,10 +462,12 @@ module Lint
       target_version "6.0" do
         ensure_redisearch_loaded
 
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+        with_db0 do
+          r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
-        result = r.ft(:dropindex, TEST_INDEX)
-        assert_equal "OK", result
+          result = r.ft(:dropindex, TEST_INDEX)
+          assert_equal "OK", result
+        end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
       end
@@ -409,9 +475,17 @@ module Lint
 
     private
 
+    # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB
+    def with_db0(&block)
+      r.select(0)
+      block.call
+    ensure
+      r.select(@original_db) if @original_db
+    end
+
     def redisearch_loaded?
       # Try to get list of indexes - if it works, RediSearch is loaded
-      r.ft_list
+      with_db0 { r.ft_list }
       true
     rescue Valkey::CommandError => e
       return false if e.message.include?("unknown command") ||
@@ -439,11 +513,13 @@ module Lint
     end
 
     def index_exists?(index_name)
-      list = r.ft_list
-      if list.is_a?(Array)
-        list.include?(index_name)
-      else
-        false
+      with_db0 do
+        list = r.ft_list
+        if list.is_a?(Array)
+          list.include?(index_name)
+        else
+          false
+        end
       end
     rescue Valkey::CommandError
       false
