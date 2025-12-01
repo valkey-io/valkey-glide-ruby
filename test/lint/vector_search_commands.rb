@@ -366,8 +366,8 @@ module Lint
         r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
         r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar"])
 
-        # Profile a search query
-        results = r.ft_profile(INDEX_NAME, "SEARCH", "hello")
+        # Profile a search query (QUERY keyword is required)
+        results = r.ft_profile(INDEX_NAME, "SEARCH", "QUERY", "hello")
         assert_kind_of Array, results
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
@@ -386,8 +386,8 @@ module Lint
         r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
         r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
-        # Profile an aggregate query
-        results = r.ft_profile(INDEX_NAME, "AGGREGATE", "*", "GROUPBY", "1", "@category")
+        # Profile an aggregate query (QUERY keyword is required)
+        results = r.ft_profile(INDEX_NAME, "AGGREGATE", "QUERY", "*", "GROUPBY", "1", "@category")
         assert_kind_of Array, results
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
