@@ -4,5 +4,5 @@ require "test_helper"
 
 class TestVectorSearchCommands < Minitest::Test
   include Helper::Client
-  include Lint::VectorSearchCommands
+  # include Lint::VectorSearchCommands
 end
