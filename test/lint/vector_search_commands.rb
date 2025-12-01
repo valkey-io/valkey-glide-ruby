@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "valkey/request_type"
+
 module Lint
   module VectorSearchCommands
     INDEX_NAME = "test_idx"
@@ -70,8 +72,8 @@ module Lint
       target_version "2.0" do
         skip("RediSearch module not available") unless redisearch_available?
 
-        # Create a simple index
-        result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:")
+        # Create a simple index with schema (schema is required)
+        result = r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
         assert_equal "OK", result
 
         # Verify index exists in list
@@ -245,9 +247,9 @@ module Lint
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
 
-        # Add some documents
-        r.hset("doc:1", "title", "hello world", "body", "test content")
-        r.hset("doc:2", "title", "foo bar", "body", "another test")
+        # Add some documents using send_command (hset not available as method)
+        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world", "body", "test content"])
+        r.send_command(RequestType::HSET, ["doc:2", "title", "foo bar", "body", "another test"])
 
         # Search
         results = r.ft_search(INDEX_NAME, "hello")
@@ -266,9 +268,9 @@ module Lint
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "body", "TEXT")
 
-        # Add some documents
-        r.hset("doc:1", "title", "hello world", "body", "test content")
-        r.hset("doc:2", "title", "foo bar", "body", "another test")
+        # Add some documents using send_command (hset not available as method)
+        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world", "body", "test content"])
+        r.send_command(RequestType::HSET, ["doc:2", "title", "foo bar", "body", "another test"])
 
         # Search with LIMIT and RETURN options
         results = r.ft_search(INDEX_NAME, "*", "LIMIT", "0", "10", "RETURN", "1", "title")
@@ -287,8 +289,8 @@ module Lint
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
         # Add some documents
-        r.hset("doc:1", "title", "hello world", "category", "tech")
-        r.hset("doc:2", "title", "foo bar", "category", "tech")
+        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
+        r.send_command(RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
         # Aggregate query
         results = r.ft_aggregate(INDEX_NAME, "*")
@@ -307,8 +309,8 @@ module Lint
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
         # Add some documents
-        r.hset("doc:1", "title", "hello world", "category", "tech")
-        r.hset("doc:2", "title", "foo bar", "category", "tech")
+        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
+        r.send_command(RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
         # Aggregate with GROUPBY
         results = r.ft_aggregate(INDEX_NAME, "*", "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0")
@@ -343,9 +345,9 @@ module Lint
         # Create index with schema
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
-        # Explain query in CLI format
+        # Explain query in CLI format (returns Array of lines)
         explanation = r.ft_explain_cli(INDEX_NAME, "hello world")
-        assert_kind_of String, explanation
+        assert_kind_of Array, explanation
         assert !explanation.empty?, "Explanation should not be empty"
       rescue Valkey::CommandError => e
         skip("RediSearch module not available") if e.message.include?("unknown command") || e.message.include?("FT")
@@ -361,8 +363,8 @@ module Lint
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
 
         # Add some documents
-        r.hset("doc:1", "title", "hello world")
-        r.hset("doc:2", "title", "foo bar")
+        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world"])
+        r.send_command(RequestType::HSET, ["doc:2", "title", "foo bar"])
 
         # Profile a search query
         results = r.ft_profile(INDEX_NAME, "SEARCH", "hello")
@@ -381,8 +383,8 @@ module Lint
         r.ft_create(INDEX_NAME, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT", "category", "TAG")
 
         # Add some documents
-        r.hset("doc:1", "title", "hello world", "category", "tech")
-        r.hset("doc:2", "title", "foo bar", "category", "tech")
+        r.send_command(RequestType::HSET, ["doc:1", "title", "hello world", "category", "tech"])
+        r.send_command(RequestType::HSET, ["doc:2", "title", "foo bar", "category", "tech"])
 
         # Profile an aggregate query
         results = r.ft_profile(INDEX_NAME, "AGGREGATE", "*", "GROUPBY", "1", "@category")
