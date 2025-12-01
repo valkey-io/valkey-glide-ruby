@@ -26,7 +26,7 @@ module Lint
 
         # Clean up test index if it exists
         begin
-          r.ft_dropindex(TEST_INDEX, dd: true) if index_exists?(TEST_INDEX)
+          r.ft_drop_index(TEST_INDEX, dd: true) if index_exists?(TEST_INDEX)
         rescue Valkey::CommandError => e
           # Ignore errors if index doesn't exist or command not available
           unless e.message.include?("Unknown Index") || e.message.include?("unknown command")
@@ -36,7 +36,7 @@ module Lint
 
         # Clean up any other test indexes
         begin
-          r.ft_dropindex("#{TEST_INDEX}_2", dd: true) if index_exists?("#{TEST_INDEX}_2")
+          r.ft_drop_index("#{TEST_INDEX}_2", dd: true) if index_exists?("#{TEST_INDEX}_2")
         rescue Valkey::CommandError
           # Ignore - index doesn't exist
         end
@@ -154,7 +154,7 @@ module Lint
       end
     end
 
-    def test_ft_dropindex
+    def test_ft_drop_index
       target_version "6.0" do
         ensure_redisearch_loaded
 
@@ -164,7 +164,7 @@ module Lint
           assert index_exists?(TEST_INDEX)
 
           # Drop the index
-          result = r.ft_dropindex(TEST_INDEX)
+          result = r.ft_drop_index(TEST_INDEX)
           assert_equal "OK", result
 
           # Verify index no longer exists
@@ -175,7 +175,7 @@ module Lint
       end
     end
 
-    def test_ft_dropindex_with_dd
+    def test_ft_drop_index_with_dd
       target_version "6.0" do
         ensure_redisearch_loaded
 
@@ -187,7 +187,7 @@ module Lint
           r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "test document"])
 
           # Drop the index with DD flag (delete documents)
-          result = r.ft_dropindex(TEST_INDEX, dd: true)
+          result = r.ft_drop_index(TEST_INDEX, dd: true)
           assert_equal "OK", result
 
           # Verify document was deleted
@@ -332,7 +332,7 @@ module Lint
 
           # Clean up
           r.ft_alias_del("#{TEST_INDEX}_alias")
-          r.ft_dropindex("#{TEST_INDEX}_2")
+          r.ft_drop_index("#{TEST_INDEX}_2")
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
@@ -481,14 +481,14 @@ module Lint
       end
     end
 
-    def test_ft_convenience_method_dropindex
+    def test_ft_convenience_method_drop_index
       target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
           r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
-          result = r.ft(:dropindex, TEST_INDEX)
+          result = r.ft(:drop_index, TEST_INDEX)
           assert_equal "OK", result
         end
       rescue Valkey::CommandError => e

@@ -122,11 +122,11 @@ class Valkey
       # Drop an index and optionally delete all documents.
       #
       # @example Drop an index without deleting documents
-      #   valkey.ft_dropindex("myIndex")
+      #   valkey.ft_drop_index("myIndex")
       #     # => "OK"
       #
       # @example Drop an index and delete all documents
-      #   valkey.ft_dropindex("myIndex", dd: true)
+      #   valkey.ft_drop_index("myIndex", dd: true)
       #     # => "OK"
       #
       # @param [String] index the index name
@@ -134,7 +134,7 @@ class Valkey
       # @return [String] "OK" on success
       #
       # @see https://redis.io/commands/ft.dropindex/
-      def ft_dropindex(index, dd: false)
+      def ft_drop_index(index, dd: false)
         args = [index]
         args << "DD" if dd
         send_command(RequestType::FT_DROP_INDEX, args)
