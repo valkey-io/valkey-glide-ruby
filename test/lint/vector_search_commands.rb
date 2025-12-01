@@ -23,7 +23,7 @@ module Lint
       begin
         # Temporarily switch to DB 0 for cleanup
         r.select(0)
-        
+
         # Clean up test index if it exists
         begin
           r.ft_dropindex(TEST_INDEX, dd: true) if index_exists?(TEST_INDEX)
@@ -33,14 +33,14 @@ module Lint
             warn "Warning: Could not drop test index: #{e.message}"
           end
         end
-        
+
         # Clean up any other test indexes
         begin
           r.ft_dropindex("#{TEST_INDEX}_2", dd: true) if index_exists?("#{TEST_INDEX}_2")
         rescue Valkey::CommandError
           # Ignore - index doesn't exist
         end
-        
+
         # Flush database 0 to clean up any leftover data
         r.flushdb
       rescue StandardError => e
@@ -69,7 +69,7 @@ module Lint
       rescue StandardError => e
         warn "CRITICAL: Could not restore database to 15: #{e.message}"
       end
-      
+
       # Call parent teardown
       super
     end
@@ -151,11 +151,9 @@ module Lint
                    "Info should contain index_name"
           rescue Valkey::CommandError => e
             # The Map response type from FT.INFO might not be fully supported in the FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.INFO Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.INFO Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e
@@ -233,11 +231,9 @@ module Lint
             assert count.is_a?(Integer) || count.is_a?(String), "First element should be result count"
           rescue Valkey::CommandError => e
             # FT.SEARCH can return Map types that aren't fully supported in FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e
@@ -265,11 +261,9 @@ module Lint
             assert_kind_of Array, results
           rescue Valkey::CommandError => e
             # FT.SEARCH can return Map types that aren't fully supported in FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e
@@ -300,11 +294,9 @@ module Lint
             assert_kind_of Array, results
           rescue Valkey::CommandError => e
             # FT.AGGREGATE can return Map types that aren't fully supported in FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.AGGREGATE Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.AGGREGATE Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e
@@ -426,11 +418,9 @@ module Lint
             assert_kind_of Array, result
           rescue Valkey::CommandError => e
             # FT.PROFILE can return Map types that aren't fully supported in FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.PROFILE Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.PROFILE Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e
@@ -457,11 +447,9 @@ module Lint
             assert_kind_of Array, result
           rescue Valkey::CommandError => e
             # FT.PROFILE can return Map types that aren't fully supported in FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.PROFILE Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.PROFILE Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e
@@ -510,11 +498,9 @@ module Lint
             assert_kind_of Array, results
           rescue Valkey::CommandError => e
             # FT.SEARCH can return Map types that aren't fully supported in FFI bindings yet
-            if e.message.include?("Response couldn't be converted") && e.message.include?("Map")
-              skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
-            else
-              raise
-            end
+            raise unless e.message.include?("Response couldn't be converted") && e.message.include?("Map")
+
+            skip("FT.SEARCH Map response type not yet fully supported in FFI bindings")
           end
         end
       rescue Valkey::CommandError => e

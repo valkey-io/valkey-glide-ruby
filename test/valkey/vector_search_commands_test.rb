@@ -6,4 +6,3 @@ class TestVectorSearchCommands < Minitest::Test
   include Helper::Client
   include Lint::VectorSearchCommands
 end
-
