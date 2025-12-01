@@ -28,7 +28,6 @@ module Lint
         end
 
         with_db(15) do
-          r.flushdb
           r.set "foo", "s3"
           r.set "bar", "s4"
         end
@@ -208,7 +207,6 @@ module Lint
       r.set "bar", "s3"
 
       r.select 15
-      r.flushdb
 
       r.set "foo", "s1"
       r.set "bar", "s2"
