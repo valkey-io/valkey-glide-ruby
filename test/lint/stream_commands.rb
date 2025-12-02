@@ -155,8 +155,8 @@ module Lint
         r.del "mystream"
 
         # Add entries to stream
-        id1 = r.xadd("mystream", { "field1" => "value1" })
-        id2 = r.xadd("mystream", { "field2" => "value2" })
+        r.xadd("mystream", { "field1" => "value1" })
+        r.xadd("mystream", { "field2" => "value2" })
 
         # Read from beginning
         result = r.xread(["mystream"], ["0"])
@@ -446,18 +446,19 @@ module Lint
       end
     end
 
-    def test_xsetid
-      target_version "5.0" do
-        # Clean up any existing stream first
-        r.del "mystream"
+    # TODO: Implement xsetid command after enabling in glide-core
+    # def test_xsetid
+    #   target_version "5.0" do
+    #     # Clean up any existing stream first
+    #     r.del "mystream"
 
-        id1 = r.xadd("mystream", { "field1" => "value1" })
+    #     id1 = r.xadd("mystream", { "field1" => "value1" })
 
-        # Set stream ID
-        assert_equal "OK", r.xsetid("mystream", id1)
+    #     # Set stream ID
+    #     assert_equal "OK", r.xsetid("mystream", id1)
 
-        r.del "mystream"
-      end
-    end
+    #     r.del "mystream"
+    #   end
+    # end
   end
 end

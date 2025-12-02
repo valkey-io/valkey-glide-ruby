@@ -584,6 +584,7 @@ class Valkey
         xinfo(:consumers, key, group)
       end
 
+      # TODO: Implement xsetid command after enabling in glide-core
       # Set the ID of the last entry in a stream.
       #
       # @param [String] key stream key
@@ -599,14 +600,14 @@ class Valkey
       #   valkey.xsetid("mystream", "1234567890-0", entries_added: 100, max_deleted_id: "1234567890-50")
       #
       # @see https://valkey.io/commands/xsetid/
-      def xsetid(key, id, **options)
-        args = [key, id]
+      # def xsetid(key, id, **options)
+      #   args = [key, id]
 
-        args << "ENTRIESADDED" << options[:entries_added].to_s if options[:entries_added]
-        args << "MAXDELETEDID" << options[:max_deleted_id] if options[:max_deleted_id]
+      #   args << "ENTRIESADDED" << options[:entries_added].to_s if options[:entries_added]
+      #   args << "MAXDELETEDID" << options[:max_deleted_id] if options[:max_deleted_id]
 
-        send_command(RequestType::X_SET_ID, args)
-      end
+      #   send_command(RequestType::X_SET_ID, args)
+      # end
     end
   end
 end
