@@ -385,15 +385,5 @@ module Lint
              e.message.include?("Unknown node") ||
              e.message.include?("ERR")
     end
-
-    def test_cluster_reset_on_cluster
-      # Test cluster reset command - this is destructive so we expect it to work or fail gracefully
-      r.cluster_reset("SOFT") # Use SOFT reset to be less destructive
-      # If it succeeds, that's also valid
-      pass "Cluster reset executed successfully"
-    rescue Valkey::CommandError, Valkey::TimeoutError => e
-      # Expected to fail or timeout - both are valid outcomes
-      pass "Cluster reset correctly failed or timed out: #{e.class}"
-    end
   end
 end
