@@ -86,16 +86,54 @@ class Valkey
     private_constant :EMPTY_STREAM_RESPONSE
 
     HashifyStreamEntries = lambda { |reply|
-      reply.compact.map do |entry_id, values|
-        [entry_id, values&.each_slice(2)&.to_h]
+      return [] if reply.nil?
+      return [] if !reply.is_a?(Array) || reply.empty?
+      # Reply format: [[entry_id, [field1, value1, field2, value2, ...]], ...]
+      # Match redis-rb: return flat arrays [["id", ["field", "value", ...]], ...]
+      # Check if first element is a pair [entry_id, values_array]
+      first_elem = reply.first
+      if first_elem.is_a?(Array) && first_elem.length == 2
+        # Already in pair format: [[entry_id, [fields...]], ...]
+        reply.compact.map do |entry_id, values|
+          # Return flat array format like redis-rb, not hash
+          values_array = if values.nil?
+                           []
+                         elsif values.is_a?(Array)
+                           values
+                         else
+                           []
+                         end
+          [entry_id, values_array]
+        end
+      else
+        # Flat array format: [entry_id1, [field1, value1, ...], entry_id2, [field2, value2, ...], ...]
+        reply.compact.each_slice(2).map do |entry_id, values|
+          # Return flat array format like redis-rb, not hash
+          values_array = if values.nil?
+                           []
+                         elsif values.is_a?(Array)
+                           values
+                         else
+                           []
+                         end
+          [entry_id, values_array]
+        end
       end
     }
 
     HashifyStreamAutoclaim = lambda { |reply|
       {
         'next' => reply[0],
-        'entries' => reply[1].compact.map do |entry, values|
-          [entry, values.each_slice(2)&.to_h]
+        'entries' => (reply[1] || []).compact.map do |entry, values|
+          # Return flat array format like redis-rb: [id, [field, value, ...]]
+          values_array = if values.nil?
+                           []
+                         elsif values.is_a?(Array)
+                           values
+                         else
+                           []
+                         end
+          [entry, values_array]
         end
       }
     }

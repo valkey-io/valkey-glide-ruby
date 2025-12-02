@@ -6,6 +6,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
   include Helper::Cluster
   # include Lint::StringCommands # Run string tests first (while cluster is healthy)
   include Lint::HashCommands # Hash commands work in cluster mode
+  include Lint::StreamCommands # Stream commands work in cluster mode
   include Lint::ConnectionCommands # Run connection tests (cluster-aware)
   include Lint::PubSubCommands # Pub/Sub works in cluster mode
   include Lint::FunctionCommands # Function commands work in cluster mode (per-node)

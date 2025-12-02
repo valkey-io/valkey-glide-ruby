@@ -29,7 +29,7 @@ class Valkey
       #   valkey.xadd("mystream", { "field1" => "value1" }, maxlen: 1000, approximate: true)
       #
       # @see https://valkey.io/commands/xadd/
-      def xadd(key, entry, id: "*", approximate: nil, maxlen: nil, minid: nil, nomkstream: nil)
+      def xadd(key, entry, approximate: nil, maxlen: nil, minid: nil, nomkstream: nil, id: "*")
         args = [key]
 
         # Handle maxlen/minid trimming
@@ -119,7 +119,9 @@ class Valkey
         send_command(RequestType::X_READ, args) do |reply|
           # Backend returns Array format: [stream_name, entries, stream_name2, entries2, ...]
           # Convert to Hash format first
-          if reply.is_a?(Array)
+          if reply.nil?
+            {}
+          elsif reply.is_a?(Array) && !reply.empty?
             stream_hash = reply.each_slice(2).to_h
             Utils::HashifyStreams.call(stream_hash)
           else
@@ -157,7 +159,9 @@ class Valkey
         send_command(RequestType::X_READ_GROUP, args) do |reply|
           # Backend returns Array format: [stream_name, entries, stream_name2, entries2, ...]
           # Convert to Hash format first
-          if reply.is_a?(Array)
+          if reply.nil?
+            {}
+          elsif reply.is_a?(Array) && !reply.empty?
             stream_hash = reply.each_slice(2).to_h
             Utils::HashifyStreams.call(stream_hash)
           else
@@ -192,8 +196,8 @@ class Valkey
       # Get entries from a stream within a range of IDs in reverse order.
       #
       # @param [String] key stream key
-      # @param [String] range_end end ID ("+" for end, "-" for beginning)
-      # @param [String] start start ID ("-" for beginning, "+" for end)
+      # @param [String] end_id end ID ("+" for end, "-" for beginning) - higher bound
+      # @param [String] start start ID ("-" for beginning, "+" for end) - lower bound
       # @param [Hash] options optional parameters
       #   - `:count => Integer`: maximum number of entries to return
       # @return [Array] array of [id, [field, value, ...]] entries in reverse order
@@ -202,8 +206,8 @@ class Valkey
       #   valkey.xrevrange("mystream", "+", "-", count: 10)
       #
       # @see https://valkey.io/commands/xrevrange/
-      def xrevrange(key, range_end = "+", start = "-", count: nil)
-        args = [key, range_end, start]
+      def xrevrange(key, end_id = "+", start = "-", count: nil)
+        args = [key, end_id, start]
         args << "COUNT" << count.to_s if count
         send_command(RequestType::X_REV_RANGE, args) do |reply|
           Utils::HashifyStreamEntries.call(reply)
@@ -314,7 +318,10 @@ class Valkey
       #
       # @see https://valkey.io/commands/xgroup-createconsumer/
       def xgroup_createconsumer(key, group, consumer)
-        send_command(RequestType::X_GROUP_CREATE_CONSUMER, [key, group, consumer])
+        send_command(RequestType::X_GROUP_CREATE_CONSUMER, [key, group, consumer]) do |reply|
+          # Convert boolean to integer if needed (backend may return boolean)
+          reply.is_a?(TrueClass) ? 1 : (reply.is_a?(FalseClass) ? 0 : reply)
+        end
       end
 
       # Set the last-delivered ID for a consumer group.
@@ -344,7 +351,10 @@ class Valkey
       #
       # @see https://valkey.io/commands/xgroup-destroy/
       def xgroup_destroy(key, group)
-        send_command(RequestType::X_GROUP_DESTROY, [key, group])
+        send_command(RequestType::X_GROUP_DESTROY, [key, group]) do |reply|
+          # Convert boolean to integer if needed (backend may return boolean)
+          reply.is_a?(TrueClass) ? 1 : (reply.is_a?(FalseClass) ? 0 : reply)
+        end
       end
 
       # Remove a consumer from a consumer group.
