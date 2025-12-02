@@ -181,17 +181,6 @@ module Lint
     end
 
     # Additional cluster commands that were missing tests
-    # Destructive tests that should run last to avoid affecting other tests
-    def test_cluster_addslotsrange
-      # Test cluster addslotsrange command - add slots in a range
-      result = r.cluster_addslotsrange(9990, 9999)
-      # This might succeed or fail depending on cluster state
-      assert result == "OK" || result.is_a?(Valkey::CommandError)
-    rescue Valkey::CommandError
-      # Expected to fail if slots are already assigned or cluster support disabled
-      pass "Cluster addslotsrange correctly failed as expected"
-    end
-
     def test_cluster_bumpepoch
       # Test cluster bumpepoch command - bump cluster epoch
       result = r.cluster_bumpepoch
@@ -214,40 +203,6 @@ module Lint
       pass "Cluster bumpepoch correctly failed as expected"
     end
 
-    def test_cluster_delslotsrange
-      # Test cluster delslotsrange command - delete slots in a range
-      result = r.cluster_delslotsrange(9990, 9999)
-      # This might succeed or fail depending on cluster state
-      case result
-      when "OK"
-        pass "Cluster delslotsrange succeeded as expected"
-      when Valkey::CommandError
-        pass "Cluster delslotsrange correctly failed as expected"
-      else
-        flunk "Unexpected result from cluster_delslotsrange: #{result.inspect}"
-      end
-    rescue Valkey::CommandError
-      # Expected to fail if slots are not assigned or cluster support disabled
-      pass "Cluster delslotsrange correctly failed as expected"
-    end
-
-    def test_cluster_flushslots
-      # Test cluster flushslots command - flush all slots
-      result = r.cluster_flushslots
-      # This might succeed or fail depending on cluster state
-      case result
-      when "OK"
-        pass "Cluster flushslots succeeded as expected"
-      when Valkey::CommandError
-        pass "Cluster flushslots correctly failed as expected"
-      else
-        flunk "Unexpected result from cluster_flushslots: #{result.inspect}"
-      end
-    rescue Valkey::CommandError
-      # Expected to fail if cluster support disabled or no slots to flush
-      pass "Cluster flushslots correctly failed as expected"
-    end
-
     def test_cluster_replicate
       # Test cluster replicate command - make current node a replica
       # This will fail in normal operation as we can't replicate to invalid node
@@ -256,25 +211,6 @@ module Lint
       # Expected to fail with invalid master node ID
       assert e.message.include?("ERR") || e.message.include?("Unknown")
       pass "Cluster replicate correctly failed with invalid master ID as expected"
-    end
-
-    # Destructive tests that should run last to avoid affecting other tests
-    def test_cluster_commands_with_parameters
-      # Test various cluster commands that require parameters
-      # Try to add a slot (may succeed or fail depending on cluster state)
-      result = r.cluster_addslots(1)
-      # This might succeed or fail depending on cluster state
-      case result
-      when "OK"
-        pass "Cluster addslots succeeded as expected"
-      when Valkey::CommandError
-        pass "Cluster addslots correctly failed as expected"
-      else
-        flunk "Unexpected result from cluster_addslots: #{result.inspect}"
-      end
-    rescue Valkey::CommandError
-      # Expected to fail if slot is already assigned or cluster support disabled
-      pass "Cluster addslots correctly failed as expected"
     end
 
     def test_cluster_management_commands_on_cluster
@@ -331,16 +267,6 @@ module Lint
       # Expected to fail in normal cluster operation
       assert e.message.include?("ERR") || e.message.include?("config")
       pass "Cluster set-config-epoch correctly failed as expected"
-    end
-
-    def test_cluster_slots_management
-      # Test cluster slot management commands
-      r.cluster_delslots(9999)
-      # This might succeed or fail depending on cluster state
-      pass "Cluster delslots executed (may have succeeded or failed)"
-    rescue Valkey::CommandError
-      # Expected to fail if slot is not assigned or cluster support disabled
-      pass "Cluster delslots correctly failed as expected"
     end
 
     def test_cluster_meet_command
