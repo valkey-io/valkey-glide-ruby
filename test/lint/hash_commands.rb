@@ -303,7 +303,7 @@ module Lint
     def test_hpexpire
       target_version "8.0" do
         r.hset("foo", "f1", "s1")
-        assert_equal 1, r.hpexpire("foo", 2000, "f1")
+        assert_equal [1], r.hpexpire("foo", 2000, "f1")
         assert_in_range 0..2, r.httl("foo", "f1").first
       end
     end
@@ -311,15 +311,15 @@ module Lint
     def test_hpexpireat
       target_version "8.0" do
         r.hset("foo", "f1", "s1")
-        assert_equal 1, r.hpexpireat("foo", (Time.now.to_i * 1000) + 2000, "f1")
-        assert_in_range 0..2, r.httl("foo", "f1")
+        assert_equal [1], r.hpexpireat("foo", (Time.now.to_i * 1000) + 2000, "f1")
+        assert_in_range 0..2, r.httl("foo", "f1").first
       end
     end
 
     def test_hpersist
       target_version "8.0" do
         r.hsetex("foo", "f1", "s1", 100)
-        assert_equal 1, r.hpersist("foo", "f1")
+        assert_equal [1], r.hpersist("foo", "f1")
         assert_equal([-1], r.httl("foo", "f1"))
       end
     end
@@ -359,38 +359,38 @@ module Lint
     def test_hpttl
       target_version "8.0" do
         r.hset("foo", "f1", "s1")
-        assert_equal(-1, r.hpttl("foo", "f1"))
+        assert_equal([-1], r.hpttl("foo", "f1"))
 
         r.hpexpire("foo", 2000, "f1")
-        assert_in_range 0..2000, r.hpttl("foo", "f1")
+        assert_in_range 0..2000, r.hpttl("foo", "f1").first
 
-        assert_equal(-2, r.hpttl("foo", "f2"))
+        assert_equal([-2], r.hpttl("foo", "f2"))
       end
     end
 
     def test_hexpiretime
       target_version "8.0" do
         r.hset("foo", "f1", "s1")
-        assert_equal(-1, r.hexpiretime("foo", "f1"))
+        assert_equal([-1], r.hexpiretime("foo", "f1"))
 
         expire_time = Time.now.to_i + 100
         r.hexpireat("foo", expire_time, "f1")
-        assert_in_range expire_time - 1..expire_time + 1, r.hexpiretime("foo", "f1")
+        assert_in_range expire_time - 1..expire_time + 1, r.hexpiretime("foo", "f1").first
 
-        assert_equal(-2, r.hexpiretime("foo", "f2"))
+        assert_equal([-2], r.hexpiretime("foo", "f2"))
       end
     end
 
     def test_hpexpiretime
       target_version "8.0" do
         r.hset("foo", "f1", "s1")
-        assert_equal(-1, r.hpexpiretime("foo", "f1"))
+        assert_equal([-1], r.hpexpiretime("foo", "f1"))
 
         expire_time = (Time.now.to_i * 1000) + 100_000
         r.hpexpireat("foo", expire_time, "f1")
-        assert_in_range expire_time - 1000..expire_time + 1000, r.hpexpiretime("foo", "f1")
+        assert_in_range expire_time - 1000..expire_time + 1000, r.hpexpiretime("foo", "f1").first
 
-        assert_equal(-2, r.hpexpiretime("foo", "f2"))
+        assert_equal([-2], r.hpexpiretime("foo", "f2"))
       end
     end
   end

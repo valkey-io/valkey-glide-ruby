@@ -208,8 +208,23 @@ class Valkey
         args << Integer(count) if count
         args << "WITHVALUES" if with_values
 
-        parser = Utils::Pairify if with_values
-        send_command(RequestType::HRAND_FIELD, args, &parser)
+        if with_values
+          send_command(RequestType::HRAND_FIELD, args) do |reply|
+            # Handle both ARRAY (flat) and MAP (already pairs) response types
+            if reply.is_a?(Array) && !reply.empty? && reply.first.is_a?(Array) && reply.first.size == 2
+              # Already in pairs format (from MAP response): [[field, value], ...]
+              reply
+            elsif reply.is_a?(Array) && reply.respond_to?(:each_slice)
+              # ARRAY response: flat array of field-value pairs, convert to pairs
+              reply.each_slice(2).to_a
+            else
+              # Fallback: try Pairify
+              Utils::Pairify.call(reply)
+            end
+          end
+        else
+          send_command(RequestType::HRAND_FIELD, args)
+        end
       end
 
       # Scan a hash
@@ -400,7 +415,7 @@ class Valkey
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
       #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
       #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
-      # @return [Integer, Array<Integer>] Result for single field, or array of results for multiple fields.
+      # @return [Array<Integer>] Array of results for each field.
       #   - `1` if the expiration time was successfully set for the field.
       #   - `0` if the specified condition was not met.
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
@@ -412,9 +427,7 @@ class Valkey
         args << "GT" if gt
         args << "LT" if lt
 
-        send_command(RequestType::HEXPIREAT, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HEXPIREAT, args)
       end
 
       # Set a timeout on one or more hash fields in milliseconds.
@@ -431,7 +444,7 @@ class Valkey
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
       #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
       #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
-      # @return [Integer, Array<Integer>] Result for single field, or array of results for multiple fields.
+      # @return [Array<Integer>] Array of results for each field.
       #   - `1` if the expiration time was successfully set for the field.
       #   - `0` if the specified condition was not met.
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
@@ -443,9 +456,7 @@ class Valkey
         args << "GT" if gt
         args << "LT" if lt
 
-        send_command(RequestType::HPEXPIRE, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HPEXPIRE, args)
       end
 
       # Set the expiration for one or more hash fields as a UNIX timestamp in milliseconds.
@@ -462,7 +473,7 @@ class Valkey
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
       #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
       #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
-      # @return [Integer, Array<Integer>] Result for single field, or array of results for multiple fields.
+      # @return [Array<Integer>] Array of results for each field.
       #   - `1` if the expiration time was successfully set for the field.
       #   - `0` if the specified condition was not met.
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
@@ -474,9 +485,7 @@ class Valkey
         args << "GT" if gt
         args << "LT" if lt
 
-        send_command(RequestType::HPEXPIREAT, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HPEXPIREAT, args)
       end
 
       # Remove the expiration from one or more hash fields.
@@ -487,7 +496,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] fields one field, or array of fields
-      # @return [Integer, Array<Integer>] Result for single field, or array of results for multiple fields.
+      # @return [Array<Integer>] Array of results for each field.
       #   - `1` if the expiration time was successfully removed from the field.
       #   - `-1` if the field exists but has no expiration time.
       #   - `-2` if the field does not exist in the provided hash key, or the hash key does not exist.
@@ -495,9 +504,7 @@ class Valkey
         fields.flatten!(1)
         args = [key, "FIELDS", fields.length, *fields]
 
-        send_command(RequestType::HPERSIST, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HPERSIST, args)
       end
 
       # Get the time to live in seconds of one or more hash fields.
@@ -527,7 +534,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] fields one field, or array of fields
-      # @return [Integer, Array<Integer>] TTL in milliseconds for single field, or array of TTLs for multiple fields.
+      # @return [Array<Integer>] Array of TTLs in milliseconds for each field.
       #   - TTL in milliseconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
       #   - `-2` if the field does not exist in the provided hash key, or the hash key is empty.
@@ -535,9 +542,7 @@ class Valkey
         fields.flatten!(1)
         args = [key, "FIELDS", fields.length, *fields]
 
-        send_command(RequestType::HPTTL, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HPTTL, args)
       end
 
       # Get the expiration Unix timestamp in seconds for one or more hash fields.
@@ -548,8 +553,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] fields one field, or array of fields
-      # @return [Integer, Array<Integer>] Expiration timestamp in seconds for single field, or array
-      #   for multiple fields.
+      # @return [Array<Integer>] Array of expiration timestamps in seconds for each field.
       #   - Expiration Unix timestamp in seconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
       #   - `-2` if the field does not exist in the provided hash key, or the hash key is empty.
@@ -557,9 +561,7 @@ class Valkey
         fields.flatten!(1)
         args = [key, "FIELDS", fields.length, *fields]
 
-        send_command(RequestType::HEXPIRETIME, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HEXPIRETIME, args)
       end
 
       # Get the expiration Unix timestamp in milliseconds for one or more hash fields.
@@ -570,8 +572,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] fields one field, or array of fields
-      # @return [Integer, Array<Integer>] Expiration timestamp in milliseconds for single field, or
-      #   array for multiple fields.
+      # @return [Array<Integer>] Array of expiration timestamps in milliseconds for each field.
       #   - Expiration Unix timestamp in milliseconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
       #   - `-2` if the field does not exist in the provided hash key, or the hash key is empty.
@@ -579,9 +580,7 @@ class Valkey
         fields.flatten!(1)
         args = [key, "FIELDS", fields.length, *fields]
 
-        send_command(RequestType::HPEXPIRETIME, args) do |reply|
-          fields.length == 1 ? reply[0] : reply
-        end
+        send_command(RequestType::HPEXPIRETIME, args)
       end
     end
   end

@@ -12,7 +12,8 @@ class Valkey
   module Utils
     Boolify = lambda { |value|
       return value if value.is_a?(TrueClass) || value.is_a?(FalseClass)
-      return value != 0 unless value.nil?
+
+      value != 0 unless value.nil?
     }
 
     BoolifySet = lambda { |value|
