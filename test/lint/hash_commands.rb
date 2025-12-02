@@ -236,7 +236,7 @@ module Lint
     end
 
     def test_hsetex
-      target_version "8.0" do
+      target_version "9.0" do
         r.hsetex("foo", "f1", "s1", 2)
         assert_equal "s1", r.hget("foo", "f1")
         assert_in_range 0..2, r.httl("foo", "f1")
@@ -244,7 +244,7 @@ module Lint
     end
 
     def test_hgetex
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal "s1", r.hgetex("foo", "f1", ex: 2)
         assert_in_range 0..2, r.httl("foo", "f1")
@@ -252,7 +252,7 @@ module Lint
     end
 
     def test_hgetex_multiple_fields
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1", "f2", "s2")
         values = r.hgetex("foo", "f1", "f2", ex: 2)
         assert_equal %w[s1 s2], values
@@ -260,7 +260,7 @@ module Lint
     end
 
     def test_hgetex_with_persist
-      target_version "8.0" do
+      target_version "9.0" do
         r.hsetex("foo", "f1", "s1", 100)
         assert_equal "s1", r.hgetex("foo", "f1", persist: true)
         assert_equal([-1], r.httl("foo", "f1"))
@@ -268,7 +268,7 @@ module Lint
     end
 
     def test_hexpire
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal [1], r.hexpire("foo", 2, "f1")
         assert_in_range 0..2, r.httl("foo", "f1").first
@@ -276,7 +276,7 @@ module Lint
     end
 
     def test_hexpire_multiple_fields
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1", "f2", "s2")
         results = r.hexpire("foo", 2, "f1", "f2")
         assert_equal [1, 1], results
@@ -284,7 +284,7 @@ module Lint
     end
 
     def test_hexpire_with_options
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal [1], r.hexpire("foo", 10, "f1")
         assert_equal [1], r.hexpire("foo", 5, "f1", lt: true)
@@ -293,7 +293,7 @@ module Lint
     end
 
     def test_hexpireat
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal [1], r.hexpireat("foo", Time.now.to_i + 2, "f1")
         assert_in_range 0..2, r.httl("foo", "f1").first
@@ -301,7 +301,7 @@ module Lint
     end
 
     def test_hpexpire
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal [1], r.hpexpire("foo", 2000, "f1")
         assert_in_range 0..2, r.httl("foo", "f1").first
@@ -309,7 +309,7 @@ module Lint
     end
 
     def test_hpexpireat
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal [1], r.hpexpireat("foo", (Time.now.to_i * 1000) + 2000, "f1")
         assert_in_range 0..2, r.httl("foo", "f1").first
@@ -317,7 +317,7 @@ module Lint
     end
 
     def test_hpersist
-      target_version "8.0" do
+      target_version "9.0" do
         r.hsetex("foo", "f1", "s1", 100)
         assert_equal [1], r.hpersist("foo", "f1")
         assert_equal([-1], r.httl("foo", "f1"))
@@ -325,7 +325,7 @@ module Lint
     end
 
     def test_hpersist_multiple_fields
-      target_version "8.0" do
+      target_version "9.0" do
         r.hsetex("foo", "f1", "s1", 100)
         r.hsetex("foo", "f2", "s2", 100)
         results = r.hpersist("foo", "f1", "f2")
@@ -334,7 +334,7 @@ module Lint
     end
 
     def test_httl
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal([-1], r.httl("foo", "f1"))
 
@@ -346,7 +346,7 @@ module Lint
     end
 
     def test_httl_multiple_fields
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1", "f2", "s2")
         r.hsetex("foo", "f1", "s1", 2)
         results = r.httl("foo", "f1", "f2", "f3")
@@ -357,7 +357,7 @@ module Lint
     end
 
     def test_hpttl
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal([-1], r.hpttl("foo", "f1"))
 
@@ -369,7 +369,7 @@ module Lint
     end
 
     def test_hexpiretime
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal([-1], r.hexpiretime("foo", "f1"))
 
@@ -382,7 +382,7 @@ module Lint
     end
 
     def test_hpexpiretime
-      target_version "8.0" do
+      target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal([-1], r.hpexpiretime("foo", "f1"))
 
