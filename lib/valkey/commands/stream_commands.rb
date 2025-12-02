@@ -320,7 +320,13 @@ class Valkey
       def xgroup_createconsumer(key, group, consumer)
         send_command(RequestType::X_GROUP_CREATE_CONSUMER, [key, group, consumer]) do |reply|
           # Convert boolean to integer if needed (backend may return boolean)
-          reply.is_a?(TrueClass) ? 1 : (reply.is_a?(FalseClass) ? 0 : reply)
+          if reply.is_a?(TrueClass)
+            1
+          elsif reply.is_a?(FalseClass)
+            0
+          else
+            reply
+          end
         end
       end
 
@@ -353,7 +359,13 @@ class Valkey
       def xgroup_destroy(key, group)
         send_command(RequestType::X_GROUP_DESTROY, [key, group]) do |reply|
           # Convert boolean to integer if needed (backend may return boolean)
-          reply.is_a?(TrueClass) ? 1 : (reply.is_a?(FalseClass) ? 0 : reply)
+          if reply.is_a?(TrueClass)
+            1
+          elsif reply.is_a?(FalseClass)
+            0
+          else
+            reply
+          end
         end
       end
 

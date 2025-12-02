@@ -87,7 +87,9 @@ class Valkey
 
     HashifyStreamEntries = lambda { |reply|
       return [] if reply.nil?
+
       return [] if !reply.is_a?(Array) || reply.empty?
+
       # Reply format: [[entry_id, [field1, value1, field2, value2, ...]], ...]
       # Match redis-rb: return flat arrays [["id", ["field", "value", ...]], ...]
       # Check if first element is a pair [entry_id, values_array]
