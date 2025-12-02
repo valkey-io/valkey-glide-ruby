@@ -124,17 +124,15 @@ class Valkey
     HashifyStreamAutoclaim = lambda { |reply|
       {
         'next' => reply[0],
-        'entries' => (reply[1] || []).compact.map do |entry, values|
-          # Return flat array format like redis-rb: [id, [field, value, ...]]
-          values_array = if values.nil?
-                           []
-                         elsif values.is_a?(Array)
-                           values
-                         else
-                           []
-                         end
-          [entry, values_array]
-        end
+        'entries' => if reply[1].nil?
+                       []
+                     elsif reply[1].is_a?(Array)
+                       # Reply[1] is already an array of entries: [[id, [field, value, ...]], ...]
+                       # Use HashifyStreamEntries to convert them properly
+                       HashifyStreamEntries.call(reply[1])
+                     else
+                       []
+                     end
       }
     }
 

@@ -140,10 +140,10 @@ module Lint
 
         assert_equal 10, r.xlen("mystream")
 
-        # Trim to maxlen (approximate trimming may keep a few more entries)
-        removed = r.xtrim("mystream", 5)
+        # Trim to maxlen (use exact trimming to ensure it works)
+        removed = r.xtrim("mystream", 5, approximate: false)
         assert_operator removed, :>=, 0
-        assert_operator r.xlen("mystream"), :<=, 5
+        assert_equal 5, r.xlen("mystream")
 
         r.del "mystream"
       end
