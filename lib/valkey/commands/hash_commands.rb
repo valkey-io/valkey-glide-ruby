@@ -176,7 +176,7 @@ class Valkey
       #
       # @see #hmset
       def mapped_hmset(key, hash)
-        hmset(key, hash.flatten)
+        hmset(key, *hash.flatten)
       end
 
       # Get one or multiple random fields from a hash.
