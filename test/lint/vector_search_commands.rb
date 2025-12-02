@@ -45,7 +45,7 @@ module Lint
         r.flushdb
       rescue StandardError => e
         warn "Warning: Error cleaning up database 0: #{e.message}"
-      end
+
 
       # Only unload module if we loaded it
       if !@module_was_loaded && redisearch_loaded?
@@ -57,7 +57,7 @@ module Lint
             warn "Warning: Unexpected error unloading RediSearch: #{e.message}"
           end
         end
-      end
+
     rescue StandardError => e
       warn "Warning: Error in teardown: #{e.message}"
     ensure
@@ -68,45 +68,40 @@ module Lint
         r.select(15) if r && !r.nil?
       rescue StandardError => e
         warn "CRITICAL: Could not restore database to 15: #{e.message}"
-      end
+
 
       # Call parent teardown
       super
     end
 
     def test_ft_list
-      target_version "6.0" do
-        ensure_redisearch_loaded
+      ensure_redisearch_loaded
 
-        with_db0 do
-          # Should return an array (might be empty if no indexes)
-          list = r.ft_list
-          assert_kind_of Array, list
-        end
-      rescue Valkey::CommandError => e
-        skip_if_redisearch_unavailable(e)
+      with_db0 do
+        # Should return an array (might be empty if no indexes)
+        list = r.ft_list
+        assert_kind_of Array, list
       end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
     end
 
     def test_ft_create_basic
-      target_version "6.0" do
-        ensure_redisearch_loaded
+      ensure_redisearch_loaded
 
-        with_db0 do
-          # Create a simple text index
-          result = r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
-          assert_equal "OK", result
+      with_db0 do
+        # Create a simple text index
+        result = r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
+        assert_equal "OK", result
 
-          # Verify index exists
-          assert index_exists?(TEST_INDEX), "Index should exist after creation"
-        end
-      rescue Valkey::CommandError => e
-        skip_if_redisearch_unavailable(e)
+        # Verify index exists
+        assert index_exists?(TEST_INDEX), "Index should exist after creation"
       end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
     end
 
     def test_ft_create_with_vector_field
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -129,11 +124,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_info
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -151,11 +145,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_drop_index
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -172,11 +165,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_drop_index_with_dd
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -196,11 +188,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_search_basic
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -224,11 +215,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_search_with_options
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -247,11 +237,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_aggregate
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -273,11 +262,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_alias_add
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -293,11 +281,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_alias_del
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -311,11 +298,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_alias_update
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -336,11 +322,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_explain
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -353,11 +338,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_explain_cli
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -370,11 +354,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_profile_search
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -401,11 +384,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_profile_aggregate
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -434,11 +416,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_convenience_method_list
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -447,11 +428,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_convenience_method_create
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -460,11 +440,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_convenience_method_search
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -478,11 +457,10 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     def test_ft_convenience_method_drop_index
-      target_version "6.0" do
         ensure_redisearch_loaded
 
         with_db0 do
@@ -493,7 +471,7 @@ module Lint
         end
       rescue Valkey::CommandError => e
         skip_if_redisearch_unavailable(e)
-      end
+
     end
 
     private
@@ -509,7 +487,7 @@ module Lint
         r.select(15)
       rescue StandardError => e
         warn "Warning: Could not restore database to 15: #{e.message}"
-      end
+
     end
 
     def redisearch_loaded?
@@ -538,7 +516,7 @@ module Lint
         else
           raise
         end
-      end
+
     end
 
     def index_exists?(index_name)
@@ -549,7 +527,7 @@ module Lint
         else
           false
         end
-      end
+
     rescue Valkey::CommandError
       false
     end
@@ -563,7 +541,7 @@ module Lint
         skip("RediSearch module file not available")
       else
         raise
-      end
+
     end
   end
 end
