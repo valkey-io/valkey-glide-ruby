@@ -14,6 +14,7 @@ require "valkey/commands/scripting_commands"
 require "valkey/commands/function_commands"
 require "valkey/commands/module_commands"
 require "valkey/commands/pubsub_commands"
+require "valkey/commands/json_commands"
 require "valkey/commands/cluster_commands"
 require "valkey/commands/vector_search_commands"
 require "valkey/commands/hash_commands"
@@ -46,6 +47,7 @@ class Valkey
     include FunctionCommands
     include ModuleCommands
     include PubSubCommands
+    include JsonCommands
     include ClusterCommands
     include VectorSearchCommands
     include HashCommands

@@ -49,8 +49,15 @@ jobs:
       
       - name: Copy modules for testing
         run: |
-          echo "Copying RedisBloom module for MODULE commands testing..."
+          echo "Copying modules for testing..."
           mkdir -p test/fixtures
+          
+          echo "Copying RedisJSON module for JSON commands testing..."
+          cp .github/files/librejson-v2.8.15.so test/fixtures/redisjson.so
+          chmod +x test/fixtures/redisjson.so
+          ls -lh test/fixtures/redisjson.so
+          
+          echo "Copying RedisBloom module..."
           cp .github/files/redisbloom-amd64-v2.6.12.so test/fixtures/redisbloom.so
           chmod +x test/fixtures/redisbloom.so
           ls -lh test/fixtures/redisbloom.so
@@ -84,8 +91,7 @@ jobs:
           docker exec valkey-test valkey-cli CONFIG GET enable-module-command
           
           echo "Verifying module files are accessible..."
-          docker exec valkey-test ls -lh /tmp/modules/redisbloom.so
-          docker exec valkey-test ls -lh /tmp/modules/redisearch.so
+          docker exec valkey-test ls -lh /tmp/modules/
       
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
