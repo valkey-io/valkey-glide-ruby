@@ -98,7 +98,7 @@ class Valkey
       # @param [Hash] options optional parameters
       #   - `:count => Integer`: maximum number of entries per stream
       #   - `:block => Integer`: block for specified milliseconds (0 = no timeout)
-      # @return [Hash, nil] hash of stream keys to arrays of entries, or nil on timeout
+      # @return [Hash] hash of stream keys to arrays of entries (empty hash on timeout or no data)
       #
       # @example Read from a single stream
       #   valkey.xread(["mystream"], ["0"])
@@ -140,7 +140,7 @@ class Valkey
       #   - `:count => Integer`: maximum number of entries per stream
       #   - `:block => Integer`: block for specified milliseconds (0 = no timeout)
       #   - `:noack => true`: do not add messages to pending list
-      # @return [Hash, nil] hash of stream keys to arrays of entries, or nil on timeout
+      # @return [Hash] hash of stream keys to arrays of entries (empty hash on timeout or no data)
       #
       # @example Read from consumer group
       #   valkey.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
@@ -412,13 +412,14 @@ class Valkey
       # @param [Array] args optional arguments (start, end, count, consumer)
       # @param [Hash] options optional parameters
       #   - `:idle => Integer`: filter by minimum idle time in milliseconds
-      # @return [Array, Hash] pending information
-      #   - Without args: summary array [pending_count, start_id, end_id, [consumer, pending_count, ...]]
-      #   - With start/end/count: array of [id, consumer, idle_time, delivery_count] entries
+      # @return [Hash, Array] pending information
+      #   - Without args: summary hash with keys 'size', 'min_entry_id', 'max_entry_id', 'consumers'
+      #   - With start/end/count: array of Hashes with keys 'entry_id', 'consumer', 'elapsed', and 'count'
       #
       # @example Get summary
       #   valkey.xpending("mystream", "mygroup")
-      #     # => [5, "1234567890-0", "1234567890-4", ["consumer1", 3], ["consumer2", 2]]
+      #     # => {"size" => 5, "min_entry_id" => "1234567890-0",
+      #     #     "max_entry_id" => "1234567890-4", "consumers" => {"consumer1" => 3, "consumer2" => 2}}
       # @example Get detailed pending entries
       #   valkey.xpending("mystream", "mygroup", "-", "+", 10)
       #
@@ -490,11 +491,11 @@ class Valkey
       #   - `:time => Integer`: set time in milliseconds (Unix timestamp)
       #   - `:retrycount => Integer`: set retry count
       #   - `:justid => true`: return only IDs
-      # @return [Array] array with [next_id, [claimed_entries]]
+      # @return [Hash] hash with 'next' key for next cursor ID and 'entries' key for array of claimed entries
       #
       # @example Auto-claim pending messages
       #   valkey.xautoclaim("mystream", "mygroup", "consumer2", 3600000, "0-0")
-      #     # => ["1234567890-5", [["1234567890-0", ["field1", "value1"]]]]
+      #     # => { 'next' => "1234567890-5", 'entries' => [["1234567890-0", ["field1", "value1"]]] }
       #
       # @see https://valkey.io/commands/xautoclaim/
       def xautoclaim(key, group, consumer, min_idle_time, start, **options)
@@ -564,11 +565,11 @@ class Valkey
       # @param [Hash] options optional parameters
       #   - `:full => true`: return full information including entries
       #   - `:count => Integer`: limit number of entries (requires :full)
-      # @return [Hash] stream information
+      # @return [Array] stream information as flat array of key-value pairs
       #
       # @example Get basic stream info
       #   valkey.xinfo_stream("mystream")
-      #     # => {"length" => 42, "radix-tree-keys" => 1, ...}
+      #     # => ["length", 42, "radix-tree-keys", 1, ...]
       # @example Get full info with entries
       #   valkey.xinfo_stream("mystream", full: true, count: 10)
       #
