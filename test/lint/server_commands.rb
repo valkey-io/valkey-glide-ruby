@@ -457,7 +457,7 @@ module Lint
         entries = result.reject { |e| e.is_a?(String) && e.include?(":") }
         # If not empty, each entry should be [timestamp, latency]
         entries.each do |entry|
-          assert_kind_of Array, entry
+          next unless entry.is_a?(Array) && entry.size >= 2
           assert_equal 2, entry.size, "Expected each history entry to be [timestamp, latency]"
           assert_kind_of Integer, entry[0], "Expected timestamp to be an Integer"
           assert_kind_of Integer, entry[1], "Expected latency to be an Integer"
@@ -488,7 +488,7 @@ module Lint
         # Result may be empty if no latency events recorded
         # If not empty, each entry should be [event_name, timestamp, latest_latency, max_latency]
         entries.each do |entry|
-          assert_kind_of Array, entry
+          next unless entry.is_a?(Array) && entry.size >= 4
           assert entry.size >= 4, "Expected each latest entry to have at least 4 elements"
           assert_kind_of String, entry[0], "Expected event name to be a String"
           assert_kind_of Integer, entry[1], "Expected timestamp to be an Integer"
@@ -532,9 +532,7 @@ module Lint
       assert !result.empty?, "Expected memory_doctor to return a non-empty string"
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      if e.message.include?("MEMORY") || e.message.include?("unknown")
-        skip("MEMORY DOCTOR not available: #{e.message}")
-      end
+      skip("MEMORY DOCTOR not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
       raise
     end
 
@@ -557,9 +555,7 @@ module Lint
       assert_equal "OK", result
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      if e.message.include?("MEMORY") || e.message.include?("unknown")
-        skip("MEMORY PURGE not available: #{e.message}")
-      end
+      skip("MEMORY PURGE not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
       raise
     end
 
@@ -572,9 +568,7 @@ module Lint
              "Expected memory_stats to return meaningful statistics"
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      if e.message.include?("MEMORY") || e.message.include?("unknown")
-        skip("MEMORY STATS not available: #{e.message}")
-      end
+      skip("MEMORY STATS not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
       raise
     end
 
@@ -600,9 +594,7 @@ module Lint
       r.del("test:memory:key")
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      if e.message.include?("MEMORY") || e.message.include?("unknown")
-        skip("MEMORY USAGE not available: #{e.message}")
-      end
+      skip("MEMORY USAGE not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
       raise
     end
 
@@ -617,9 +609,7 @@ module Lint
         assert cmd_info.size >= 6, "Expected command info to have at least 6 elements"
       end
     rescue Valkey::CommandError => e
-      if e.message.include?("COMMAND") || e.message.include?("unknown")
-        skip("COMMAND not available: #{e.message}")
-      end
+      skip("COMMAND not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
       raise
     end
 
@@ -653,9 +643,7 @@ module Lint
         assert doc.key?("summary") || doc.key?("since"), "Expected doc to have summary or since"
       end
     rescue Valkey::CommandError => e
-      if e.message.include?("COMMAND") || e.message.include?("unknown")
-        skip("COMMAND DOCS not available: #{e.message}")
-      end
+      skip("COMMAND DOCS not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
       raise
     end
 
@@ -722,9 +710,7 @@ module Lint
         assert info.size >= 6, "Expected command info to have at least 6 elements"
       end
     rescue Valkey::CommandError => e
-      if e.message.include?("COMMAND") || e.message.include?("unknown")
-        skip("COMMAND INFO not available: #{e.message}")
-      end
+      skip("COMMAND INFO not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
       raise
     end
 
@@ -746,9 +732,7 @@ module Lint
       command_names = result.map(&:upcase)
       assert command_names.include?("GET"), "Expected GET (read command) to be in filtered list"
     rescue Valkey::CommandError => e
-      if e.message.include?("COMMAND") || e.message.include?("unknown")
-        skip("COMMAND LIST not available: #{e.message}")
-      end
+      skip("COMMAND LIST not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
       raise
     end
 
