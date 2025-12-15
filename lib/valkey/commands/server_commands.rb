@@ -226,7 +226,6 @@ class Valkey
         send_command(RequestType::DEBUG, args)
       end
 
-<<<<<<< Updated upstream
       # ACL Commands - Access Control List management
 
       # List the ACL categories or the commands inside a category.
@@ -470,7 +469,8 @@ class Valkey
       def acl(subcommand, *args)
         subcommand = subcommand.to_s.downcase
         send("acl_#{subcommand}", *args)
-=======
+      end
+
       # Return a human-readable latency analysis report.
       #
       # @return [String] human-readable latency analysis
@@ -787,7 +787,6 @@ class Valkey
           args << "FILTERBY" << filterby << pattern
         end
         send_command(RequestType::COMMAND_LIST, args)
->>>>>>> Stashed changes
       end
     end
   end

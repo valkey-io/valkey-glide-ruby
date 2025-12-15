@@ -231,7 +231,6 @@ module Lint
       end
     end
 
-<<<<<<< Updated upstream
     # ACL Commands Tests
 
     def test_acl_whoami
@@ -381,7 +380,8 @@ module Lint
     def test_acl_convenience_method_setuser_deluser
       assert_equal "OK", r.acl(:setuser, "convuser", "on")
       assert_equal 1, r.acl(:deluser, "convuser")
-=======
+    end
+
     def test_latency_doctor
       # Enable latency monitoring first
       r.config_set("latency-monitor-threshold", "100")
@@ -692,7 +692,6 @@ module Lint
     rescue Valkey::CommandError => e
       skip("COMMAND dispatcher not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
       raise
->>>>>>> Stashed changes
     end
   end
 end
