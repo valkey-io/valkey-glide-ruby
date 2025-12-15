@@ -231,6 +231,7 @@ module Lint
       end
     end
 
+<<<<<<< Updated upstream
     # ACL Commands Tests
 
     def test_acl_whoami
@@ -380,6 +381,318 @@ module Lint
     def test_acl_convenience_method_setuser_deluser
       assert_equal "OK", r.acl(:setuser, "convuser", "on")
       assert_equal 1, r.acl(:deluser, "convuser")
+=======
+    def test_latency_doctor
+      # Enable latency monitoring first
+      r.config_set("latency-monitor-threshold", "100")
+
+      # LATENCY DOCTOR returns a human-readable string
+      result = r.latency_doctor
+      assert_kind_of String, result
+      assert !result.empty?, "Expected latency_doctor to return a non-empty string"
+    rescue Valkey::CommandError => e
+      # Skip if latency monitoring is not available or not enabled
+      skip("LATENCY DOCTOR not available: #{e.message}") if e.message.include?("LATENCY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_latency_graph
+      # Enable latency monitoring first
+      r.config_set("latency-monitor-threshold", "100")
+
+      # LATENCY GRAPH requires an event name
+      result = r.latency_graph("command")
+      assert_kind_of String, result
+      # Graph may be empty if no events recorded, but should still return a string
+    rescue Valkey::CommandError => e
+      # Skip if latency monitoring is not available or event doesn't exist
+      skip("LATENCY GRAPH not available: #{e.message}") if e.message.include?("LATENCY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_latency_histogram
+      # Enable latency monitoring first
+      r.config_set("latency-monitor-threshold", "100")
+
+      # LATENCY HISTOGRAM without arguments returns all histograms
+      result = r.latency_histogram
+      assert_kind_of Array, result
+      # Result may be empty if no latency events recorded
+
+      # LATENCY HISTOGRAM with specific commands
+      result = r.latency_histogram("SET", "GET")
+      assert_kind_of Array, result
+    rescue Valkey::CommandError => e
+      # Skip if latency monitoring is not available
+      skip("LATENCY HISTOGRAM not available: #{e.message}") if e.message.include?("LATENCY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_latency_history
+      # Enable latency monitoring first
+      r.config_set("latency-monitor-threshold", "100")
+
+      # LATENCY HISTORY requires an event name
+      result = r.latency_history("command")
+      assert_kind_of Array, result
+      # Result may be empty if no events recorded for this event
+      # If not empty, each entry should be [timestamp, latency]
+      result.each do |entry|
+        assert_kind_of Array, entry
+        assert_equal 2, entry.size, "Expected each history entry to be [timestamp, latency]"
+        assert_kind_of Integer, entry[0], "Expected timestamp to be an Integer"
+        assert_kind_of Integer, entry[1], "Expected latency to be an Integer"
+      end
+    rescue Valkey::CommandError => e
+      # Skip if latency monitoring is not available or event doesn't exist
+      skip("LATENCY HISTORY not available: #{e.message}") if e.message.include?("LATENCY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_latency_latest
+      # Enable latency monitoring first
+      r.config_set("latency-monitor-threshold", "100")
+
+      # LATENCY LATEST returns latest latency events
+      result = r.latency_latest
+      assert_kind_of Array, result
+      # Result may be empty if no latency events recorded
+      # If not empty, each entry should be [event_name, timestamp, latest_latency, max_latency]
+      result.each do |entry|
+        assert_kind_of Array, entry
+        assert entry.size >= 4, "Expected each latest entry to have at least 4 elements"
+        assert_kind_of String, entry[0], "Expected event name to be a String"
+        assert_kind_of Integer, entry[1], "Expected timestamp to be an Integer"
+        assert_kind_of Integer, entry[2], "Expected latest latency to be an Integer"
+        assert_kind_of Integer, entry[3], "Expected max latency to be an Integer"
+      end
+    rescue Valkey::CommandError => e
+      # Skip if latency monitoring is not available
+      skip("LATENCY LATEST not available: #{e.message}") if e.message.include?("LATENCY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_latency_reset
+      # Enable latency monitoring first
+      r.config_set("latency-monitor-threshold", "100")
+
+      # LATENCY RESET without arguments resets all events
+      result = r.latency_reset
+      assert_kind_of Integer, result
+      assert result >= 0, "Expected reset count to be non-negative"
+
+      # LATENCY RESET with specific events
+      result = r.latency_reset("command", "fast-command")
+      assert_kind_of Integer, result
+      assert result >= 0, "Expected reset count to be non-negative"
+    rescue Valkey::CommandError => e
+      # Skip if latency monitoring is not available
+      skip("LATENCY RESET not available: #{e.message}") if e.message.include?("LATENCY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_memory_doctor
+      # MEMORY DOCTOR returns a human-readable string
+      result = r.memory_doctor
+      assert_kind_of String, result
+      assert !result.empty?, "Expected memory_doctor to return a non-empty string"
+    rescue Valkey::CommandError => e
+      # Skip if MEMORY command is not available
+      skip("MEMORY DOCTOR not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_memory_malloc_stats
+      # MEMORY MALLOC-STATS returns allocator statistics
+      result = r.memory_malloc_stats
+      assert_kind_of String, result
+      # Result may be empty or contain allocator statistics
+    rescue Valkey::CommandError => e
+      # Skip if MEMORY command is not available
+      skip("MEMORY MALLOC-STATS not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_memory_purge
+      # MEMORY PURGE returns "OK"
+      result = r.memory_purge
+      assert_equal "OK", result
+    rescue Valkey::CommandError => e
+      # Skip if MEMORY command is not available
+      skip("MEMORY PURGE not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_memory_stats
+      # MEMORY STATS returns a hash of memory statistics
+      result = r.memory_stats
+      assert_kind_of Hash, result
+      # Common memory stats keys that should be present
+      assert result.key?("peak.allocated") || result.key?("total.allocated") || result.key?("keys.count"),
+             "Expected memory_stats to return meaningful statistics"
+    rescue Valkey::CommandError => e
+      # Skip if MEMORY command is not available
+      skip("MEMORY STATS not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_memory_usage
+      # Create a test key
+      r.set("test:memory:key", "test value")
+
+      # MEMORY USAGE returns memory usage in bytes
+      result = r.memory_usage("test:memory:key")
+      assert_kind_of Integer, result
+      assert result > 0, "Expected memory usage to be positive"
+
+      # MEMORY USAGE with samples parameter
+      result = r.memory_usage("test:memory:key", samples: 10)
+      assert_kind_of Integer, result
+      assert result > 0, "Expected memory usage to be positive"
+
+      # MEMORY USAGE for non-existent key returns nil
+      result = r.memory_usage("test:memory:nonexistent")
+      assert_nil result
+
+      # Clean up
+      r.del("test:memory:key")
+    rescue Valkey::CommandError => e
+      # Skip if MEMORY command is not available
+      skip("MEMORY USAGE not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command
+      # COMMAND returns details about all commands
+      result = r.command_
+      assert_kind_of Array, result
+      assert !result.empty?, "Expected COMMAND to return non-empty array"
+      # Each entry should be an array with command information
+      result.first(5).each do |cmd_info|
+        assert_kind_of Array, cmd_info
+        assert cmd_info.size >= 6, "Expected command info to have at least 6 elements"
+      end
+    rescue Valkey::CommandError => e
+      skip("COMMAND not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_count
+      # COMMAND COUNT returns the total number of commands
+      result = r.command_count
+      assert_kind_of Integer, result
+      assert result > 0, "Expected command count to be positive"
+    rescue Valkey::CommandError => e
+      skip("COMMAND COUNT not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_docs
+      # COMMAND DOCS without arguments returns docs for all commands
+      result = r.command_docs
+      assert_kind_of Array, result
+      assert !result.empty?, "Expected COMMAND DOCS to return non-empty array"
+
+      # COMMAND DOCS with specific commands
+      result = r.command_docs("GET", "SET")
+      assert_kind_of Array, result
+      assert_equal 2, result.size, "Expected 2 command docs"
+      result.each do |doc|
+        assert_kind_of Hash, doc, "Expected each doc to be a Hash"
+        assert doc.key?("summary") || doc.key?("since"), "Expected doc to have summary or since"
+      end
+    rescue Valkey::CommandError => e
+      skip("COMMAND DOCS not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_get_keys
+      # COMMAND GETKEYS extracts key positions from a command
+      result = r.command_get_keys("GET", "mykey")
+      assert_kind_of Array, result
+      assert_equal [0], result, "Expected GET command to have key at position 0"
+
+      # Test MSET which has multiple keys
+      result = r.command_get_keys("MSET", "key1", "val1", "key2", "val2")
+      assert_kind_of Array, result
+      assert result.include?(0), "Expected MSET to have key at position 0"
+    rescue Valkey::CommandError => e
+      skip("COMMAND GETKEYS not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_get_keys_and_flags
+      # COMMAND GETKEYSANDFLAGS extracts keys and their flags
+      result = r.command_get_keys_and_flags("GET", "mykey")
+      assert_kind_of Array, result
+      assert !result.empty?, "Expected COMMAND GETKEYSANDFLAGS to return non-empty array"
+      # Each entry should be [position, flags_array]
+      result.each do |entry|
+        assert_kind_of Array, entry
+        assert entry.size >= 2, "Expected entry to have at least position and flags"
+        assert_kind_of Integer, entry[0], "Expected first element to be position (Integer)"
+        assert_kind_of Array, entry[1], "Expected second element to be flags (Array)"
+      end
+    rescue Valkey::CommandError => e
+      skip("COMMAND GETKEYSANDFLAGS not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_info
+      # COMMAND INFO without arguments returns info for all commands
+      result = r.command_info
+      assert_kind_of Array, result
+      assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+
+      # COMMAND INFO with specific commands
+      result = r.command_info("GET", "SET")
+      assert_kind_of Array, result
+      assert_equal 2, result.size, "Expected 2 command info entries"
+      result.each do |info|
+        assert_kind_of Array, info
+        assert info.size >= 6, "Expected command info to have at least 6 elements"
+      end
+    rescue Valkey::CommandError => e
+      skip("COMMAND INFO not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_list
+      # COMMAND LIST without filters returns all commands
+      result = r.command_list
+      assert_kind_of Array, result
+      assert !result.empty?, "Expected COMMAND LIST to return non-empty array"
+      assert result.all? { |cmd| cmd.is_a?(String) }, "Expected all commands to be Strings"
+      assert result.include?("GET"), "Expected GET command to be in the list"
+      assert result.include?("SET"), "Expected SET command to be in the list"
+
+      # COMMAND LIST with ACLCAT filter
+      result = r.command_list(aclcat: "read")
+      assert_kind_of Array, result
+      # Should return read commands
+      assert result.include?("GET"), "Expected GET (read command) to be in filtered list"
+    rescue Valkey::CommandError => e
+      skip("COMMAND LIST not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_command_dispatcher
+      # Test the dispatcher method
+      count = r.command(:count)
+      assert_kind_of Integer, count
+      assert count > 0
+
+      list = r.command(:list)
+      assert_kind_of Array, list
+      assert !list.empty?
+
+      info = r.command(:info, "GET")
+      assert_kind_of Array, info
+      assert_equal 1, info.size
+    rescue Valkey::CommandError => e
+      skip("COMMAND dispatcher not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      raise
+>>>>>>> Stashed changes
     end
   end
 end
