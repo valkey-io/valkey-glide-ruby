@@ -453,8 +453,10 @@ module Lint
         assert !result.empty?, "Expected non-empty string response"
       else
         assert_kind_of Array, result
+        # Server may include server info as first element, filter it out
+        entries = result.reject { |e| e.is_a?(String) && e.include?(":") }
         # If not empty, each entry should be [timestamp, latency]
-        result.each do |entry|
+        entries.each do |entry|
           assert_kind_of Array, entry
           assert_equal 2, entry.size, "Expected each history entry to be [timestamp, latency]"
           assert_kind_of Integer, entry[0], "Expected timestamp to be an Integer"
@@ -481,9 +483,11 @@ module Lint
         assert !result.empty?, "Expected non-empty string response"
       else
         assert_kind_of Array, result
+        # Server may include server info as first element, filter it out
+        entries = result.reject { |e| e.is_a?(String) && e.include?(":") }
         # Result may be empty if no latency events recorded
         # If not empty, each entry should be [event_name, timestamp, latest_latency, max_latency]
-        result.each do |entry|
+        entries.each do |entry|
           assert_kind_of Array, entry
           assert entry.size >= 4, "Expected each latest entry to have at least 4 elements"
           assert_kind_of String, entry[0], "Expected event name to be a String"
@@ -528,7 +532,9 @@ module Lint
       assert !result.empty?, "Expected memory_doctor to return a non-empty string"
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      skip("MEMORY DOCTOR not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      if e.message.include?("MEMORY") || e.message.include?("unknown")
+        skip("MEMORY DOCTOR not available: #{e.message}")
+      end
       raise
     end
 
@@ -551,7 +557,9 @@ module Lint
       assert_equal "OK", result
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      skip("MEMORY PURGE not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      if e.message.include?("MEMORY") || e.message.include?("unknown")
+        skip("MEMORY PURGE not available: #{e.message}")
+      end
       raise
     end
 
@@ -564,7 +572,9 @@ module Lint
              "Expected memory_stats to return meaningful statistics"
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      skip("MEMORY STATS not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      if e.message.include?("MEMORY") || e.message.include?("unknown")
+        skip("MEMORY STATS not available: #{e.message}")
+      end
       raise
     end
 
@@ -590,7 +600,9 @@ module Lint
       r.del("test:memory:key")
     rescue Valkey::CommandError => e
       # Skip if MEMORY command is not available
-      skip("MEMORY USAGE not available: #{e.message}") if e.message.include?("MEMORY") || e.message.include?("unknown")
+      if e.message.include?("MEMORY") || e.message.include?("unknown")
+        skip("MEMORY USAGE not available: #{e.message}")
+      end
       raise
     end
 
@@ -605,7 +617,9 @@ module Lint
         assert cmd_info.size >= 6, "Expected command info to have at least 6 elements"
       end
     rescue Valkey::CommandError => e
-      skip("COMMAND not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      if e.message.include?("COMMAND") || e.message.include?("unknown")
+        skip("COMMAND not available: #{e.message}")
+      end
       raise
     end
 
@@ -631,13 +645,17 @@ module Lint
       result = r.command_docs("GET", "SET")
       assert_kind_of Array, result
       # Server may return more entries (e.g., with aliases or variations)
-      assert result.size >= 2, "Expected at least 2 command docs"
-      result.each do |doc|
+      # Filter out string elements (command names) and only check hash docs
+      docs = result.select { |d| d.is_a?(Hash) }
+      assert docs.size >= 2, "Expected at least 2 command docs (hashes)"
+      docs.each do |doc|
         assert_kind_of Hash, doc, "Expected each doc to be a Hash"
         assert doc.key?("summary") || doc.key?("since"), "Expected doc to have summary or since"
       end
     rescue Valkey::CommandError => e
-      skip("COMMAND DOCS not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      if e.message.include?("COMMAND") || e.message.include?("unknown")
+        skip("COMMAND DOCS not available: #{e.message}")
+      end
       raise
     end
 
@@ -704,7 +722,9 @@ module Lint
         assert info.size >= 6, "Expected command info to have at least 6 elements"
       end
     rescue Valkey::CommandError => e
-      skip("COMMAND INFO not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      if e.message.include?("COMMAND") || e.message.include?("unknown")
+        skip("COMMAND INFO not available: #{e.message}")
+      end
       raise
     end
 
@@ -726,7 +746,9 @@ module Lint
       command_names = result.map(&:upcase)
       assert command_names.include?("GET"), "Expected GET (read command) to be in filtered list"
     rescue Valkey::CommandError => e
-      skip("COMMAND LIST not available: #{e.message}") if e.message.include?("COMMAND") || e.message.include?("unknown")
+      if e.message.include?("COMMAND") || e.message.include?("unknown")
+        skip("COMMAND LIST not available: #{e.message}")
+      end
       raise
     end
 
