@@ -225,6 +225,251 @@ class Valkey
       def debug(*args)
         send_command(RequestType::DEBUG, args)
       end
+
+      # ACL Commands - Access Control List management
+
+      # List the ACL categories or the commands inside a category.
+      #
+      # @example List all categories
+      #   valkey.acl_cat
+      #     # => ["keyspace", "read", "write", ...]
+      # @example List commands in a category
+      #   valkey.acl_cat("dangerous")
+      #     # => ["flushdb", "flushall", ...]
+      #
+      # @param [String] category optional category name to list commands
+      # @return [Array<String>] array of categories or commands
+      #
+      # @see https://valkey.io/commands/acl-cat/
+      def acl_cat(category = nil)
+        args = category ? [category] : []
+        send_command(RequestType::ACL_CAT, args)
+      end
+
+      # Remove the specified ACL users.
+      #
+      # @example Delete a user
+      #   valkey.acl_deluser("alice")
+      #     # => 1
+      # @example Delete multiple users
+      #   valkey.acl_deluser("alice", "bob")
+      #     # => 2
+      #
+      # @param [Array<String>] usernames one or more usernames to delete
+      # @return [Integer] number of users deleted
+      #
+      # @see https://valkey.io/commands/acl-deluser/
+      def acl_deluser(*usernames)
+        send_command(RequestType::ACL_DEL_USER, usernames)
+      end
+
+      # Simulate the execution of a command by a user without actually running it.
+      #
+      # @example Test if user can run a command
+      #   valkey.acl_dryrun("alice", "get", "key1")
+      #     # => "OK"
+      # @example Test a command that would be denied
+      #   valkey.acl_dryrun("alice", "set", "key1", "value")
+      #     # => "This user has no permissions to run the 'set' command"
+      #
+      # @param [String] username the username to test
+      # @param [String] command the command to test
+      # @param [Array<String>] args command arguments
+      # @return [String] "OK" if allowed, or error message if denied
+      #
+      # @see https://valkey.io/commands/acl-dryrun/
+      def acl_dryrun(username, command, *args)
+        command_args = [username, command] + args
+        send_command(RequestType::ACL_DRY_RUN, command_args)
+      end
+
+      # Generate a random password.
+      #
+      # @example Generate a password with default length
+      #   valkey.acl_genpass
+      #     # => "dd721260bfe1b3d9601e7fbab36de6d04e2e67b0ef1c53de59d45950db0dd3cc"
+      # @example Generate a password with specific bit length
+      #   valkey.acl_genpass(32)
+      #     # => "355ef3dd"
+      #
+      # @param [Integer] bits optional number of bits (default: 256)
+      # @return [String] the generated password
+      #
+      # @see https://valkey.io/commands/acl-genpass/
+      def acl_genpass(bits = nil)
+        args = bits ? [bits] : []
+        send_command(RequestType::ACL_GEN_PASS, args)
+      end
+
+      # Get the rules for a specific ACL user.
+      #
+      # @example Get user rules
+      #   valkey.acl_getuser("alice")
+      #     # => ["flags" => ["on", "allkeys"], "passwords" => [...], ...]
+      #
+      # @param [String] username the username to query
+      # @return [Array, nil] array of user properties, or nil if user doesn't exist
+      #
+      # @see https://valkey.io/commands/acl-getuser/
+      def acl_getuser(username)
+        send_command(RequestType::ACL_GET_USER, [username])
+      end
+
+      # List the current ACL rules in ACL config file format.
+      #
+      # @example List all ACL rules
+      #   valkey.acl_list
+      #     # => ["user default on nopass ~* &* +@all", "user alice on ..."]
+      #
+      # @return [Array<String>] array of ACL rules
+      #
+      # @see https://valkey.io/commands/acl-list/
+      def acl_list
+        send_command(RequestType::ACL_LIST)
+      end
+
+      # Reload the ACL rules from the configured ACL file.
+      #
+      # @example Reload ACL from file
+      #   valkey.acl_load
+      #     # => "OK"
+      #
+      # @return [String] "OK"
+      #
+      # @see https://valkey.io/commands/acl-load/
+      def acl_load
+        send_command(RequestType::ACL_LOAD)
+      end
+
+      # List latest ACL security events.
+      #
+      # @example Get recent ACL log entries
+      #   valkey.acl_log
+      #     # => [{"count" => 1, "reason" => "auth", ...}, ...]
+      # @example Get specific number of log entries
+      #   valkey.acl_log(10)
+      #     # => [...]
+      # @example Reset the ACL log
+      #   valkey.acl_log("RESET")
+      #     # => "OK"
+      #
+      # @param [Integer, String] count_or_reset number of entries or "RESET" to clear the log
+      # @return [Array<Hash>, String] array of log entries, or "OK" if reset
+      #
+      # @see https://valkey.io/commands/acl-log/
+      def acl_log(count_or_reset = nil)
+        args = count_or_reset ? [count_or_reset] : []
+        send_command(RequestType::ACL_LOG, args)
+      end
+
+      # Save the current ACL rules to the configured ACL file.
+      #
+      # @example Save ACL to file
+      #   valkey.acl_save
+      #     # => "OK"
+      #
+      # @return [String] "OK"
+      #
+      # @see https://valkey.io/commands/acl-save/
+      def acl_save
+        send_command(RequestType::ACL_SAVE)
+      end
+
+      # Modify or create ACL rules for a user.
+      #
+      # @example Create a user with password
+      #   valkey.acl_setuser("alice", "on", ">password", "~*", "+@all")
+      #     # => "OK"
+      # @example Create a read-only user
+      #   valkey.acl_setuser("bob", "on", ">pass123", "~*", "+@read")
+      #     # => "OK"
+      # @example Disable a user
+      #   valkey.acl_setuser("alice", "off")
+      #     # => "OK"
+      #
+      # @param [String] username the username to modify or create
+      # @param [Array<String>] rules ACL rules to apply
+      # @return [String] "OK"
+      #
+      # @see https://valkey.io/commands/acl-setuser/
+      def acl_setuser(username, *rules)
+        command_args = [username] + rules
+        send_command(RequestType::ACL_SET_USER, command_args)
+      end
+
+      # List all configured ACL users.
+      #
+      # @example List all users
+      #   valkey.acl_users
+      #     # => ["default", "alice", "bob"]
+      #
+      # @return [Array<String>] array of usernames
+      #
+      # @see https://valkey.io/commands/acl-users/
+      def acl_users
+        send_command(RequestType::ACL_USERS)
+      end
+
+      # Return the username of the current connection.
+      #
+      # @example Get current username
+      #   valkey.acl_whoami
+      #     # => "default"
+      #
+      # @return [String] the current username
+      #
+      # @see https://valkey.io/commands/acl-whoami/
+      def acl_whoami
+        send_command(RequestType::ACL_WHOAMI)
+      end
+
+      # Control ACL configuration (convenience method).
+      #
+      # @example List all categories
+      #   valkey.acl(:cat)
+      #     # => ["keyspace", "read", ...]
+      # @example Delete a user
+      #   valkey.acl(:deluser, "alice")
+      #     # => 1
+      # @example Test command execution
+      #   valkey.acl(:dryrun, "alice", "get", "key1")
+      #     # => "OK"
+      # @example Generate a password
+      #   valkey.acl(:genpass)
+      #     # => "dd721260..."
+      # @example Get user info
+      #   valkey.acl(:getuser, "alice")
+      #     # => [...]
+      # @example List all ACL rules
+      #   valkey.acl(:list)
+      #     # => ["user default on ...", ...]
+      # @example Reload ACL from file
+      #   valkey.acl(:load)
+      #     # => "OK"
+      # @example Get ACL log
+      #   valkey.acl(:log)
+      #     # => [...]
+      # @example Save ACL to file
+      #   valkey.acl(:save)
+      #     # => "OK"
+      # @example Set user rules
+      #   valkey.acl(:setuser, "alice", "on", ">password")
+      #     # => "OK"
+      # @example List all users
+      #   valkey.acl(:users)
+      #     # => ["default", "alice"]
+      # @example Get current username
+      #   valkey.acl(:whoami)
+      #     # => "default"
+      #
+      # @param [String, Symbol] subcommand the subcommand
+      #   (cat, deluser, dryrun, genpass, getuser, list, load, log, save, setuser, users, whoami)
+      # @param [Array] args arguments for the subcommand
+      # @return [Object] depends on subcommand
+      def acl(subcommand, *args)
+        subcommand = subcommand.to_s.downcase
+        send("acl_#{subcommand}", *args)
+      end
     end
   end
 end

@@ -230,5 +230,156 @@ module Lint
         r.client_no_touch(:xyz)
       end
     end
+
+    # ACL Commands Tests
+
+    def test_acl_whoami
+      username = r.acl_whoami
+      assert_kind_of String, username
+      assert_equal "default", username
+    end
+
+    def test_acl_users
+      users = r.acl_users
+      assert_kind_of Array, users
+      assert_includes users, "default"
+    end
+
+    def test_acl_list
+      rules = r.acl_list
+      assert_kind_of Array, rules
+      assert(rules.any? { |rule| rule.start_with?("user default") })
+    end
+
+    def test_acl_cat
+      categories = r.acl_cat
+      assert_kind_of Array, categories
+      assert_includes categories, "read"
+      assert_includes categories, "write"
+    end
+
+    def test_acl_cat_with_category
+      commands = r.acl_cat("read")
+      assert_kind_of Array, commands
+      assert_includes commands, "get"
+    end
+
+    def test_acl_genpass
+      password = r.acl_genpass
+      assert_kind_of String, password
+      assert_equal 64, password.length # 256 bits = 64 hex chars
+    end
+
+    def test_acl_genpass_with_bits
+      password = r.acl_genpass(128)
+      assert_kind_of String, password
+      assert_equal 32, password.length # 128 bits = 32 hex chars
+    end
+
+    def test_acl_setuser_and_getuser
+      assert_equal "OK", r.acl_setuser("testuser", "on", ">testpass", "~*", "+@read")
+
+      user_info = r.acl_getuser("testuser")
+      assert_kind_of Array, user_info
+
+      r.acl_deluser("testuser")
+    end
+
+    def test_acl_deluser
+      r.acl_setuser("tempuser", "on")
+
+      deleted = r.acl_deluser("tempuser")
+      assert_equal 1, deleted
+
+      deleted = r.acl_deluser("nonexistent")
+      assert_equal 0, deleted
+    end
+
+    def test_acl_deluser_multiple
+      r.acl_setuser("user1", "on")
+      r.acl_setuser("user2", "on")
+
+      deleted = r.acl_deluser("user1", "user2")
+      assert_equal 2, deleted
+    end
+
+    def test_acl_getuser_nonexistent
+      user_info = r.acl_getuser("nonexistent")
+      assert_nil user_info
+    end
+
+    def test_acl_dryrun
+      result = r.acl_dryrun("default", "get", "key1")
+      assert_equal "OK", result
+    end
+
+    def test_acl_dryrun_denied
+      r.acl_setuser("limiteduser", "on", ">pass", "~*", "+@read", "-set")
+
+      result = r.acl_dryrun("limiteduser", "set", "key1", "value")
+      assert_kind_of String, result
+      assert result.include?("permission") || result.include?("denied") || result.include?("no permissions")
+
+      r.acl_deluser("limiteduser")
+    end
+
+    def test_acl_log
+      log = r.acl_log
+      assert_kind_of Array, log
+    end
+
+    def test_acl_log_with_count
+      log = r.acl_log(5)
+      assert_kind_of Array, log
+      assert log.length <= 5
+    end
+
+    def test_acl_log_reset
+      result = r.acl_log("RESET")
+      assert_equal "OK", result
+
+      log = r.acl_log
+      assert_kind_of Array, log
+    end
+
+    def test_acl_load
+      skip("ACL LOAD requires aclfile configuration")
+
+      assert_equal "OK", r.acl_load
+    end
+
+    def test_acl_save
+      skip("ACL SAVE requires aclfile configuration")
+
+      assert_equal "OK", r.acl_save
+    end
+
+    def test_acl_convenience_method_whoami
+      username = r.acl(:whoami)
+      assert_equal "default", username
+    end
+
+    def test_acl_convenience_method_users
+      users = r.acl(:users)
+      assert_kind_of Array, users
+      assert_includes users, "default"
+    end
+
+    def test_acl_convenience_method_cat
+      categories = r.acl(:cat)
+      assert_kind_of Array, categories
+      assert_includes categories, "read"
+    end
+
+    def test_acl_convenience_method_genpass
+      password = r.acl(:genpass)
+      assert_kind_of String, password
+      assert_equal 64, password.length
+    end
+
+    def test_acl_convenience_method_setuser_deluser
+      assert_equal "OK", r.acl(:setuser, "convuser", "on")
+      assert_equal 1, r.acl(:deluser, "convuser")
+    end
   end
 end
