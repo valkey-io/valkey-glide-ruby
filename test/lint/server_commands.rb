@@ -458,6 +458,7 @@ module Lint
         # If not empty, each entry should be [timestamp, latency]
         entries.each do |entry|
           next unless entry.is_a?(Array) && entry.size >= 2
+
           assert_equal 2, entry.size, "Expected each history entry to be [timestamp, latency]"
           assert_kind_of Integer, entry[0], "Expected timestamp to be an Integer"
           assert_kind_of Integer, entry[1], "Expected latency to be an Integer"
@@ -489,6 +490,7 @@ module Lint
         # If not empty, each entry should be [event_name, timestamp, latest_latency, max_latency]
         entries.each do |entry|
           next unless entry.is_a?(Array) && entry.size >= 4
+
           assert entry.size >= 4, "Expected each latest entry to have at least 4 elements"
           assert_kind_of String, entry[0], "Expected event name to be a String"
           assert_kind_of Integer, entry[1], "Expected timestamp to be an Integer"
