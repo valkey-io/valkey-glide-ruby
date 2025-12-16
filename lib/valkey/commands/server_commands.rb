@@ -470,6 +470,324 @@ class Valkey
         subcommand = subcommand.to_s.downcase
         send("acl_#{subcommand}", *args)
       end
+
+      # Return a human-readable latency analysis report.
+      #
+      # @return [String] human-readable latency analysis
+      #
+      # @example
+      #   valkey.latency_doctor
+      #     # => "Dave, I observed latency events in this Redis instance..."
+      #
+      # @see https://valkey.io/commands/latency-doctor/
+      def latency_doctor
+        send_command(RequestType::LATENCY_DOCTOR)
+      end
+
+      # Return an ASCII-art graph of the latency samples for the specified event.
+      #
+      # @param [String] event the event name to graph
+      # @return [String] ASCII-art graph of latency samples
+      #
+      # @example
+      #   valkey.latency_graph("command")
+      #     # => "command - high 500 ms, low 501 ms (all time high 500 ms)\n..."
+      #
+      # @see https://valkey.io/commands/latency-graph/
+      def latency_graph(event)
+        send_command(RequestType::LATENCY_GRAPH, [event])
+      end
+
+      # Return a latency histogram for the specified commands.
+      #
+      # @param [Array<String>] commands optional command names to get histograms for
+      # @return [Array] array of latency histogram entries
+      #
+      # @example Get histogram for all commands
+      #   valkey.latency_histogram
+      #     # => [["SET", [["0-1", 100], ["2-3", 50], ...]], ...]
+      # @example Get histogram for specific commands
+      #   valkey.latency_histogram("SET", "GET")
+      #     # => [["SET", [["0-1", 100], ...]], ["GET", [["0-1", 200], ...]]]
+      #
+      # @see https://valkey.io/commands/latency-histogram/
+      def latency_histogram(*commands)
+        args = commands.empty? ? [] : commands
+        send_command(RequestType::LATENCY_HISTOGRAM, args)
+      end
+
+      # Return the latency time series for the specified event.
+      #
+      # @param [String] event the event name to get history for
+      # @return [Array] array of [timestamp, latency] pairs
+      #
+      # @example
+      #   valkey.latency_history("command")
+      #     # => [[1234567890, 100], [1234567891, 150], ...]
+      #
+      # @see https://valkey.io/commands/latency-history/
+      def latency_history(event)
+        send_command(RequestType::LATENCY_HISTORY, [event])
+      end
+
+      # Return the latest latency samples for all events.
+      #
+      # @return [Array] array of event information arrays
+      #   Each entry is [event_name, timestamp, latest_latency, max_latency]
+      #
+      # @example
+      #   valkey.latency_latest
+      #     # => [["command", 1234567890, 100, 200], ["fast-command", 1234567891, 50, 100]]
+      #
+      # @see https://valkey.io/commands/latency-latest/
+      def latency_latest
+        send_command(RequestType::LATENCY_LATEST)
+      end
+
+      # Reset latency data for all events or specific events.
+      #
+      # @param [Array<String>] events optional event names to reset
+      #   If no events are specified, resets all latency data
+      # @return [Integer] number of events reset
+      #
+      # @example Reset all latency data
+      #   valkey.latency_reset
+      #     # => 3
+      # @example Reset specific events
+      #   valkey.latency_reset("command", "fast-command")
+      #     # => 2
+      #
+      # @see https://valkey.io/commands/latency-reset/
+      def latency_reset(*events)
+        args = events.empty? ? [] : events
+        send_command(RequestType::LATENCY_RESET, args)
+      end
+
+      # Return a human-readable memory problems report.
+      #
+      # @return [String] human-readable memory analysis report
+      #
+      # @example
+      #   valkey.memory_doctor
+      #     # => "Hi Sam, this is the Valkey memory doctor..."
+      #
+      # @see https://valkey.io/commands/memory-doctor/
+      def memory_doctor
+        send_command(RequestType::MEMORY_DOCTOR)
+      end
+
+      # Return memory allocator statistics.
+      #
+      # @return [String] memory allocator statistics
+      #
+      # @example
+      #   valkey.memory_malloc_stats
+      #     # => "___ Begin jemalloc statistics ___..."
+      #
+      # @see https://valkey.io/commands/memory-malloc-stats/
+      def memory_malloc_stats
+        send_command(RequestType::MEMORY_MALLOC_STATS)
+      end
+
+      # Ask the allocator to release memory back to the operating system.
+      #
+      # @return [String] "OK"
+      #
+      # @example
+      #   valkey.memory_purge
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/memory-purge/
+      def memory_purge
+        send_command(RequestType::MEMORY_PURGE)
+      end
+
+      # Return memory usage statistics.
+      #
+      # @return [Hash] memory usage statistics
+      #
+      # @example
+      #   valkey.memory_stats
+      #     # => {"peak.allocated" => "1048576", "total.allocated" => "524288", ...}
+      #
+      # @see https://valkey.io/commands/memory-stats/
+      def memory_stats
+        send_command(RequestType::MEMORY_STATS) do |reply|
+          if reply.is_a?(Array)
+            Hash[*reply]
+          else
+            reply
+          end
+        end
+      end
+
+      # Return the memory usage in bytes of a key and its value.
+      #
+      # @param [String] key the key to check
+      # @param [Hash] options optional parameters
+      #   - `:samples => Integer`: number of samples for nested data structures (default: 5)
+      # @return [Integer, nil] memory usage in bytes, or nil if key doesn't exist
+      #
+      # @example Get memory usage for a key
+      #   valkey.memory_usage("mykey")
+      #     # => 1024
+      # @example Get memory usage with custom samples
+      #   valkey.memory_usage("mykey", samples: 10)
+      #     # => 2048
+      #
+      # @see https://valkey.io/commands/memory-usage/
+      def memory_usage(key, samples: nil)
+        args = [key]
+        args << "SAMPLES" << samples.to_s if samples
+        send_command(RequestType::MEMORY_USAGE, args)
+      end
+
+      # Send a generic COMMAND subcommand.
+      #
+      # @param [Symbol, String] subcommand The COMMAND subcommand to run, e.g. :count, :docs, :info, :list
+      # @param [Array] args Arguments for the subcommand
+      # @return [Object] Depends on subcommand
+      # @example
+      #   command(:count)                    # => 234
+      #   command(:list)                     # => ["GET", "SET", ...]
+      #   command(:info, "GET", "SET")       # => [[...], [...]]
+      def command(subcommand, *args)
+        send("command_#{subcommand.to_s.downcase}", *args)
+      end
+
+      # Return details about every Redis command.
+      #
+      # @return [Array] array of command information arrays
+      #
+      # @example
+      #   valkey.command
+      #     # => [["GET", 2, ["readonly", "fast"], 1, 1, 1], ...]
+      #
+      # @see https://valkey.io/commands/command/
+      def command_
+        send_command(RequestType::COMMAND_)
+      end
+
+      # Return the total number of commands in the server.
+      #
+      # @return [Integer] total number of commands
+      #
+      # @example
+      #   valkey.command_count
+      #     # => 234
+      #
+      # @see https://valkey.io/commands/command-count/
+      def command_count
+        send_command(RequestType::COMMAND_COUNT)
+      end
+
+      # Return documentary information about one or more commands.
+      #
+      # @param [Array<String>] commands command names to get documentation for
+      # @return [Array] array of command documentation hashes
+      #
+      # @example Get docs for specific commands
+      #   valkey.command_docs("GET", "SET")
+      #     # => [{"summary" => "...", "since" => "1.0.0", ...}, ...]
+      # @example Get docs for all commands
+      #   valkey.command_docs
+      #     # => [{"summary" => "...", ...}, ...]
+      #
+      # @see https://valkey.io/commands/command-docs/
+      def command_docs(*commands)
+        args = commands.empty? ? [] : commands
+        send_command(RequestType::COMMAND_DOCS, args) do |reply|
+          if reply.is_a?(Array)
+            # Convert array of arrays to array of hashes
+            reply.map do |cmd_doc|
+              if cmd_doc.is_a?(Array)
+                Hash[*cmd_doc]
+              else
+                cmd_doc
+              end
+            end
+          else
+            reply
+          end
+        end
+      end
+
+      # Extract keys from a full Redis command.
+      #
+      # @param [String, Array<String>] command the command and its arguments
+      # @return [Array] array of key positions
+      #
+      # @example
+      #   valkey.command_get_keys("GET", "mykey")
+      #     # => [0]
+      #   valkey.command_get_keys("MSET", "key1", "val1", "key2", "val2")
+      #     # => [0, 2]
+      #
+      # @see https://valkey.io/commands/command-getkeys/
+      def command_get_keys(*command)
+        send_command(RequestType::COMMAND_GET_KEYS, command)
+      end
+
+      # Extract keys and their flags from a full Redis command.
+      #
+      # @param [String, Array<String>] command the command and its arguments
+      # @return [Array] array of [key_position, flags] pairs
+      #
+      # @example
+      #   valkey.command_get_keys_and_flags("GET", "mykey")
+      #     # => [[0, ["RW", "access"]], ...]
+      #
+      # @see https://valkey.io/commands/command-getkeysandflags/
+      def command_get_keys_and_flags(*command)
+        send_command(RequestType::COMMAND_GET_KEYS_AND_FLAGS, command)
+      end
+
+      # Return information about one or more commands.
+      #
+      # @param [Array<String>] commands command names to get information for
+      # @return [Array] array of command information arrays
+      #
+      # @example Get info for specific commands
+      #   valkey.command_info("GET", "SET")
+      #     # => [[...], [...]]
+      # @example Get info for all commands
+      #   valkey.command_info
+      #     # => [[...], ...]
+      #
+      # @see https://valkey.io/commands/command-info/
+      def command_info(*commands)
+        args = commands.empty? ? [] : commands
+        send_command(RequestType::COMMAND_INFO, args)
+      end
+
+      # Return an array of command names.
+      #
+      # @param [Hash] options optional filters
+      #   - `:filterby => String`: filter by module name (e.g., "json")
+      #   - `:aclcat => String`: filter by ACL category
+      #   - `:pattern => String`: pattern to match (used with filterby)
+      # @return [Array<String>] array of command names
+      #
+      # @example Get all commands
+      #   valkey.command_list
+      #     # => ["GET", "SET", "DEL", ...]
+      # @example Filter by module with pattern
+      #   valkey.command_list(filterby: "json", pattern: "json.*")
+      #     # => ["json.get", "json.set", ...]
+      # @example Filter by ACL category
+      #   valkey.command_list(aclcat: "read")
+      #     # => ["GET", "MGET", ...]
+      #
+      # @see https://valkey.io/commands/command-list/
+      def command_list(filterby: nil, aclcat: nil, pattern: nil)
+        args = []
+        if aclcat
+          args << "FILTERBY" << "ACLCAT" << aclcat
+        elsif filterby && pattern
+          args << "FILTERBY" << filterby << pattern
+        end
+        send_command(RequestType::COMMAND_LIST, args)
+      end
     end
   end
 end
