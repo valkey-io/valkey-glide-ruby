@@ -118,30 +118,30 @@ class Valkey
 
     result = result[:response]
 
-    convert_response = lambda { |result|
+    convert_response = lambda { |response_item|
       # TODO: handle all types of responses
-      case result[:response_type]
+      case response_item[:response_type]
       when ResponseType::STRING
-        result[:string_value].read_string(result[:string_value_len])
+        response_item[:string_value].read_string(response_item[:string_value_len])
       when ResponseType::INT
-        result[:int_value]
+        response_item[:int_value]
       when ResponseType::FLOAT
-        result[:float_value]
+        response_item[:float_value]
       when ResponseType::BOOL
-        result[:bool_value]
+        response_item[:bool_value]
       when ResponseType::ARRAY
-        ptr = result[:array_value]
-        count = result[:array_value_len].to_i
+        ptr = response_item[:array_value]
+        count = response_item[:array_value_len].to_i
 
         Array.new(count) do |i|
           item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
           convert_response.call(item)
         end
       when ResponseType::MAP
-        return nil if result[:array_value].null?
+        return nil if response_item[:array_value].null?
 
-        ptr = result[:array_value]
-        count = result[:array_value_len].to_i
+        ptr = response_item[:array_value]
+        count = response_item[:array_value_len].to_i
         map = {}
 
         Array.new(count) do |i|
@@ -156,8 +156,8 @@ class Valkey
         # technically it has to return a Hash, but as of now we return just one pair
         map.to_a.flatten(1) # Flatten to get pairs
       when ResponseType::SETS
-        ptr = result[:sets_value]
-        count = result[:sets_value_len].to_i
+        ptr = response_item[:sets_value]
+        count = response_item[:sets_value_len].to_i
 
         Array.new(count) do |i|
           item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
@@ -168,7 +168,7 @@ class Valkey
       when ResponseType::OK
         "OK"
       else
-        raise "Unsupported response type: #{result[:response_type]}"
+        raise "Unsupported response type: #{response_item[:response_type]}"
       end
     }
 
@@ -229,9 +229,20 @@ class Valkey
 
     cluster_mode_enabled = options[:cluster_mode] || false
 
+    # Protocol defaults to RESP2 for stability with RediSearch commands
+    # Users can explicitly set protocol: :resp3 if needed
+    protocol = case options[:protocol]
+               when :resp3, "resp3", 3
+                 ConnectionRequest::ProtocolVersion::RESP3
+               else
+                 # Default to RESP2 for stability (RediSearch compatibility)
+                 ConnectionRequest::ProtocolVersion::RESP2
+               end
+
     request = ConnectionRequest::ConnectionRequest.new(
       cluster_mode_enabled: cluster_mode_enabled,
       request_timeout: options[:timeout] || 3.0,
+      protocol: protocol,
       addresses: nodes.map { |node| ConnectionRequest::NodeAddress.new(host: node[:host], port: node[:port]) }
     )
 

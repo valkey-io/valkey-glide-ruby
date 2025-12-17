@@ -558,6 +558,165 @@ class Valkey
         end
       end
 
+      # Remove and return members with scores from one or more sorted sets, blocking until available.
+      #
+      # @example Pop from multiple keys
+      #   valkey.bzmpop(1.0, "key1", "key2", modifier: "MAX", count: 2)
+      #     # => ["key1", [["member1", 3.0], ["member2", 2.0]]]
+      #
+      # @param [Float] timeout timeout in seconds
+      # @param [Array<String>] keys sorted set keys
+      # @param [String] modifier "MIN" or "MAX"
+      # @param [Integer] count number of elements to pop
+      # @return [Array, nil] key and array of [member, score] pairs, or nil if timeout
+      #
+      # @see https://valkey.io/commands/bzmpop/
+      def bzmpop(timeout, *keys, modifier: "MIN", count: 1)
+        args = [timeout, keys.size] + keys + [modifier, "COUNT", count]
+        send_command(RequestType::BZ_MPOP, args) do |reply|
+          reply && [reply[0], Utils::FloatifyPairs.call(reply[1])]
+        end
+      end
+
+      # Remove and return the member with the highest score from a sorted set, blocking until available.
+      #
+      # @example Pop from single key
+      #   valkey.bzpopmax("key1", timeout: 1.0)
+      #     # => ["key1", "member", 3.0]
+      # @example Pop from multiple keys
+      #   valkey.bzpopmax("key1", "key2", timeout: 1.0)
+      #     # => ["key2", "member", 2.0]
+      #
+      # @param [Array<String>] keys sorted set keys
+      # @param [Float] timeout timeout in seconds
+      # @return [Array, nil] key, member, and score, or nil if timeout
+      #
+      # @see https://valkey.io/commands/bzpopmax/
+      def bzpopmax(*keys, timeout:)
+        args = keys + [timeout]
+        send_command(RequestType::BZ_POP_MAX, args) do |reply|
+          reply && [reply[0], reply[1], Utils::Floatify.call(reply[2])]
+        end
+      end
+
+      # Remove and return the member with the lowest score from a sorted set, blocking until available.
+      #
+      # @example Pop from single key
+      #   valkey.bzpopmin("key1", timeout: 1.0)
+      #     # => ["key1", "member", 1.0]
+      # @example Pop from multiple keys
+      #   valkey.bzpopmin("key1", "key2", timeout: 1.0)
+      #     # => ["key2", "member", 0.5]
+      #
+      # @param [Array<String>] keys sorted set keys
+      # @param [Float] timeout timeout in seconds
+      # @return [Array, nil] key, member, and score, or nil if timeout
+      #
+      # @see https://valkey.io/commands/bzpopmin/
+      def bzpopmin(*keys, timeout:)
+        args = keys + [timeout]
+        send_command(RequestType::BZ_POP_MIN, args) do |reply|
+          reply && [reply[0], reply[1], Utils::Floatify.call(reply[2])]
+        end
+      end
+
+      # Return the number of elements in the intersection of sorted sets.
+      #
+      # @example Get intersection cardinality
+      #   valkey.zintercard("key1", "key2")
+      #     # => 3
+      # @example With limit
+      #   valkey.zintercard("key1", "key2", limit: 10)
+      #     # => 3
+      #
+      # @param [Array<String>] keys sorted set keys
+      # @param [Integer] limit maximum number to count (optional)
+      # @return [Integer] number of elements in intersection
+      #
+      # @see https://valkey.io/commands/zintercard/
+      def zintercard(*keys, limit: nil)
+        args = [keys.size] + keys
+        args += ["LIMIT", limit] if limit
+        send_command(RequestType::Z_INTER_CARD, args)
+      end
+
+      # Remove and return members with scores from one or more sorted sets.
+      #
+      # @example Pop from multiple keys
+      #   valkey.zmpop("key1", "key2", modifier: "MAX", count: 2)
+      #     # => ["key1", [["member1", 3.0], ["member2", 2.0]]]
+      #
+      # @param [Array<String>] keys sorted set keys
+      # @param [String] modifier "MIN" or "MAX"
+      # @param [Integer] count number of elements to pop
+      # @return [Array, nil] key and array of [member, score] pairs, or nil if no elements
+      #
+      # @see https://valkey.io/commands/zmpop/
+      def zmpop(*keys, modifier: "MIN", count: 1)
+        args = [keys.size] + keys + [modifier, "COUNT", count]
+        send_command(RequestType::Z_MPOP, args) do |reply|
+          reply && [reply[0], Utils::FloatifyPairs.call(reply[1])]
+        end
+      end
+
+      # Return random members from a sorted set.
+      #
+      # @example Get single random member
+      #   valkey.zrandmember("key")
+      #     # => "member"
+      # @example Get multiple random members
+      #   valkey.zrandmember("key", 3)
+      #     # => ["member1", "member2", "member3"]
+      # @example Get random members with scores
+      #   valkey.zrandmember("key", 2, with_scores: true)
+      #     # => [["member1", 1.0], ["member2", 2.0]]
+      #
+      # @param [String] key sorted set key
+      # @param [Integer] count number of members to return (optional)
+      # @param [Boolean] with_scores return scores with members
+      # @return [String, Array] random member(s), optionally with scores
+      #
+      # @see https://valkey.io/commands/zrandmember/
+      def zrandmember(key, count = nil, with_scores: false)
+        args = [key]
+        if count
+          args << count
+          args << "WITHSCORES" if with_scores
+        end
+
+        send_command(RequestType::Z_RAND_MEMBER, args) do |reply|
+          if with_scores
+            # The reply is already in pairs format from the server
+            # Just need to convert scores to floats
+            reply.map { |pair| [pair[0], Utils::Floatify.call(pair[1])] }
+          else
+            reply
+          end
+        end
+      end
+
+      # Remove members from a sorted set within a lexicographical range.
+      #
+      # @example Remove by lexicographical range
+      #   valkey.zremrangebylex("key", "[a", "[c")
+      #     # => 2
+      #
+      # @param [String] key sorted set key
+      # @param [String] min minimum lexicographical value
+      #   - inclusive minimum is specified by prefixing `[`
+      #   - exclusive minimum is specified by prefixing `(`
+      #   - `-` represents negative infinity
+      # @param [String] max maximum lexicographical value
+      #   - inclusive maximum is specified by prefixing `[`
+      #   - exclusive maximum is specified by prefixing `(`
+      #   - `+` represents positive infinity
+      # @return [Integer] number of members that were removed
+      #
+      # @see https://valkey.io/commands/zremrangebylex/
+      def zremrangebylex(key, min, max)
+        send_command(RequestType::Z_REM_RANGE_BY_LEX, [key, min, max])
+      end
+
       private
 
       def _zsets_operation(cmd, *keys, weights: nil, aggregate: nil, with_scores: false)

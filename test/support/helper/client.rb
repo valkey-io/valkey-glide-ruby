@@ -20,6 +20,10 @@ module Helper
       exit 1
     end
 
+    def cluster_mode?
+      false
+    end
+
     private
 
     def _new_client(options = {})

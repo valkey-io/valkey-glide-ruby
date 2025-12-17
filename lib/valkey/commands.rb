@@ -11,8 +11,15 @@ require "valkey/commands/hyper_log_log_commands"
 require "valkey/commands/sorted_set_commands"
 require "valkey/commands/set_commands"
 require "valkey/commands/scripting_commands"
+require "valkey/commands/function_commands"
+require "valkey/commands/module_commands"
+require "valkey/commands/pubsub_commands"
+require "valkey/commands/json_commands"
 require "valkey/commands/cluster_commands"
 require "valkey/commands/transaction_commands"
+require "valkey/commands/vector_search_commands"
+require "valkey/commands/stream_commands"
+require "valkey/commands/hash_commands"
 
 class Valkey
   # Valkey commands module
@@ -39,8 +46,15 @@ class Valkey
     include SortedSetCommands
     include SetCommands
     include ScriptingCommands
+    include FunctionCommands
+    include ModuleCommands
+    include PubSubCommands
+    include JsonCommands
     include ClusterCommands
     include TransactionCommands
+    include VectorSearchCommands
+    include StreamCommands
+    include HashCommands
 
     # there are a few commands that are not implemented by design
     #

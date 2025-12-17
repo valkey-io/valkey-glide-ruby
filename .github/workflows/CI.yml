@@ -44,25 +44,67 @@ jobs:
           - 8
           - 8.1
 
-    services:
-      valkey:
-        image: valkey/valkey:${{ matrix.valkey }}
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd="valkey-cli ping"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Copy modules for testing
+        run: |
+          echo "Copying modules for testing..."
+          mkdir -p test/fixtures
+          
+          echo "Copying RedisJSON module for JSON commands testing..."
+          cp .github/files/librejson-v2.8.15.so test/fixtures/redisjson.so
+          chmod +x test/fixtures/redisjson.so
+          ls -lh test/fixtures/redisjson.so
+          
+          echo "Copying RedisBloom module..."
+          cp .github/files/redisbloom-amd64-v2.6.12.so test/fixtures/redisbloom.so
+          chmod +x test/fixtures/redisbloom.so
+          ls -lh test/fixtures/redisbloom.so
+          
+          echo "Copying RediSearch module for Vector Search commands testing..."
+          cp .github/files/redisearch-amd64-v2.10.24.so test/fixtures/redisearch.so
+          chmod +x test/fixtures/redisearch.so
+          ls -lh test/fixtures/redisearch.so
+      
+      - name: Start Valkey with MODULE commands enabled
+        run: |
+          echo "Starting Valkey ${{ matrix.valkey }} with MODULE commands enabled..."
+          docker run -d \
+            --name valkey-test \
+            -p 6379:6379 \
+            -v $(pwd)/test/fixtures:/tmp/modules:ro \
+            valkey/valkey:${{ matrix.valkey }} \
+            valkey-server --enable-module-command yes
+          
+          echo "Waiting for Valkey to be ready..."
+          for i in {1..30}; do
+            if docker exec valkey-test valkey-cli ping > /dev/null 2>&1; then
+              echo "Valkey is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 1
+          done
+          
+          echo "Verifying MODULE commands are enabled..."
+          docker exec valkey-test valkey-cli CONFIG GET enable-module-command
+          
+          echo "Verifying module files are accessible..."
+          docker exec valkey-test ls -lh /tmp/modules/
+      
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
+      
       - name: Run standalone tests
         run: bundle exec rake test:valkey
+      
+      - name: Stop Valkey container
+        if: always()
+        run: docker stop valkey-test && docker rm valkey-test
 
   cluster:
     runs-on: ubuntu-latest

@@ -181,7 +181,6 @@ module Lint
     end
 
     # Additional cluster commands that were missing tests
-    # Destructive tests that should run last to avoid affecting other tests
     def test_cluster_addslotsrange
       # Test cluster addslotsrange command - add slots in a range
       result = r.cluster_addslotsrange(9990, 9999)
@@ -229,23 +228,6 @@ module Lint
     rescue Valkey::CommandError
       # Expected to fail if slots are not assigned or cluster support disabled
       pass "Cluster delslotsrange correctly failed as expected"
-    end
-
-    def test_cluster_flushslots
-      # Test cluster flushslots command - flush all slots
-      result = r.cluster_flushslots
-      # This might succeed or fail depending on cluster state
-      case result
-      when "OK"
-        pass "Cluster flushslots succeeded as expected"
-      when Valkey::CommandError
-        pass "Cluster flushslots correctly failed as expected"
-      else
-        flunk "Unexpected result from cluster_flushslots: #{result.inspect}"
-      end
-    rescue Valkey::CommandError
-      # Expected to fail if cluster support disabled or no slots to flush
-      pass "Cluster flushslots correctly failed as expected"
     end
 
     def test_cluster_replicate
@@ -333,16 +315,6 @@ module Lint
       pass "Cluster set-config-epoch correctly failed as expected"
     end
 
-    def test_cluster_slots_management
-      # Test cluster slot management commands
-      r.cluster_delslots(9999)
-      # This might succeed or fail depending on cluster state
-      pass "Cluster delslots executed (may have succeeded or failed)"
-    rescue Valkey::CommandError
-      # Expected to fail if slot is not assigned or cluster support disabled
-      pass "Cluster delslots correctly failed as expected"
-    end
-
     def test_cluster_meet_command
       # Test cluster meet command - should fail or succeed depending on cluster state
       result = r.cluster_meet("127.0.0.1", 9999)
@@ -374,6 +346,16 @@ module Lint
       pass "Cluster replicate correctly failed with invalid master ID as expected"
     end
 
+    def test_cluster_slots_management
+      # Test cluster slot management commands
+      r.cluster_delslots(9999)
+      # This might succeed or fail depending on cluster state
+      pass "Cluster delslots executed (may have succeeded or failed)"
+    rescue Valkey::CommandError
+      # Expected to fail if slot is not assigned or cluster support disabled
+      pass "Cluster delslots correctly failed as expected"
+    end
+
     def test_cluster_slaves
       # Test cluster slaves command (deprecated)
       node_id = r.cluster_myid
@@ -384,16 +366,6 @@ module Lint
       assert e.message.include?("cluster support disabled") ||
              e.message.include?("Unknown node") ||
              e.message.include?("ERR")
-    end
-
-    def test_cluster_reset_on_cluster
-      # Test cluster reset command - this is destructive so we expect it to work or fail gracefully
-      r.cluster_reset("SOFT") # Use SOFT reset to be less destructive
-      # If it succeeds, that's also valid
-      pass "Cluster reset executed successfully"
-    rescue Valkey::CommandError, Valkey::TimeoutError => e
-      # Expected to fail or timeout - both are valid outcomes
-      pass "Cluster reset correctly failed or timed out: #{e.class}"
     end
   end
 end

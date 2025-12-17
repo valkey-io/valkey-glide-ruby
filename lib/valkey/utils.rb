@@ -11,6 +11,8 @@ class Valkey
   #
   module Utils
     Boolify = lambda { |value|
+      return value if value.is_a?(TrueClass) || value.is_a?(FalseClass)
+
       value != 0 unless value.nil?
     }
 
@@ -84,17 +86,55 @@ class Valkey
     private_constant :EMPTY_STREAM_RESPONSE
 
     HashifyStreamEntries = lambda { |reply|
-      reply.compact.map do |entry_id, values|
-        [entry_id, values&.each_slice(2)&.to_h]
+      return [] if reply.nil?
+
+      return [] if !reply.is_a?(Array) || reply.empty?
+
+      # Reply format: [[entry_id, [field1, value1, field2, value2, ...]], ...]
+      # Match redis-rb: return flat arrays [["id", ["field", "value", ...]], ...]
+      # Check if first element is a pair [entry_id, values_array]
+      first_elem = reply.first
+      if first_elem.is_a?(Array) && first_elem.length == 2
+        # Already in pair format: [[entry_id, [fields...]], ...]
+        reply.compact.map do |entry_id, values|
+          # Return flat array format like redis-rb, not hash
+          values_array = if values.nil?
+                           []
+                         elsif values.is_a?(Array)
+                           values
+                         else
+                           []
+                         end
+          [entry_id, values_array]
+        end
+      else
+        # Flat array format: [entry_id1, [field1, value1, ...], entry_id2, [field2, value2, ...], ...]
+        reply.compact.each_slice(2).map do |entry_id, values|
+          # Return flat array format like redis-rb, not hash
+          values_array = if values.nil?
+                           []
+                         elsif values.is_a?(Array)
+                           values
+                         else
+                           []
+                         end
+          [entry_id, values_array]
+        end
       end
     }
 
     HashifyStreamAutoclaim = lambda { |reply|
       {
         'next' => reply[0],
-        'entries' => reply[1].compact.map do |entry, values|
-          [entry, values.each_slice(2)&.to_h]
-        end
+        'entries' => if reply[1].nil?
+                       []
+                     elsif reply[1].is_a?(Array)
+                       # Reply[1] is already an array of entries: [[id, [field, value, ...]], ...]
+                       # Use HashifyStreamEntries to convert them properly
+                       HashifyStreamEntries.call(reply[1])
+                     else
+                       []
+                     end
       }
     }
 
