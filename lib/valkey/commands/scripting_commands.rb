@@ -100,6 +100,8 @@ class Valkey
       # @example Execute script that returns different data types
       #   valkey.eval("return {1, 'hello', true, nil}")
       #     # => [1, "hello", true, nil]
+      # Since the eval is not available in the rust backend
+      # using the load and invoke script
       def eval(script, keys: [], args: [])
         # Validate script parameter
         raise ArgumentError, "Script must be a string" unless script.is_a?(String)
@@ -113,10 +115,9 @@ class Valkey
           raise ArgumentError, "Failed to convert keys or args to strings: #{e.message}"
         end
 
-        # Build command: [script, keys.length, *keys, *args]
-        command_args = [script, keys.length.to_s] + keys + args
-
-        send_command(RequestType::EVAL, command_args)
+        # Load script to get SHA1 hash, then execute via invoke_script
+        sha = script_load(script)
+        invoke_script(sha, keys: keys, args: args)
       end
 
       # Execute a cached Lua script by its SHA1 hash.
@@ -143,6 +144,8 @@ class Valkey
       #   rescue Valkey::CommandError => e
       #     puts "Script not found: #{e.message}"
       #   end
+      # Since evalsha is not available in rust backend
+      # using invoke script
       def evalsha(sha, keys: [], args: [])
         # Validate SHA1 hash parameter
         raise ArgumentError, "SHA1 hash must be a string" unless sha.is_a?(String)
@@ -156,10 +159,8 @@ class Valkey
           raise ArgumentError, "Failed to convert keys or args to strings: #{e.message}"
         end
 
-        # Build command: [sha, keys.length, *keys, *args]
-        command_args = [sha, keys.length.to_s] + keys + args
-
-        send_command(RequestType::EVAL_SHA, command_args)
+        # Execute cached script via invoke_script
+        invoke_script(sha, keys: keys, args: args)
       end
 
       def invoke_script(script, args: [], keys: [])
