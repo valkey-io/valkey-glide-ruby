@@ -33,6 +33,24 @@ class Valkey
   end
 
   def send_batch_commands(commands, exception: true)
+    # WORKAROUND: The underlying Glide FFI backend has stability issues when
+    # batching transactional commands like MULTI / EXEC / DISCARD. To avoid
+    # native crashes we fall back to issuing those commands sequentially
+    # instead of via `Bindings.batch`.
+    tx_types = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD]
+
+    if commands.any? { |(command_type, _args, _block)| tx_types.include?(command_type) }
+      results = []
+
+      commands.each do |command_type, command_args, block|
+        res = send_command(command_type, command_args)
+        res = block.call(res) if block
+        results << res
+      end
+
+      return results
+    end
+
     cmds = []
     blocks = []
 
@@ -271,6 +289,11 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
+
+    # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
+    # This avoids Ruby warnings about uninitialised instance variables and
+    # gives us a single source of truth for whether we're inside a TX.
+    @in_multi = false
   end
 
   def close
