@@ -2,7 +2,6 @@
 
 module Lint
   module TransactionCommands
-
     def test_multi_discard
       assert_raises(LocalJumpError) do
         r.multi
@@ -44,8 +43,8 @@ module Lint
         multi.set("foo", "s1")
         multi.get("foo")
       end
-      
-      assert_equal ["OK", "s1"], result
+
+      assert_equal %w[OK s1], result
     end
 
     def test_multi_with_block_that_raises_exception
@@ -65,8 +64,8 @@ module Lint
       r.set("foo", "s1")
       r.get("foo")
       result = r.exec
-      
-      assert_equal ["OK", "s1"], result
+
+      assert_equal %w[OK s1], result
     end
 
     def test_multi_in_pipeline
@@ -75,7 +74,7 @@ module Lint
         pipeline.set("foo", "s1")
         pipeline.exec
       end
-      
+
       assert_equal ["OK", "QUEUED", ["OK"]], response
       assert_equal "s1", r.get("foo")
     end
@@ -85,15 +84,15 @@ module Lint
       assert_equal "QUEUED", r.set("foo", "bar")
       assert_equal "QUEUED", r.get("foo")
       result = r.exec
-      
-      assert_equal ["OK", "bar"], result
+
+      assert_equal %w[OK bar], result
     end
 
     def test_exec_with_error
       r.set("foo", "not_a_number")
       r.multi
       r.incr("foo") # This will cause an error
-      
+
       # EXEC should return an array with the error
       result = r.exec
       assert_instance_of Array, result
@@ -104,7 +103,7 @@ module Lint
       r.multi
       r.set("foo", "bar")
       r.discard
-      
+
       # Key should not be set since transaction was discarded
       assert_nil r.get("foo")
     end
@@ -118,7 +117,7 @@ module Lint
     end
 
     def test_watch_with_array
-      assert_equal "OK", r.watch(["foo", "bar"])
+      assert_equal "OK", r.watch(%w[foo bar])
     end
 
     def test_watch_with_block_and_unmodified_key
@@ -156,6 +155,7 @@ module Lint
           raise "test"
         end
       rescue RuntimeError
+        # Expected exception, continue with test
       end
 
       r.set("foo", "s2")
@@ -178,7 +178,7 @@ module Lint
     def test_empty_multi_exec
       r.multi
       result = r.exec
-      
+
       assert_equal [], result
     end
 
@@ -186,11 +186,11 @@ module Lint
       r.set("foo", "initial")
       r.watch("foo")
       r.set("foo", "modified") # This modifies the watched key
-      
+
       r.multi
       r.set("foo", "transaction_value")
       result = r.exec
-      
+
       # Transaction should fail because watched key was modified
       assert_nil result
       assert_equal "modified", r.get("foo")
@@ -199,11 +199,11 @@ module Lint
     def test_watch_with_unmodified_key
       r.set("foo", "initial")
       r.watch("foo")
-      
+
       r.multi
       r.set("foo", "transaction_value")
       result = r.exec
-      
+
       # Transaction should succeed because watched key was not modified
       assert_equal ["OK"], result
       assert_equal "transaction_value", r.get("foo")
@@ -213,11 +213,11 @@ module Lint
       r.watch("foo")
       r.set("foo", "modified")
       r.unwatch # This should clear the watch
-      
+
       r.multi
       r.set("foo", "transaction_value")
       result = r.exec
-      
+
       # Transaction should succeed because watch was cleared
       assert_equal ["OK"], result
       assert_equal "transaction_value", r.get("foo")
@@ -228,12 +228,12 @@ module Lint
       r.multi
       r.set("key1", "value1")
       result1 = r.exec
-      
+
       # Second transaction
       r.multi
       r.set("key2", "value2")
       result2 = r.exec
-      
+
       assert_equal ["OK"], result1
       assert_equal ["OK"], result2
       assert_equal "value1", r.get("key1")
@@ -251,42 +251,42 @@ module Lint
     def test_exec_without_multi
       # EXEC without MULTI should return an error or nil
       # The exact behavior may vary by implementation
-      result = r.exec
+      r.exec
       # Could be nil or raise an error depending on implementation
     end
 
     def test_discard_without_multi
       # DISCARD without MULTI should return an error
       # The exact behavior may vary by implementation
-      result = r.discard
+      r.discard
       # Could raise an error or return a specific response
     end
 
     def test_watch_exec_unwatch_cycle
       r.set("counter", "0")
-      
+
       # Watch and increment counter
       r.watch("counter")
       current = r.get("counter").to_i
-      
+
       r.multi
       r.set("counter", (current + 1).to_s)
       result = r.exec
-      
+
       assert_equal ["OK"], result
       assert_equal "1", r.get("counter")
     end
 
     def test_transaction_isolation
       r.set("shared", "initial")
-      
+
       # Start transaction but don't execute yet
       r.multi
       r.set("shared", "transaction_value")
-      
+
       # Value should still be initial since transaction not executed
       assert_equal "initial", r.get("shared")
-      
+
       # Execute transaction
       result = r.exec
       assert_equal ["OK"], result
@@ -297,21 +297,21 @@ module Lint
       # Set up initial data
       r.set("account:1", "100")
       r.set("account:2", "50")
-      
+
       # Watch both accounts
       r.watch("account:1", "account:2")
-      
+
       # Get current balances
       balance1 = r.get("account:1").to_i
       balance2 = r.get("account:2").to_i
-      
+
       # Transfer 25 from account:1 to account:2
       result = r.multi do |multi|
         multi.set("account:1", (balance1 - 25).to_s)
         multi.set("account:2", (balance2 + 25).to_s)
       end
-      
-      assert_equal ["OK", "OK"], result
+
+      assert_equal %w[OK OK], result
       assert_equal "75", r.get("account:1")
       assert_equal "75", r.get("account:2")
     end
@@ -347,7 +347,7 @@ module Lint
     end
 
     def test_watch_with_an_unmodified_key_passed_as_array
-      r.watch(["foo", "bar"])
+      r.watch(%w[foo bar])
       result = r.multi do |multi|
         multi.set("foo", "s1")
       end
@@ -357,7 +357,7 @@ module Lint
     end
 
     def test_watch_with_a_modified_key_passed_as_array
-      r.watch(["foo", "bar"])
+      r.watch(%w[foo bar])
       r.set("foo", "s1")
       result = r.multi do |multi|
         multi.set("foo", "s2")
