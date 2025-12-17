@@ -3,9 +3,12 @@
 module Lint
   module TransactionCommands
     def test_multi_discard
-      assert_raises(LocalJumpError) do
-        r.multi
-      end
+      r.multi
+      r.set("foo", "bar")
+      r.discard
+
+      # After DISCARD, the key should not be set.
+      assert_nil r.get("foo")
     end
 
     def test_discard

@@ -25,13 +25,18 @@ class Valkey
       # @see #watch
       # @see #unwatch
       def multi
-        send_command(RequestType::MULTI)
-        begin
-          yield(self)
-          exec
-        rescue StandardError
-          discard
-          raise
+        if block_given?
+          begin
+            start_multi
+            yield(self)
+            exec
+          rescue StandardError
+            discard
+            raise
+          end
+        else
+          start_multi
+          self
         end
       end
 
@@ -105,7 +110,22 @@ class Valkey
       # @see #multi
       # @see #discard
       def exec
-        send_command(RequestType::EXEC)
+        if @in_multi
+          begin
+            send_command(RequestType::EXEC)
+          ensure
+            @in_multi = false
+          end
+        else
+          # When EXEC is called without a preceding MULTI the server returns an
+          # error. The lint tests allow clients to either raise or return nil;
+          # we normalize this to simply return nil.
+          begin
+            send_command(RequestType::EXEC)
+          rescue CommandError
+            nil
+          end
+        end
       end
 
       # Discard all commands issued after MULTI.
@@ -115,7 +135,28 @@ class Valkey
       # @see #multi
       # @see #exec
       def discard
-        send_command(RequestType::DISCARD)
+        begin
+          send_command(RequestType::DISCARD)
+        rescue CommandError
+          # DISCARD without MULTI is treated similarly to EXEC without MULTI:
+          # ignore the server error and return nil.
+          nil
+        ensure
+          @in_multi = false
+        end
+      end
+
+      private
+
+      # Start a MULTI block if one isn't already active.
+      #
+      # This mirrors the behaviour of popular Valkey/Redis clients where
+      # nested MULTI calls are effectively ignored by the client.
+      def start_multi
+        return if @in_multi
+
+        send_command(RequestType::MULTI)
+        @in_multi = true
       end
     end
   end
