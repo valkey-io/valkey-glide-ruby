@@ -471,6 +471,174 @@ class Valkey
         send("acl_#{subcommand}", *args)
       end
 
+      # Perform a manual failover of a master to one of its replicas.
+      #
+      # @param [Hash] options optional parameters
+      #   - `:to => String`: host and port of the replica to promote (e.g., "host port")
+      #   - `:force => Boolean`: force failover even if master is reachable
+      #   - `:abort => Boolean`: abort an ongoing failover
+      #   - `:timeout => Integer`: timeout in milliseconds
+      # @return [String] "OK"
+      #
+      # @example Perform a failover
+      #   valkey.failover
+      #     # => "OK"
+      # @example Failover to a specific replica
+      #   valkey.failover(to: "127.0.0.1 6380")
+      #     # => "OK"
+      # @example Force failover
+      #   valkey.failover(force: true)
+      #     # => "OK"
+      # @example Abort failover
+      #   valkey.failover(abort: true)
+      #     # => "OK"
+      # @example Failover with timeout
+      #   valkey.failover(timeout: 5000)
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/failover/
+      def failover(to: nil, force: false, abort: false, timeout: nil)
+        args = []
+        if to
+          host, port = to.split
+          args << "TO" << host << port
+        end
+        args << "FORCE" if force
+        args << "ABORT" if abort
+        args << "TIMEOUT" << timeout.to_s if timeout
+        send_command(RequestType::FAIL_OVER, args)
+      end
+
+      # Display some computer art and the Valkey version.
+      #
+      # @param [Integer] version optional version number for different art
+      # @return [String] ASCII art and version information
+      #
+      # @example
+      #   valkey.lolwut
+      #     # => "Valkey ver. 7.0.0\n..."
+      # @example With version
+      #   valkey.lolwut(5)
+      #     # => "Valkey ver. 7.0.0\n..."
+      #
+      # @see https://valkey.io/commands/lolwut/
+      def lolwut(version = nil)
+        args = version ? ["VERSION", version.to_s] : []
+        send_command(RequestType::LOLWUT, args)
+      end
+
+      # Internal command used for replication (partial resynchronization).
+      #
+      # @param [String] replication_id the replication ID
+      # @param [Integer] offset the replication offset
+      # @return [String] replication stream data
+      #
+      # @example
+      #   valkey.psync("?", -1)
+      #     # => "+FULLRESYNC ..."
+      #
+      # @see https://valkey.io/commands/psync/
+      def psync(replication_id, offset)
+        send_command(RequestType::PSYNC, [replication_id, offset.to_s])
+      end
+
+      # Internal command used for replication configuration.
+      #
+      # @param [Array<String>] args configuration arguments
+      # @return [String, Array] depends on the configuration command
+      #
+      # @example Set listening port
+      #   valkey.replconf("listening-port", "6380")
+      #     # => "OK"
+      # @example Send ACK
+      #   valkey.replconf("ACK", "1000")
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/replconf/
+      def replconf(*args)
+        send_command(RequestType::REPL_CONF, args)
+      end
+
+      # Make the server a replica of another instance, or promote it as master.
+      #
+      # @param [String] host the master host (use "NO" with "ONE" to promote to master)
+      # @param [String, Integer] port the master port (use "ONE" with "NO" to promote to master)
+      # @return [String] "OK"
+      #
+      # @example Make server a replica
+      #   valkey.replicaof("127.0.0.1", 6379)
+      #     # => "OK"
+      # @example Promote to master
+      #   valkey.replicaof("NO", "ONE")
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/replicaof/
+      def replicaof(host, port)
+        send_command(RequestType::REPLICA_OF, [host, port.to_s])
+      end
+
+      # Internal command used in cluster mode for key migration with ASKING flag.
+      #
+      # @param [String] key the key to restore
+      # @param [Integer] ttl time to live in milliseconds (0 for no expiry)
+      # @param [String] serialized_value the serialized value from DUMP
+      # @param [Hash] options optional parameters
+      #   - `:replace => Boolean`: replace existing key
+      #   - `:absttl => Boolean`: ttl is an absolute timestamp
+      #   - `:idletime => Integer`: set idle time in seconds
+      #   - `:freq => Integer`: set LFU frequency
+      # @return [String] "OK"
+      #
+      # @example Restore a key with ASKING
+      #   valkey.restore_asking("mykey", 0, serialized_data)
+      #     # => "OK"
+      # @example Restore with replace
+      #   valkey.restore_asking("mykey", 0, serialized_data, replace: true)
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/restore-asking/
+      def restore_asking(key, ttl, serialized_value, replace: false, absttl: false, idletime: nil, freq: nil)
+        args = [key, ttl.to_s, serialized_value]
+        args << "REPLACE" if replace
+        args << "ABSTTL" if absttl
+        args << "IDLETIME" << idletime.to_s if idletime
+        args << "FREQ" << freq.to_s if freq
+        send_command(RequestType::RESTORE_ASKING, args)
+      end
+
+      # Return the role of the instance in the context of replication.
+      #
+      # @return [Array] role information
+      #   - For master: ["master", replication_offset, [replica1, replica2, ...]]
+      #   - For replica: ["slave", master_host, master_port, replication_state, replication_offset]
+      #
+      # @example Get role on master
+      #   valkey.role
+      #     # => ["master", 3129659, [["127.0.0.1", "6380", "3129659"]]]
+      # @example Get role on replica
+      #   valkey.role
+      #     # => ["slave", "127.0.0.1", 6379, "connected", 3129659]
+      #
+      # @see https://valkey.io/commands/role/
+      def role
+        send_command(RequestType::ROLE)
+      end
+
+      # Swap two databases.
+      #
+      # @param [Integer] index1 first database index
+      # @param [Integer] index2 second database index
+      # @return [String] "OK"
+      #
+      # @example Swap database 0 and 1
+      #   valkey.swapdb(0, 1)
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/swapdb/
+      def swapdb(index1, index2)
+        send_command(RequestType::SWAP_DB, [index1.to_s, index2.to_s])
+      end
+
       # Return a human-readable latency analysis report.
       #
       # @return [String] human-readable latency analysis
