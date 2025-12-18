@@ -246,17 +246,13 @@ class Valkey
     )
 
     result = convert_response(res, &block)
-    
+
     # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
     if @in_multi && !@queued_commands.nil?
       tx_commands = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD, RequestType::WATCH, RequestType::UNWATCH]
-      unless tx_commands.include?(command_type)
-        if result == "QUEUED"
-          @queued_commands << [command_type, command_args.dup]
-        end
-      end
+      @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
     end
-    
+
     result
   end
 

@@ -147,16 +147,14 @@ class Valkey
       # @see #multi
       # @see #exec
       def discard
-        begin
-          send_command(RequestType::DISCARD)
-        rescue CommandError
-          # DISCARD without MULTI is treated similarly to EXEC without MULTI:
-          # ignore the server error and return nil.
-          nil
-        ensure
-          @in_multi = false
-          @queued_commands = []
-        end
+        send_command(RequestType::DISCARD)
+      rescue CommandError
+        # DISCARD without MULTI is treated similarly to EXEC without MULTI:
+        # ignore the server error and return nil.
+        nil
+      ensure
+        @in_multi = false
+        @queued_commands = []
       end
 
       private
