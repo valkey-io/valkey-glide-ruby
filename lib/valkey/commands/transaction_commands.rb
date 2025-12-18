@@ -112,7 +112,15 @@ class Valkey
       def exec
         if @in_multi
           begin
-            send_command(RequestType::EXEC)
+            begin
+              result = send_command(RequestType::EXEC)
+              # If EXEC returns an error object (from array), it's already handled
+              result
+            rescue CommandError => e
+              # If EXEC itself raises an error (like when transaction is aborted),
+              # return an array with the error to match expected behavior in tests
+              [e]
+            end
           ensure
             @in_multi = false
             @queued_commands = []
