@@ -185,6 +185,15 @@ class Valkey
         nil
       when ResponseType::OK
         "OK"
+      when ResponseType::ERROR
+        # For errors in arrays (like EXEC responses), return an error object
+        # instead of raising. The error message is typically in string_value.
+        error_msg = if response_item[:string_value].null?
+                      "Unknown error"
+                    else
+                      response_item[:string_value].read_string(response_item[:string_value_len])
+                    end
+        CommandError.new(error_msg)
       else
         raise "Unsupported response type: #{response_item[:response_type]}"
       end
@@ -236,7 +245,19 @@ class Valkey
       0
     )
 
-    convert_response(res, &block)
+    result = convert_response(res, &block)
+    
+    # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
+    if @in_multi && !@queued_commands.nil?
+      tx_commands = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD, RequestType::WATCH, RequestType::UNWATCH]
+      unless tx_commands.include?(command_type)
+        if result == "QUEUED"
+          @queued_commands << [command_type, command_args.dup]
+        end
+      end
+    end
+    
+    result
   end
 
   def initialize(options = {})
@@ -294,6 +315,8 @@ class Valkey
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
     @in_multi = false
+    # Track queued commands during MULTI for transaction isolation support
+    @queued_commands = []
   end
 
   def close

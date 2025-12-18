@@ -115,6 +115,7 @@ class Valkey
             send_command(RequestType::EXEC)
           ensure
             @in_multi = false
+            @queued_commands = []
           end
         else
           # When EXEC is called without a preceding MULTI the server returns an
@@ -143,6 +144,7 @@ class Valkey
           nil
         ensure
           @in_multi = false
+          @queued_commands = []
         end
       end
 
@@ -157,6 +159,7 @@ class Valkey
 
         send_command(RequestType::MULTI)
         @in_multi = true
+        @queued_commands = []
       end
     end
   end
