@@ -788,5 +788,233 @@ module Lint
       end
       raise
     end
+
+    def test_failover
+      skip("FAILOVER command requires replication setup")
+
+      # Basic failover
+      result = r.failover
+      assert_equal "OK", result
+    rescue Valkey::CommandError => e
+      if e.message.include?("FAILOVER") || e.message.include?("unknown") || e.message.include?("replication")
+        skip("FAILOVER not available or replication not configured: #{e.message}")
+      end
+      raise
+    end
+
+    def test_failover_with_options
+      skip("FAILOVER command requires replication setup")
+
+      # Failover with timeout
+      result = r.failover(timeout: 5000)
+      assert_equal "OK", result
+
+      # Failover to specific replica
+      result = r.failover(to: "127.0.0.1 6380")
+      assert_equal "OK", result
+
+      # Force failover
+      result = r.failover(force: true)
+      assert_equal "OK", result
+
+      # Abort failover
+      result = r.failover(abort: true)
+      assert_equal "OK", result
+    rescue Valkey::CommandError => e
+      if e.message.include?("FAILOVER") || e.message.include?("unknown") || e.message.include?("replication")
+        skip("FAILOVER not available or replication not configured: #{e.message}")
+      end
+      raise
+    end
+
+    def test_lolwut
+      # skip("LOLWUT command not implemented in backend yet")
+
+      # LOLWUT returns ASCII art and version
+      result = r.lolwut
+      assert_kind_of String, result
+      assert !result.empty?, "Expected LOLWUT to return non-empty string"
+      # Should contain version information
+      assert result.include?("Valkey") || result.include?("Redis") || result.include?("ver"),
+             "Expected LOLWUT to contain version information"
+    rescue Valkey::CommandError => e
+      skip("LOLWUT not available: #{e.message}") if e.message.include?("LOLWUT") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_lolwut_with_version
+      # skip("LOLWUT command not implemented in backend yet")
+
+      # LOLWUT with version parameter
+      result = r.lolwut(5)
+      assert_kind_of String, result
+      assert !result.empty?, "Expected LOLWUT to return non-empty string"
+    rescue Valkey::CommandError => e
+      skip("LOLWUT not available: #{e.message}") if e.message.include?("LOLWUT") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_psync
+      # skip("PSYNC command is internal replication command")
+
+      # PSYNC is used for partial resynchronization
+      result = r.psync("?", -1)
+      assert_kind_of String, result
+      # Should return FULLRESYNC or CONTINUE
+      assert result.include?("FULLRESYNC") || result.include?("CONTINUE"),
+             "Expected PSYNC to return FULLRESYNC or CONTINUE"
+    rescue Valkey::CommandError => e
+      if e.message.include?("PSYNC") || e.message.include?("unknown") || e.message.include?("replication")
+        skip("PSYNC not available or not in replication context: #{e.message}")
+      end
+      raise
+    end
+
+    def test_replconf
+      # skip("REPLCONF command is internal replication command")
+
+      # REPLCONF is used for replication configuration
+      result = r.replconf("listening-port", "6380")
+      assert_equal "OK", result
+    rescue Valkey::CommandError => e
+      if e.message.include?("REPLCONF") || e.message.include?("unknown") || e.message.include?("replication")
+        skip("REPLCONF not available or not in replication context: #{e.message}")
+      end
+      raise
+    end
+
+    def test_replicaof
+      # skip("REPLICAOF command requires replication setup")
+
+      # Make server a replica
+      result = r.replicaof("127.0.0.1", 6379)
+      assert_equal "OK", result
+
+      # Promote to master
+      result = r.replicaof("NO", "ONE")
+      assert_equal "OK", result
+    rescue Valkey::CommandError => e
+      if e.message.include?("REPLICAOF") || e.message.include?("unknown") || e.message.include?("replication")
+        skip("REPLICAOF not available: #{e.message}")
+      end
+      raise
+    end
+
+    def test_restore_asking
+      # skip("RESTORE-ASKING command is internal cluster command")
+
+      # Create a test key and dump it
+      r.set("test:restore:key", "test value")
+      serialized = r.dump("test:restore:key")
+
+      # RESTORE-ASKING is used in cluster mode for key migration
+      result = r.restore_asking("test:restore:new", 0, serialized)
+      assert_equal "OK", result
+
+      # Verify the key was restored
+      assert_equal "test value", r.get("test:restore:new")
+
+      # Clean up
+      r.del("test:restore:key", "test:restore:new")
+    rescue Valkey::CommandError => e
+      if e.message.include?("RESTORE") || e.message.include?("unknown") || e.message.include?("cluster")
+        skip("RESTORE-ASKING not available or not in cluster mode: #{e.message}")
+      end
+      raise
+    end
+
+    def test_restore_asking_with_options
+      # skip("RESTORE-ASKING command is internal cluster command")
+
+      # Create a test key and dump it
+      r.set("test:restore:key", "test value")
+      serialized = r.dump("test:restore:key")
+
+      # RESTORE-ASKING with replace option
+      r.set("test:restore:existing", "old value")
+      result = r.restore_asking("test:restore:existing", 0, serialized, replace: true)
+      assert_equal "OK", result
+      assert_equal "test value", r.get("test:restore:existing")
+
+      # RESTORE-ASKING with TTL
+      result = r.restore_asking("test:restore:ttl", 1000, serialized)
+      assert_equal "OK", result
+      ttl = r.pttl("test:restore:ttl")
+      assert ttl.positive?, "Expected key to have TTL"
+      assert ttl <= 1000, "Expected TTL to be <= 1000ms"
+
+      # Clean up
+      r.del("test:restore:key", "test:restore:existing", "test:restore:ttl")
+    rescue Valkey::CommandError => e
+      if e.message.include?("RESTORE") || e.message.include?("unknown") || e.message.include?("cluster")
+        skip("RESTORE-ASKING not available or not in cluster mode: #{e.message}")
+      end
+      raise
+    end
+
+    def test_role
+      # ROLE returns role information
+      result = r.role
+      assert_kind_of Array, result
+      assert !result.empty?, "Expected ROLE to return non-empty array"
+
+      # First element should be role: "master", "slave", or "sentinel"
+      role = result[0]
+      assert_kind_of String, role
+      assert %w[master slave sentinel].include?(role),
+             "Expected role to be 'master', 'slave', or 'sentinel', got: #{role}"
+
+      if role == "master"
+        # Master: ["master", replication_offset, [replica_info, ...]]
+        assert result.size >= 2, "Expected master role to have at least 2 elements"
+        assert_kind_of Integer, result[1], "Expected replication offset to be Integer"
+        assert_kind_of Array, result[2], "Expected replicas list to be Array"
+      elsif role == "slave"
+        # Slave: ["slave", master_host, master_port, state, offset]
+        assert result.size >= 5, "Expected slave role to have at least 5 elements"
+        assert_kind_of String, result[1], "Expected master host to be String"
+        assert_kind_of Integer, result[2], "Expected master port to be Integer"
+        assert_kind_of String, result[3], "Expected replication state to be String"
+        assert_kind_of Integer, result[4], "Expected replication offset to be Integer"
+      end
+    rescue Valkey::CommandError => e
+      skip("ROLE not available: #{e.message}") if e.message.include?("ROLE") || e.message.include?("unknown")
+      raise
+    end
+
+    def test_swapdb
+      # skip("SWAPDB command not implemented in backend yet")
+
+      # Set a key in database 0
+      r.select(0)
+      r.set("test:swapdb:key", "db0_value")
+
+      # Set a different key in database 1
+      r.select(1)
+      r.set("test:swapdb:key", "db1_value")
+
+      # Swap databases 0 and 1
+      r.select(0)
+      result = r.swapdb(0, 1)
+      assert_equal "OK", result
+
+      # Verify the swap
+      assert_equal "db1_value", r.get("test:swapdb:key")
+
+      r.select(1)
+      assert_equal "db0_value", r.get("test:swapdb:key")
+
+      # Clean up
+      r.select(0)
+      r.del("test:swapdb:key")
+      r.select(1)
+      r.del("test:swapdb:key")
+      r.select(0)
+    rescue Valkey::CommandError => e
+      if e.message.include?("SWAPDB") || e.message.include?("unknown") || e.message.include?("cluster")
+        skip("SWAPDB not available or not supported in cluster mode: #{e.message}")
+      end
+      raise
+    end
   end
 end
