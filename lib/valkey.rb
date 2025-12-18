@@ -317,6 +317,8 @@ class Valkey
     @in_multi = false
     # Track queued commands during MULTI for transaction isolation support
     @queued_commands = []
+    # Track if we're inside a multi block (multi { ... }) vs direct multi calls
+    @in_multi_block = false
   end
 
   def close

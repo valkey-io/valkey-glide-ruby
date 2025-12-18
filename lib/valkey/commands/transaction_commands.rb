@@ -27,12 +27,15 @@ class Valkey
       def multi
         if block_given?
           begin
+            @in_multi_block = true
             start_multi
             yield(self)
             exec
           rescue StandardError
             discard
             raise
+          ensure
+            @in_multi_block = false
           end
         else
           start_multi
