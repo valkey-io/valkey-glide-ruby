@@ -2,7 +2,8 @@
 
 require "test_helper"
 
-class TestScriptingCommands < Minitest::Test
+# Test class for basic scripting commands (script_load, script_exists, script_flush, etc.)
+class TestScriptingBasicCommands < Minitest::Test
   include Helper::Client
 
   def setup
@@ -82,8 +83,16 @@ class TestScriptingCommands < Minitest::Test
     valid_sha = "1234567890123456789012345678901234567890"
     assert_raises(Valkey::CommandError) { r.evalsha(valid_sha) }
   end
+end
 
-  # Edge case tests for eval and evalsha integration
+# Test class for eval/evalsha integration and advanced functionality
+class TestEvalEvalshaIntegration < Minitest::Test
+  include Helper::Client
+
+  def setup
+    super
+    r.script_flush # Ensure the script cache is empty before running tests
+  end
 
   def test_eval_empty_keys_and_args
     # Test eval with empty keys and args arrays
