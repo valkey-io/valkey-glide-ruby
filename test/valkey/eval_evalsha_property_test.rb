@@ -2,7 +2,8 @@
 
 require "test_helper"
 
-class TestEvalEvalshaProperties < Minitest::Test
+# Test class for basic eval/evalsha execution and parameter handling properties
+class TestEvalEvalshaBasicProperties < Minitest::Test
   include Helper::Client
 
   def setup
@@ -72,6 +73,26 @@ class TestEvalEvalshaProperties < Minitest::Test
       assert_equal keys, returned_keys, "KEYS array should match input keys"
       assert_equal args, returned_args, "ARGV array should match input args"
     end
+  end
+
+  private
+
+  def generate_keys(count)
+    count.times.map { |i| "key#{i}_#{rand(1000)}" }
+  end
+
+  def generate_args(count)
+    count.times.map { |i| "arg#{i}_#{rand(1000)}" }
+  end
+end
+
+# Test class for eval/evalsha validation and error handling properties
+class TestEvalEvalshaValidationProperties < Minitest::Test
+  include Helper::Client
+
+  def setup
+    super
+    r.script_flush # Ensure the script cache is empty before running tests
   end
 
   # **Feature: eval-evalsha-commands, Property 5: SHA1 hash validation**
@@ -146,62 +167,6 @@ class TestEvalEvalshaProperties < Minitest::Test
     end
   end
 
-  # **Feature: eval-evalsha-commands, Property 3: Type conversion correctness**
-  # Property 3: Type conversion correctness
-  # For any Lua script that returns values of different types (string, number, boolean, array, nil),
-  # the Ruby client should convert them to appropriate Ruby types
-  # **Validates: Requirements 1.3, 2.5**
-  def test_type_conversion_correctness
-    # Run property test with 100 iterations
-    100.times do
-      # Test different Lua return types and their expected Ruby conversions
-      test_cases = [
-        # [lua_script, expected_ruby_type, validation_proc]
-        ["return 'hello world'", String, ->(result) { result.is_a?(String) && result == "hello world" }],
-        ["return ''", String, ->(result) { result.is_a?(String) && result == "" }],
-        ["return 42", Integer, ->(result) { result.is_a?(Integer) && result == 42 }],
-        ["return -17", Integer, ->(result) { result.is_a?(Integer) && result == -17 }],
-        ["return 0", Integer, ->(result) { result.is_a?(Integer) && result.zero? }],
-        ["return 3.14", Integer, lambda { |result|
-          result.is_a?(Integer) && result == 3
-        }], # NOTE: floats are truncated to integers
-        ["return -2.5", Integer, lambda { |result|
-          result.is_a?(Integer) && result == -2
-        }], # NOTE: floats are truncated to integers
-        ["return true", Integer, ->(result) { result == 1 }], # NOTE: true is converted to 1
-        ["return false", NilClass, ->(result) { result.nil? }], # NOTE: false is converted to nil
-        ["return nil", NilClass, lambda(&:nil?)],
-        ["return {1, 2, 3}", Array, ->(result) { result.is_a?(Array) && result == [1, 2, 3] }],
-        ["return {}", Array, ->(result) { result.is_a?(Array) && result == [] }],
-        ["return {'a', 'b', 'c'}", Array, ->(result) { result.is_a?(Array) && result == %w[a b c] }],
-        ["return {1, 'mixed', true, nil}", Array, lambda { |result|
-          result.is_a?(Array) && result == [1, "mixed", 1] # NOTE: true->1, nil is dropped
-        }],
-        ["return {{1, 2}, {3, 4}}", Array, ->(result) { result.is_a?(Array) && result == [[1, 2], [3, 4]] }]
-      ]
-
-      test_case = test_cases.sample
-      script, expected_type, validation = test_case
-
-      # Test with eval
-      eval_result = r.eval(script)
-      assert validation.call(eval_result),
-             "eval result should be correctly converted:
-             script=#{script}, result=#{eval_result.inspect}, expected_type=#{expected_type}"
-
-      # Test with evalsha (load script first)
-      sha = r.script_load(script)
-      evalsha_result = r.evalsha(sha)
-      assert validation.call(evalsha_result),
-             "evalsha result should be correctly converted:
-             script=#{script}, result=#{evalsha_result.inspect}, expected_type=#{expected_type}"
-
-      # Both should produce identical results
-      assert_equal eval_result, evalsha_result,
-                   "eval and evalsha should produce identical type conversions for script: #{script}"
-    end
-  end
-
   # **Feature: eval-evalsha-commands, Property 4: Error preservation fidelity**
   # Property 4: Error preservation fidelity
   # For any Lua script with syntax or runtime errors,
@@ -209,71 +174,103 @@ class TestEvalEvalshaProperties < Minitest::Test
   # **Validates: Requirements 1.4, 4.1, 4.5**
   def test_error_preservation_fidelity
     # Run property test with 100 iterations
-    100.times do
-      # Test different types of Lua script errors
-      error_scripts = [
-        # Syntax errors
-        "return 1 +", # incomplete expression
-        "if true then", # incomplete if statement
-        "for i=1,10", # incomplete for loop
-        "function test(", # incomplete function definition
-        "return {1, 2,", # incomplete table
-        "local x = 1 return x +", # incomplete expression with local
+    100.times { verify_error_preservation_for_random_case }
+  end
 
-        # Runtime errors
-        "error('custom error message')", # explicit error
-        "return nonexistent_variable", # undefined variable
-        "return 1 / 0", # division by zero (may or may not error depending on Lua version)
-        "return string.sub(nil, 1, 1)", # nil argument to string function
-        "return table.insert(nil, 1)", # nil argument to table function
-        "local t = {} return t.nonexistent.field" # attempt to index nil
-      ]
+  private
 
-      script = error_scripts.sample
-      keys = generate_keys(rand(3))
-      args = generate_args(rand(3))
+  def verify_error_preservation_for_random_case
+    # Test different types of Lua script errors
+    error_scripts = [
+      # Syntax errors
+      "return 1 +", # incomplete expression
+      "if true then", # incomplete if statement
+      "for i=1,10", # incomplete for loop
+      "function test(", # incomplete function definition
+      "return {1, 2,", # incomplete table
+      "local x = 1 return x +", # incomplete expression with local
 
-      # Test eval error handling
-      eval_error = nil
-      begin
-        r.eval(script, keys: keys, args: args)
-        # If we get here, the script didn't error (which is unexpected for our error scripts)
-        # Some scripts might not error in all Lua versions, so we'll skip validation
-        next
-      rescue Valkey::CommandError => e
-        eval_error = e
-      end
+      # Runtime errors
+      "error('custom error message')", # explicit error
+      "return nonexistent_variable", # undefined variable
+      "return 1 / 0", # division by zero (may or may not error depending on Lua version)
+      "return string.sub(nil, 1, 1)", # nil argument to string function
+      "return table.insert(nil, 1)", # nil argument to table function
+      "local t = {} return t.nonexistent.field" # attempt to index nil
+    ]
 
-      # Test evalsha error handling (for syntax errors, this should fail during script_load)
-      evalsha_error = nil
-      begin
-        sha = r.script_load(script)
-        r.evalsha(sha, keys: keys, args: args)
-        # If we get here, the script didn't error
-        next
-      rescue Valkey::CommandError => e
-        evalsha_error = e
-      end
+    script = error_scripts.sample
+    keys = generate_keys(rand(3))
+    args = generate_args(rand(3))
 
-      # Verify error properties
-      if eval_error
-        assert eval_error.is_a?(Valkey::CommandError),
-               "eval should raise CommandError for script errors, got #{eval_error.class}"
-        assert !eval_error.message.empty?,
-               "eval error message should not be empty"
-        assert eval_error.message.is_a?(String),
-               "eval error message should be a string"
-      end
-
-      next unless evalsha_error
-
-      assert evalsha_error.is_a?(Valkey::CommandError),
-             "evalsha should raise CommandError for script errors, got #{evalsha_error.class}"
-      assert !evalsha_error.message.empty?,
-             "evalsha error message should not be empty"
-      assert evalsha_error.message.is_a?(String),
-             "evalsha error message should be a string"
+    # Test eval error handling
+    eval_error = nil
+    begin
+      r.eval(script, keys: keys, args: args)
+      # If we get here, the script didn't error (which is unexpected for our error scripts)
+      # Some scripts might not error in all Lua versions, so we'll skip validation
+      return
+    rescue Valkey::CommandError => e
+      eval_error = e
     end
+
+    # Test evalsha error handling (for syntax errors, this should fail during script_load)
+    evalsha_error = nil
+    begin
+      sha = r.script_load(script)
+      r.evalsha(sha, keys: keys, args: args)
+      # If we get here, the script didn't error
+      return
+    rescue Valkey::CommandError => e
+      evalsha_error = e
+    end
+
+    # Verify error properties
+    if eval_error
+      assert eval_error.is_a?(Valkey::CommandError),
+             "eval should raise CommandError for script errors, got #{eval_error.class}"
+      assert !eval_error.message.empty?,
+             "eval error message should not be empty"
+      assert eval_error.message.is_a?(String),
+             "eval error message should be a string"
+    end
+
+    return unless evalsha_error
+
+    assert evalsha_error.is_a?(Valkey::CommandError),
+           "evalsha should raise CommandError for script errors, got #{evalsha_error.class}"
+    assert !evalsha_error.message.empty?,
+           "evalsha error message should not be empty"
+    assert evalsha_error.message.is_a?(String),
+           "evalsha error message should be a string"
+  end
+
+  def generate_keys(count)
+    count.times.map { |i| "key#{i}_#{rand(1000)}" }
+  end
+
+  def generate_args(count)
+    count.times.map { |i| "arg#{i}_#{rand(1000)}" }
+  end
+end
+
+# Test class for eval/evalsha type conversion and caching properties
+class TestEvalEvalshaTypeProperties < Minitest::Test
+  include Helper::Client
+
+  def setup
+    super
+    r.script_flush # Ensure the script cache is empty before running tests
+  end
+
+  # **Feature: eval-evalsha-commands, Property 3: Type conversion correctness**
+  # Property 3: Type conversion correctness
+  # For any Lua script that returns values of different types (string, number, boolean, array, nil),
+  # the Ruby client should convert them to appropriate Ruby types
+  # **Validates: Requirements 1.3, 2.5**
+  def test_type_conversion_correctness
+    # Run property test with 100 iterations
+    100.times { verify_type_conversion_for_random_case }
   end
 
   # **Feature: eval-evalsha-commands, Property 7: Cached script execution**
@@ -330,6 +327,54 @@ class TestEvalEvalshaProperties < Minitest::Test
   end
 
   private
+
+  def verify_type_conversion_for_random_case
+    # Test different Lua return types and their expected Ruby conversions
+    test_cases = [
+      # [lua_script, expected_ruby_type, validation_proc]
+      ["return 'hello world'", String, ->(result) { result.is_a?(String) && result == "hello world" }],
+      ["return ''", String, ->(result) { result.is_a?(String) && result == "" }],
+      ["return 42", Integer, ->(result) { result.is_a?(Integer) && result == 42 }],
+      ["return -17", Integer, ->(result) { result.is_a?(Integer) && result == -17 }],
+      ["return 0", Integer, ->(result) { result.is_a?(Integer) && result.zero? }],
+      ["return 3.14", Integer, lambda { |result|
+        result.is_a?(Integer) && result == 3
+      }], # NOTE: floats are truncated to integers
+      ["return -2.5", Integer, lambda { |result|
+        result.is_a?(Integer) && result == -2
+      }], # NOTE: floats are truncated to integers
+      ["return true", Integer, ->(result) { result == 1 }], # NOTE: true is converted to 1
+      ["return false", NilClass, lambda(&:nil?)], # NOTE: false is converted to nil
+      ["return nil", NilClass, lambda(&:nil?)],
+      ["return {1, 2, 3}", Array, ->(result) { result.is_a?(Array) && result == [1, 2, 3] }],
+      ["return {}", Array, ->(result) { result.is_a?(Array) && result == [] }],
+      ["return {'a', 'b', 'c'}", Array, ->(result) { result.is_a?(Array) && result == %w[a b c] }],
+      ["return {1, 'mixed', true, nil}", Array, lambda { |result|
+        result.is_a?(Array) && result == [1, "mixed", 1] # NOTE: true->1, nil is dropped
+      }],
+      ["return {{1, 2}, {3, 4}}", Array, ->(result) { result.is_a?(Array) && result == [[1, 2], [3, 4]] }]
+    ]
+
+    test_case = test_cases.sample
+    script, expected_type, validation = test_case
+
+    # Test with eval
+    eval_result = r.eval(script)
+    assert validation.call(eval_result),
+           "eval result should be correctly converted:
+           script=#{script}, result=#{eval_result.inspect}, expected_type=#{expected_type}"
+
+    # Test with evalsha (load script first)
+    sha = r.script_load(script)
+    evalsha_result = r.evalsha(sha)
+    assert validation.call(evalsha_result),
+           "evalsha result should be correctly converted:
+           script=#{script}, result=#{evalsha_result.inspect}, expected_type=#{expected_type}"
+
+    # Both should produce identical results
+    assert_equal eval_result, evalsha_result,
+                 "eval and evalsha should produce identical type conversions for script: #{script}"
+  end
 
   def generate_keys(count)
     count.times.map { |i| "key#{i}_#{rand(1000)}" }
