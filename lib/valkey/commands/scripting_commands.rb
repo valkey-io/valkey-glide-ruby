@@ -39,6 +39,22 @@ class Valkey
         else
           send("script_#{subcommand}", args)
         end
+
+        # if subcommand == "exists"
+        #   arg = args.first
+        #
+        #   send_command([:script, :exists, arg]) do |reply|
+        #     reply = reply.map { |r| Boolify.call(r) }
+        #
+        #     if arg.is_a?(Array)
+        #       reply
+        #     else
+        #       reply.first
+        #     end
+        #   end
+        # else
+        #   send_command([:script, subcommand] + args)
+        # end
       end
 
       def script_flush(sync: false, async: false)
