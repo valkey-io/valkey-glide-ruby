@@ -16,6 +16,7 @@ require "valkey/commands/module_commands"
 require "valkey/commands/pubsub_commands"
 require "valkey/commands/json_commands"
 require "valkey/commands/cluster_commands"
+require "valkey/commands/transaction_commands"
 require "valkey/commands/vector_search_commands"
 require "valkey/commands/stream_commands"
 require "valkey/commands/hash_commands"
@@ -50,6 +51,7 @@ class Valkey
     include PubSubCommands
     include JsonCommands
     include ClusterCommands
+    include TransactionCommands
     include VectorSearchCommands
     include StreamCommands
     include HashCommands
