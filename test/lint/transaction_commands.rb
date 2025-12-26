@@ -7,7 +7,7 @@ module Lint
       r.set("foo", "bar")
       r.discard
 
-        # After DISCARD, the key should not be set.
+      # After DISCARD, the key should not be set.
       assert_nil r.get("foo")
     end
 
@@ -55,8 +55,8 @@ module Lint
         r.multi do |multi|
           multi.set("bar", "s2")
           raise "Some error"
-    end
-    end
+        end
+      end
 
       # Transaction should have been discarded
       assert_nil r.get("bar")
@@ -96,7 +96,7 @@ module Lint
       r.multi
       r.incr("foo") # This will cause an error
 
-        # EXEC should return an array with the error
+      # EXEC should return an array with the error
       result = r.exec
       assert_instance_of Array, result
       # The exact error handling may vary by implementation
@@ -107,7 +107,7 @@ module Lint
       r.set("foo", "bar")
       r.discard
 
-        # Key should not be set since transaction was discarded
+      # Key should not be set since transaction was discarded
       assert_nil r.get("foo")
     end
 
@@ -268,7 +268,7 @@ module Lint
     def test_watch_exec_unwatch_cycle
       r.set("counter", "0")
 
-        # Watch and increment counter
+      # Watch and increment counter
       r.watch("counter")
       current = r.get("counter").to_i
 
@@ -283,14 +283,14 @@ module Lint
     def test_transaction_isolation
       r.set("shared", "initial")
 
-        # Start transaction but don't execute yet
+      # Start transaction but don't execute yet
       r.multi
       r.set("shared", "transaction_value")
 
-        # Value should still be initial since transaction not executed
+      # Value should still be initial since transaction not executed
       assert_equal "initial", r.get("shared")
 
-        # Execute transaction
+      # Execute transaction
       result = r.exec
       assert_equal ["OK"], result
       assert_equal "transaction_value", r.get("shared")
@@ -301,14 +301,14 @@ module Lint
       r.set("account:1", "100")
       r.set("account:2", "50")
 
-        # Watch both accounts
+      # Watch both accounts
       r.watch("account:1", "account:2")
 
-        # Get current balances
+      # Get current balances
       balance1 = r.get("account:1").to_i
       balance2 = r.get("account:2").to_i
 
-        # Transfer 25 from account:1 to account:2
+      # Transfer 25 from account:1 to account:2
       result = r.multi do |multi|
         multi.set("account:1", (balance1 - 25).to_s)
         multi.set("account:2", (balance2 + 25).to_s)
@@ -321,11 +321,11 @@ module Lint
 
     def test_raise_immediate_errors_in_multi_exec
       assert_raises(RuntimeError) do
-      r.multi do |multi|
-        multi.set("bar", "s2")
-        raise "Some error"
-    end
-    end
+        r.multi do |multi|
+          multi.set("bar", "s2")
+          raise "Some error"
+        end
+      end
 
       assert_nil r.get("bar")
       assert_nil r.get("baz")
