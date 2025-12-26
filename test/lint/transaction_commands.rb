@@ -2,7 +2,7 @@
 
 module Lint
   module TransactionCommands
-      def test_multi_discard
+    def test_multi_discard
       r.multi
       r.set("foo", "bar")
       r.discard
@@ -11,17 +11,17 @@ module Lint
       assert_nil r.get("foo")
       end
 
-      def test_discard
+    def test_discard
       r.multi do |multi|
         multi.set("foo", "bar")
         raise "Some error"
       end
       rescue RuntimeError
-        # Transaction should have been discarded
+      # Transaction should have been discarded
       assert_nil r.get("foo")
       end
 
-      def test_multi_with_block
+    def test_multi_with_block
       result = r.multi do |multi|
         multi.set("foo", "s1")
       end
@@ -30,7 +30,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_multi_exec_with_a_block_doesn_t_return_replies_for_multi_and_exec
+    def test_multi_exec_with_a_block_doesn_t_return_replies_for_multi_and_exec
       r1, r2, nothing_else = r.multi do |multi|
         multi.set("foo", "s1")
         multi.get("foo")
@@ -41,7 +41,7 @@ module Lint
       assert_nil nothing_else
       end
 
-      def test_multi_with_block_multiple_commands
+    def test_multi_with_block_multiple_commands
       result = r.multi do |multi|
         multi.set("foo", "s1")
         multi.get("foo")
@@ -50,7 +50,7 @@ module Lint
       assert_equal %w[OK s1], result
       end
 
-      def test_multi_with_block_that_raises_exception
+    def test_multi_with_block_that_raises_exception
       assert_raises(RuntimeError) do
         r.multi do |multi|
           multi.set("bar", "s2")
@@ -62,7 +62,7 @@ module Lint
       assert_nil r.get("bar")
       end
 
-      def test_exec_with_multiple_commands
+    def test_exec_with_multiple_commands
       r.multi
       r.set("foo", "s1")
       r.get("foo")
@@ -71,7 +71,7 @@ module Lint
       assert_equal %w[OK s1], result
       end
 
-      def test_multi_in_pipeline
+    def test_multi_in_pipeline
       response = r.pipelined do |pipeline|
         pipeline.multi
         pipeline.set("foo", "s1")
@@ -82,7 +82,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_queued_commands
+    def test_queued_commands
       r.multi
       assert_equal "QUEUED", r.set("foo", "bar")
       assert_equal "QUEUED", r.get("foo")
@@ -91,7 +91,7 @@ module Lint
       assert_equal %w[OK bar], result
       end
 
-      def test_exec_with_error
+    def test_exec_with_error
       r.set("foo", "not_a_number")
       r.multi
       r.incr("foo") # This will cause an error
@@ -102,7 +102,7 @@ module Lint
       # The exact error handling may vary by implementation
       end
 
-      def test_discard_after_multi
+    def test_discard_after_multi
       r.multi
       r.set("foo", "bar")
       r.discard
@@ -111,19 +111,19 @@ module Lint
       assert_nil r.get("foo")
       end
 
-      def test_watch_without_block
+    def test_watch_without_block
       assert_equal "OK", r.watch("foo")
       end
 
-      def test_watch_multiple_keys
+    def test_watch_multiple_keys
       assert_equal "OK", r.watch("foo", "bar", "baz")
       end
 
-      def test_watch_with_array
+    def test_watch_with_array
       assert_equal "OK", r.watch(%w[foo bar])
       end
 
-      def test_watch_with_block_and_unmodified_key
+    def test_watch_with_block_and_unmodified_key
       result = r.watch("foo") do |rd|
       assert_same r, rd
 
@@ -136,7 +136,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_watch_with_block_and_modified_key
+    def test_watch_with_block_and_modified_key
       result = r.watch("foo") do |rd|
       assert_same r, rd
 
@@ -150,7 +150,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_watch_with_block_that_raises_exception
+    def test_watch_with_block_that_raises_exception
       r.set("foo", "s1")
 
       begin
@@ -173,19 +173,19 @@ module Lint
       assert_equal "s3", r.get("foo")
       end
 
-      def test_unwatch
+    def test_unwatch
       r.watch("foo")
       assert_equal "OK", r.unwatch
       end
 
-      def test_empty_multi_exec
+    def test_empty_multi_exec
       r.multi
       result = r.exec
 
       assert_equal [], result
       end
 
-      def test_watch_with_modified_key
+    def test_watch_with_modified_key
       r.set("foo", "initial")
       r.watch("foo")
       r.set("foo", "modified") # This modifies the watched key
@@ -194,12 +194,12 @@ module Lint
       r.set("foo", "transaction_value")
       result = r.exec
 
-        # Transaction should fail because watched key was modified
+      # Transaction should fail because watched key was modified
       assert_nil result
       assert_equal "modified", r.get("foo")
       end
 
-      def test_watch_with_unmodified_key
+    def test_watch_with_unmodified_key
       r.set("foo", "initial")
       r.watch("foo")
 
@@ -207,12 +207,12 @@ module Lint
       r.set("foo", "transaction_value")
       result = r.exec
 
-        # Transaction should succeed because watched key was not modified
+      # Transaction should succeed because watched key was not modified
       assert_equal ["OK"], result
       assert_equal "transaction_value", r.get("foo")
       end
 
-      def test_unwatch_after_watch
+    def test_unwatch_after_watch
       r.watch("foo")
       r.set("foo", "modified")
       r.unwatch # This should clear the watch
@@ -221,12 +221,12 @@ module Lint
       r.set("foo", "transaction_value")
       result = r.exec
 
-        # Transaction should succeed because watch was cleared
+      # Transaction should succeed because watch was cleared
       assert_equal ["OK"], result
       assert_equal "transaction_value", r.get("foo")
       end
 
-      def test_multiple_transactions
+    def test_multiple_transactions
       # First transaction
       r.multi
       r.set("key1", "value1")
@@ -243,7 +243,7 @@ module Lint
       assert_equal "value2", r.get("key2")
       end
 
-      def test_nested_multi_not_allowed
+    def test_nested_multi_not_allowed
       r.multi
       # Calling MULTI again should return an error or be ignored
       # The exact behavior may vary by implementation
@@ -251,21 +251,21 @@ module Lint
       r.discard
       end
 
-      def test_exec_without_multi
+    def test_exec_without_multi
       # EXEC without MULTI should return an error or nil
       # The exact behavior may vary by implementation
       r.exec
       # Could be nil or raise an error depending on implementation
       end
 
-      def test_discard_without_multi
+    def test_discard_without_multi
       # DISCARD without MULTI should return an error
       # The exact behavior may vary by implementation
       r.discard
       # Could raise an error or return a specific response
       end
 
-      def test_watch_exec_unwatch_cycle
+    def test_watch_exec_unwatch_cycle
       r.set("counter", "0")
 
       # Watch and increment counter
@@ -280,7 +280,7 @@ module Lint
       assert_equal "1", r.get("counter")
       end
 
-      def test_transaction_isolation
+    def test_transaction_isolation
       r.set("shared", "initial")
 
       # Start transaction but don't execute yet
@@ -296,7 +296,7 @@ module Lint
       assert_equal "transaction_value", r.get("shared")
       end
 
-      def test_complex_transaction_scenario
+    def test_complex_transaction_scenario
       # Set up initial data
       r.set("account:1", "100")
       r.set("account:2", "50")
@@ -319,7 +319,7 @@ module Lint
       assert_equal "75", r.get("account:2")
       end
 
-      def test_raise_immediate_errors_in_multi_exec
+    def test_raise_immediate_errors_in_multi_exec
       assert_raises(RuntimeError) do
       r.multi do |multi|
         multi.set("bar", "s2")
@@ -331,7 +331,7 @@ module Lint
       assert_nil r.get("baz")
       end
 
-      def test_multi_exec_with_a_block
+    def test_multi_exec_with_a_block
       r.multi do |multi|
         multi.set("foo", "s1")
       end
@@ -339,7 +339,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_watch_with_an_unmodified_key
+    def test_watch_with_an_unmodified_key
       r.watch("foo")
       result = r.multi do |multi|
         multi.set("foo", "s1")
@@ -349,7 +349,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_watch_with_an_unmodified_key_passed_as_array
+    def test_watch_with_an_unmodified_key_passed_as_array
       r.watch(%w[foo bar])
       result = r.multi do |multi|
         multi.set("foo", "s1")
@@ -359,7 +359,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_watch_with_a_modified_key_passed_as_array
+    def test_watch_with_a_modified_key_passed_as_array
       r.watch(%w[foo bar])
       r.set("foo", "s1")
       result = r.multi do |multi|
@@ -370,7 +370,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_multi_with_a_block_yielding_the_client
+    def test_multi_with_a_block_yielding_the_client
       r.multi do |multi|
         multi.set("foo", "s1")
       end
@@ -378,7 +378,7 @@ module Lint
       assert_equal "s1", r.get("foo")
       end
 
-      def test_unwatch_with_a_modified_key
+    def test_unwatch_with_a_modified_key
       r.watch("foo")
       r.set("foo", "s1")
       r.unwatch
@@ -390,9 +390,10 @@ module Lint
       assert_equal "s2", r.get("foo")
       end
 
-      def test_watch
+    def test_watch
       res = r.watch("foo")
       assert_equal "OK", res
-      end
+    end
   end
 end
+

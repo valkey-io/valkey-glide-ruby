@@ -8,7 +8,7 @@ class Valkey
     #
     module TransactionCommands
       # Mark the start of a transaction block.
-        #
+      #
       # @example With a block
       #   valkey.multi do |multi|
       #     multi.set("key", "value")
