@@ -395,3 +395,4 @@ module Lint
       assert_equal "OK", res
     end
   end
+end
