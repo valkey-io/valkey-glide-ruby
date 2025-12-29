@@ -33,6 +33,24 @@ class Valkey
   end
 
   def send_batch_commands(commands, exception: true)
+    # WORKAROUND: The underlying Glide FFI backend has stability issues when
+    # batching transactional commands like MULTI / EXEC / DISCARD. To avoid
+    # native crashes we fall back to issuing those commands sequentially
+    # instead of via `Bindings.batch`.
+    tx_types = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD]
+
+    if commands.any? { |(command_type, _args, _block)| tx_types.include?(command_type) }
+      results = []
+
+      commands.each do |command_type, command_args, block|
+        res = send_command(command_type, command_args)
+        res = block.call(res) if block
+        results << res
+      end
+
+      return results
+    end
+
     cmds = []
     blocks = []
 
@@ -167,6 +185,15 @@ class Valkey
         nil
       when ResponseType::OK
         "OK"
+      when ResponseType::ERROR
+        # For errors in arrays (like EXEC responses), return an error object
+        # instead of raising. The error message is typically in string_value.
+        error_msg = if response_item[:string_value].null?
+                      "Unknown error"
+                    else
+                      response_item[:string_value].read_string(response_item[:string_value_len])
+                    end
+        CommandError.new(error_msg)
       else
         raise "Unsupported response type: #{response_item[:response_type]}"
       end
@@ -218,7 +245,15 @@ class Valkey
       0
     )
 
-    convert_response(res, &block)
+    result = convert_response(res, &block)
+
+    # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
+    if @in_multi && !@queued_commands.nil?
+      tx_commands = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD, RequestType::WATCH, RequestType::UNWATCH]
+      @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
+    end
+
+    result
   end
 
   def initialize(options = {})
@@ -271,6 +306,15 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
+
+    # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
+    # This avoids Ruby warnings about uninitialised instance variables and
+    # gives us a single source of truth for whether we're inside a TX.
+    @in_multi = false
+    # Track queued commands during MULTI for transaction isolation support
+    @queued_commands = []
+    # Track if we're inside a multi block (multi { ... }) vs direct multi calls
+    @in_multi_block = false
   end
 
   def close
