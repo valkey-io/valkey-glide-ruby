@@ -104,7 +104,7 @@ module Lint
     def test_connection_url_parsing_with_password
       # Test URL parsing with password (if server has password set, this would work)
       # For now, just test that URL parsing doesn't crash
-      # Note: This test may fail if server requires password
+      # NOTE: This test may fail if server requires password
       client = Valkey.new(url: "redis://:password@127.0.0.1:#{test_port}", timeout: test_timeout)
       client.ping
       client.close
@@ -125,7 +125,7 @@ module Lint
 
     def test_connection_url_parsing_ssl
       # Test URL parsing with SSL (rediss://)
-      # Note: This will fail if server doesn't have SSL enabled
+      # NOTE: This will fail if server doesn't have SSL enabled
       client = Valkey.new(url: "rediss://127.0.0.1:#{test_port}", timeout: test_timeout)
       client.ping
       client.close
@@ -168,6 +168,131 @@ module Lint
       if cluster_mode?
         client = Valkey.new(
           nodes: test_cluster_nodes,
+          cluster_mode: true,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        client.close
+      else
+        skip("Cluster mode not available in this test environment")
+      end
+    end
+
+    def test_cluster_connection_with_authentication
+      # Test cluster mode with authentication
+      if cluster_mode?
+        # NOTE: Most test clusters don't have auth enabled
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          password: "test_password",
+          timeout: test_timeout
+        )
+        client.ping
+        client.close
+      else
+        skip("Cluster mode not available in this test environment")
+      end
+    rescue Valkey::CannotConnectError, Valkey::CommandError
+      # Expected if cluster doesn't require password
+      skip("Cluster authentication not configured")
+    end
+
+    def test_cluster_connection_with_client_name
+      # Test cluster mode with client name
+      if cluster_mode?
+        client_name = "cluster_test_#{Time.now.to_i}"
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          client_name: client_name,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        # Client name may not be consistent across nodes in cluster mode
+        # So we just verify the connection works
+        client.close
+      else
+        skip("Cluster mode not available in this test environment")
+      end
+    end
+
+    def test_cluster_connection_with_timeout_options
+      # Test cluster mode with timeout options
+      if cluster_mode?
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          connect_timeout: 0.5,
+          read_timeout: 2.0,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        client.close
+      else
+        skip("Cluster mode not available in this test environment")
+      end
+    end
+
+    def test_cluster_connection_with_reconnect_options
+      # Test cluster mode with reconnection strategy
+      if cluster_mode?
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          reconnect_attempts: 3,
+          reconnect_delay: 0.5,
+          reconnect_delay_max: 2.0,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        client.close
+      else
+        skip("Cluster mode not available in this test environment")
+      end
+    end
+
+    def test_cluster_connection_with_protocol_option
+      # Test cluster mode with protocol option
+      if cluster_mode?
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          protocol: :resp2,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        client.close
+
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          protocol: :resp3,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        client.close
+      else
+        skip("Cluster mode not available in this test environment")
+      end
+    end
+
+    def test_cluster_connection_nodes_parameter
+      # Test that nodes parameter is correctly used
+      if cluster_mode?
+        # Test with explicit nodes
+        client = Valkey.new(
+          nodes: test_cluster_nodes,
+          cluster_mode: true,
+          timeout: test_timeout
+        )
+        assert_equal "PONG", client.ping
+        client.close
+
+        # Test that single node array works
+        single_node = [{ host: "127.0.0.1", port: 7000 }]
+        client = Valkey.new(
+          nodes: single_node,
           cluster_mode: true,
           timeout: test_timeout
         )
