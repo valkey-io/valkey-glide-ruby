@@ -84,12 +84,12 @@ class TestUtils < Minitest::Test
 
   def test_parse_redis_url_nil
     result = Valkey::Utils.parse_redis_url(nil)
-    assert_nil result
+    assert_equal({}, result)
   end
 
   def test_parse_redis_url_empty_string
     result = Valkey::Utils.parse_redis_url("")
-    assert_nil result
+    assert_equal({}, result)
   end
 
   def test_parse_redis_url_invalid_format
@@ -100,4 +100,3 @@ class TestUtils < Minitest::Test
     assert(result.nil? || result.is_a?(Hash))
   end
 end
-

@@ -220,8 +220,12 @@ class Valkey
 
       # Match redis:// or rediss:// URLs
       # Format: redis[s]://[username:password@]host[:port][/db][?param=value]
-      # Try with authentication first
-      match = url.match(%r{\A(redis|rediss)://(?:([^:@]+):([^@]+)@)?([^:/]+)(?::(\d+))?(?:/(\d+))?(?:\?.*)?\z})
+      # Supports: redis://host, redis://user:pass@host, redis://:pass@host
+      # The regex handles:
+      # - No auth: redis://host...
+      # - Username and password: redis://user:pass@host...
+      # - Password only: redis://:pass@host...
+      match = url.match(%r{\A(redis|rediss)://(?:([^:@]*):([^@]+)@)?([^:/]+)(?::(\d+))?(?:/(\d+))?(?:\?.*)?\z})
 
       return {} unless match
 

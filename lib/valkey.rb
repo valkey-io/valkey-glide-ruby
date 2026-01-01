@@ -257,7 +257,7 @@ class Valkey
   end
 
   def initialize(options = {})
-    # Parse URL if provided (redis-rb compatibility)
+    # Parse URL if provided
     if options[:url]
       url_options = Utils.parse_redis_url(options[:url])
       # Merge URL options, but explicit options take precedence
@@ -272,64 +272,50 @@ class Valkey
 
     cluster_mode_enabled = options[:cluster_mode] || false
 
-    # Protocol defaults to RESP2 for stability with RediSearch commands
-    # Users can explicitly set protocol: :resp3 if needed
+    # Protocol defaults to RESP2
     protocol = case options[:protocol]
                when :resp3, "resp3", 3
                  ConnectionRequest::ProtocolVersion::RESP3
                else
-                 # Default to RESP2 for stability (RediSearch compatibility)
                  ConnectionRequest::ProtocolVersion::RESP2
                end
 
-    # TLS/SSL support (redis-rb compatibility)
-    tls_mode = if options[:ssl] == true || options[:ssl] == "true"
+    # TLS/SSL support
+    tls_mode = if [true, "true"].include?(options[:ssl])
                  ConnectionRequest::TlsMode::SecureTls
                else
                  ConnectionRequest::TlsMode::NoTls
                end
 
-    # SSL parameters (redis-rb compatibility)
-    # Map ssl_params to protobuf root_certs
-    # Note: root_certs in protobuf is `repeated bytes`, which accepts an array of byte strings
+    # SSL parameters - map ssl_params to protobuf root_certs
     root_certs = []
-    if options[:ssl_params] && options[:ssl_params].is_a?(Hash)
+    if options[:ssl_params]&.is_a?(Hash)
       # ca_file - read CA certificate file (PEM or DER format)
-      if options[:ssl_params][:ca_file]
-        root_certs << File.binread(options[:ssl_params][:ca_file])
-      end
+      root_certs << File.binread(options[:ssl_params][:ca_file]) if options[:ssl_params][:ca_file]
 
-      # cert - client certificate (can be file path or OpenSSL::X509::Certificate)
+      # cert - client certificate (file path or OpenSSL::X509::Certificate)
       if options[:ssl_params][:cert]
         cert_data = if options[:ssl_params][:cert].is_a?(String)
-                      # Assume it's a file path
                       File.binread(options[:ssl_params][:cert])
                     elsif options[:ssl_params][:cert].respond_to?(:to_pem)
-                      # OpenSSL::X509::Certificate object
                       options[:ssl_params][:cert].to_pem
                     elsif options[:ssl_params][:cert].respond_to?(:to_der)
-                      # DER format
                       options[:ssl_params][:cert].to_der
                     else
-                      # Fallback to string conversion
                       options[:ssl_params][:cert].to_s
                     end
         root_certs << cert_data
       end
 
-      # key - client key (can be file path or OpenSSL::PKey)
+      # key - client key (file path or OpenSSL::PKey)
       if options[:ssl_params][:key]
         key_data = if options[:ssl_params][:key].is_a?(String)
-                     # Assume it's a file path
                      File.binread(options[:ssl_params][:key])
                    elsif options[:ssl_params][:key].respond_to?(:to_pem)
-                     # OpenSSL::PKey object
                      options[:ssl_params][:key].to_pem
                    elsif options[:ssl_params][:key].respond_to?(:to_der)
-                     # DER format
                      options[:ssl_params][:key].to_der
                    else
-                     # Fallback to string conversion
                      options[:ssl_params][:key].to_s
                    end
         root_certs << key_data
@@ -345,13 +331,13 @@ class Valkey
         end
       end
 
-      # Direct root_certs array support (array of byte strings)
-      if options[:ssl_params][:root_certs] && options[:ssl_params][:root_certs].is_a?(Array)
+      # Direct root_certs array support
+      if options[:ssl_params][:root_certs]&.is_a?(Array)
         root_certs.concat(options[:ssl_params][:root_certs])
       end
     end
 
-    # Authentication support (redis-rb compatibility)
+    # Authentication support
     authentication_info = nil
     if options[:password] || options[:username]
       authentication_info = ConnectionRequest::AuthenticationInfo.new(
@@ -360,48 +346,36 @@ class Valkey
       )
     end
 
-    # Database selection (redis-rb compatibility: db option)
+    # Database selection
     database_id = options[:db] || options[:database_id] || 0
 
-    # Client name (redis-rb compatibility)
+    # Client name
     client_name = options[:client_name] || options[:name] || ""
 
-    # Timeout handling (redis-rb compatibility)
-    # Keep existing behavior for request_timeout (may be in seconds or milliseconds depending on backend)
-    # Use timeout, read_timeout, write_timeout, or default 3.0
-    # Note: Protobuf uses single request_timeout for both read and write operations
+    # Timeout handling
     request_timeout = options[:timeout] || options[:read_timeout] || options[:write_timeout] || 3.0
 
-    # Connection timeout (separate from request timeout)
-    # Protobuf expects milliseconds for connection_timeout
+    # Connection timeout
     connection_timeout_ms = if options[:connect_timeout]
                               (options[:connect_timeout] * 1000).to_i
                             else
-                              0 # Use default from backend
+                              0
                             end
 
-    # Connection retry strategy (redis-rb compatibility)
-    # Map reconnect_attempts, reconnect_delay, reconnect_delay_max to protobuf connection_retry_strategy
+    # Connection retry strategy
     connection_retry_strategy = nil
     if options[:reconnect_attempts] || options[:reconnect_delay] || options[:reconnect_delay_max]
-      # Default values matching redis-rb behavior
       number_of_retries = options[:reconnect_attempts] || 1
-      base_delay = options[:reconnect_delay] || 0.5 # Base delay in seconds
+      base_delay = options[:reconnect_delay] || 0.5
       max_delay = options[:reconnect_delay_max]
-      exponent_base = 2 # Exponential backoff base (default)
-      jitter_percent = 0 # No jitter by default
+      exponent_base = 2
+      jitter_percent = 0
 
-      # Calculate exponent_base from reconnect_delay_max if provided
-      # The formula is: delay = base_delay * (exponent_base ^ attempt)
-      # We want the max delay to be reached at the last retry
-      if max_delay && base_delay > 0 && number_of_retries > 0
-        # Calculate exponent_base: max_delay = base_delay * (exponent_base ^ number_of_retries)
-        # So: exponent_base = (max_delay / base_delay) ^ (1 / number_of_retries)
-        calculated_base = (max_delay / base_delay) ** (1.0 / number_of_retries.to_f)
-        exponent_base = [calculated_base.round, 2].max # At least 2 for exponential backoff
+      if max_delay && base_delay.positive? && number_of_retries.positive?
+        calculated_base = (max_delay / base_delay)**(1.0 / number_of_retries.to_f)
+        exponent_base = [calculated_base.round, 2].max
       end
 
-      # Factor is the base delay in milliseconds
       factor_ms = (base_delay * 1000).to_i
 
       connection_retry_strategy = ConnectionRequest::ConnectionRetryStrategy.new(
@@ -422,8 +396,8 @@ class Valkey
     }
 
     # Add optional fields only if they have values
-    request_params[:connection_timeout] = connection_timeout_ms if connection_timeout_ms > 0
-    request_params[:database_id] = database_id if database_id > 0
+    request_params[:connection_timeout] = connection_timeout_ms if connection_timeout_ms.positive?
+    request_params[:database_id] = database_id if database_id.positive?
     request_params[:client_name] = client_name unless client_name.empty?
     request_params[:authentication_info] = authentication_info if authentication_info
     request_params[:root_certs] = root_certs unless root_certs.empty?

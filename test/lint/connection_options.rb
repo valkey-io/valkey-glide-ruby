@@ -39,7 +39,7 @@ module Lint
     end
 
     def test_connection_with_database_option
-      # Test db option (redis-rb compatibility)
+      # Test db option
       client = Valkey.new(host: "127.0.0.1", port: test_port, db: 15, timeout: test_timeout)
       assert_equal "PONG", client.ping
       # Verify we're on database 15
@@ -105,51 +105,43 @@ module Lint
       # Test URL parsing with password (if server has password set, this would work)
       # For now, just test that URL parsing doesn't crash
       # Note: This test may fail if server requires password
-      begin
-        client = Valkey.new(url: "redis://:password@127.0.0.1:#{test_port}", timeout: test_timeout)
-        client.ping
-        client.close
-      rescue Valkey::CannotConnectError, Valkey::CommandError
-        # Expected if password is wrong or server doesn't require password
-        # This is acceptable - we're just testing URL parsing
-      end
+      client = Valkey.new(url: "redis://:password@127.0.0.1:#{test_port}", timeout: test_timeout)
+      client.ping
+      client.close
+    rescue Valkey::CannotConnectError, Valkey::CommandError
+      # Expected if password is wrong or server doesn't require password
+      # This is acceptable - we're just testing URL parsing
     end
 
     def test_connection_url_parsing_with_username_and_password
       # Test URL parsing with username and password
-      begin
-        client = Valkey.new(url: "redis://user:password@127.0.0.1:#{test_port}", timeout: test_timeout)
-        client.ping
-        client.close
-      rescue Valkey::CannotConnectError, Valkey::CommandError
-        # Expected if credentials are wrong or server doesn't require auth
-        # This is acceptable - we're just testing URL parsing
-      end
+      client = Valkey.new(url: "redis://user:password@127.0.0.1:#{test_port}", timeout: test_timeout)
+      client.ping
+      client.close
+    rescue Valkey::CannotConnectError, Valkey::CommandError
+      # Expected if credentials are wrong or server doesn't require auth
+      # This is acceptable - we're just testing URL parsing
     end
 
     def test_connection_url_parsing_ssl
       # Test URL parsing with SSL (rediss://)
       # Note: This will fail if server doesn't have SSL enabled
-      begin
-        client = Valkey.new(url: "rediss://127.0.0.1:#{test_port}", timeout: test_timeout)
-        client.ping
-        client.close
-      rescue Valkey::CannotConnectError
-        # Expected if SSL is not configured on server
-        # This is acceptable - we're just testing URL parsing sets ssl flag
-      end
+      client = Valkey.new(url: "rediss://127.0.0.1:#{test_port}", timeout: test_timeout)
+      client.ping
+      client.close
+    rescue Valkey::CannotConnectError
+      # Expected if SSL is not configured on server
+      # This is acceptable - we're just testing URL parsing sets ssl flag
     end
 
     def test_connection_with_ssl_option
       # Test ssl option (will fail if server doesn't have SSL)
-      begin
-        client = Valkey.new(host: "127.0.0.1", port: test_port, ssl: true, timeout: test_timeout)
-        client.ping
-        client.close
-      rescue Valkey::CannotConnectError
-        # Expected if SSL is not configured
-        skip("SSL not configured on test server")
-      end
+      client = Valkey.new(host: "127.0.0.1", port: test_port, ssl: true, timeout: test_timeout)
+      client.ping
+      client.close
+    rescue Valkey::CannotConnectError
+      # Expected if SSL is not configured
+      skip("SSL not configured on test server")
     end
 
     def test_connection_url_options_merge_with_explicit_options
@@ -200,74 +192,70 @@ module Lint
     def test_connection_ssl_params_with_file_paths
       # Test ssl_params with file paths (will fail if files don't exist or SSL not configured)
       # This is a smoke test - actual SSL files may not exist in test environment
-      begin
-        # Create temporary test files
-        require "tempfile"
-        ca_file = Tempfile.new(["ca", ".crt"])
-        ca_file.write("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n")
-        ca_file.close
+      # Create temporary test files
+      require "tempfile"
+      ca_file = Tempfile.new(["ca", ".crt"])
+      ca_file.write("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n")
+      ca_file.close
 
-        cert_file = Tempfile.new(["cert", ".crt"])
-        cert_file.write("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n")
-        cert_file.close
+      cert_file = Tempfile.new(["cert", ".crt"])
+      cert_file.write("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n")
+      cert_file.close
 
-        key_file = Tempfile.new(["key", ".key"])
-        key_file.write("-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----\n")
-        key_file.close
+      key_file = Tempfile.new(["key", ".key"])
+      key_file.write("-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----\n")
+      key_file.close
 
-        client = Valkey.new(
-          host: "127.0.0.1",
-          port: test_port,
-          ssl: true,
-          ssl_params: {
-            ca_file: ca_file.path,
-            cert: cert_file.path,
-            key: key_file.path
-          },
-          timeout: test_timeout
-        )
-        client.ping
-        client.close
-      rescue Valkey::CannotConnectError, Errno::ENOENT
-        # Expected if SSL files don't exist or SSL not configured
-        skip("SSL files or SSL configuration not available")
-      ensure
-        ca_file&.unlink
-        cert_file&.unlink
-        key_file&.unlink
-      end
+      client = Valkey.new(
+        host: "127.0.0.1",
+        port: test_port,
+        ssl: true,
+        ssl_params: {
+          ca_file: ca_file.path,
+          cert: cert_file.path,
+          key: key_file.path
+        },
+        timeout: test_timeout
+      )
+      client.ping
+      client.close
+    rescue Valkey::CannotConnectError, Errno::ENOENT
+      # Expected if SSL files don't exist or SSL not configured
+      skip("SSL files or SSL configuration not available")
+    ensure
+      ca_file&.unlink
+      cert_file&.unlink
+      key_file&.unlink
     end
 
     def test_connection_ssl_params_with_openssl_objects
       # Test ssl_params with OpenSSL objects (if available)
-      begin
-        require "openssl"
+      require "openssl"
 
-        # Create test certificate and key
-        key = OpenSSL::PKey::RSA.new(2048)
-        cert = OpenSSL::X509::Certificate.new
-        cert.subject = cert.issuer = OpenSSL::X509::Name.parse("/CN=test")
-        cert.not_before = Time.now
-        cert.not_after = Time.now + 365 * 24 * 60 * 60
-        cert.public_key = key.public_key
-        cert.sign(key, OpenSSL::Digest.new("SHA256"))
+      # Create test certificate and key
+      key = OpenSSL::PKey::RSA.new(2048)
+      cert = OpenSSL::X509::Certificate.new
+      cert.subject = cert.issuer = OpenSSL::X509::Name.parse("/CN=test")
+      cert.not_before = Time.now
+      cert.not_after = Time.now + 365 * 24 * 60 * 60
+      cert.public_key = key.public_key
+      cert.sign(key, OpenSSL::Digest.new("SHA256"))
 
-        client = Valkey.new(
-          host: "127.0.0.1",
-          port: test_port,
-          ssl: true,
-          ssl_params: {
-            cert: cert,
-            key: key
-          },
-          timeout: test_timeout
-        )
-        client.ping
-        client.close
-      rescue LoadError, Valkey::CannotConnectError
-        # OpenSSL not available or SSL not configured
-        skip("OpenSSL or SSL configuration not available")
-      end
+      client = Valkey.new(
+        host: "127.0.0.1",
+        port: test_port,
+        ssl: true,
+        ssl_params: {
+          cert: cert,
+          key: key
+        },
+        timeout: test_timeout
+      )
+      client.ping
+      client.close
+    rescue LoadError, Valkey::CannotConnectError
+      # OpenSSL not available or SSL not configured
+      skip("OpenSSL or SSL configuration not available")
     end
 
     def test_connection_reconnect_strategy_calculation
@@ -300,11 +288,8 @@ module Lint
       client_name = "test_name_#{Time.now.to_i}"
       client = Valkey.new(host: "127.0.0.1", port: test_port, name: client_name, timeout: test_timeout)
       assert_equal "PONG", client.ping
-      unless cluster_mode?
-        assert_equal client_name, client.client_get_name
-      end
+      assert_equal client_name, client.client_get_name unless cluster_mode?
       client.close
     end
   end
 end
-

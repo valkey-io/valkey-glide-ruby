@@ -6,4 +6,3 @@ class TestConnectionOptions < Minitest::Test
   include Helper::Client
   include Lint::ConnectionOptions
 end
-
