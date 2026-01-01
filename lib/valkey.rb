@@ -289,7 +289,7 @@ class Valkey
 
     # SSL parameters - map ssl_params to protobuf root_certs
     root_certs = []
-    if options[:ssl_params]&.is_a?(Hash)
+    if options[:ssl_params].is_a?(Hash)
       # ca_file - read CA certificate file (PEM or DER format)
       root_certs << File.binread(options[:ssl_params][:ca_file]) if options[:ssl_params][:ca_file]
 
@@ -332,9 +332,7 @@ class Valkey
       end
 
       # Direct root_certs array support
-      if options[:ssl_params][:root_certs]&.is_a?(Array)
-        root_certs.concat(options[:ssl_params][:root_certs])
-      end
+      root_certs.concat(options[:ssl_params][:root_certs]) if options[:ssl_params][:root_certs].is_a?(Array)
     end
 
     # Authentication support
