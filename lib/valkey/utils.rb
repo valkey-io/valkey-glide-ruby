@@ -203,5 +203,47 @@ class Valkey
     }
 
     Noop = ->(reply) { reply }
+
+    # Parse Redis URL format: redis://[:password@]host[:port][/db]
+    # Also supports: rediss:// (SSL)
+    #
+    # @param [String] url Redis URL to parse
+    # @return [Hash] Parsed connection options with keys: :host, :port, :password, :username, :db, :ssl
+    # @example
+    #   parse_redis_url('redis://:secret@localhost:6379/15')
+    #   # => { host: 'localhost', port: 6379, password: 'secret', db: 15, ssl: false }
+    #
+    #   parse_redis_url('rediss://user:secret@localhost:6380/0')
+    #   # => { host: 'localhost', port: 6380, username: 'user', password: 'secret', db: 0, ssl: true }
+    def self.parse_redis_url(url)
+      return {} unless url.is_a?(String) && !url.empty?
+
+      # Match redis:// or rediss:// URLs
+      # Format: redis[s]://[username:password@]host[:port][/db][?param=value]
+      # Try with authentication first
+      match = url.match(%r{\A(redis|rediss)://(?:([^:@]+):([^@]+)@)?([^:/]+)(?::(\d+))?(?:/(\d+))?(?:\?.*)?\z})
+
+      return {} unless match
+
+      scheme = match[1]
+      username = match[2]
+      password = match[3]
+      host = match[4]
+      port = match[5]&.to_i
+      db = match[6]&.to_i
+      ssl = scheme == "rediss"
+
+      result = {
+        host: host,
+        port: port || 6379,
+        ssl: ssl
+      }
+
+      result[:username] = username if username && !username.empty?
+      result[:password] = password if password && !password.empty?
+      result[:db] = db if db
+
+      result
+    end
   end
 end
