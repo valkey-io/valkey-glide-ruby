@@ -205,6 +205,13 @@ class Valkey
 
         convert_response(res)
       end
+
+      private
+
+      # Validate SHA1 hash format (40-character hexadecimal string)
+      def valid_sha1?(sha)
+        sha.is_a?(String) && sha.length == 40 && sha.match?(/\A[a-fA-F0-9]{40}\z/)
+      end
     end
   end
 end
