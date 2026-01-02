@@ -120,15 +120,15 @@ class Valkey
       # using the load and invoke script
       def eval(script, keys: [], args: [])
         # Validate script parameter
-        raise ArgumentError, "Script must be a string" unless script.is_a?(String)
-        raise ArgumentError, "Script cannot be empty" if script.empty?
+        raise ArgumentError, "script must be a string" unless script.is_a?(String)
+        raise ArgumentError, "script cannot be empty" if script.empty?
 
         # Validate and convert keys and args to strings
         begin
           keys = Array(keys).map(&:to_s)
           args = Array(args).map(&:to_s)
         rescue StandardError => e
-          raise ArgumentError, "Failed to convert keys or args to strings: #{e.message}"
+          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
         end
 
         # Load script to get SHA1 hash, then execute via invoke_script
@@ -164,15 +164,15 @@ class Valkey
       # using invoke script
       def evalsha(sha, keys: [], args: [])
         # Validate SHA1 hash parameter
-        raise ArgumentError, "SHA1 hash must be a string" unless sha.is_a?(String)
-        raise ArgumentError, "SHA1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
+        raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
+        raise ArgumentError, "sha1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
 
         # Validate and convert keys and args to strings
         begin
           keys = Array(keys).map(&:to_s)
           args = Array(args).map(&:to_s)
         rescue StandardError => e
-          raise ArgumentError, "Failed to convert keys or args to strings: #{e.message}"
+          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
         end
 
         # Execute cached script via invoke_script
