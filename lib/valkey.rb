@@ -27,7 +27,7 @@ class Valkey
 
     yield pipeline
 
-    return if pipeline.commands.empty?
+    return [] if pipeline.commands.empty?
 
     send_batch_commands(pipeline.commands, exception: exception)
   end
@@ -53,6 +53,7 @@ class Valkey
 
     cmds = []
     blocks = []
+    buffers = [] # Keep references to prevent GC
 
     commands.each do |command_type, command_args, block|
       arg_ptrs, arg_lens = build_command_args(command_args)
@@ -65,28 +66,33 @@ class Valkey
 
       cmds << cmd
       blocks << block
+      buffers << [arg_ptrs, arg_lens] # Prevent GC
+    end
+
+    # Create array of pointers to CmdInfo structs
+    cmd_ptrs = FFI::MemoryPointer.new(:pointer, cmds.size)
+    cmds.each_with_index do |cmd, i|
+      cmd_ptrs[i].put_pointer(0, cmd.to_ptr)
     end
 
     batch_info = Bindings::BatchInfo.new
     batch_info[:cmd_count] = cmds.size
-    batch_info[:cmds] = FFI::MemoryPointer.new(Bindings::CmdInfo, cmds.size)
-
-    cmds.each_with_index do |cmd, i|
-      batch_info[:cmds].put_pointer(i * Bindings::CmdInfo.size, cmd.to_ptr)
-    end
+    batch_info[:cmds] = cmd_ptrs
+    batch_info[:is_atomic] = false
 
     batch_options = Bindings::BatchOptionsInfo.new
     batch_options[:retry_server_error] = true
     batch_options[:retry_connection_error] = true
     batch_options[:has_timeout] = false
     batch_options[:timeout] = 0 # No timeout
+    batch_options[:route_info] = FFI::Pointer::NULL
 
     res = Bindings.batch(
-      @connection, # Assuming @connection is set after create
+      @connection,
       0,
       batch_info,
       exception,
-      batch_options,
+      batch_options.to_ptr,
       0
     )
 
