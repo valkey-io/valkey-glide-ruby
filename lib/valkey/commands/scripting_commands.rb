@@ -95,11 +95,89 @@ class Valkey
         hash_buffer[:ptr].read_string(hash_buffer[:len])
       end
 
-      # TODO: not implemented in Glide
-      def eval(script, args: [], keys: []); end
+      # Execute a Lua script on the server.
+      #
+      # @param [String] script the Lua script to execute
+      # @param [Array<String>] keys array of key names that the script will access
+      # @param [Array<Object>] args array of arguments to pass to the script
+      # @return [Object] the result of the script execution
+      # @raise [ArgumentError] if script is empty
+      # @raise [CommandError] if script execution fails
+      #
+      # @example Execute a simple script
+      #   valkey.eval("return 1")
+      #     # => 1
+      # @example Execute script with keys and arguments
+      #   valkey.eval("return KEYS[1] .. ARGV[1]", keys: ["mykey"], args: ["myarg"])
+      #     # => "mykeynyarg"
+      # @example Execute script with multiple keys and arguments
+      #   valkey.eval("return #KEYS + #ARGV", keys: ["key1", "key2"], args: ["arg1", "arg2", "arg3"])
+      #     # => 5
+      # @example Execute script that returns different data types
+      #   valkey.eval("return {1, 'hello', true, nil}")
+      #     # => [1, "hello", true, nil]
+      # Since the eval is not available in the rust backend
+      # using the load and invoke script
+      def eval(script, keys: [], args: [])
+        # Validate script parameter
+        raise ArgumentError, "script must be a string" unless script.is_a?(String)
+        raise ArgumentError, "script cannot be empty" if script.empty?
 
-      # TODO: not implemented in Glide
-      def evalsha(script, args: [], keys: []); end
+        # Validate and convert keys and args to strings
+        begin
+          keys = Array(keys).map(&:to_s)
+          args = Array(args).map(&:to_s)
+        rescue StandardError => e
+          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
+        end
+
+        # Load script to get SHA1 hash, then execute via invoke_script
+        sha = script_load(script)
+        invoke_script(sha, keys: keys, args: args)
+      end
+
+      # Execute a cached Lua script by its SHA1 hash.
+      #
+      # @param [String] sha the SHA1 hash of the script to execute
+      # @param [Array<String>] keys array of key names that the script will access
+      # @param [Array<Object>] args array of arguments to pass to the script
+      # @return [Object] the result of the script execution
+      # @raise [ArgumentError] if SHA1 hash format is invalid
+      # @raise [CommandError] if script is not found or execution fails
+      #
+      # @example Execute a cached script
+      #   sha = valkey.script_load("return 1")
+      #   valkey.evalsha(sha)
+      #     # => 1
+      # @example Execute cached script with parameters
+      #   script = "return KEYS[1] .. ':' .. ARGV[1]"
+      #   sha = valkey.script_load(script)
+      #   valkey.evalsha(sha, keys: ["user"], args: ["123"])
+      #     # => "user:123"
+      # @example Handle script not found error
+      #   begin
+      #     valkey.evalsha("nonexistent_sha", keys: [], args: [])
+      #   rescue Valkey::CommandError => e
+      #     puts "Script not found: #{e.message}"
+      #   end
+      # Since evalsha is not available in rust backend
+      # using invoke script
+      def evalsha(sha, keys: [], args: [])
+        # Validate SHA1 hash parameter
+        raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
+        raise ArgumentError, "sha1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
+
+        # Validate and convert keys and args to strings
+        begin
+          keys = Array(keys).map(&:to_s)
+          args = Array(args).map(&:to_s)
+        rescue StandardError => e
+          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
+        end
+
+        # Execute cached script via invoke_script
+        invoke_script(sha, keys: keys, args: args)
+      end
 
       def invoke_script(script, args: [], keys: [])
         arg_ptrs, arg_lens = build_command_args(args)
@@ -126,6 +204,13 @@ class Valkey
         )
 
         convert_response(res)
+      end
+
+      private
+
+      # Validate SHA1 hash format (40-character hexadecimal string)
+      def valid_sha1?(sha)
+        sha.is_a?(String) && sha.length == 40 && sha.match?(/\A[a-fA-F0-9]{40}\z/)
       end
     end
   end
