@@ -179,26 +179,48 @@ module Lint
 
     def test_connection_url_parsing_ssl
       # Test URL parsing with SSL (rediss://)
-      # NOTE: This will fail if server doesn't have SSL enabled
+      # For self-signed certs, we need to provide the CA cert
       client = if cluster_mode?
                  # In cluster mode, test SSL option directly
-                 Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, ssl: true, timeout: test_timeout)
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   ssl: true,
+                   ssl_params: { ca_file: ssl_ca_cert_path },
+                   timeout: test_timeout
+                 )
                else
-                 Valkey.new(url: "rediss://127.0.0.1:#{test_ssl_port}", timeout: test_timeout)
+                 Valkey.new(
+                   url: "rediss://127.0.0.1:#{test_ssl_port}",
+                   ssl_params: { ca_file: ssl_ca_cert_path },
+                   timeout: test_timeout
+                 )
                end
       client.ping
       client.close
     rescue Valkey::CannotConnectError
       # Expected if SSL is not configured on server
-      # This is acceptable - we're just testing URL parsing sets ssl flag
+      skip("SSL not configured on test server")
     end
 
     def test_connection_with_ssl_option
-      # Test ssl option (will fail if server doesn't have SSL)
+      # Test ssl option with CA certificate for self-signed cert
       client = if cluster_mode?
-                 Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, ssl: true, timeout: test_timeout)
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   ssl: true,
+                   ssl_params: { ca_file: ssl_ca_cert_path },
+                   timeout: test_timeout
+                 )
                else
-                 Valkey.new(host: "127.0.0.1", port: test_ssl_port, ssl: true, timeout: test_timeout)
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_ssl_port,
+                   ssl: true,
+                   ssl_params: { ca_file: ssl_ca_cert_path },
+                   timeout: test_timeout
+                 )
                end
       client.ping
       client.close

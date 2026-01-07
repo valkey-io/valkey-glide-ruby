@@ -120,6 +120,12 @@ jobs:
           tls-protocols "TLSv1.2 TLSv1.3"
           EOF
           
+          echo "SSL configuration created:"
+          cat /tmp/valkey-ssl.conf
+          
+          echo "Verifying SSL certificate files exist..."
+          ls -lh $(pwd)/test/fixtures/ssl/*.pem
+          
           echo "Starting SSL-enabled Valkey on port 6380..."
           docker run -d \
             --name valkey-ssl \
@@ -128,6 +134,19 @@ jobs:
             -v /tmp/valkey-ssl.conf:/etc/valkey-ssl.conf:ro \
             valkey/valkey:${{ matrix.valkey }} \
             valkey-server /etc/valkey-ssl.conf
+          
+          echo "Waiting for container to start..."
+          sleep 2
+          
+          echo "Checking if container is running..."
+          docker ps -a | grep valkey-ssl || echo "Container not found!"
+          
+          echo "Checking container logs..."
+          docker logs valkey-ssl || echo "Could not get logs"
+          
+          echo "Verifying SSL cert files are accessible inside container..."
+          docker exec valkey-ssl ls -lh /ssl/ || echo "Cannot access /ssl/ directory"
+          docker exec valkey-ssl cat /etc/valkey-ssl.conf || echo "Cannot read config file"
           
           echo "Waiting for SSL Valkey to be ready..."
           for i in {1..30}; do
@@ -139,8 +158,11 @@ jobs:
             sleep 1
           done
           
-          echo "Verifying SSL connection..."
+          echo "Verifying SSL connection from host..."
           docker exec valkey-ssl valkey-cli --tls --insecure -p 6380 ping || echo "SSL verification failed"
+          
+          echo "Testing connection from host machine..."
+          docker run --rm --network host valkey/valkey:${{ matrix.valkey }} valkey-cli --tls --insecure -p 6380 ping || echo "Host connection test failed"
       
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
