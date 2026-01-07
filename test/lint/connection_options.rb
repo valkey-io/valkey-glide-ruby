@@ -1,7 +1,12 @@
 # frozen_string_literal: true
 
+require "openssl"
+require_relative "../support/helper/ssl"
+
 module Lint
   module ConnectionOptions
+    include SslHelper
+
     # Helper to get test port and timeout
     def test_port
       defined?(PORT) ? PORT : 6379
@@ -87,13 +92,12 @@ module Lint
     end
 
     def test_connection_with_timeout_options
-      # Test timeout options
+      # Test timeout and connect_timeout options (redis-rb compatible)
       client = if cluster_mode?
                  Valkey.new(
                    nodes: test_cluster_nodes,
                    cluster_mode: true,
                    connect_timeout: 0.5,
-                   read_timeout: 2.0,
                    timeout: test_timeout
                  )
                else
@@ -101,28 +105,6 @@ module Lint
                    host: "127.0.0.1",
                    port: test_port,
                    connect_timeout: 0.5,
-                   read_timeout: 2.0,
-                   timeout: test_timeout
-                 )
-               end
-      assert_equal "PONG", client.ping
-      client.close
-    end
-
-    def test_connection_with_write_timeout
-      # Test write_timeout (used as fallback for request_timeout)
-      client = if cluster_mode?
-                 Valkey.new(
-                   nodes: test_cluster_nodes,
-                   cluster_mode: true,
-                   write_timeout: 2.0,
-                   timeout: test_timeout
-                 )
-               else
-                 Valkey.new(
-                   host: "127.0.0.1",
-                   port: test_port,
-                   write_timeout: 2.0,
                    timeout: test_timeout
                  )
                end
@@ -413,31 +395,16 @@ module Lint
     end
 
     def test_connection_ssl_params_with_file_paths
-      # Test ssl_params with file paths (will fail if files don't exist or SSL not configured)
-      # This is a smoke test - actual SSL files may not exist in test environment
-      # Create temporary test files
-      require "tempfile"
-      ca_file = Tempfile.new(["ca", ".crt"])
-      ca_file.write("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n")
-      ca_file.close
-
-      cert_file = Tempfile.new(["cert", ".crt"])
-      cert_file.write("-----BEGIN CERTIFICATE-----\nTEST\n-----END CERTIFICATE-----\n")
-      cert_file.close
-
-      key_file = Tempfile.new(["key", ".key"])
-      key_file.write("-----BEGIN PRIVATE KEY-----\nTEST\n-----END PRIVATE KEY-----\n")
-      key_file.close
-
+      # Test ssl_params with file paths using proper test certificates
       client = if cluster_mode?
                  Valkey.new(
                    nodes: test_cluster_nodes,
                    cluster_mode: true,
                    ssl: true,
                    ssl_params: {
-                     ca_file: ca_file.path,
-                     cert: cert_file.path,
-                     key: key_file.path
+                     ca_file: ssl_ca_cert_path,
+                     cert: ssl_client_cert_path,
+                     key: ssl_client_key_path
                    },
                    timeout: test_timeout
                  )
@@ -447,45 +414,30 @@ module Lint
                    port: test_port,
                    ssl: true,
                    ssl_params: {
-                     ca_file: ca_file.path,
-                     cert: cert_file.path,
-                     key: key_file.path
+                     ca_file: ssl_ca_cert_path,
+                     cert: ssl_client_cert_path,
+                     key: ssl_client_key_path
                    },
                    timeout: test_timeout
                  )
                end
       client.ping
       client.close
-    rescue Valkey::CannotConnectError, Errno::ENOENT
-      # Expected if SSL files don't exist or SSL not configured
-      skip("SSL files or SSL configuration not available")
-    ensure
-      ca_file&.unlink
-      cert_file&.unlink
-      key_file&.unlink
+    rescue Valkey::CannotConnectError
+      # Expected if SSL is not configured on server
+      skip("SSL not configured on test server")
     end
 
     def test_connection_ssl_params_with_openssl_objects
-      # Test ssl_params with OpenSSL objects (if available)
-      require "openssl"
-
-      # Create test certificate and key
-      key = OpenSSL::PKey::RSA.new(2048)
-      cert = OpenSSL::X509::Certificate.new
-      cert.subject = cert.issuer = OpenSSL::X509::Name.parse("/CN=test")
-      cert.not_before = Time.now
-      cert.not_after = Time.now + 365 * 24 * 60 * 60
-      cert.public_key = key.public_key
-      cert.sign(key, OpenSSL::Digest.new("SHA256"))
-
+      # Test ssl_params with OpenSSL objects loaded from test certificates
       client = if cluster_mode?
                  Valkey.new(
                    nodes: test_cluster_nodes,
                    cluster_mode: true,
                    ssl: true,
                    ssl_params: {
-                     cert: cert,
-                     key: key
+                     cert: ssl_client_cert,
+                     key: ssl_client_key
                    },
                    timeout: test_timeout
                  )
@@ -495,17 +447,17 @@ module Lint
                    port: test_port,
                    ssl: true,
                    ssl_params: {
-                     cert: cert,
-                     key: key
+                     cert: ssl_client_cert,
+                     key: ssl_client_key
                    },
                    timeout: test_timeout
                  )
                end
       client.ping
       client.close
-    rescue LoadError, Valkey::CannotConnectError
-      # OpenSSL not available or SSL not configured
-      skip("OpenSSL or SSL configuration not available")
+    rescue Valkey::CannotConnectError
+      # Expected if SSL is not configured on server
+      skip("SSL not configured on test server")
     end
 
     def test_connection_reconnect_strategy_calculation
@@ -532,34 +484,6 @@ module Lint
                  )
                end
       assert_equal "PONG", client.ping
-      client.close
-    end
-
-    def test_connection_database_id_option
-      # Test database_id option (alternative to db)
-      client = if cluster_mode?
-                 # In cluster mode, database selection not supported (only DB 0)
-                 Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, timeout: test_timeout)
-               else
-                 Valkey.new(host: "127.0.0.1", port: test_port, database_id: 15, timeout: test_timeout)
-               end
-      assert_equal "PONG", client.ping
-      client.set("test_db_id", "value")
-      assert_equal "value", client.get("test_db_id")
-      client.close
-    end
-
-    def test_connection_name_option_alias
-      # Test name option (alias for client_name)
-      client_name = "test_name_#{Time.now.to_i}"
-      client = if cluster_mode?
-                 Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, name: client_name, timeout: test_timeout)
-               else
-                 Valkey.new(host: "127.0.0.1", port: test_port, name: client_name, timeout: test_timeout)
-               end
-      assert_equal "PONG", client.ping
-      # Client name may not be consistent across nodes in cluster mode
-      assert_equal client_name, client.client_get_name unless cluster_mode?
       client.close
     end
   end

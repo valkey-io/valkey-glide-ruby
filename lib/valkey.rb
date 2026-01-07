@@ -354,15 +354,18 @@ class Valkey
     end
 
     # Database selection
-    database_id = options[:db] || options[:database_id] || 0
+    database_id = options[:db] || 0
 
     # Client name
-    client_name = options[:client_name] || options[:name] || ""
+    client_name = options[:client_name] || ""
 
     # Timeout handling
-    request_timeout = options[:timeout] || options[:read_timeout] || options[:write_timeout] || 3.0
+    # :timeout sets the request timeout (for command execution)
+    # :connect_timeout sets the connection establishment timeout
+    # Default request timeout is 5.0 seconds
+    request_timeout = options[:timeout] || 5.0
 
-    # Connection timeout
+    # Connection timeout (milliseconds) - defaults to 0 (uses system default)
     connection_timeout_ms = if options[:connect_timeout]
                               (options[:connect_timeout] * 1000).to_i
                             else
