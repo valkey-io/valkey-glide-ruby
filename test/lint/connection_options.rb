@@ -20,6 +20,10 @@ module Lint
       defined?(CLUSTER_NODES) ? CLUSTER_NODES : []
     end
 
+    def test_ssl_port
+      defined?(SSL_PORT) ? SSL_PORT : 6380
+    end
+
     def test_connection_with_host_and_port
       client = if cluster_mode?
                  # In cluster mode, use cluster nodes
@@ -180,7 +184,7 @@ module Lint
                  # In cluster mode, test SSL option directly
                  Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, ssl: true, timeout: test_timeout)
                else
-                 Valkey.new(url: "rediss://127.0.0.1:#{test_port}", timeout: test_timeout)
+                 Valkey.new(url: "rediss://127.0.0.1:#{test_ssl_port}", timeout: test_timeout)
                end
       client.ping
       client.close
@@ -194,7 +198,7 @@ module Lint
       client = if cluster_mode?
                  Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, ssl: true, timeout: test_timeout)
                else
-                 Valkey.new(host: "127.0.0.1", port: test_port, ssl: true, timeout: test_timeout)
+                 Valkey.new(host: "127.0.0.1", port: test_ssl_port, ssl: true, timeout: test_timeout)
                end
       client.ping
       client.close
@@ -411,7 +415,7 @@ module Lint
                else
                  Valkey.new(
                    host: "127.0.0.1",
-                   port: test_port,
+                   port: test_ssl_port,
                    ssl: true,
                    ssl_params: {
                      ca_file: ssl_ca_cert_path,
@@ -444,7 +448,7 @@ module Lint
                else
                  Valkey.new(
                    host: "127.0.0.1",
-                   port: test_port,
+                   port: test_ssl_port,
                    ssl: true,
                    ssl_params: {
                      cert: ssl_client_cert,
