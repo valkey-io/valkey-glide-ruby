@@ -456,12 +456,14 @@ module Lint
 
     def test_connection_ssl_params_with_openssl_objects
       # Test ssl_params with OpenSSL objects loaded from test certificates
+      # Need to provide CA cert to trust self-signed server certificate
       client = if cluster_mode?
                  Valkey.new(
                    nodes: test_cluster_nodes,
                    cluster_mode: true,
                    ssl: true,
                    ssl_params: {
+                     ca_file: ssl_ca_cert_path,
                      cert: ssl_client_cert,
                      key: ssl_client_key
                    },
@@ -473,6 +475,7 @@ module Lint
                    port: test_ssl_port,
                    ssl: true,
                    ssl_params: {
+                     ca_file: ssl_ca_cert_path,
                      cert: ssl_client_cert,
                      key: ssl_client_key
                    },
