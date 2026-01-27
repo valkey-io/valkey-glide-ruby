@@ -16,6 +16,7 @@ require "valkey/commands"
 require "valkey/errors"
 require "valkey/pubsub_callback"
 require "valkey/pipeline"
+require "valkey/opentelemetry"
 
 class Valkey
   include Utils
@@ -87,16 +88,38 @@ class Valkey
     batch_options[:timeout] = 0 # No timeout
     batch_options[:route_info] = FFI::Pointer::NULL
 
-    res = Bindings.batch(
-      @connection,
-      0,
-      batch_info,
-      exception,
-      batch_options.to_ptr,
-      0
-    )
+    # Create OpenTelemetry span for batch operation if sampling is enabled
+    span_ptr = 0
+    if OpenTelemetry.should_sample?
+      begin
+        span_ptr = Bindings.create_batch_otel_span
+      rescue => e
+        warn "Failed to create OpenTelemetry batch span: #{e.message}"
+        span_ptr = 0
+      end
+    end
 
-    results = convert_response(res)
+    begin
+      res = Bindings.batch(
+        @connection,
+        0,
+        batch_info,
+        exception,
+        batch_options.to_ptr,
+        span_ptr
+      )
+
+      results = convert_response(res)
+    ensure
+      # Always drop the span if one was created
+      if span_ptr != 0
+        begin
+          Bindings.drop_otel_span(span_ptr)
+        rescue => e
+          warn "Failed to drop OpenTelemetry batch span: #{e.message}"
+        end
+      end
+    end
 
     blocks.each_with_index do |block, i|
       results[i] = block.call(results[i]) if block
@@ -239,19 +262,43 @@ class Valkey
       arg_ptrs, arg_lens = build_command_args(command_args)
     end
 
-    res = Bindings.command(
-      @connection,
-      channel,
-      command_type,
-      command_args.size,
-      arg_ptrs,
-      arg_lens,
-      route_buf,
-      route.bytesize,
-      0
-    )
+    # Create OpenTelemetry span if sampling is enabled
+    span_ptr = 0
+    if OpenTelemetry.should_sample?
+      begin
+        span_ptr = Bindings.create_otel_span(command_type)
+      rescue => e
+        # Log error but continue execution - tracing is non-critical
+        warn "Failed to create OpenTelemetry span: #{e.message}"
+        span_ptr = 0
+      end
+    end
 
-    result = convert_response(res, &block)
+    begin
+      res = Bindings.command(
+        @connection,
+        channel,
+        command_type,
+        command_args.size,
+        arg_ptrs,
+        arg_lens,
+        route_buf,
+        route.bytesize,
+        span_ptr
+      )
+
+      result = convert_response(res, &block)
+    ensure
+      # Always drop the span if one was created, even if command fails
+      if span_ptr != 0
+        begin
+          Bindings.drop_otel_span(span_ptr)
+        rescue => e
+          # Log but don't raise - span cleanup errors shouldn't break command execution
+          warn "Failed to drop OpenTelemetry span: #{e.message}"
+        end
+      end
+    end
 
     # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
     if @in_multi && !@queued_commands.nil?
@@ -459,4 +506,46 @@ class Valkey
   end
 
   alias disconnect! close
+
+  # Retrieves client statistics including connection and compression metrics.
+  #
+  # This method returns detailed statistics about the client's operations,
+  # tracked globally across all clients in the process.
+  #
+  # @return [Hash] a hash containing statistics with the following keys:
+  #   - `:total_connections` [Integer] total number of connections opened to Valkey
+  #   - `:total_clients` [Integer] total number of GLIDE clients
+  #   - `:total_values_compressed` [Integer] total number of values compressed
+  #   - `:total_values_decompressed` [Integer] total number of values decompressed
+  #   - `:total_original_bytes` [Integer] total original bytes before compression
+  #   - `:total_bytes_compressed` [Integer] total bytes after compression
+  #   - `:total_bytes_decompressed` [Integer] total bytes after decompression
+  #   - `:compression_skipped_count` [Integer] number of times compression was skipped
+  #
+  # @example Get client statistics
+  #   client = Valkey.new(host: 'localhost', port: 6379)
+  #   stats = client.get_statistics
+  #   puts "Total connections: #{stats[:total_connections]}"
+  #   puts "Total clients: #{stats[:total_clients]}"
+  #   puts "Values compressed: #{stats[:total_values_compressed]}"
+  #
+  # @note Statistics are tracked globally and shared across all clients
+  #
+  # @return [Hash] statistics hash with integer values
+  def get_statistics
+    # Call FFI function to get statistics (returns by value)
+    stats = Bindings.get_statistics
+
+    # Convert to Ruby hash
+    {
+      total_connections: stats[:total_connections],
+      total_clients: stats[:total_clients],
+      total_values_compressed: stats[:total_values_compressed],
+      total_values_decompressed: stats[:total_values_decompressed],
+      total_original_bytes: stats[:total_original_bytes],
+      total_bytes_compressed: stats[:total_bytes_compressed],
+      total_bytes_decompressed: stats[:total_bytes_decompressed],
+      compression_skipped_count: stats[:compression_skipped_count]
+    }
+  end
 end

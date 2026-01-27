@@ -4,7 +4,17 @@ class Valkey
   module Bindings
     extend FFI::Library
 
-    ffi_lib File.expand_path("./libglide_ffi.so", __dir__)
+    # Detect platform and load appropriate library
+    lib_name = case RbConfig::CONFIG['host_os']
+    when /darwin|mac os/
+      'libglide_ffi.dylib'
+    when /linux/
+      'libglide_ffi.so'
+    else
+      raise "Unsupported platform: #{RbConfig::CONFIG['host_os']}"
+    end
+
+    ffi_lib File.expand_path("./#{lib_name}", __dir__)
 
     class ClientType < FFI::Struct
       layout(
@@ -159,5 +169,81 @@ class Valkey
       :pointer,        # route_bytes (pointer to u8)
       :ulong           # route_bytes_len (usize)
     ], :pointer # returns *mut CommandResult
+
+    # ============== OPENTELEMETRY STRUCTURES ==============
+
+    # Traces configuration
+    class OpenTelemetryTracesConfig < FFI::Struct
+      layout(
+        :endpoint, :pointer,              # const char*
+        :has_sample_percentage, :bool,
+        :sample_percentage, :uint32
+      )
+    end
+
+    # Metrics configuration
+    class OpenTelemetryMetricsConfig < FFI::Struct
+      layout(
+        :endpoint, :pointer               # const char*
+      )
+    end
+
+    # Main OpenTelemetry configuration
+    class OpenTelemetryConfig < FFI::Struct
+      layout(
+        :traces, :pointer,                # OpenTelemetryTracesConfig*
+        :metrics, :pointer,               # OpenTelemetryMetricsConfig*
+        :has_flush_interval_ms, :bool,
+        :flush_interval_ms, :int64
+      )
+    end
+
+    # ============== STATISTICS STRUCTURES ==============
+
+    # Statistics structure from Rust FFI (matches ffi/src/lib.rs)
+    class Statistics < FFI::Struct
+      layout(
+        :total_connections, :ulong,
+        :total_clients, :ulong,
+        :total_values_compressed, :ulong,
+        :total_values_decompressed, :ulong,
+        :total_original_bytes, :ulong,
+        :total_bytes_compressed, :ulong,
+        :total_bytes_decompressed, :ulong,
+        :compression_skipped_count, :ulong
+      )
+    end
+
+    # ============== FFI FUNCTIONS ==============
+
+    # Initialize OpenTelemetry (call once per process)
+    attach_function :init_open_telemetry, [
+      OpenTelemetryConfig.by_ref
+    ], :pointer # Returns error string or NULL on success
+
+    # Free C string
+    attach_function :free_c_string, [
+      :pointer
+    ], :void
+
+    # ============== OPENTELEMETRY SPAN FUNCTIONS ==============
+    
+    # Create an OpenTelemetry span for a command
+    # Returns a u64 pointer to the span, or 0 on failure
+    attach_function :create_otel_span, [
+      :int  # request_type (RequestType enum value)
+    ], :uint64
+    
+    # Create an OpenTelemetry span specifically for batch operations
+    # Returns a u64 pointer to the span, or 0 on failure
+    attach_function :create_batch_otel_span, [], :uint64
+    
+    # Drop/close an OpenTelemetry span
+    attach_function :drop_otel_span, [
+      :uint64  # span_ptr
+    ], :void
+
+    # Get statistics (returns by value, no manual free needed)
+    attach_function :get_statistics, [], Statistics.by_value
   end
 end
