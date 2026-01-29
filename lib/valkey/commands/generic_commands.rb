@@ -413,7 +413,7 @@ class Valkey
           args << "GET" << item
         end
 
-        args.concat(order.split(" ")) if order
+        args.concat(order.split) if order
         args << "STORE" << store if store
 
         send_command(RequestType::SORT, args) do |reply|

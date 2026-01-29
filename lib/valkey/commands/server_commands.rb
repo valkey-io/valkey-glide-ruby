@@ -136,10 +136,10 @@ class Valkey
 
             if cmd && cmd.to_s == "commandstats"
               # Extract nested hashes for INFO COMMANDSTATS
-              reply = Hash[reply.map do |k, v|
+              reply = reply.to_h do |k, v|
                 v = v.split(",").map { |e| e.split("=") }
-                [k[/^cmdstat_(.*)$/, 1], Hash[v]]
-              end]
+                [k[/^cmdstat_(.*)$/, 1], v.to_h]
+              end
             end
           end
 

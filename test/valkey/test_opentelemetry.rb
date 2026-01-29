@@ -21,46 +21,45 @@ class OpenTelemetryTest < Minitest::Test
 
   def cleanup_test_files
     [TRACES_FILE, METRICS_FILE].each do |file|
-      File.delete(file) if File.exist?(file)
+      FileUtils.rm_f(file)
     end
   end
 
   # Helper method to wait for spans to be exported with retry logic
   def wait_for_spans(span_file_path, expected_span_names, expected_counts: nil, timeout: DEFAULT_TIMEOUT)
     start_time = Time.now
-    
+
     loop do
       elapsed = Time.now - start_time
-      
+
       if elapsed >= timeout
         # Timeout - build diagnostic message
-        if File.exist?(span_file_path) && File.size(span_file_path) > 0
-          span_names = read_span_names(span_file_path)
-          actual_counts = count_spans(span_names, expected_span_names)
-          
-          if expected_counts
-            raise "Timeout waiting for spans. Expected #{expected_counts}, but found #{actual_counts}"
-          else
-            raise "Timeout waiting for spans. Expected #{expected_span_names}, but found #{span_names.uniq}"
-          end
-        else
+        unless File.exist?(span_file_path) && File.size(span_file_path).positive?
           raise "Timeout waiting for spans. Span file #{span_file_path} does not exist or is empty"
         end
+
+        span_names = read_span_names(span_file_path)
+        actual_counts = count_spans(span_names, expected_span_names)
+
+        raise "Timeout waiting for spans. Expected #{expected_counts}, but found #{actual_counts}" if expected_counts
+
+        raise "Timeout waiting for spans. Expected #{expected_span_names}, but found #{span_names.uniq}"
+
       end
-      
+
       # Check if file exists and is readable
-      if File.exist?(span_file_path) && File.size(span_file_path) > 0
+      if File.exist?(span_file_path) && File.size(span_file_path).positive?
         begin
           span_names = read_span_names(span_file_path)
-          
+
           if check_spans_ready(span_names, expected_span_names, expected_counts)
-            return true  # Success!
+            return true # Success!
           end
         rescue JSON::ParserError
           # File might be partially written, continue waiting
         end
       end
-      
+
       sleep POLL_INTERVAL
     end
   end
@@ -69,12 +68,10 @@ class OpenTelemetryTest < Minitest::Test
   def read_span_names(file_path)
     span_names = []
     File.readlines(file_path).each do |line|
-      begin
-        span = JSON.parse(line)
-        span_names << span["name"]
-      rescue JSON::ParserError
-        # Skip malformed lines
-      end
+      span = JSON.parse(line)
+      span_names << span["name"]
+    rescue JSON::ParserError
+      # Skip malformed lines
     end
     span_names
   end
@@ -126,9 +123,9 @@ class OpenTelemetryTest < Minitest::Test
   # Test 2: Singleton initialization
   def test_ignores_second_initialization
     assert Valkey::OpenTelemetry.initialized?
-    
+
     original_config = Valkey::OpenTelemetry.config.dup
-    
+
     # Capture warning
     _output, err = capture_io do
       Valkey::OpenTelemetry.init(
@@ -138,7 +135,7 @@ class OpenTelemetryTest < Minitest::Test
         }
       )
     end
-    
+
     # Config should remain unchanged
     assert_equal original_config, Valkey::OpenTelemetry.config
     assert_match(/already initialized/, err)
@@ -147,61 +144,61 @@ class OpenTelemetryTest < Minitest::Test
   # Test 3: Commands work with OpenTelemetry enabled
   def test_commands_work_with_opentelemetry_enabled
     assert Valkey::OpenTelemetry.initialized?
-    
+
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     # Commands should work normally
     assert_equal "OK", client.set("otel_test_key", "value")
     assert_equal "value", client.get("otel_test_key")
-    
+
     client.close
   end
 
   # Test 4: Pipeline works with OpenTelemetry enabled
   def test_pipeline_works_with_opentelemetry_enabled
     assert Valkey::OpenTelemetry.initialized?
-    
+
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     results = client.pipelined do |pipeline|
       pipeline.set("key1", "value1")
       pipeline.set("key2", "value2")
       pipeline.get("key1")
       pipeline.get("key2")
     end
-    
-    assert_equal ["OK", "OK", "value1", "value2"], results
-    
+
+    assert_equal %w[OK OK value1 value2], results
+
     client.close
   end
 
   # Test 5: Span export verification (matching Java/Python tests)
   def test_span_export_to_file
     assert Valkey::OpenTelemetry.initialized?
-    
+
     # Clean up before test
     cleanup_test_files
-    
+
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     # Execute commands that should generate spans
     client.set("test_key_1", "value1")
     client.get("test_key_1")
-    
+
     client.close
-    
+
     # Wait for spans to be flushed with retry logic
     wait_for_spans(
       TRACES_FILE,
-      ["SET", "GET"],
+      %w[SET GET],
       expected_counts: { "SET" => 1, "GET" => 1 },
       timeout: 10.0
     )
-    
+
     # Verify file was created and contains spans
     assert File.exist?(TRACES_FILE)
     span_names = read_span_names(TRACES_FILE)
-    
+
     assert_includes span_names, "SET"
     assert_includes span_names, "GET"
     assert_equal 1, span_names.count("SET")
@@ -211,29 +208,29 @@ class OpenTelemetryTest < Minitest::Test
   # Test 6: Multiple commands span export
   def test_multiple_commands_span_export
     assert Valkey::OpenTelemetry.initialized?
-    
+
     cleanup_test_files
-    
+
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     # Execute multiple commands
     5.times { |i| client.set("multi_key_#{i}", "value#{i}") }
     5.times { |i| client.get("multi_key_#{i}") }
     client.ping
     client.del("multi_key_0", "multi_key_1")
-    
+
     client.close
-    
+
     # Wait for all spans
     wait_for_spans(
       TRACES_FILE,
-      ["SET", "GET", "PING", "DEL"],
+      %w[SET GET PING DEL],
       expected_counts: { "SET" => 5, "GET" => 5, "PING" => 1, "DEL" => 1 },
       timeout: 10.0
     )
-    
+
     span_names = read_span_names(TRACES_FILE)
-    
+
     assert_equal 5, span_names.count("SET")
     assert_equal 5, span_names.count("GET")
     assert_equal 1, span_names.count("PING")
@@ -243,11 +240,11 @@ class OpenTelemetryTest < Minitest::Test
   # Test 7: Batch/Pipeline span export
   def test_batch_span_export
     assert Valkey::OpenTelemetry.initialized?
-    
+
     cleanup_test_files
-    
+
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     # Execute pipeline
     results = client.pipelined do |pipeline|
       pipeline.set("batch_key_1", "v1")
@@ -255,11 +252,11 @@ class OpenTelemetryTest < Minitest::Test
       pipeline.get("batch_key_1")
       pipeline.get("batch_key_2")
     end
-    
-    assert_equal ["OK", "OK", "v1", "v2"], results
-    
+
+    assert_equal %w[OK OK v1 v2], results
+
     client.close
-    
+
     # Wait for batch span
     wait_for_spans(
       TRACES_FILE,
@@ -267,27 +264,27 @@ class OpenTelemetryTest < Minitest::Test
       expected_counts: { "Batch" => 1 },
       timeout: 10.0
     )
-    
+
     span_names = read_span_names(TRACES_FILE)
-    
+
     assert_includes span_names, "Batch"
     assert_equal 1, span_names.count("Batch")
   end
 
   # Test 8: Sampling percentage (low sampling)
   def test_sampling_percentage
-    # Note: This test is probabilistic, so we just verify the system doesn't crash
+    # NOTE: This test is probabilistic, so we just verify the system doesn't crash
     # We can't reliably test exact sampling rates due to randomness
-    
+
     assert Valkey::OpenTelemetry.initialized?
-    
+
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     # Execute many commands - with 100% sampling all should be traced
     20.times { |i| client.set("sample_key_#{i}", "value") }
-    
+
     client.close
-    
+
     # Just verify no errors occurred
     # Actual sampling verification would be non-deterministic
   end

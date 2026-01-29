@@ -4,17 +4,7 @@ class Valkey
   module Bindings
     extend FFI::Library
 
-    # Detect platform and load appropriate library
-    lib_name = case RbConfig::CONFIG['host_os']
-    when /darwin|mac os/
-      'libglide_ffi.dylib'
-    when /linux/
-      'libglide_ffi.so'
-    else
-      raise "Unsupported platform: #{RbConfig::CONFIG['host_os']}"
-    end
-
-    ffi_lib File.expand_path("./#{lib_name}", __dir__)
+    ffi_lib File.expand_path("./libglide_ffi.so", __dir__)
 
     class ClientType < FFI::Struct
       layout(
@@ -175,7 +165,7 @@ class Valkey
     # Traces configuration
     class OpenTelemetryTracesConfig < FFI::Struct
       layout(
-        :endpoint, :pointer,              # const char*
+        :endpoint, :pointer, # const char*
         :has_sample_percentage, :bool,
         :sample_percentage, :uint32
       )
@@ -184,7 +174,7 @@ class Valkey
     # Metrics configuration
     class OpenTelemetryMetricsConfig < FFI::Struct
       layout(
-        :endpoint, :pointer               # const char*
+        :endpoint, :pointer # const char*
       )
     end
 
@@ -227,20 +217,20 @@ class Valkey
     ], :void
 
     # ============== OPENTELEMETRY SPAN FUNCTIONS ==============
-    
+
     # Create an OpenTelemetry span for a command
     # Returns a u64 pointer to the span, or 0 on failure
     attach_function :create_otel_span, [
-      :int  # request_type (RequestType enum value)
+      :int # request_type (RequestType enum value)
     ], :uint64
-    
+
     # Create an OpenTelemetry span specifically for batch operations
     # Returns a u64 pointer to the span, or 0 on failure
     attach_function :create_batch_otel_span, [], :uint64
-    
+
     # Drop/close an OpenTelemetry span
     attach_function :drop_otel_span, [
-      :uint64  # span_ptr
+      :uint64 # span_ptr
     ], :void
 
     # Get statistics (returns by value, no manual free needed)

@@ -137,7 +137,7 @@ class Valkey
         send_command(RequestType::CLIENT_LIST, args) do |reply|
           reply.lines.map do |line|
             entries = line.chomp.split(/[ =]/)
-            Hash[entries.each_slice(2).to_a]
+            entries.each_slice(2).to_a.to_h
           end
         end
       end

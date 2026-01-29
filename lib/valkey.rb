@@ -93,7 +93,7 @@ class Valkey
     if OpenTelemetry.should_sample?
       begin
         span_ptr = Bindings.create_batch_otel_span
-      rescue => e
+      rescue StandardError => e
         warn "Failed to create OpenTelemetry batch span: #{e.message}"
         span_ptr = 0
       end
@@ -115,7 +115,7 @@ class Valkey
       if span_ptr != 0
         begin
           Bindings.drop_otel_span(span_ptr)
-        rescue => e
+        rescue StandardError => e
           warn "Failed to drop OpenTelemetry batch span: #{e.message}"
         end
       end
@@ -181,7 +181,7 @@ class Valkey
         count = response_item[:array_value_len].to_i
 
         Array.new(count) do |i|
-          item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
+          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
           convert_response.call(item)
         end
       when ResponseType::MAP
@@ -192,7 +192,7 @@ class Valkey
         map = {}
 
         Array.new(count) do |i|
-          item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
+          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
 
           map_key = convert_response.call(Bindings::CommandResponse.new(item[:map_key]))
           map_value = convert_response.call(Bindings::CommandResponse.new(item[:map_value]))
@@ -207,7 +207,7 @@ class Valkey
         count = response_item[:sets_value_len].to_i
 
         Array.new(count) do |i|
-          item = Bindings::CommandResponse.new(ptr + i * Bindings::CommandResponse.size)
+          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
           convert_response.call(item)
         end
       when ResponseType::NULL
@@ -267,7 +267,7 @@ class Valkey
     if OpenTelemetry.should_sample?
       begin
         span_ptr = Bindings.create_otel_span(command_type)
-      rescue => e
+      rescue StandardError => e
         # Log error but continue execution - tracing is non-critical
         warn "Failed to create OpenTelemetry span: #{e.message}"
         span_ptr = 0
@@ -293,7 +293,7 @@ class Valkey
       if span_ptr != 0
         begin
           Bindings.drop_otel_span(span_ptr)
-        rescue => e
+        rescue StandardError => e
           # Log but don't raise - span cleanup errors shouldn't break command execution
           warn "Failed to drop OpenTelemetry span: #{e.message}"
         end
@@ -524,7 +524,7 @@ class Valkey
   #
   # @example Get client statistics
   #   client = Valkey.new(host: 'localhost', port: 6379)
-  #   stats = client.get_statistics
+  #   stats = client.statistics
   #   puts "Total connections: #{stats[:total_connections]}"
   #   puts "Total clients: #{stats[:total_clients]}"
   #   puts "Values compressed: #{stats[:total_values_compressed]}"
@@ -532,7 +532,7 @@ class Valkey
   # @note Statistics are tracked globally and shared across all clients
   #
   # @return [Hash] statistics hash with integer values
-  def get_statistics
+  def statistics
     # Call FFI function to get statistics (returns by value)
     stats = Bindings.get_statistics
 

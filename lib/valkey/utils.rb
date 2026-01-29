@@ -166,7 +166,7 @@ class Valkey
     }
 
     HashifyClusterNodeInfo = lambda { |str|
-      arr = str.split(' ')
+      arr = str.split
       {
         'node_id' => arr[0],
         'ip_port' => arr[1],

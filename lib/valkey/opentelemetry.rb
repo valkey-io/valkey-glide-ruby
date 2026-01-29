@@ -79,9 +79,7 @@ class Valkey
         end
 
         # Validate input
-        if traces.nil? && metrics.nil?
-          raise ArgumentError, "At least one of traces or metrics must be provided"
-        end
+        raise ArgumentError, "At least one of traces or metrics must be provided" if traces.nil? && metrics.nil?
 
         if traces && traces[:sample_percentage]
           sample = traces[:sample_percentage]
@@ -103,7 +101,7 @@ class Valkey
         unless error_ptr.null?
           error_msg = error_ptr.read_string
           Bindings.free_c_string(error_ptr)
-          raise RuntimeError, "Failed to initialize OpenTelemetry: #{error_msg}"
+          raise "Failed to initialize OpenTelemetry: #{error_msg}"
         end
 
         @initialized = true
@@ -127,7 +125,7 @@ class Valkey
       def should_sample?
         return false unless @initialized
         return false unless @config&.dig(:traces)
-        
+
         sample_percentage = @config.dig(:traces, :sample_percentage) || 1
         rand(100) < sample_percentage
       end
@@ -135,9 +133,7 @@ class Valkey
       # Get the current OpenTelemetry configuration.
       #
       # @return [Hash, nil] the configuration hash or nil if not initialized
-      def config
-        @config
-      end
+      attr_reader :config
 
       # Reset initialization state (for testing only).
       #
@@ -202,9 +198,9 @@ class Valkey
 
         # Validate endpoint format
         valid_prefixes = %w[http:// https:// grpc:// file://]
-        unless valid_prefixes.any? { |prefix| endpoint.start_with?(prefix) }
-          raise ArgumentError, "#{type} endpoint must start with one of: #{valid_prefixes.join(', ')}"
-        end
+        return if valid_prefixes.any? { |prefix| endpoint.start_with?(prefix) }
+
+        raise ArgumentError, "#{type} endpoint must start with one of: #{valid_prefixes.join(', ')}"
       end
     end
   end
