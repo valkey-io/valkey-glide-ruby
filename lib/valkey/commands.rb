@@ -56,11 +56,10 @@ class Valkey
     include StreamCommands
     include HashCommands
 
-    # there are a few commands that are not implemented by design
+    # Commands that are not implemented by design.
+    # Raises CommandError when called.
     #
-    # raises CommandError when called
-    #
-    %i[keys].each do |command|
+    %i[].each do |command|
       define_method command do |*_args|
         raise CommandError, "Unsupported command: #{command}"
       end

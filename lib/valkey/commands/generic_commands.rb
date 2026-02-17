@@ -224,28 +224,63 @@ class Valkey
 
       # Transfer a key from the connected instance to another instance.
       #
-      # @param [String, Array<String>] key
-      # @param [Hash] options
-      #   - `:host => String`: host of instance to migrate to
-      #   - `:port => Integer`: port of instance to migrate to
-      #   - `:db => Integer`: database to migrate to (default: same as source)
-      #   - `:timeout => Integer`: timeout (default: same as connection timeout)
-      #   - `:copy => Boolean`: Do not remove the key from the local instance.
-      #   - `:replace => Boolean`: Replace existing key on the remote instance.
-      # @return [String] `"OK"`
-      # def migrate(key, options)
-      #   args = []
-      #   args << (options[:host] || raise(':host not specified'))
-      #   args << (options[:port] || raise(':port not specified'))
-      #   args << (key.is_a?(String) ? key : '')
-      #   args << (options[:db] || @client.db).to_i
-      #   args << (options[:timeout] || @client.timeout).to_i
-      #   args << 'COPY' if options[:copy]
-      #   args << 'REPLACE' if options[:replace]
-      #   args += ['KEYS', *key] if key.is_a?(Array)
+      # @example Migrate a single key
+      #   valkey.migrate("mykey", host: "127.0.0.1", port: 6380)
+      #     # => "OK"
+      # @example Migrate with copy and replace
+      #   valkey.migrate("mykey", host: "127.0.0.1", port: 6380, copy: true, replace: true)
+      #     # => "OK"
+      # @example Migrate multiple keys
+      #   valkey.migrate(["key1", "key2"], host: "127.0.0.1", port: 6380)
+      #     # => "OK"
       #
-      #   send_command(RequestType::MIGRATE, args)
-      # end
+      # @param [String, Array<String>] key single key or array of keys to migrate
+      # @param [Hash] options
+      #   - `:host => String`: host of instance to migrate to (required)
+      #   - `:port => Integer`: port of instance to migrate to (required)
+      #   - `:db => Integer`: database to migrate to (default: 0)
+      #   - `:timeout => Integer`: timeout in milliseconds (default: 0)
+      #   - `:copy => Boolean`: do not remove the key from the local instance
+      #   - `:replace => Boolean`: replace existing key on the remote instance
+      # @return [String] `"OK"`
+      #
+      # @see https://valkey.io/commands/migrate/
+      def migrate(key, options)
+        args = []
+        args << (options[:host] || raise(ArgumentError, ':host not specified'))
+        args << (options[:port] || raise(ArgumentError, ':port not specified')).to_s
+        args << (key.is_a?(String) ? key : '')
+        args << (options[:db] || 0).to_s
+        args << (options[:timeout] || 0).to_s
+        args << 'COPY' if options[:copy]
+        args << 'REPLACE' if options[:replace]
+        args += ['KEYS', *key] if key.is_a?(Array)
+
+        send_command(RequestType::MIGRATE, args)
+      end
+
+      # Find all keys matching the given pattern.
+      #
+      # @example Find all keys
+      #   valkey.keys
+      #     # => ["key1", "key2", ...]
+      # @example Find keys matching a pattern
+      #   valkey.keys("user:*")
+      #     # => ["user:1", "user:2"]
+      #
+      # @param [String] pattern glob-style pattern (default: "*")
+      # @return [Array<String>] array of matching keys
+      #
+      # @see https://valkey.io/commands/keys/
+      def keys(pattern = "*")
+        send_command(RequestType::KEYS, [pattern]) do |reply|
+          if reply.is_a?(String)
+            reply.split
+          else
+            reply
+          end
+        end
+      end
 
       # Delete one or more keys.
       #
@@ -423,12 +458,42 @@ class Valkey
         send_command(RequestType::TOUCH, keys.flatten)
       end
 
-      def wait(*keys)
-        send_command(RequestType::WAIT, keys.flatten)
+      # Block until all the previous write commands are successfully transferred
+      # and acknowledged by at least the specified number of replicas.
+      #
+      # @param [Integer] numreplicas minimum number of replicas to acknowledge
+      # @param [Integer] timeout timeout in milliseconds (0 means block forever)
+      # @return [Integer] number of replicas that acknowledged
+      #
+      # @example Wait for 1 replica with 1 second timeout
+      #   valkey.wait(1, 1000)
+      #     # => 1
+      #
+      # @see https://valkey.io/commands/wait/
+      def wait(numreplicas, timeout)
+        send_command(RequestType::WAIT, [numreplicas.to_s, timeout.to_s])
       end
 
-      def waitof(*keys)
-        send_command(RequestType::WAIT_AOF, keys.flatten)
+      # Block until all previous write commands are fsynced to the AOF of the
+      # local server and/or at least the specified number of replicas.
+      #
+      # @param [Integer] numlocal number of local fsyncs required (0 or 1)
+      # @param [Integer] numreplicas minimum number of replicas to fsync
+      # @param [Integer] timeout timeout in milliseconds (0 means block forever)
+      # @return [Array<Integer>] array of two integers:
+      #   - number of local servers (0 or 1) that fsynced
+      #   - number of replicas that fsynced
+      #
+      # @example Wait for local AOF fsync with no timeout
+      #   valkey.waitaof(1, 0, 0)
+      #     # => [1, 0]
+      # @example Wait for 1 replica fsync with 1 second timeout
+      #   valkey.waitaof(0, 1, 1000)
+      #     # => [0, 0]
+      #
+      # @see https://valkey.io/commands/waitaof/
+      def waitaof(numlocal, numreplicas, timeout)
+        send_command(RequestType::WAIT_AOF, [numlocal.to_s, numreplicas.to_s, timeout.to_s])
       end
 
       # Determine the type stored at key.
