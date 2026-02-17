@@ -83,6 +83,23 @@ class Valkey
         send_command(RequestType::SCRIPT_KILL)
       end
 
+      # Set the debug mode for subsequent scripts executed with EVAL.
+      #
+      # @param [String] mode debug mode: "YES", "SYNC", or "NO"
+      # @return [String] "OK"
+      #
+      # @example Enable script debugging
+      #   valkey.script_debug("YES")
+      #     # => "OK"
+      # @example Disable script debugging
+      #   valkey.script_debug("NO")
+      #     # => "OK"
+      #
+      # @see https://valkey.io/commands/script-debug/
+      def script_debug(mode)
+        send_command(RequestType::SCRIPT_DEBUG, [mode.to_s.upcase])
+      end
+
       def script_load(script)
         script = script.first if script.is_a?(Array)
 
@@ -176,6 +193,58 @@ class Valkey
         end
 
         # Execute cached script via invoke_script
+        invoke_script(sha, keys: keys, args: args)
+      end
+
+      # Execute a read-only Lua script on the server.
+      #
+      # This is a read-only variant of EVAL that cannot execute commands
+      # that modify data. It can be routed to read replicas.
+      #
+      # @param [String] script the Lua script to execute
+      # @param [Array<String>] keys array of key names that the script will access
+      # @param [Array<Object>] args array of arguments to pass to the script
+      # @return [Object] the result of the script execution
+      #
+      # @example Execute a read-only script
+      #   valkey.eval_ro("return redis.call('get', KEYS[1])", keys: ["mykey"])
+      #     # => "myvalue"
+      #
+      # @see https://valkey.io/commands/eval_ro/
+      def eval_ro(script, keys: [], args: [])
+        raise ArgumentError, "script must be a string" unless script.is_a?(String)
+        raise ArgumentError, "script cannot be empty" if script.empty?
+
+        keys = Array(keys).map(&:to_s)
+        args = Array(args).map(&:to_s)
+
+        sha = script_load(script)
+        invoke_script(sha, keys: keys, args: args)
+      end
+
+      # Execute a cached read-only Lua script by its SHA1 hash.
+      #
+      # This is a read-only variant of EVALSHA that cannot execute commands
+      # that modify data. It can be routed to read replicas.
+      #
+      # @param [String] sha the SHA1 hash of the script to execute
+      # @param [Array<String>] keys array of key names that the script will access
+      # @param [Array<Object>] args array of arguments to pass to the script
+      # @return [Object] the result of the script execution
+      #
+      # @example Execute a cached read-only script
+      #   sha = valkey.script_load("return redis.call('get', KEYS[1])")
+      #   valkey.evalsha_ro(sha, keys: ["mykey"])
+      #     # => "myvalue"
+      #
+      # @see https://valkey.io/commands/evalsha_ro/
+      def evalsha_ro(sha, keys: [], args: [])
+        raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
+        raise ArgumentError, "sha1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
+
+        keys = Array(keys).map(&:to_s)
+        args = Array(args).map(&:to_s)
+
         invoke_script(sha, keys: keys, args: args)
       end
 

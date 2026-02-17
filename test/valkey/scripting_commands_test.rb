@@ -2,13 +2,13 @@
 
 require "test_helper"
 
-# Test class for basic scripting commands (script_load, script_exists, script_flush, etc.)
-class TestScriptingBasicCommands < Minitest::Test
+class TestScriptingCommands < Minitest::Test
   include Helper::Client
+  include Lint::ScriptingCommands
 
   def setup
     super
-    r.script_flush # Ensure the script cache is empty before running tests
+    r.script_flush
   end
 
   def to_sha(script)
@@ -150,10 +150,6 @@ class TestEvalEvalshaIntegration < Minitest::Test
       assert_equal 40, sha.length
       assert sha.match?(/\A[a-fA-F0-9]{40}\z/)
 
-      # Verify script exists in cache
-      # TODO: Fix script_exists - currently returns false even when script is loaded and executable
-      # assert r.script(:exists, sha)
-
       # Execute via evalsha
       keys = ["testkey"]
       args = ["testarg"]
@@ -178,10 +174,6 @@ class TestEvalEvalshaIntegration < Minitest::Test
       assert result.is_a?(Integer)
       assert result.between?(0, 1)
     end
-
-    # Script should still exist in cache
-    # TODO: Fix script_exists - currently returns false even when script is loaded and executable
-    # assert r.script(:exists, sha)
   end
 
   def test_eval_evalsha_parameter_type_conversion
