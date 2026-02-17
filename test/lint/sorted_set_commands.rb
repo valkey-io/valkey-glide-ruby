@@ -713,5 +713,118 @@ module Lint
       assert_equal 2, r.zremrangebylex("key1", "[a", "[b")
       assert_equal %w[c d], r.zrange("key1", 0, -1)
     end
+
+    def test_zrevrange
+      r.zadd "foo", 1, "s1"
+      r.zadd "foo", 2, "s2"
+      r.zadd "foo", 3, "s3"
+
+      assert_equal %w[s3 s2], r.zrevrange("foo", 0, 1)
+      assert_equal [["s3", 3.0], ["s2", 2.0]], r.zrevrange("foo", 0, 1, with_scores: true)
+      assert_equal [["s3", 3.0], ["s2", 2.0]], r.zrevrange("foo", 0, 1, withscores: true)
+
+      r.zadd "bar", "-inf", "s1"
+      r.zadd "bar", "+inf", "s2"
+      assert_equal [["s2", +Float::INFINITY], ["s1", -Float::INFINITY]], r.zrevrange("bar", 0, 1, with_scores: true)
+      assert_equal [["s2", +Float::INFINITY], ["s1", -Float::INFINITY]], r.zrevrange("bar", 0, 1, withscores: true)
+    end
+
+    def test_zrangebyscore
+      r.zadd "foo", 1, "s1"
+      r.zadd "foo", 2, "s2"
+      r.zadd "foo", 3, "s3"
+      r.zadd "foo", 4, "s4"
+
+      assert_equal %w[s2 s3], r.zrangebyscore("foo", 2, 3)
+      assert_equal [["s2", 2.0], ["s3", 3.0]], r.zrangebyscore("foo", 2, 3, with_scores: true)
+      assert_equal [["s2", 2.0], ["s3", 3.0]], r.zrangebyscore("foo", 2, 3, withscores: true)
+
+      # Exclusive ranges
+      assert_equal ["s2"], r.zrangebyscore("foo", "(1", "(3")
+      assert_equal ["s3"], r.zrangebyscore("foo", "(2", "(4")
+
+      # With limit
+      assert_equal %w[s2 s3], r.zrangebyscore("foo", 2, 4, limit: [0, 2])
+      assert_equal ["s3"], r.zrangebyscore("foo", 2, 4, limit: [1, 1])
+
+      # Infinity
+      r.zadd "bar", "-inf", "s1"
+      r.zadd "bar", "+inf", "s2"
+      assert_equal(
+        [["s1", -Float::INFINITY], ["s2", +Float::INFINITY]],
+        r.zrangebyscore("bar", "-inf", "+inf", with_scores: true)
+      )
+    end
+
+    def test_zrangebylex
+      r.zadd "foo", 0, "aaa"
+      r.zadd "foo", 0, "b"
+      r.zadd "foo", 0, "c"
+      r.zadd "foo", 0, "d"
+      r.zadd "foo", 0, "e"
+      r.zadd "foo", 0, "foo"
+      r.zadd "foo", 0, "g"
+      r.zadd "foo", 0, "zap"
+
+      assert_equal %w[aaa b c d e foo g], r.zrangebylex("foo", "[aaa", "[g")
+      assert_equal %w[b c d e foo g], r.zrangebylex("foo", "(aaa", "[g")
+      assert_equal %w[b c d e foo], r.zrangebylex("foo", "(aaa", "(g")
+
+      # With limit
+      assert_equal %w[aaa b c], r.zrangebylex("foo", "[aaa", "[g", limit: [0, 3])
+      assert_equal %w[c d], r.zrangebylex("foo", "[aaa", "[g", limit: [2, 2])
+
+      # Using - and + for infinity
+      assert_equal %w[aaa b c d e foo g zap], r.zrangebylex("foo", "-", "+")
+    end
+
+    def test_zrevrangebyscore
+      r.zadd "foo", 1, "s1"
+      r.zadd "foo", 2, "s2"
+      r.zadd "foo", 3, "s3"
+      r.zadd "foo", 4, "s4"
+
+      assert_equal %w[s3 s2], r.zrevrangebyscore("foo", 3, 2)
+      assert_equal [["s3", 3.0], ["s2", 2.0]], r.zrevrangebyscore("foo", 3, 2, with_scores: true)
+      assert_equal [["s3", 3.0], ["s2", 2.0]], r.zrevrangebyscore("foo", 3, 2, withscores: true)
+
+      # Exclusive ranges
+      assert_equal ["s2"], r.zrevrangebyscore("foo", "(3", "(1")
+      assert_equal ["s3"], r.zrevrangebyscore("foo", "(4", "(2")
+
+      # With limit
+      assert_equal %w[s4 s3], r.zrevrangebyscore("foo", 4, 2, limit: [0, 2])
+      assert_equal ["s3"], r.zrevrangebyscore("foo", 4, 2, limit: [1, 1])
+
+      # Infinity
+      r.zadd "bar", "-inf", "s1"
+      r.zadd "bar", "+inf", "s2"
+      assert_equal(
+        [["s2", +Float::INFINITY], ["s1", -Float::INFINITY]],
+        r.zrevrangebyscore("bar", "+inf", "-inf", with_scores: true)
+      )
+    end
+
+    def test_zrevrangebylex
+      r.zadd "foo", 0, "aaa"
+      r.zadd "foo", 0, "b"
+      r.zadd "foo", 0, "c"
+      r.zadd "foo", 0, "d"
+      r.zadd "foo", 0, "e"
+      r.zadd "foo", 0, "foo"
+      r.zadd "foo", 0, "g"
+      r.zadd "foo", 0, "zap"
+
+      assert_equal %w[g foo e d c b aaa], r.zrevrangebylex("foo", "[g", "[aaa")
+      assert_equal %w[g foo e d c b], r.zrevrangebylex("foo", "[g", "(aaa")
+      assert_equal %w[foo e d c b], r.zrevrangebylex("foo", "(g", "(aaa")
+
+      # With limit
+      assert_equal %w[g foo e], r.zrevrangebylex("foo", "[g", "[aaa", limit: [0, 3])
+      assert_equal %w[e d], r.zrevrangebylex("foo", "[g", "[aaa", limit: [2, 2])
+
+      # Using - and + for infinity
+      assert_equal %w[zap g foo e d c b aaa], r.zrevrangebylex("foo", "+", "-")
+    end
   end
 end
