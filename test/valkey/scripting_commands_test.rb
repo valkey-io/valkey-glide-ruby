@@ -176,7 +176,7 @@ class TestEvalEvalshaIntegration < Minitest::Test
       result = r.evalsha(sha)
       # NOTE: math.random() returns Integer due to type conversion limitations
       assert result.is_a?(Integer)
-      assert result >= 0 && result <= 1
+      assert result.between?(0, 1)
     end
 
     # Script should still exist in cache

@@ -169,5 +169,65 @@ class Valkey
       :pointer,        # route_bytes (pointer to u8)
       :ulong           # route_bytes_len (usize)
     ], :pointer # returns *mut CommandResult
+
+    # OpenTelemetry structures
+    class OpenTelemetryTracesConfig < FFI::Struct
+      layout(
+        :endpoint, :pointer,              # const char* (trace collector endpoint)
+        :has_sample_percentage, :bool,    # whether sample_percentage is set
+        :sample_percentage, :uint32       # sampling percentage (0-100)
+      )
+    end
+
+    class OpenTelemetryMetricsConfig < FFI::Struct
+      layout(
+        :endpoint, :pointer               # const char* (metrics collector endpoint)
+      )
+    end
+
+    class OpenTelemetryConfig < FFI::Struct
+      layout(
+        :traces, :pointer,                # OpenTelemetryTracesConfig*
+        :metrics, :pointer,               # OpenTelemetryMetricsConfig*
+        :has_flush_interval_ms, :bool,    # whether flush_interval_ms is set
+        :flush_interval_ms, :int64        # flush interval in milliseconds
+      )
+    end
+
+    # Statistics structure
+    class Statistics < FFI::Struct
+      layout(
+        :total_connections, :ulong,        # total connections opened to Valkey
+        :total_clients, :ulong,            # total GLIDE clients created
+        :total_values_compressed, :ulong,  # number of values compressed
+        :total_values_decompressed, :ulong, # number of values decompressed
+        :total_original_bytes, :ulong,     # bytes before compression
+        :total_bytes_compressed, :ulong,   # bytes after compression
+        :total_bytes_decompressed, :ulong, # bytes after decompression
+        :compression_skipped_count, :ulong # times compression was skipped
+      )
+    end
+
+    # OpenTelemetry functions
+    attach_function :init_open_telemetry, [
+      OpenTelemetryConfig.by_ref # OpenTelemetry configuration
+    ], :pointer # returns error string or NULL on success
+
+    attach_function :free_c_string, [
+      :pointer # C string to free
+    ], :void
+
+    attach_function :create_otel_span, [
+      :int # request_type (RequestType enum value)
+    ], :uint64 # returns span pointer (u64) or 0 on failure
+
+    attach_function :create_batch_otel_span, [], :uint64 # returns span pointer (u64) or 0 on failure
+
+    attach_function :drop_otel_span, [
+      :uint64 # span_ptr to close
+    ], :void
+
+    # Statistics function
+    attach_function :get_statistics, [], Statistics.by_value # returns statistics by value
   end
 end

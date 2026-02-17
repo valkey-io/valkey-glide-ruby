@@ -2,6 +2,7 @@ inherit_from: .rubocop_todo.yml
 
 AllCops:
   TargetRubyVersion: 2.6
+  NewCops: enable
   Exclude:
     - 'vendor/**/*'
     - 'lib/valkey/protobuf/**/*.rb'
@@ -15,12 +16,16 @@ Metrics/ParameterLists:
 Metrics/PerceivedComplexity:
   Enabled: false
 
-Style/StringLiterals:
-  Enabled: false
-
 Style/Documentation:
   Enabled: false
+
 Naming/MethodParameterName:
+  Enabled: false
+
+Naming/AccessorMethodName:
+  Enabled: false
+
+Lint/DuplicateBranch:
   Enabled: false
 
 Metrics/AbcSize:
@@ -33,7 +38,17 @@ Metrics/MethodLength:
   Max: 20
   Exclude:
     - 'lib/valkey.rb'
+    - 'lib/valkey/opentelemetry.rb'
     - 'test/**/*.rb'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'lib/valkey.rb'
+    - 'test/**/*.rb'
+
+Metrics/BlockNesting:
+  Exclude:
+    - 'test_app/**/*.rb'
 
 Metrics/ModuleLength:
   Exclude:

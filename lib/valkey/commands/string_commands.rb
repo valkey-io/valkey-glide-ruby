@@ -226,7 +226,7 @@ class Valkey
       def mapped_mget(*keys)
         mget(*keys) do |reply|
           if reply.is_a?(Array)
-            Hash[keys.zip(reply)]
+            keys.zip(reply).to_h
           else
             reply
           end

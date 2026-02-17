@@ -34,7 +34,7 @@ module Lint
 
       # convert to Ruby Time and assert it's close to now
       now = Time.now.to_f
-      valkey_time = result[0].to_i + result[1].to_i / 1_000_000.0
+      valkey_time = result[0].to_i + (result[1].to_i / 1_000_000.0)
 
       assert_in_delta now, valkey_time, 5.0 # within 5 seconds of system time
     end

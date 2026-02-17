@@ -84,7 +84,7 @@ class Valkey
       end
 
       def script_load(script)
-        script = script.is_a?(Array) ? script.first : script
+        script = script.first if script.is_a?(Array)
 
         buf = FFI::MemoryPointer.new(:char, script.bytesize)
         buf.put_bytes(0, script)

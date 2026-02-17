@@ -699,7 +699,7 @@ module Lint
 
       result = r.zrandmember("key1", 2, with_scores: true)
       assert_kind_of Array, result
-      assert result.length >= 1 && result.length <= 2
+      assert result.length.between?(1, 2)
 
       result.each do |member, score|
         assert_includes %w[a b c], member
