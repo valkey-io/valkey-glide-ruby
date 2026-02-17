@@ -750,7 +750,10 @@ module Lint
       # Infinity
       r.zadd "bar", "-inf", "s1"
       r.zadd "bar", "+inf", "s2"
-      assert_equal [["s1", -Float::INFINITY], ["s2", +Float::INFINITY]], r.zrangebyscore("bar", "-inf", "+inf", with_scores: true)
+      assert_equal(
+        [["s1", -Float::INFINITY], ["s2", +Float::INFINITY]],
+        r.zrangebyscore("bar", "-inf", "+inf", with_scores: true)
+      )
     end
 
     def test_zrangebylex
@@ -796,7 +799,10 @@ module Lint
       # Infinity
       r.zadd "bar", "-inf", "s1"
       r.zadd "bar", "+inf", "s2"
-      assert_equal [["s2", +Float::INFINITY], ["s1", -Float::INFINITY]], r.zrevrangebyscore("bar", "+inf", "-inf", with_scores: true)
+      assert_equal(
+        [["s2", +Float::INFINITY], ["s1", -Float::INFINITY]],
+        r.zrevrangebyscore("bar", "+inf", "-inf", with_scores: true)
+      )
     end
 
     def test_zrevrangebylex
@@ -822,4 +828,3 @@ module Lint
     end
   end
 end
-

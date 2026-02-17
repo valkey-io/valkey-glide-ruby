@@ -843,7 +843,7 @@ class Valkey
 
       # Return a range of members in a sorted set, by score, with scores ordered from high to low.
       #
-      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_score` and `:rev` options instead.
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with `:by_score` and `:rev` instead.
       #
       # @example Retrieve members with scores between 3 and 1 (reversed)
       #   valkey.zrevrangebyscore("zset", 3, 1)
