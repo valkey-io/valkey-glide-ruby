@@ -142,7 +142,7 @@ class Valkey
         fields.flatten!(1)
         hmget(key, fields) do |reply|
           if reply.is_a?(Array)
-            Hash[fields.zip(reply)]
+            fields.zip(reply).to_h
           else
             reply
           end

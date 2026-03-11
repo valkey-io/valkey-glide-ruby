@@ -16,6 +16,7 @@ Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 $VERBOSE = true
 
 PORT        = 6379
+SSL_PORT    = 6380 # SSL-enabled Valkey for SSL/TLS tests
 DB          = 15
 TIMEOUT = Float(ENV["TIMEOUT"] || 5.0) # Increased from 3.0 to 5.0 for CI stability
 LOW_TIMEOUT = Float(ENV["LOW_TIMEOUT"] || 0.01) # for blocking-command tests

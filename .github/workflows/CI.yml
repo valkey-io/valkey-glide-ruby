@@ -67,6 +67,13 @@ jobs:
           chmod +x test/fixtures/redisearch.so
           ls -lh test/fixtures/redisearch.so
       
+      - name: Generate SSL certificates for testing
+        run: |
+          echo "Generating SSL certificates for SSL/TLS testing..."
+          ruby test/fixtures/ssl/generate_certs.rb
+          echo "SSL certificates generated:"
+          ls -lh test/fixtures/ssl/*.pem
+      
       - name: Start Valkey with MODULE commands enabled
         run: |
           echo "Starting Valkey ${{ matrix.valkey }} with MODULE commands enabled..."
@@ -93,6 +100,70 @@ jobs:
           echo "Verifying module files are accessible..."
           docker exec valkey-test ls -lh /tmp/modules/
       
+      - name: Start SSL-enabled Valkey on port 6380
+        run: |
+          echo "Creating Valkey SSL configuration..."
+          cat > /tmp/valkey-ssl.conf << 'EOF'
+          # Disable regular port, use TLS port only
+          port 0
+          tls-port 6380
+          
+          # SSL/TLS certificate files
+          tls-cert-file /ssl/server-cert.pem
+          tls-key-file /ssl/server-key.pem
+          tls-ca-cert-file /ssl/ca-cert.pem
+          
+          # Don't require client certificates (optional)
+          tls-auth-clients no
+          
+          # Allow TLS v1.2 and v1.3
+          tls-protocols "TLSv1.2 TLSv1.3"
+          EOF
+          
+          echo "SSL configuration created:"
+          cat /tmp/valkey-ssl.conf
+          
+          echo "Verifying SSL certificate files exist..."
+          ls -lh $(pwd)/test/fixtures/ssl/*.pem
+          
+          echo "Starting SSL-enabled Valkey on port 6380..."
+          docker run -d \
+            --name valkey-ssl \
+            -p 6380:6380 \
+            -v $(pwd)/test/fixtures/ssl:/ssl:ro \
+            -v /tmp/valkey-ssl.conf:/etc/valkey-ssl.conf:ro \
+            valkey/valkey:${{ matrix.valkey }} \
+            valkey-server /etc/valkey-ssl.conf
+          
+          echo "Waiting for container to start..."
+          sleep 2
+          
+          echo "Checking if container is running..."
+          docker ps -a | grep valkey-ssl || echo "Container not found!"
+          
+          echo "Checking container logs..."
+          docker logs valkey-ssl || echo "Could not get logs"
+          
+          echo "Verifying SSL cert files are accessible inside container..."
+          docker exec valkey-ssl ls -lh /ssl/ || echo "Cannot access /ssl/ directory"
+          docker exec valkey-ssl cat /etc/valkey-ssl.conf || echo "Cannot read config file"
+          
+          echo "Waiting for SSL Valkey to be ready..."
+          for i in {1..30}; do
+            if docker exec valkey-ssl valkey-cli --tls --insecure -p 6380 ping > /dev/null 2>&1; then
+              echo "SSL Valkey is ready!"
+              break
+            fi
+            echo "Waiting... ($i/30)"
+            sleep 1
+          done
+          
+          echo "Verifying SSL connection from host..."
+          docker exec valkey-ssl valkey-cli --tls --insecure -p 6380 ping || echo "SSL verification failed"
+          
+          echo "Testing connection from host machine..."
+          docker run --rm --network host valkey/valkey:${{ matrix.valkey }} valkey-cli --tls --insecure -p 6380 ping || echo "Host connection test failed"
+      
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
@@ -102,9 +173,11 @@ jobs:
       - name: Run standalone tests
         run: bundle exec rake test:valkey
       
-      - name: Stop Valkey container
+      - name: Stop Valkey containers
         if: always()
-        run: docker stop valkey-test && docker rm valkey-test
+        run: |
+          docker stop valkey-test && docker rm valkey-test || true
+          docker stop valkey-ssl && docker rm valkey-ssl || true
 
   cluster:
     runs-on: ubuntu-latest

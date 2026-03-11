@@ -717,6 +717,221 @@ class Valkey
         send_command(RequestType::Z_REM_RANGE_BY_LEX, [key, min, max])
       end
 
+      # Return a range of members in a sorted set, by index, with scores ordered from high to low.
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:rev` option instead.
+      #
+      # @example Retrieve members from a sorted set in reverse order
+      #   valkey.zrevrange("zset", 0, -1)
+      #     # => ["b", "a"]
+      # @example Retrieve members and their scores from a sorted set in reverse order
+      #   valkey.zrevrange("zset", 0, -1, :with_scores => true)
+      #     # => [["b", 64.0], ["a", 32.0]]
+      #
+      # @param [String] key
+      # @param [Integer] start start index
+      # @param [Integer] stop stop index
+      # @param [Hash] options
+      #   - `:with_scores => true`: include scores in output
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      #
+      # @see https://valkey.io/commands/zrevrange/
+      def zrevrange(key, start, stop, withscores: false, with_scores: withscores)
+        args = [key, start, stop]
+
+        if with_scores
+          args << "WITHSCORES"
+          block = Utils::FloatifyPairs
+        end
+
+        send_command(RequestType::Z_REV_RANGE, args, &block)
+      end
+
+      # Return a range of members in a sorted set, by score, with scores ordered from low to high.
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_score` option instead.
+      #
+      # @example Retrieve members with scores between 1 and 3
+      #   valkey.zrangebyscore("zset", 1, 3)
+      #     # => ["s1", "s2", "s3"]
+      # @example Retrieve members with scores between 1 and 3, with scores
+      #   valkey.zrangebyscore("zset", 1, 3, :with_scores => true)
+      #     # => [["s1", 1.0], ["s2", 2.0], ["s3", 3.0]]
+      # @example With exclusive ranges
+      #   valkey.zrangebyscore("zset", "(1", "(3")
+      #     # => ["s2"]
+      # @example With limit
+      #   valkey.zrangebyscore("zset", 1, 3, :limit => [0, 2])
+      #     # => ["s1", "s2"]
+      #
+      # @param [String] key
+      # @param [String, Numeric] min minimum score
+      #   - inclusive minimum is specified verbatim
+      #   - exclusive minimum is specified by prefixing `(`
+      #   - `-inf` represents negative infinity
+      # @param [String, Numeric] max maximum score
+      #   - inclusive maximum is specified verbatim
+      #   - exclusive maximum is specified by prefixing `(`
+      #   - `+inf` represents positive infinity
+      # @param [Hash] options
+      #   - `:with_scores => true`: include scores in output
+      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      #
+      # @see https://valkey.io/commands/zrangebyscore/
+      def zrangebyscore(key, min, max, withscores: false, with_scores: withscores, limit: nil)
+        args = [key, min, max]
+
+        if with_scores
+          args << "WITHSCORES"
+          block = Utils::FloatifyPairs
+        end
+
+        if limit
+          args << "LIMIT"
+          args.concat(limit.map { |l| Integer(l) })
+        end
+
+        send_command(RequestType::Z_RANGE_BY_SCORE, args, &block)
+      end
+
+      # Return a range of members in a sorted set, by lexicographical ordering.
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_lex` option instead.
+      #
+      # @example Retrieve members within a lexicographical range
+      #   valkey.zrangebylex("zset", "[aaa", "[g")
+      #     # => ["aaa", "b", "c", "d", "e", "foo", "g"]
+      # @example With exclusive ranges
+      #   valkey.zrangebylex("zset", "(aaa", "[g")
+      #     # => ["b", "c", "d", "e", "foo", "g"]
+      # @example With limit
+      #   valkey.zrangebylex("zset", "[aaa", "[g", :limit => [0, 3])
+      #     # => ["aaa", "b", "c"]
+      #
+      # @param [String] key
+      # @param [String] min minimum lexicographical value
+      #   - inclusive minimum is specified by prefixing `[`
+      #   - exclusive minimum is specified by prefixing `(`
+      #   - `-` represents negative infinity
+      # @param [String] max maximum lexicographical value
+      #   - inclusive maximum is specified by prefixing `[`
+      #   - exclusive maximum is specified by prefixing `(`
+      #   - `+` represents positive infinity
+      # @param [Hash] options
+      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      #
+      # @return [Array<String>] array of members
+      #
+      # @see https://valkey.io/commands/zrangebylex/
+      def zrangebylex(key, min, max, limit: nil)
+        args = [key, min, max]
+
+        if limit
+          args << "LIMIT"
+          args.concat(limit.map { |l| Integer(l) })
+        end
+
+        send_command(RequestType::Z_RANGE_BY_LEX, args)
+      end
+
+      # Return a range of members in a sorted set, by score, with scores ordered from high to low.
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with `:by_score` and `:rev` instead.
+      #
+      # @example Retrieve members with scores between 3 and 1 (reversed)
+      #   valkey.zrevrangebyscore("zset", 3, 1)
+      #     # => ["s3", "s2", "s1"]
+      # @example Retrieve members with scores between 3 and 1, with scores
+      #   valkey.zrevrangebyscore("zset", 3, 1, :with_scores => true)
+      #     # => [["s3", 3.0], ["s2", 2.0], ["s1", 1.0]]
+      # @example With exclusive ranges
+      #   valkey.zrevrangebyscore("zset", "(3", "(1")
+      #     # => ["s2"]
+      # @example With limit
+      #   valkey.zrevrangebyscore("zset", 3, 1, :limit => [0, 2])
+      #     # => ["s3", "s2"]
+      #
+      # @param [String] key
+      # @param [String, Numeric] max maximum score
+      #   - inclusive maximum is specified verbatim
+      #   - exclusive maximum is specified by prefixing `(`
+      #   - `+inf` represents positive infinity
+      # @param [String, Numeric] min minimum score
+      #   - inclusive minimum is specified verbatim
+      #   - exclusive minimum is specified by prefixing `(`
+      #   - `-inf` represents negative infinity
+      # @param [Hash] options
+      #   - `:with_scores => true`: include scores in output
+      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      #
+      # @return [Array<String>, Array<[String, Float]>]
+      #   - when `:with_scores` is not specified, an array of members
+      #   - when `:with_scores` is specified, an array with `[member, score]` pairs
+      #
+      # @see https://valkey.io/commands/zrevrangebyscore/
+      def zrevrangebyscore(key, max, min, withscores: false, with_scores: withscores, limit: nil)
+        args = [key, max, min]
+
+        if with_scores
+          args << "WITHSCORES"
+          block = Utils::FloatifyPairs
+        end
+
+        if limit
+          args << "LIMIT"
+          args.concat(limit.map { |l| Integer(l) })
+        end
+
+        send_command(RequestType::Z_REV_RANGE_BY_SCORE, args, &block)
+      end
+
+      # Return a range of members in a sorted set, by lexicographical ordering, ordered from high to low.
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_lex` and `:rev` options instead.
+      #
+      # @example Retrieve members within a lexicographical range (reversed)
+      #   valkey.zrevrangebylex("zset", "[g", "[aaa")
+      #     # => ["g", "foo", "e", "d", "c", "b", "aaa"]
+      # @example With exclusive ranges
+      #   valkey.zrevrangebylex("zset", "[g", "(aaa")
+      #     # => ["g", "foo", "e", "d", "c", "b"]
+      # @example With limit
+      #   valkey.zrevrangebylex("zset", "[g", "[aaa", :limit => [0, 3])
+      #     # => ["g", "foo", "e"]
+      #
+      # @param [String] key
+      # @param [String] max maximum lexicographical value
+      #   - inclusive maximum is specified by prefixing `[`
+      #   - exclusive maximum is specified by prefixing `(`
+      #   - `+` represents positive infinity
+      # @param [String] min minimum lexicographical value
+      #   - inclusive minimum is specified by prefixing `[`
+      #   - exclusive minimum is specified by prefixing `(`
+      #   - `-` represents negative infinity
+      # @param [Hash] options
+      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      #
+      # @return [Array<String>] array of members
+      #
+      # @see https://valkey.io/commands/zrevrangebylex/
+      def zrevrangebylex(key, max, min, limit: nil)
+        args = [key, max, min]
+
+        if limit
+          args << "LIMIT"
+          args.concat(limit.map { |l| Integer(l) })
+        end
+
+        send_command(RequestType::Z_REV_RANGE_BY_LEX, args)
+      end
+
       private
 
       def _zsets_operation(cmd, *keys, weights: nil, aggregate: nil, with_scores: false)

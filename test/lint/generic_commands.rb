@@ -352,5 +352,100 @@ module Lint
     def test_wait
       assert_equal r.wait(0, 0), 0
     end
+
+    # Keys command tests
+
+    def test_keys
+      r.set("key:1", "value1")
+      r.set("key:2", "value2")
+      r.set("other", "value3")
+
+      result = r.keys("key:*")
+      assert_kind_of Array, result
+      assert_equal 2, result.size
+      assert_includes result, "key:1"
+      assert_includes result, "key:2"
+    end
+
+    def test_keys_default_pattern
+      r.set("foo", "bar")
+
+      result = r.keys
+      assert_kind_of Array, result
+      assert_includes result, "foo"
+    end
+
+    def test_keys_no_match
+      r.set("foo", "bar")
+
+      result = r.keys("nonexistent:*")
+      assert_kind_of Array, result
+      assert_equal 0, result.size
+    end
+
+    # Migrate command tests
+
+    def test_migrate_requires_host
+      assert_raises(ArgumentError) do
+        r.migrate("foo", port: 6380)
+      end
+    end
+
+    def test_migrate_requires_port
+      assert_raises(ArgumentError) do
+        r.migrate("foo", host: "127.0.0.1")
+      end
+    end
+
+    def test_migrate
+      skip("MIGRATE requires a second Valkey instance")
+
+      r.set("migrate:key", "value")
+      result = r.migrate("migrate:key", host: "127.0.0.1", port: 6380, db: 0, timeout: 1000)
+      assert_equal "OK", result
+    end
+
+    def test_migrate_with_copy_replace
+      skip("MIGRATE requires a second Valkey instance")
+
+      r.set("migrate:key", "value")
+      result = r.migrate("migrate:key", host: "127.0.0.1", port: 6380, copy: true, replace: true)
+      assert_equal "OK", result
+    end
+
+    def test_migrate_multiple_keys
+      skip("MIGRATE requires a second Valkey instance")
+
+      r.set("migrate:key1", "value1")
+      r.set("migrate:key2", "value2")
+      result = r.migrate(%w[migrate:key1 migrate:key2], host: "127.0.0.1", port: 6380)
+      assert_equal "OK", result
+    end
+
+    # WAITAOF command tests
+
+    def test_waitaof
+      result = r.waitaof(0, 0, 0)
+      assert_kind_of Array, result
+      assert_equal 2, result.size
+      assert_kind_of Integer, result[0]
+      assert_kind_of Integer, result[1]
+    rescue Valkey::CommandError => e
+      if e.message.include?("WAITAOF") || e.message.include?("unknown") || e.message.include?("AOF")
+        skip("WAITAOF not available: #{e.message}")
+      end
+      raise
+    end
+
+    def test_waitaof_with_timeout
+      result = r.waitaof(0, 0, 100)
+      assert_kind_of Array, result
+      assert_equal 2, result.size
+    rescue Valkey::CommandError => e
+      if e.message.include?("WAITAOF") || e.message.include?("unknown") || e.message.include?("AOF")
+        skip("WAITAOF not available: #{e.message}")
+      end
+      raise
+    end
   end
 end

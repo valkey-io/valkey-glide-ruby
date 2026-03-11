@@ -14,6 +14,7 @@ class TestClusterCommandsOnClusters < Minitest::Test
   include Lint::ModuleCommands # Module commands work in cluster mode (per-node)
   include Lint::JsonCommands # JSON commands work in cluster mode (requires module on all nodes)
   include Lint::ClusterCommands # Run cluster commands second (after string tests)
+  include Lint::ConnectionOptions # Connection options work in cluster mode
 end
 
 # TODO: Enable module and load module in cluster setup CI

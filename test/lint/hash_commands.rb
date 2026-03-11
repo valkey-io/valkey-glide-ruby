@@ -350,7 +350,7 @@ module Lint
         r.hset("foo", "f1", "s1", "f2", "s2")
         r.hsetex("foo", "f1", "s1", 2)
         results = r.httl("foo", "f1", "f2", "f3")
-        assert results[0] >= 0 && results[0] <= 2
+        assert results[0].between?(0, 2)
         assert_equal(-1, results[1])
         assert_equal(-2, results[2])
       end
@@ -375,7 +375,7 @@ module Lint
 
         expire_time = Time.now.to_i + 100
         r.hexpireat("foo", expire_time, "f1")
-        assert_in_range expire_time - 1..expire_time + 1, r.hexpiretime("foo", "f1").first
+        assert_in_range (expire_time - 1)..(expire_time + 1), r.hexpiretime("foo", "f1").first
 
         assert_equal([-2], r.hexpiretime("foo", "f2"))
       end
@@ -388,7 +388,7 @@ module Lint
 
         expire_time = (Time.now.to_i * 1000) + 100_000
         r.hpexpireat("foo", expire_time, "f1")
-        assert_in_range expire_time - 1000..expire_time + 1000, r.hpexpiretime("foo", "f1").first
+        assert_in_range (expire_time - 1000)..(expire_time + 1000), r.hpexpiretime("foo", "f1").first
 
         assert_equal([-2], r.hpexpiretime("foo", "f2"))
       end
