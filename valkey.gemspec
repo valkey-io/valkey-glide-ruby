@@ -3,7 +3,7 @@
 require_relative "lib/valkey/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "valkey"
+  spec.name = "valkey-rb"
   spec.version = Valkey::VERSION
   spec.authors = ["Valkey GLIDE Maintainers"]
 
