@@ -130,7 +130,7 @@ module Lint
     def test_client_list
       response = r.client(:list)
       assert_kind_of Array, response
-      assert response.all? { |client| client.is_a?(Hash) }, "Expected all clients to be represented as Hashes"
+      assert response.all?(Hash), "Expected all clients to be represented as Hashes"
     end
 
     def test_client_pause_unpause
@@ -582,7 +582,7 @@ module Lint
       if result.is_a?(Array)
         # In cluster mode, may return array with server info and hash responses
         # Find hash responses and validate them
-        hashes = result.select { |e| e.is_a?(Hash) }
+        hashes = result.grep(Hash)
         assert !hashes.empty?, "Expected memory_stats to return at least one hash"
         hashes.each do |stats|
           # Check for any common memory stats keys (more flexible)
@@ -669,7 +669,7 @@ module Lint
       assert_kind_of Array, result
       # Server may return more entries (e.g., with aliases or variations)
       # Filter out string elements (command names) and only check hash docs
-      docs = result.select { |d| d.is_a?(Hash) }
+      docs = result.grep(Hash)
       assert docs.size >= 2, "Expected at least 2 command docs (hashes)"
       docs.each do |doc|
         assert_kind_of Hash, doc, "Expected each doc to be a Hash"
@@ -752,7 +752,7 @@ module Lint
       result = r.command_list
       assert_kind_of Array, result
       assert !result.empty?, "Expected COMMAND LIST to return non-empty array"
-      assert result.all? { |cmd| cmd.is_a?(String) }, "Expected all commands to be Strings"
+      assert result.all?(String), "Expected all commands to be Strings"
       # Commands may be in lowercase or uppercase depending on server version
       command_names = result.map(&:upcase)
       assert command_names.include?("GET"), "Expected GET command to be in the list"
