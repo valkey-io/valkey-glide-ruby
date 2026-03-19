@@ -117,6 +117,13 @@ class Valkey
       :pubsub_callback # callback
     ], :pointer        # *const ConnectionResponse
 
+    attach_function :create_client_from_uri, [
+      :string,         # *const c_char (uri_str)
+      :string,         # *const c_char (extra_options_json)
+      ClientType.by_ref, # *const ClientType
+      :pubsub_callback # callback
+    ], :pointer        # *const ConnectionResponse
+
     attach_function :close_client, [
       :pointer # client_adapter_ptr
     ], :void
