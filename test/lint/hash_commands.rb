@@ -239,7 +239,7 @@ module Lint
       target_version "9.0" do
         r.hsetex("foo", "f1", "s1", 2)
         assert_equal "s1", r.hget("foo", "f1")
-        assert_in_range 0..2, r.httl("foo", "f1")
+        assert_in_range 0..2, r.httl("foo", "f1").first
       end
     end
 
@@ -247,7 +247,7 @@ module Lint
       target_version "9.0" do
         r.hset("foo", "f1", "s1")
         assert_equal "s1", r.hgetex("foo", "f1", ex: 2)
-        assert_in_range 0..2, r.httl("foo", "f1")
+        assert_in_range 0..2, r.httl("foo", "f1").first
       end
     end
 

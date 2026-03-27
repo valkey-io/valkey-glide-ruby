@@ -339,7 +339,7 @@ class Valkey
       # @param [Integer] seconds expiration time in seconds
       # @return [Integer] the number of fields that were added
       def hsetex(key, field, value, seconds)
-        send_command(RequestType::HSETEX, [key, field, value, Integer(seconds)])
+        send_command(RequestType::HSETEX, [key, "EX", Integer(seconds), "FIELDS", 1, field, value])
       end
 
       # Get the value of one or more hash fields and optionally set their expiration time.
@@ -360,12 +360,13 @@ class Valkey
       #   for multiple fields. For every field that does not exist in the hash, a nil value is returned.
       def hgetex(key, *fields, ex: nil, px: nil, exat: nil, pxat: nil, persist: false)
         fields.flatten!(1)
-        args = [key, "FIELDS", fields.length, *fields]
+        args = [key]
         args << "EX" << ex if ex
         args << "PX" << px if px
         args << "EXAT" << exat if exat
         args << "PXAT" << pxat if pxat
         args << "PERSIST" if persist
+        args.push("FIELDS", fields.length, *fields)
 
         send_command(RequestType::HGETEX, args) do |reply|
           fields.length == 1 ? reply[0] : reply
@@ -392,11 +393,12 @@ class Valkey
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
       def hexpire(key, seconds, *fields, nx: nil, xx: nil, gt: nil, lt: nil)
         fields.flatten!(1)
-        args = [key, Integer(seconds), "FIELDS", fields.length, *fields]
+        args = [key, Integer(seconds)]
         args << "NX" if nx
         args << "XX" if xx
         args << "GT" if gt
         args << "LT" if lt
+        args.push("FIELDS", fields.length, *fields)
 
         send_command(RequestType::HEXPIRE, args)
       end
@@ -421,11 +423,12 @@ class Valkey
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
       def hexpireat(key, unix_time, *fields, nx: nil, xx: nil, gt: nil, lt: nil)
         fields.flatten!(1)
-        args = [key, Integer(unix_time), "FIELDS", fields.length, *fields]
+        args = [key, Integer(unix_time)]
         args << "NX" if nx
         args << "XX" if xx
         args << "GT" if gt
         args << "LT" if lt
+        args.push("FIELDS", fields.length, *fields)
 
         send_command(RequestType::HEXPIREAT, args)
       end
@@ -450,11 +453,12 @@ class Valkey
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
       def hpexpire(key, milliseconds, *fields, nx: nil, xx: nil, gt: nil, lt: nil)
         fields.flatten!(1)
-        args = [key, Integer(milliseconds), "FIELDS", fields.length, *fields]
+        args = [key, Integer(milliseconds)]
         args << "NX" if nx
         args << "XX" if xx
         args << "GT" if gt
         args << "LT" if lt
+        args.push("FIELDS", fields.length, *fields)
 
         send_command(RequestType::HPEXPIRE, args)
       end
@@ -479,11 +483,12 @@ class Valkey
       #   - `-2` if the field does not exist in the HASH, or key does not exist.
       def hpexpireat(key, unix_time_ms, *fields, nx: nil, xx: nil, gt: nil, lt: nil)
         fields.flatten!(1)
-        args = [key, Integer(unix_time_ms), "FIELDS", fields.length, *fields]
+        args = [key, Integer(unix_time_ms)]
         args << "NX" if nx
         args << "XX" if xx
         args << "GT" if gt
         args << "LT" if lt
+        args.push("FIELDS", fields.length, *fields)
 
         send_command(RequestType::HPEXPIREAT, args)
       end
