@@ -127,7 +127,14 @@ class Valkey
   end
 
   def build_command_args(command_args)
-    return [FFI::Pointer::NULL, FFI::Pointer::NULL] if command_args.empty?
+    # For empty arrays, create minimal valid pointers instead of NULL
+    # The Rust FFI expects valid pointers even when count is 0
+    if command_args.empty?
+      # Create a single-element pointer array (unused but valid)
+      empty_ptr = FFI::MemoryPointer.new(:pointer, 1)
+      empty_len = FFI::MemoryPointer.new(:ulong, 1)
+      return [empty_ptr, empty_len]
+    end
 
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
     arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
