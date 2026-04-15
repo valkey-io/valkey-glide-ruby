@@ -42,9 +42,10 @@ class Valkey
   #     }
   #   )
   module OpenTelemetry
+    @initialized = false
+    @config = nil
+
     class << self
-      @initialized = false
-      @config = nil
 
       # Initialize OpenTelemetry in the Valkey GLIDE core.
       #
