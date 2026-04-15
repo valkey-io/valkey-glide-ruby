@@ -181,9 +181,25 @@ class Valkey
       when ResponseType::ARRAY
         ptr = response_item[:array_value]
         count = response_item[:array_value_len].to_i
+        return [] if count == 0 || ptr.null?
 
-        Array.new(count) do |i|
-          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
+        # Try using get_bytes and then reading structs from it
+        total_bytes = count * Bindings::CommandResponse.size
+        array_bytes = ptr.get_bytes(0, total_bytes)
+        
+        STDERR.puts "DEBUG: Reading #{count} structs, #{total_bytes} bytes total"
+        STDERR.puts "First 32 bytes: #{array_bytes[0,32].bytes.map{|b| '%02x' % b}.join(' ')}"
+        
+        count.times.map do |i|
+          offset = i * Bindings::CommandResponse.size
+          # Create a new pointer from the byte array at this offset
+          struct_bytes = array_bytes[offset, Bindings::CommandResponse.size]
+          struct_ptr = FFI::MemoryPointer.new(:char, Bindings::CommandResponse.size)
+          struct_ptr.put_bytes(0, struct_bytes)
+          
+          item = Bindings::CommandResponse.new(struct_ptr)
+          STDERR.puts "Element #{i}: type=#{item[:response_type]}"
+          
           convert_response.call(item)
         end
       when ResponseType::MAP
