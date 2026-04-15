@@ -167,7 +167,8 @@ class Valkey
       :pointer,        # args (pointer to usize[])
       :pointer,        # args_len (pointer to c_ulong[])
       :pointer,        # route_bytes (pointer to u8)
-      :ulong           # route_bytes_len (usize)
+      :ulong,          # route_bytes_len (usize)
+      :uint64          # span_ptr (OpenTelemetry span pointer)
     ], :pointer # returns *mut CommandResult
 
     # OpenTelemetry structures
