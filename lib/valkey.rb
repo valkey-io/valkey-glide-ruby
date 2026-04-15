@@ -386,7 +386,7 @@ class Valkey
     case options[:protocol]
     when :resp3, "resp3", 3
       json_options["protocol"] = "RESP3"
-    when :resp2, "resp2", 2
+    else
       json_options["protocol"] = "RESP2"
     end
 
