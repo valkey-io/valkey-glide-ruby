@@ -46,7 +46,6 @@ class Valkey
     @config = nil
 
     class << self
-
       # Initialize OpenTelemetry in the Valkey GLIDE core.
       #
       # This method can only be called once per process. Subsequent calls will

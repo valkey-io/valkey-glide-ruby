@@ -105,11 +105,11 @@ class TestURIConnection < Minitest::Test
       client_name: "test_client"
     )
     assert_equal "PONG", client.ping
-    
+
     # Verify client name is set
     client_list = client.client_list
-    assert client_list.any? { |c| c["name"] == "test_client" }
-    
+    assert(client_list.any? { |c| c["name"] == "test_client" })
+
     client.close
   end
 
@@ -137,26 +137,24 @@ class TestURIConnection < Minitest::Test
 
   def test_url_with_password
     # Test URL parsing with password (connection may fail if auth not configured)
-    begin
-      client = Valkey.new(url: "redis://:password@localhost:6379", connect_timeout: 1.0)
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError, Valkey::CommandError
-      # Expected if password is wrong or server doesn't require auth
-      # We're just testing that URL parsing doesn't crash
-    end
+
+    client = Valkey.new(url: "redis://:password@localhost:6379", connect_timeout: 1.0)
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError, Valkey::CommandError
+    # Expected if password is wrong or server doesn't require auth
+    # We're just testing that URL parsing doesn't crash
   end
 
   def test_url_with_username_and_password
     # Test URL parsing with username and password
-    begin
-      client = Valkey.new(url: "redis://user:password@localhost:6379", connect_timeout: 1.0)
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError, Valkey::CommandError
-      # Expected if credentials are wrong or server doesn't require auth
-      # We're just testing that URL parsing doesn't crash
-    end
+
+    client = Valkey.new(url: "redis://user:password@localhost:6379", connect_timeout: 1.0)
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError, Valkey::CommandError
+    # Expected if credentials are wrong or server doesn't require auth
+    # We're just testing that URL parsing doesn't crash
   end
 
   def test_url_options_merge_with_explicit_options
@@ -284,25 +282,25 @@ class TestURIConnection < Minitest::Test
 
   def test_basic_operations_work_with_uri
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     # SET/GET
     client.set("uri_test_key", "uri_test_value")
     assert_equal "uri_test_value", client.get("uri_test_key")
-    
+
     # INCR
     client.del("uri_counter")
     assert_equal 1, client.incr("uri_counter")
-    
+
     # HSET/HGET
     client.hset("uri_hash", "field1", "value1")
     assert_equal "value1", client.hget("uri_hash", "field1")
-    
+
     # LPUSH/LRANGE
     client.del("uri_list")
     client.lpush("uri_list", "item1")
     client.lpush("uri_list", "item2")
-    assert_equal ["item2", "item1"], client.lrange("uri_list", 0, -1)
-    
+    assert_equal %w[item2 item1], client.lrange("uri_list", 0, -1)
+
     # SADD/SMEMBERS
     client.del("uri_set")
     client.sadd("uri_set", "member1")
@@ -311,31 +309,31 @@ class TestURIConnection < Minitest::Test
     assert_equal 2, members.size
     assert_includes members, "member1"
     assert_includes members, "member2"
-    
+
     # Cleanup
     client.del("uri_test_key", "uri_counter", "uri_hash", "uri_list", "uri_set")
-    
+
     client.close
   end
 
   def test_transaction_operations_work_with_uri
     # Test that transactions work with URI-based connections
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     client.del("tx_counter")
-    
+
     results = client.multi do |tx|
       tx.set("tx_counter", "0")
       tx.incr("tx_counter")
       tx.incr("tx_counter")
       tx.get("tx_counter")
     end
-    
+
     assert_equal "OK", results[0]
     assert_equal 1, results[1]
     assert_equal 2, results[2]
     assert_equal "2", results[3]
-    
+
     client.del("tx_counter")
     client.close
   end
@@ -343,21 +341,21 @@ class TestURIConnection < Minitest::Test
   def test_pipelined_operations_work_with_uri
     # Test that pipelined operations work with URI-based connections
     client = Valkey.new(host: "localhost", port: 6379)
-    
+
     client.del("pipe_key1", "pipe_key2")
-    
+
     results = client.pipelined do |pipeline|
       pipeline.set("pipe_key1", "value1")
       pipeline.set("pipe_key2", "value2")
       pipeline.get("pipe_key1")
       pipeline.get("pipe_key2")
     end
-    
+
     assert_equal "OK", results[0]
     assert_equal "OK", results[1]
     assert_equal "value1", results[2]
     assert_equal "value2", results[3]
-    
+
     client.del("pipe_key1", "pipe_key2")
     client.close
   end
@@ -369,7 +367,7 @@ class TestURIConnection < Minitest::Test
   def test_multiple_connections_simultaneously
     # Test that multiple connections can be created simultaneously
     clients = []
-    
+
     5.times do |i|
       clients << Valkey.new(
         host: "localhost",
@@ -377,12 +375,12 @@ class TestURIConnection < Minitest::Test
         client_name: "test_client_#{i}"
       )
     end
-    
+
     # Verify all clients work
     clients.each do |client|
       assert_equal "PONG", client.ping
     end
-    
+
     # Close all clients
     clients.each(&:close)
   end
@@ -392,7 +390,7 @@ class TestURIConnection < Minitest::Test
     client = Valkey.new(host: "localhost", port: 6379)
     assert_equal "PONG", client.ping
     client.close
-    
+
     # Create new connection
     client2 = Valkey.new(host: "localhost", port: 6379)
     assert_equal "PONG", client2.ping
@@ -412,7 +410,7 @@ class TestURIConnection < Minitest::Test
   # ====================
   # NODE VALIDATION
   # ====================
-  
+
   def test_empty_nodes_array
     error = assert_raises(ArgumentError) do
       Valkey.new(nodes: [])
@@ -459,7 +457,7 @@ class TestURIConnection < Minitest::Test
   # ====================
   # DATABASE ID VALIDATION
   # ====================
-  
+
   def test_negative_database_id
     error = assert_raises(ArgumentError) do
       Valkey.new(host: "localhost", port: 6379, db: -1)
@@ -476,21 +474,20 @@ class TestURIConnection < Minitest::Test
 
   def test_large_database_id
     # Large positive database ID should be accepted (server will validate)
-    begin
-      client = Valkey.new(host: "localhost", port: 6379, db: 999, connect_timeout: 1.0)
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError, Valkey::CommandError
-      # Expected if database doesn't exist on server or connection fails
-      # The important thing is that the validation didn't reject it
-      pass
-    end
+
+    client = Valkey.new(host: "localhost", port: 6379, db: 999, connect_timeout: 1.0)
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError, Valkey::CommandError
+    # Expected if database doesn't exist on server or connection fails
+    # The important thing is that the validation didn't reject it
+    pass
   end
 
   # ====================
   # TIMEOUT VALIDATION
   # ====================
-  
+
   def test_timeout_as_string
     error = assert_raises(ArgumentError) do
       Valkey.new(host: "localhost", port: 6379, timeout: "10")
@@ -544,7 +541,7 @@ class TestURIConnection < Minitest::Test
   # ====================
   # SSL/TLS FILE VALIDATION
   # ====================
-  
+
   def test_ssl_with_nonexistent_ca_file
     error = assert_raises(ArgumentError) do
       Valkey.new(
@@ -599,7 +596,7 @@ class TestURIConnection < Minitest::Test
       file.write("dummy cert")
       file.close
       File.chmod(0o000, file.path)
-      
+
       begin
         error = assert_raises(ArgumentError) do
           Valkey.new(
@@ -619,7 +616,7 @@ class TestURIConnection < Minitest::Test
   # ====================
   # RECONNECTION STRATEGY VALIDATION
   # ====================
-  
+
   def test_reconnect_attempts_as_string
     error = assert_raises(ArgumentError) do
       Valkey.new(
@@ -725,7 +722,7 @@ class TestURIConnection < Minitest::Test
   # ====================
   # SPECIAL CHARACTERS
   # ====================
-  
+
   def test_password_with_special_characters
     # Test that special characters are properly URL-encoded
     special_passwords = [
@@ -739,98 +736,92 @@ class TestURIConnection < Minitest::Test
     ]
 
     special_passwords.each do |password|
-      begin
-        # Connection will fail without auth, but URL should be properly encoded
-        client = Valkey.new(
-          host: "localhost",
-          port: 6379,
-          password: password,
-          connect_timeout: 1.0
-        )
-        client.ping
-        client.close
-      rescue Valkey::CannotConnectError, Valkey::CommandError
-        # Expected if server doesn't require this password
-        # The important thing is it didn't crash during URI building
-      end
+      # Connection will fail without auth, but URL should be properly encoded
+      client = Valkey.new(
+        host: "localhost",
+        port: 6379,
+        password: password,
+        connect_timeout: 1.0
+      )
+      client.ping
+      client.close
+    rescue Valkey::CannotConnectError, Valkey::CommandError
+      # Expected if server doesn't require this password
+      # The important thing is it didn't crash during URI building
     end
   end
 
   def test_username_with_special_characters
     # Test that username is properly URL-encoded
-    begin
-      client = Valkey.new(
-        host: "localhost",
-        port: 6379,
-        username: "user@domain",
-        password: "p@ss:word",
-        connect_timeout: 1.0
-      )
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError, Valkey::CommandError
-      # Expected - we're just testing URL encoding
-    end
+
+    client = Valkey.new(
+      host: "localhost",
+      port: 6379,
+      username: "user@domain",
+      password: "p@ss:word",
+      connect_timeout: 1.0
+    )
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError, Valkey::CommandError
+    # Expected - we're just testing URL encoding
   end
 
   def test_empty_password
     # Empty password should be handled
-    begin
-      client = Valkey.new(
-        host: "localhost",
-        port: 6379,
-        password: "",
-        connect_timeout: 1.0
-      )
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError, Valkey::CommandError
-      # Expected
-    end
+
+    client = Valkey.new(
+      host: "localhost",
+      port: 6379,
+      password: "",
+      connect_timeout: 1.0
+    )
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError, Valkey::CommandError
+    # Expected
   end
 
   # ====================
   # CLUSTER MODE
   # ====================
-  
+
   def test_cluster_mode_with_single_node
     # Cluster mode with single node should work (server will handle discovery)
-    begin
-      client = Valkey.new(
-        nodes: [{ host: "localhost", port: 7000 }],
-        cluster_mode: true,
-        connect_timeout: 1.0
-      )
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError
-      # Expected if no cluster on port 7000
-    end
+
+    client = Valkey.new(
+      nodes: [{ host: "localhost", port: 7000 }],
+      cluster_mode: true,
+      connect_timeout: 1.0
+    )
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError
+    # Expected if no cluster on port 7000
   end
 
   def test_cluster_mode_with_multiple_nodes
     # Multiple nodes should add addresses to JSON
-    begin
-      client = Valkey.new(
-        nodes: [
-          { host: "localhost", port: 7000 },
-          { host: "localhost", port: 7001 },
-          { host: "localhost", port: 7002 }
-        ],
-        cluster_mode: true,
-        connect_timeout: 1.0
-      )
-      client.ping
-      client.close
-    rescue Valkey::CannotConnectError
-      # Expected if no cluster
-    end
+
+    client = Valkey.new(
+      nodes: [
+        { host: "localhost", port: 7000 },
+        { host: "localhost", port: 7001 },
+        { host: "localhost", port: 7002 }
+      ],
+      cluster_mode: true,
+      connect_timeout: 1.0
+    )
+    client.ping
+    client.close
+  rescue Valkey::CannotConnectError
+    # Expected if no cluster
   end
 
   # ====================
   # COMBINED EDGE CASES
   # ====================
-  
+
   def test_multiple_invalid_options
     # Test multiple validation errors - first one should be caught
     error = assert_raises(ArgumentError) do
@@ -849,11 +840,10 @@ class TestURIConnection < Minitest::Test
   def test_url_with_invalid_scheme
     # redis-rb's parse_redis_url should handle this
     # but we should not crash
-    begin
-      Valkey.new(url: "http://localhost:6379", connect_timeout: 1.0)
-    rescue ArgumentError, Valkey::CannotConnectError
-      # Expected - invalid scheme
-    end
+
+    Valkey.new(url: "http://localhost:6379", connect_timeout: 1.0)
+  rescue ArgumentError, Valkey::CannotConnectError
+    # Expected - invalid scheme
   end
 
   def test_url_overridden_by_explicit_invalid_values

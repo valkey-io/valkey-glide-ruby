@@ -181,7 +181,7 @@ class Valkey
       when ResponseType::ARRAY
         ptr = response_item[:array_value]
         count = response_item[:array_value_len].to_i
-        return [] if count == 0 || ptr.null?
+        return [] if count.zero? || ptr.null?
 
         count.times.map do |i|
           item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
@@ -340,10 +340,10 @@ class Valkey
     # Use the first node for standalone mode, or first node for cluster discovery
     first_node = nodes.first
     raise ArgumentError, "First node cannot be nil" if first_node.nil?
-    
+
     uri_host = first_node[:host]
     uri_port = first_node[:port]
-    
+
     # Validate host and port
     raise ArgumentError, "Host cannot be nil" if uri_host.nil?
     raise ArgumentError, "Port cannot be nil" if uri_port.nil?
@@ -383,22 +383,20 @@ class Valkey
     json_options["cluster_mode_enabled"] = true if options[:cluster_mode]
 
     # Protocol
-    case options[:protocol]
-    when :resp3, "resp3", 3
-      json_options["protocol"] = "RESP3"
-    else
-      json_options["protocol"] = "RESP2"
-    end
+    json_options["protocol"] = case options[:protocol]
+                               when :resp3, "resp3", 3
+                                 "RESP3"
+                               else
+                                 "RESP2"
+                               end
 
     # Timeouts
     request_timeout = options[:timeout] || 5.0
-    
+
     # Validate timeout types
-    unless request_timeout.is_a?(Numeric)
-      raise ArgumentError, "Timeout must be a number, got: #{request_timeout.class}"
-    end
+    raise ArgumentError, "Timeout must be a number, got: #{request_timeout.class}" unless request_timeout.is_a?(Numeric)
     raise ArgumentError, "Timeout must be positive, got: #{request_timeout}" if request_timeout <= 0
-    
+
     json_options["request_timeout"] = (request_timeout * 1000).to_i
 
     if options[:connect_timeout]
@@ -407,7 +405,7 @@ class Valkey
         raise ArgumentError, "Connect timeout must be a number, got: #{connect_timeout.class}"
       end
       raise ArgumentError, "Connect timeout must be positive, got: #{connect_timeout}" if connect_timeout <= 0
-      
+
       json_options["connection_timeout"] = (connect_timeout * 1000).to_i
     end
 
@@ -422,6 +420,7 @@ class Valkey
         ca_file = options[:ssl_params][:ca_file]
         raise ArgumentError, "CA file does not exist: #{ca_file}" unless File.exist?(ca_file)
         raise ArgumentError, "CA file is not readable: #{ca_file}" unless File.readable?(ca_file)
+
         root_certs << File.binread(ca_file)
       end
 
@@ -431,6 +430,7 @@ class Valkey
                       cert_file = options[:ssl_params][:cert]
                       raise ArgumentError, "Cert file does not exist: #{cert_file}" unless File.exist?(cert_file)
                       raise ArgumentError, "Cert file is not readable: #{cert_file}" unless File.readable?(cert_file)
+
                       File.binread(cert_file)
                     elsif options[:ssl_params][:cert].respond_to?(:to_pem)
                       options[:ssl_params][:cert].to_pem
@@ -448,6 +448,7 @@ class Valkey
                      key_file = options[:ssl_params][:key]
                      raise ArgumentError, "Key file does not exist: #{key_file}" unless File.exist?(key_file)
                      raise ArgumentError, "Key file is not readable: #{key_file}" unless File.readable?(key_file)
+
                      File.binread(key_file)
                    elsif options[:ssl_params][:key].respond_to?(:to_pem)
                      options[:ssl_params][:key].to_pem
@@ -463,7 +464,7 @@ class Valkey
       if options[:ssl_params][:ca_path]
         ca_path = options[:ssl_params][:ca_path]
         raise ArgumentError, "CA path does not exist: #{ca_path}" unless Dir.exist?(ca_path)
-        
+
         Dir.glob(File.join(ca_path, "*.crt")).each do |cert_file|
           root_certs << File.binread(cert_file) if File.readable?(cert_file)
         end
@@ -483,25 +484,27 @@ class Valkey
       number_of_retries = options[:reconnect_attempts] || 1
       base_delay = options[:reconnect_delay] || 0.5
       max_delay = options[:reconnect_delay_max]
-      
+
       # Validate reconnection parameters
       unless number_of_retries.is_a?(Integer)
         raise ArgumentError, "Reconnect attempts must be an integer, got: #{number_of_retries.class}"
       end
-      raise ArgumentError, "Reconnect attempts must be non-negative, got: #{number_of_retries}" if number_of_retries.negative?
-      
-      unless base_delay.is_a?(Numeric)
-        raise ArgumentError, "Reconnect delay must be a number, got: #{base_delay.class}"
+
+      if number_of_retries.negative?
+        raise ArgumentError,
+              "Reconnect attempts must be non-negative, got: #{number_of_retries}"
       end
+
+      raise ArgumentError, "Reconnect delay must be a number, got: #{base_delay.class}" unless base_delay.is_a?(Numeric)
       raise ArgumentError, "Reconnect delay must be positive, got: #{base_delay}" unless base_delay.positive?
-      
+
       if max_delay
         unless max_delay.is_a?(Numeric)
           raise ArgumentError, "Reconnect delay max must be a number, got: #{max_delay.class}"
         end
         raise ArgumentError, "Reconnect delay max must be positive, got: #{max_delay}" unless max_delay.positive?
       end
-      
+
       exponent_base = 2
 
       if max_delay && base_delay.positive? && number_of_retries.positive?
@@ -517,11 +520,6 @@ class Valkey
         "exponent_base" => exponent_base,
         "jitter_percent" => 0
       }
-    end
-
-    # Multi-node addresses for cluster mode
-    if nodes.size > 1
-      json_options["addresses"] = nodes.map { |node| { "host" => node[:host], "port" => node[:port] } }
     end
 
     # Convert JSON options to string (pass nil if empty)

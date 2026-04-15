@@ -100,7 +100,7 @@ class Valkey
       layout(
         :response, CommandResponse.by_ref,
         :command_error, CommandError.by_ref,
-        :arena, :pointer          # *mut ResponseArena
+        :arena, :pointer # *mut ResponseArena
       )
     end
 

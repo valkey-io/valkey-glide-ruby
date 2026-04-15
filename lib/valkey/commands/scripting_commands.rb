@@ -270,7 +270,7 @@ class Valkey
           arg_lens,
           route_buf,
           route.bytesize,
-          0  # span_ptr for OpenTelemetry (0 = no span)
+          0 # span_ptr for OpenTelemetry (0 = no span)
         )
 
         convert_response(res)
