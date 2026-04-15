@@ -75,7 +75,8 @@ class Valkey
         :map_key, :pointer,           # CommandResponse*
         :map_value, :pointer,         # CommandResponse*
         :sets_value, :pointer,        # CommandResponse*
-        :sets_value_len, :long
+        :sets_value_len, :long,
+        :arena_ptr, :pointer          # *mut c_void - arena allocator pointer
       )
     end
 
@@ -98,7 +99,8 @@ class Valkey
     class CommandResult < FFI::Struct
       layout(
         :response, CommandResponse.by_ref,
-        :command_error, CommandError.by_ref
+        :command_error, CommandError.by_ref,
+        :arena, :pointer          # *mut ResponseArena
       )
     end
 
