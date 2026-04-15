@@ -87,6 +87,8 @@ class Valkey
     batch_options[:route_info] = FFI::Pointer::NULL
 
     # Create OpenTelemetry span for batch operation if sampling is enabled
+    # TODO: add parent span propagation via create_batch_otel_span_with_parent
+    # to support distributed tracing context (see Go client base_client.go for reference)
     span_ptr = 0
     if OpenTelemetry.should_sample?
       begin
@@ -266,6 +268,8 @@ class Valkey
     end
 
     # Create OpenTelemetry span if sampling is enabled
+    # TODO: add parent span propagation via create_otel_span_with_parent
+    # to support distributed tracing context (see Go client base_client.go for reference)
     span_ptr = 0
     if OpenTelemetry.should_sample?
       begin
@@ -538,13 +542,14 @@ class Valkey
 
     res = Bindings::ConnectionResponse.new(response_ptr)
 
-    # Check if connection was successful
     if res[:conn_ptr].null?
       error_message = res[:connection_error_message]
-      raise CannotConnectError, "Failed to connect to cluster: #{error_message}"
+      Bindings.free_connection_response(response_ptr)
+      raise CannotConnectError, error_message
     end
 
     @connection = res[:conn_ptr]
+    Bindings.free_connection_response(response_ptr)
 
     # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
     # This avoids Ruby warnings about uninitialised instance variables and

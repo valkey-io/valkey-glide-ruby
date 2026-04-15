@@ -126,6 +126,10 @@ class Valkey
       :pubsub_callback # callback
     ], :pointer        # *const ConnectionResponse
 
+    attach_function :free_connection_response, [
+      :pointer # *mut ConnectionResponse
+    ], :void
+
     attach_function :close_client, [
       :pointer # client_adapter_ptr
     ], :void
@@ -198,14 +202,16 @@ class Valkey
     # Statistics structure
     class Statistics < FFI::Struct
       layout(
-        :total_connections, :ulong,        # total connections opened to Valkey
-        :total_clients, :ulong,            # total GLIDE clients created
-        :total_values_compressed, :ulong,  # number of values compressed
-        :total_values_decompressed, :ulong, # number of values decompressed
-        :total_original_bytes, :ulong,     # bytes before compression
-        :total_bytes_compressed, :ulong,   # bytes after compression
-        :total_bytes_decompressed, :ulong, # bytes after decompression
-        :compression_skipped_count, :ulong # times compression was skipped
+        :total_connections, :ulong,
+        :total_clients, :ulong,
+        :total_values_compressed, :ulong,
+        :total_values_decompressed, :ulong,
+        :total_original_bytes, :ulong,
+        :total_bytes_compressed, :ulong,
+        :total_bytes_decompressed, :ulong,
+        :compression_skipped_count, :ulong,
+        :subscription_out_of_sync_count, :ulong,
+        :subscription_last_sync_timestamp, :ulong
       )
     end
 
