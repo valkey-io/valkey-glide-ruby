@@ -127,11 +127,8 @@ class Valkey
   end
 
   def build_command_args(command_args)
-    # For empty arrays, pass NULL pointers as per Rust FFI contract:
-    # "keys and keys_len must either be both null or be both not null"
-    # This matches Go's approach which successfully uses nil pointers.
-    # The Rust FFI explicitly handles this: when both pointers are NULL
-    # and count is 0, it creates empty Vec instead of dereferencing.
+    # For empty arrays, pass NULL pointers as per Rust FFI contract
+    # This matches Go's approach which successfully uses nil pointers
     return [FFI::Pointer::NULL, FFI::Pointer::NULL] if command_args.empty?
 
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
