@@ -144,7 +144,7 @@ class Valkey
       :pointer,     # route_bytes
       :ulong,       # route_bytes_len
       :ulong        # span_ptr (u64)
-    ], :pointer     # returns *mut CommandResult
+    ], :pointer, blocking: true     # returns *mut CommandResult, releases GVL during I/O
 
     attach_function :batch, [
       :pointer,        # client_ptr
@@ -153,7 +153,7 @@ class Valkey
       :bool,           # raise_on_error
       :pointer,        # *const BatchOptionsInfo
       :ulong           # span_ptr (u64)
-    ], :pointer # returns *mut CommandResult
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
     attach_function :store_script, [
       :pointer, # *const u8 (script_bytes)
@@ -173,7 +173,7 @@ class Valkey
       :pointer,        # route_bytes (pointer to u8)
       :ulong,          # route_bytes_len (usize)
       :uint64          # span_ptr (OpenTelemetry span pointer)
-    ], :pointer # returns *mut CommandResult
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
     # OpenTelemetry structures
     class OpenTelemetryTracesConfig < FFI::Struct
