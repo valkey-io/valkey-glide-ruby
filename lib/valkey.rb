@@ -127,6 +127,8 @@ class Valkey
   end
 
   def build_command_args(command_args)
+    return [FFI::Pointer::NULL, FFI::Pointer::NULL] if command_args.empty?
+
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
     arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
     buffers = []
