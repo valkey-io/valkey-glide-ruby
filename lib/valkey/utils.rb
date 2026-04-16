@@ -28,8 +28,14 @@ class Valkey
     }
 
     Hashify = lambda { |value|
-      if value.respond_to?(:each_slice)
-        value.each_slice(2).to_h
+      if value.is_a?(Hash)
+        value
+      elsif value.respond_to?(:each_slice)
+        if value.first.is_a?(Array)
+          value.to_h
+        else
+          value.each_slice(2).to_h
+        end
       else
         value
       end
@@ -37,7 +43,11 @@ class Valkey
 
     Pairify = lambda { |value|
       if value.respond_to?(:each_slice)
-        value.each_slice(2).to_a
+        if value.first.is_a?(Array)
+          value
+        else
+          value.each_slice(2).to_a
+        end
       else
         value
       end
@@ -63,7 +73,11 @@ class Valkey
     FloatifyPairs = lambda { |value|
       return value unless value.respond_to?(:each_slice)
 
-      value.each_slice(2).map(&FloatifyPair)
+      if value.first.is_a?(Array)
+        value.map(&FloatifyPair)
+      else
+        value.each_slice(2).map(&FloatifyPair)
+      end
     }
 
     HashifyInfo = lambda { |reply|

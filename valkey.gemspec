@@ -29,5 +29,4 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   spec.add_dependency "ffi", "~> 1.17.0"
-  spec.add_dependency "google-protobuf", "~> 3.23", ">= 3.23.4"
 end
