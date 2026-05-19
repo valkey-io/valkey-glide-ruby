@@ -20,3 +20,10 @@ Metrics/ClassLength:
   Max: 111
   Exclude:
     - 'lib/valkey.rb'
+
+# Offense count: 1
+# Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns.
+Metrics/ModuleLength:
+  Max: 110
+  Exclude:
+    - 'lib/valkey/bindings.rb'

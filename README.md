@@ -14,7 +14,7 @@ A Ruby client library for [Valkey][valkey-home] built with [Valkey Glide Core][v
 Install with:
 
 ```
-$ gem install valkey
+$ gem install valkey-rb
 ```
 
 You can connect to Valkey by instantiating the `Valkey` class:

@@ -55,7 +55,7 @@ module Lint
       # Use the server commands interface that's known to work
       list = r.client(:list)
       assert_kind_of Array, list
-      assert list.all? { |client| client.is_a?(Hash) }, "Expected all clients to be represented as Hashes"
+      assert list.all?(Hash), "Expected all clients to be represented as Hashes"
     end
 
     def test_client_info

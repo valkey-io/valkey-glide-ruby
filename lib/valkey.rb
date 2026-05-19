@@ -22,19 +22,13 @@ class Valkey
   include PubSubCallback
 
   def pipelined(exception: true)
-    # Redis-rb v5 and earlier behavior: commands called on the original client
-    # inside a pipelined block are automatically pipelined
-    original_pipeline = @current_pipeline
-    @current_pipeline = Pipeline.new
+    pipeline = Pipeline.new
 
-    yield @current_pipeline
+    yield pipeline
 
-    commands = @current_pipeline.commands
-    @current_pipeline = original_pipeline
+    return [] if pipeline.commands.empty?
 
-    return [] if commands.empty?
-
-    send_batch_commands(commands, exception: exception)
+    send_batch_commands(pipeline.commands, exception: exception)
   end
 
   def send_batch_commands(commands, exception: true)
@@ -61,7 +55,7 @@ class Valkey
     buffers = [] # Keep references to prevent GC
 
     commands.each do |command_type, command_args, block|
-      arg_ptrs, arg_lens = build_command_args(command_args)
+      arg_ptrs, arg_lens, arg_bufs = build_command_args(command_args)
 
       cmd = Bindings::CmdInfo.new
       cmd[:request_type] = command_type
@@ -71,7 +65,7 @@ class Valkey
 
       cmds << cmd
       blocks << block
-      buffers << [arg_ptrs, arg_lens] # Prevent GC
+      buffers << [arg_ptrs, arg_lens, arg_bufs] # Prevent GC
     end
 
     # Create array of pointers to CmdInfo structs
@@ -137,7 +131,7 @@ class Valkey
   def build_command_args(command_args)
     # For empty arrays, pass NULL pointers as per Rust FFI contract
     # This matches Go's approach which successfully uses nil pointers
-    return [FFI::Pointer::NULL, FFI::Pointer::NULL] if command_args.empty?
+    return [FFI::Pointer::NULL, FFI::Pointer::NULL, []] if command_args.empty?
 
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
     arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
@@ -152,7 +146,7 @@ class Valkey
       arg_lens.put_ulong(i * 8, arg.bytesize)
     end
 
-    [arg_ptrs, arg_lens]
+    [arg_ptrs, arg_lens, buffers]
   end
 
   def convert_response(res, &block)
@@ -249,13 +243,6 @@ class Valkey
   end
 
   def send_command(command_type, command_args = [], &block)
-    # Redis-rb v5 and earlier behavior: if we're inside a pipelined block,
-    # commands on the client are automatically added to the pipeline
-    if @current_pipeline
-      @current_pipeline.send_command(command_type, command_args, &block)
-      return
-    end
-
     # Validate connection
     if @connection.nil?
       raise "Connection is nil"
@@ -276,8 +263,9 @@ class Valkey
       arg_lens = FFI::MemoryPointer.new(:ulong, 1)
       arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
       arg_lens.put_ulong(0, 0)
+      _buffers = [] # nothing to keep alive
     else
-      arg_ptrs, arg_lens = build_command_args(command_args)
+      arg_ptrs, arg_lens, _buffers = build_command_args(command_args)
     end
 
     # Create OpenTelemetry span if sampling is enabled
@@ -572,8 +560,6 @@ class Valkey
     @queued_commands = []
     # Track if we're inside a multi block (multi { ... }) vs direct multi calls
     @in_multi_block = false
-    # Track current pipeline for redis-rb v5 compatibility (commands on client auto-pipeline)
-    @current_pipeline = nil
   end
 
   def close
