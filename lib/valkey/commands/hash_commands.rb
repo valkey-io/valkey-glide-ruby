@@ -272,19 +272,19 @@ class Valkey
         end
       end
 
-      # Set the string value of a hash field.
+      # Set one or more hash values.
       #
       # @example
-      #   valkey.hset("hash", "field", "value") # => true
+      #   valkey.hset("hash", "f1", "v1", "f2", "v2") # => 2
+      #   valkey.hset("hash", { "f1" => "v1", "f2" => "v2" }) # => 2
       #
       # @param [String] key
-      # @param [String] field
-      # @param [String] value
-      # @return [Boolean] true if field is a new field in the hash and value was set,
-      #   false if field already exists and the value was updated
-      def hset(key, field, value) # rubocop:disable Naming/PredicateMethod
-        result = send_command(RequestType::HSET, [key, field, value])
-        result == 1
+      # @param [Array<String> | Hash<String, String>] attrs array or hash of fields and values
+      # @return [Integer] The number of fields that were added to the hash
+      def hset(key, *attrs)
+        attrs = attrs.first.flatten if attrs.size == 1 && attrs.first.is_a?(Hash)
+
+        send_command(RequestType::HSET, [key, *attrs])
       end
 
       # Set the string value of a hash field, only if the field does not exist.
