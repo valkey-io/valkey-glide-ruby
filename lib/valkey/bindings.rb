@@ -75,7 +75,8 @@ class Valkey
         :map_key, :pointer,           # CommandResponse*
         :map_value, :pointer,         # CommandResponse*
         :sets_value, :pointer,        # CommandResponse*
-        :sets_value_len, :long
+        :sets_value_len, :long,
+        :arena_ptr, :pointer          # *mut c_void - arena allocator pointer
       )
     end
 
@@ -98,7 +99,8 @@ class Valkey
     class CommandResult < FFI::Struct
       layout(
         :response, CommandResponse.by_ref,
-        :command_error, CommandError.by_ref
+        :command_error, CommandError.by_ref,
+        :arena, :pointer # *mut ResponseArena
       )
     end
 
@@ -116,6 +118,17 @@ class Valkey
       ClientType.by_ref, # *const ClientType
       :pubsub_callback # callback
     ], :pointer        # *const ConnectionResponse
+
+    attach_function :create_client_from_uri, [
+      :string,         # *const c_char (uri_str)
+      :string,         # *const c_char (extra_options_json)
+      ClientType.by_ref, # *const ClientType
+      :pubsub_callback # callback
+    ], :pointer        # *const ConnectionResponse
+
+    attach_function :free_connection_response, [
+      :pointer # *mut ConnectionResponse
+    ], :void
 
     attach_function :close_client, [
       :pointer # client_adapter_ptr
@@ -158,7 +171,8 @@ class Valkey
       :pointer,        # args (pointer to usize[])
       :pointer,        # args_len (pointer to c_ulong[])
       :pointer,        # route_bytes (pointer to u8)
-      :ulong           # route_bytes_len (usize)
+      :ulong,          # route_bytes_len (usize)
+      :uint64          # span_ptr (OpenTelemetry span pointer)
     ], :pointer # returns *mut CommandResult
 
     # OpenTelemetry structures
@@ -188,14 +202,16 @@ class Valkey
     # Statistics structure
     class Statistics < FFI::Struct
       layout(
-        :total_connections, :ulong,        # total connections opened to Valkey
-        :total_clients, :ulong,            # total GLIDE clients created
-        :total_values_compressed, :ulong,  # number of values compressed
-        :total_values_decompressed, :ulong, # number of values decompressed
-        :total_original_bytes, :ulong,     # bytes before compression
-        :total_bytes_compressed, :ulong,   # bytes after compression
-        :total_bytes_decompressed, :ulong, # bytes after decompression
-        :compression_skipped_count, :ulong # times compression was skipped
+        :total_connections, :ulong,
+        :total_clients, :ulong,
+        :total_values_compressed, :ulong,
+        :total_values_decompressed, :ulong,
+        :total_original_bytes, :ulong,
+        :total_bytes_compressed, :ulong,
+        :total_bytes_decompressed, :ulong,
+        :compression_skipped_count, :ulong,
+        :subscription_out_of_sync_count, :ulong,
+        :subscription_last_sync_timestamp, :ulong
       )
     end
 

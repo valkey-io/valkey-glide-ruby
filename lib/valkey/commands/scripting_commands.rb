@@ -255,8 +255,8 @@ class Valkey
         route = ""
         route_buf = FFI::MemoryPointer.from_string(route)
 
-        sha = FFI::MemoryPointer.new(:char, script.bytesize + 1)
-        sha.put_bytes(0, script)
+        # Use from_string to ensure proper null termination
+        sha = FFI::MemoryPointer.from_string(script)
 
         res = Bindings.invoke_script(
           @connection,
@@ -269,7 +269,8 @@ class Valkey
           arg_ptrs,
           arg_lens,
           route_buf,
-          route.bytesize
+          route.bytesize,
+          0 # span_ptr for OpenTelemetry (0 = no span)
         )
 
         convert_response(res)
