@@ -43,9 +43,15 @@ module EvalEvalshaPropertyTests
         evalsha_result = r.evalsha(sha, keys: keys, args: args)
 
         # Results should be identical
-        assert_equal eval_result, evalsha_result,
+        if eval_result.nil?
+          assert_nil evalsha_result,
                      "eval and evalsha should produce identical results
                       for script: #{script}, keys: #{keys}, args: #{args}"
+        else
+          assert_equal eval_result, evalsha_result,
+                       "eval and evalsha should produce identical results
+                        for script: #{script}, keys: #{keys}, args: #{args}"
+        end
       end
     end
 
@@ -373,8 +379,13 @@ module EvalEvalshaPropertyTests
              script=#{script}, result=#{evalsha_result.inspect}, expected_type=#{expected_type}"
 
       # Both should produce identical results
-      assert_equal eval_result, evalsha_result,
+      if eval_result.nil?
+        assert_nil evalsha_result,
                    "eval and evalsha should produce identical type conversions for script: #{script}"
+      else
+        assert_equal eval_result, evalsha_result,
+                     "eval and evalsha should produce identical type conversions for script: #{script}"
+      end
     end
 
     def generate_keys(count)

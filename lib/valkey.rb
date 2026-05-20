@@ -55,7 +55,7 @@ class Valkey
     buffers = [] # Keep references to prevent GC
 
     commands.each do |command_type, command_args, block|
-      arg_ptrs, arg_lens = build_command_args(command_args)
+      arg_ptrs, arg_lens, arg_bufs = build_command_args(command_args)
 
       cmd = Bindings::CmdInfo.new
       cmd[:request_type] = command_type
@@ -65,7 +65,7 @@ class Valkey
 
       cmds << cmd
       blocks << block
-      buffers << [arg_ptrs, arg_lens] # Prevent GC
+      buffers << [arg_ptrs, arg_lens, arg_bufs] # Prevent GC
     end
 
     # Create array of pointers to CmdInfo structs
@@ -131,7 +131,7 @@ class Valkey
   def build_command_args(command_args)
     # For empty arrays, pass NULL pointers as per Rust FFI contract
     # This matches Go's approach which successfully uses nil pointers
-    return [FFI::Pointer::NULL, FFI::Pointer::NULL] if command_args.empty?
+    return [FFI::Pointer::NULL, FFI::Pointer::NULL, []] if command_args.empty?
 
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
     arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
@@ -146,7 +146,7 @@ class Valkey
       arg_lens.put_ulong(i * 8, arg.bytesize)
     end
 
-    [arg_ptrs, arg_lens]
+    [arg_ptrs, arg_lens, buffers]
   end
 
   def convert_response(res, &block)
@@ -263,8 +263,9 @@ class Valkey
       arg_lens = FFI::MemoryPointer.new(:ulong, 1)
       arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
       arg_lens.put_ulong(0, 0)
+      _buffers = [] # nothing to keep alive
     else
-      arg_ptrs, arg_lens = build_command_args(command_args)
+      arg_ptrs, arg_lens, _buffers = build_command_args(command_args)
     end
 
     # Create OpenTelemetry span if sampling is enabled
