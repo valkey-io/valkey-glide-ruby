@@ -144,7 +144,7 @@ class Valkey
       :pointer,     # route_bytes
       :ulong,       # route_bytes_len
       :ulong        # span_ptr (u64)
-    ], :pointer, blocking: true     # returns *mut CommandResult, releases GVL during I/O
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
     attach_function :batch, [
       :pointer,        # client_ptr
