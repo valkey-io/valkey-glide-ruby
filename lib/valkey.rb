@@ -22,13 +22,18 @@ class Valkey
   include PubSubCallback
 
   def pipelined(exception: true)
-    pipeline = Pipeline.new
+    # redis-rb v3.3.5: commands on the client inside a pipelined block are queued automatically
+    original_pipeline = @current_pipeline
+    @current_pipeline = Pipeline.new
 
-    yield pipeline
+    yield self
 
-    return [] if pipeline.commands.empty?
+    commands = @current_pipeline.commands
+    @current_pipeline = original_pipeline
 
-    send_batch_commands(pipeline.commands, exception: exception)
+    return [] if commands.empty?
+
+    send_batch_commands(commands, exception: exception)
   end
 
   def send_batch_commands(commands, exception: true)
@@ -243,6 +248,12 @@ class Valkey
   end
 
   def send_command(command_type, command_args = [], &block)
+    # redis-rb v3.3.5: queue commands on the active pipeline when inside pipelined
+    if @current_pipeline
+      @current_pipeline.send_command(command_type, command_args, &block)
+      return
+    end
+
     # Validate connection
     if @connection.nil?
       raise "Connection is nil"
@@ -560,6 +571,8 @@ class Valkey
     @queued_commands = []
     # Track if we're inside a multi block (multi { ... }) vs direct multi calls
     @in_multi_block = false
+    # Active pipeline for redis-rb v3.3.5-style auto-pipelining
+    @current_pipeline = nil
   end
 
   def close

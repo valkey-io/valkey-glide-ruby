@@ -3,7 +3,8 @@
 module Lint
   module HashCommands
     def test_hset_and_hget
-      r.hset("foo", "f1", "s1")
+      assert_equal true, r.hset("foo", "f1", "s1")
+      assert_equal false, r.hset("foo", "f1", "s1")
 
       assert_equal "s1", r.hget("foo", "f1")
     end

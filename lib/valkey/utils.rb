@@ -10,10 +10,14 @@ class Valkey
   # as well as methods for handling specific Valkey command responses.
   #
   module Utils
+    # Matches redis-rb v3.3.5 Boolify semantics for integer 1/0 replies, with RESP3
+    # boolean support. Propagates nil (e.g. inside a pipeline) instead of false.
     Boolify = lambda { |value|
       return value if value.is_a?(TrueClass) || value.is_a?(FalseClass)
 
-      value != 0 unless value.nil?
+      return nil if value.nil?
+
+      value != 0
     }
 
     BoolifySet = lambda { |value|

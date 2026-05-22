@@ -274,17 +274,28 @@ class Valkey
 
       # Set one or more hash values.
       #
-      # @example
+      # Matches redis-rb v3.3.5 for a single field: returns a boolean indicating
+      # whether the field was newly added. Multiple fields return an integer count
+      # of fields added (Redis 4.0+ variadic HSET).
+      #
+      # @example Single field (redis-rb v3.3.5)
+      #   valkey.hset("hash", "f1", "v1") # => true
+      #
+      # @example Multiple fields
       #   valkey.hset("hash", "f1", "v1", "f2", "v2") # => 2
       #   valkey.hset("hash", { "f1" => "v1", "f2" => "v2" }) # => 2
       #
       # @param [String] key
       # @param [Array<String> | Hash<String, String>] attrs array or hash of fields and values
-      # @return [Integer] The number of fields that were added to the hash
+      # @return [Boolean, Integer] boolean for one field, integer count for multiple
       def hset(key, *attrs)
         attrs = attrs.first.flatten if attrs.size == 1 && attrs.first.is_a?(Hash)
 
-        send_command(RequestType::HSET, [key, *attrs])
+        if attrs.size == 2
+          send_command(RequestType::HSET, [key, *attrs], &Utils::Boolify)
+        else
+          send_command(RequestType::HSET, [key, *attrs])
+        end
       end
 
       # Set the string value of a hash field, only if the field does not exist.

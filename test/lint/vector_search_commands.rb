@@ -178,7 +178,7 @@ module Lint
 
         # Verify document was deleted
         exists = r.exists("doc:1")
-        assert_equal 0, exists, "Document should be deleted with DD flag"
+        assert_equal false, exists, "Document should be deleted with DD flag"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
