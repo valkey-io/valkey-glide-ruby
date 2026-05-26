@@ -5,7 +5,35 @@ class Valkey
     extend FFI::Library
 
     lib_ext = FFI::Platform.mac? ? "dylib" : "so"
-    ffi_lib File.expand_path("./libglide_ffi.#{lib_ext}", __dir__)
+
+    # Look for the native library in the following locations (in order):
+    # 1. valkey-glide submodule build output (development/source builds)
+    # 2. Bundled library in lib/valkey (for gem distribution)
+    lib_paths = [
+      # Submodule build output (release)
+      File.expand_path("../../../valkey-glide/ffi/target/release/libglide_ffi.#{lib_ext}", __dir__),
+      # Submodule build output (debug)
+      File.expand_path("../../../valkey-glide/ffi/target/debug/libglide_ffi.#{lib_ext}", __dir__),
+      # Bundled library (for gem distribution - fallback)
+      File.expand_path("./libglide_ffi.#{lib_ext}", __dir__)
+    ]
+
+    lib_path = lib_paths.find { |path| File.exist?(path) }
+
+    unless lib_path
+      raise LoadError, <<~ERROR
+        Could not find libglide_ffi native library.
+
+        Searched in:
+        #{lib_paths.map { |p| "  - #{p}" }.join("\n")}
+
+        To build from source:
+          1. Initialize the submodule: git submodule update --init --recursive
+          2. Build the FFI library: cd valkey-glide/ffi && cargo build --release
+      ERROR
+    end
+
+    ffi_lib lib_path
 
     class ClientType < FFI::Struct
       layout(

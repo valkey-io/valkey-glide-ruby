@@ -31,6 +31,64 @@ valkey.get("mykey")
 # => "hello world"
 ```
 
+## Development Setup
+
+This project uses the [valkey-glide][valkey-glide-home] repository as a Git submodule to build the native FFI library.
+
+### Prerequisites
+
+- **Rust toolchain**: Install via [rustup](https://rustup.rs/)
+- **Ruby**: 3.0 or later
+- **Bundler**: `gem install bundler`
+
+### Building from Source
+
+1. **Clone the repository with submodules:**
+
+   ```bash
+   git clone --recurse-submodules https://github.com/valkey-io/valkey-glide-ruby.git
+   cd valkey-glide-ruby
+   ```
+
+   Or if you've already cloned without submodules:
+
+   ```bash
+   git submodule update --init --recursive
+   ```
+
+2. **Install Ruby dependencies:**
+
+   ```bash
+   bundle install
+   ```
+
+3. **Build the native FFI library:**
+
+   ```bash
+   rake native:build
+   ```
+
+   This will:
+   - Initialize the `valkey-glide` submodule if needed
+   - Build the Rust FFI library in release mode
+   - The library will be available at `valkey-glide/ffi/target/release/libglide_ffi.{so,dylib}`
+
+4. **Run tests:**
+
+   ```bash
+   rake test
+   ```
+
+### Available Rake Tasks
+
+| Task | Description |
+|------|-------------|
+| `rake native:build` | Build the native FFI library (release mode) |
+| `rake native:build_debug` | Build the native FFI library (debug mode) |
+| `rake native:clean` | Clean native build artifacts |
+| `rake native:submodule` | Initialize/update the valkey-glide submodule |
+| `rake native:package` | Copy built library to lib/valkey for gem packaging |
+
 ## OpenTelemetry and Monitoring
 
 The Valkey client includes built-in support for OpenTelemetry distributed tracing and client statistics monitoring.
