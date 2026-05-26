@@ -23,7 +23,45 @@ jobs:
       - name: Lint
         run: bundle exec rubocop
 
+  build-native-library:
+    name: Build Native Library
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            valkey-glide/ffi/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('valkey-glide/ffi/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build native library
+        working-directory: valkey-glide/ffi
+        run: cargo build --release
+
+      - name: Upload native library
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lib-linux-x64
+          path: valkey-glide/ffi/target/release/libglide_ffi.so
+          if-no-files-found: error
+
   standalone:
+    needs: [build-native-library]
     runs-on: ubuntu-latest
     name: Standalone / Ruby ${{ matrix.ruby }} Valkey ${{ matrix.valkey }}
     timeout-minutes: 15
@@ -36,9 +74,6 @@ jobs:
           - 3.2
           - 3.1
           - 3.0
-          - 2.7
-          - 2.6
-          - jruby
         valkey:
           - 7.2.10
           - 8
@@ -46,6 +81,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download native library
+        uses: actions/download-artifact@v4
+        with:
+          name: native-lib-linux-x64
+          path: valkey-glide/ffi/target/release/
       
       - name: Copy modules for testing
         run: |
@@ -180,6 +223,7 @@ jobs:
           docker stop valkey-ssl && docker rm valkey-ssl || true
 
   cluster:
+    needs: [build-native-library]
     runs-on: ubuntu-latest
     name: Cluster / Ruby ${{ matrix.ruby }}
     timeout-minutes: 20
@@ -211,6 +255,15 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Download native library
+        uses: actions/download-artifact@v4
+        with:
+          name: native-lib-linux-x64
+          path: valkey-glide/ffi/target/release/
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:

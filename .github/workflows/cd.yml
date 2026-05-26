@@ -1,0 +1,309 @@
+name: Ruby - Continuous Deployment
+
+on:
+  push:
+    tags:
+      - "v*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The release version of GLIDE, formatted as *.*.* or *.*.*-rc*"
+        required: true
+      publish_gem:
+        description: "Publish to RubyGems"
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: ruby-cd-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  set-release-version:
+    runs-on: ubuntu-latest
+    outputs:
+      RELEASE_VERSION: ${{ steps.release-version.outputs.RELEASE_VERSION }}
+    steps:
+      - name: Set the release version
+        id: release-version
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            R_VERSION="${{ github.event.inputs.version }}"
+          else
+            # Remove 'v' prefix from tag
+            R_VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "Release version: $R_VERSION"
+          echo "RELEASE_VERSION=$R_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.release-version.outputs.RELEASE_VERSION }}"
+          if ! echo "$VERSION" | grep -Pq '^\d+\.\d+\.\d+(-rc\d+)?$'; then
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-rcN"
+            exit 1
+          fi
+
+  build-native-libraries:
+    needs: [set-release-version]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            named_os: linux
+            arch: x64
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            named_os: linux
+            arch: arm64
+          - os: macos-15
+            target: aarch64-apple-darwin
+            named_os: darwin
+            arch: arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            named_os: darwin
+            arch: x64
+
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build native library
+        working-directory: valkey-glide/ffi
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+
+      - name: Determine library extension
+        id: lib-ext
+        run: |
+          if [[ "${{ matrix.named_os }}" == "darwin" ]]; then
+            echo "ext=dylib" >> $GITHUB_OUTPUT
+          else
+            echo "ext=so" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload native library artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-lib-${{ matrix.target }}
+          path: valkey-glide/ffi/target/${{ matrix.target }}/release/libglide_ffi.${{ steps.lib-ext.outputs.ext }}
+          if-no-files-found: error
+
+  build-and-publish-gem:
+    needs: [set-release-version, build-native-libraries]
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+
+      - name: Download all native library artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: native-lib-*
+          path: native-libs
+
+      - name: Organize native libraries for gem
+        run: |
+          echo "Creating native library directories..."
+          mkdir -p lib/valkey/native/x86_64-unknown-linux-gnu
+          mkdir -p lib/valkey/native/aarch64-unknown-linux-gnu
+          mkdir -p lib/valkey/native/x86_64-apple-darwin
+          mkdir -p lib/valkey/native/aarch64-apple-darwin
+
+          echo "Copying native libraries..."
+          cp native-libs/native-lib-x86_64-unknown-linux-gnu/libglide_ffi.so \
+             lib/valkey/native/x86_64-unknown-linux-gnu/
+          cp native-libs/native-lib-aarch64-unknown-linux-gnu/libglide_ffi.so \
+             lib/valkey/native/aarch64-unknown-linux-gnu/
+          cp native-libs/native-lib-x86_64-apple-darwin/libglide_ffi.dylib \
+             lib/valkey/native/x86_64-apple-darwin/
+          cp native-libs/native-lib-aarch64-apple-darwin/libglide_ffi.dylib \
+             lib/valkey/native/aarch64-apple-darwin/
+
+          echo "Native libraries organized:"
+          find lib/valkey/native -type f -exec ls -lh {} \;
+
+      - name: Update gem version
+        run: |
+          sed -i "s/VERSION = .*/VERSION = \"${{ env.RELEASE_VERSION }}\"/" lib/valkey/version.rb
+          echo "Updated version.rb:"
+          cat lib/valkey/version.rb
+
+      - name: Update gemspec to include native libraries
+        run: |
+          # The gemspec uses git ls-files, but native libs aren't in git
+          # We need to modify the gemspec to include them
+          ruby -e '
+            content = File.read("valkey.gemspec")
+            # Find the spec.files assignment and add native libs
+            new_content = content.gsub(
+              /spec\.files = IO\.popen.*?end\s*end/m,
+              <<~RUBY.chomp
+                spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
+                  ls.readlines("\\x0", chomp: true).reject do |f|
+                    (f == gemspec) ||
+                      f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile valkey-glide/])
+                  end
+                end + Dir.glob("lib/valkey/native/**/*").reject { |f| File.directory?(f) }
+              RUBY
+            )
+            File.write("valkey.gemspec", new_content)
+          '
+          echo "Updated gemspec:"
+          cat valkey.gemspec
+
+      - name: Build gem
+        run: |
+          gem build valkey.gemspec
+          echo "Built gem:"
+          ls -lh *.gem
+
+      - name: Verify gem contents
+        run: |
+          gem unpack valkey-rb-${{ env.RELEASE_VERSION }}.gem --target=gem-contents
+          echo "Gem contents:"
+          find gem-contents -type f | head -50
+          echo ""
+          echo "Native libraries in gem:"
+          find gem-contents -name "libglide_ffi.*" -exec ls -lh {} \;
+
+      - name: Upload gem artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ruby-gem
+          path: "*.gem"
+          if-no-files-found: error
+
+      - name: Publish to RubyGems
+        if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          gem push valkey-rb-${{ env.RELEASE_VERSION }}.gem
+
+  test-gem:
+    needs: [set-release-version, build-and-publish-gem]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            ruby: "3.3"
+          - os: ubuntu-24.04-arm
+            ruby: "3.3"
+          - os: macos-15
+            ruby: "3.3"
+          - os: macos-13
+            ruby: "3.3"
+
+    runs-on: ${{ matrix.os }}
+    env:
+      RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+
+    steps:
+      - name: Checkout (for test files)
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+
+      - name: Start Valkey (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          docker run -d --name valkey-test -p 6379:6379 valkey/valkey:8
+          sleep 5
+          docker exec valkey-test valkey-cli ping
+
+      - name: Start Valkey (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew install valkey
+          valkey-server --daemonize yes
+          sleep 2
+          valkey-cli ping
+
+      - name: Download gem artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ruby-gem
+          path: .
+
+      - name: Install gem
+        run: |
+          gem install valkey-rb-${{ env.RELEASE_VERSION }}.gem
+          echo "Installed gem:"
+          gem list valkey
+
+      - name: Test gem loading
+        run: |
+          ruby -e "
+            require 'valkey'
+            puts 'Valkey gem loaded successfully!'
+            puts 'Platform info:'
+            info = Valkey::Bindings.platform_info
+            puts \"  OS: #{info[:os]}\"
+            puts \"  Arch: #{info[:arch]}\"
+            puts \"  Platform dir: #{info[:platform_dir]}\"
+          "
+
+      - name: Test basic operations
+        run: |
+          ruby -e "
+            require 'valkey'
+            client = Valkey.new(host: '127.0.0.1', port: 6379)
+            
+            # Test SET/GET
+            client.set('test_key', 'test_value')
+            result = client.get('test_key')
+            raise 'GET failed' unless result == 'test_value'
+            
+            # Test PING
+            pong = client.ping
+            raise 'PING failed' unless pong == 'PONG'
+            
+            # Cleanup
+            client.del('test_key')
+            client.close
+            
+            puts 'All basic tests passed!'
+          "
