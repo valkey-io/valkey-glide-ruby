@@ -87,6 +87,12 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install protoc (protobuf)
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "29.1"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         run: |
