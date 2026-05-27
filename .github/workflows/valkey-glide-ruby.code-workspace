@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../valkey-glide-csharp"
+		},
+		{
+			"path": "../../../valkey-glide-php"
+		}
+	],
+	"settings": {}
+}

@@ -34,7 +34,7 @@ namespace :native do
   end
 
   desc "Build the native FFI library (debug mode)"
-  task :build_debug => :submodule do
+  task build_debug: :submodule do
     puts "Building native FFI library (debug)..."
     Dir.chdir("valkey-glide/ffi") do
       sh "cargo build"
@@ -46,14 +46,16 @@ namespace :native do
   desc "Clean native build artifacts"
   task :clean do
     puts "Cleaning native build artifacts..."
-    Dir.chdir("valkey-glide/ffi") do
-      sh "cargo clean"
-    end if Dir.exist?("valkey-glide/ffi")
+    if Dir.exist?("valkey-glide/ffi")
+      Dir.chdir("valkey-glide/ffi") do
+        sh "cargo clean"
+      end
+    end
     puts "Clean complete!"
   end
 
   desc "Copy built library to lib/valkey for gem packaging"
-  task :package => :build do
+  task package: :build do
     require 'fileutils'
     src = "valkey-glide/ffi/target/release/libglide_ffi.#{native_lib_ext}"
     dest = "lib/valkey/libglide_ffi.#{native_lib_ext}"

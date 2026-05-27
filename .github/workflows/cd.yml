@@ -279,6 +279,8 @@ jobs:
           "
 
       - name: Run standalone tests
+        env:
+          TEST_INSTALLED_GEM: "true"
         run: bundle exec rake test:valkey
 
       - name: Stop Valkey
