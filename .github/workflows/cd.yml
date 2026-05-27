@@ -232,14 +232,13 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
-          bundler-cache: false  # We'll handle bundle install manually
+          bundler-cache: false  # We'll install gems manually
 
       - name: Install test dependencies
-        env:
-          TEST_INSTALLED_GEM: "true"
         run: |
-          # With TEST_INSTALLED_GEM, Gemfile skips gemspec so we only get test deps
-          bundle install
+          # Install test dependencies as system gems (not via bundler)
+          # This avoids bundler's gemspec loading which would pull in local lib
+          gem install minitest minitest-reporters rake
 
       - name: Start Valkey
         run: |
@@ -289,9 +288,9 @@ jobs:
         env:
           TEST_INSTALLED_GEM: "true"
         run: |
-          # Use bundle exec to get test dependencies (minitest, etc.)
-          # but TEST_INSTALLED_GEM ensures we use the installed gem, not local lib/
-          bundle exec rake test:valkey
+          # Run without bundle exec to use system-installed gem and its dependencies
+          # TEST_INSTALLED_GEM ensures Rakefile doesn't add local lib to load path
+          rake test:valkey
 
       - name: Stop Valkey
         if: always()
