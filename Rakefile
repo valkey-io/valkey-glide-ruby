@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
-require 'bundler/gem_tasks'
+# Only load bundler gem tasks when not testing installed gem
+# bundler/gem_tasks can interfere with load path when testing installed gems
+require 'bundler/gem_tasks' unless ENV["TEST_INSTALLED_GEM"]
 require 'rake/testtask'
 
 # =============================================================================

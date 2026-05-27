@@ -288,8 +288,10 @@ jobs:
         env:
           TEST_INSTALLED_GEM: "true"
         run: |
-          # Run without bundle exec to use system-installed gem and its dependencies
-          # TEST_INSTALLED_GEM ensures Rakefile doesn't add local lib to load path
+          # Remove local lib to ensure we use the installed gem
+          # The installed gem has the native library, local lib doesn't
+          rm -rf lib/
+          # Run tests - they will use the installed gem
           rake test:valkey
 
       - name: Stop Valkey
