@@ -81,7 +81,8 @@ namespace :test do
   groups.each do |group|
     Rake::TestTask.new(group) do |t|
       t.libs << "test"
-      t.libs << "lib"
+      # Only add local lib to load path when not testing installed gem
+      t.libs << "lib" unless ENV["TEST_INSTALLED_GEM"]
       t.test_files = FileList["test/#{group}/**/*_test.rb"]
       t.options = '-v' if ENV['CI'] || ENV['VERBOSE']
     end

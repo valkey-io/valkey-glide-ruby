@@ -50,6 +50,7 @@ Metrics/ClassLength:
 Metrics/BlockLength:
   Exclude:
     - 'Rakefile'
+    - 'lib/valkey.rb'
 
 Metrics/BlockNesting:
   Exclude:

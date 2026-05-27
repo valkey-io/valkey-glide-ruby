@@ -2,9 +2,7 @@
 
 # When TEST_INSTALLED_GEM is set, use the installed gem instead of local lib
 # This is useful for CD testing to verify the published gem works correctly
-unless ENV["TEST_INSTALLED_GEM"]
-  $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
-end
+$LOAD_PATH.unshift File.expand_path("../lib", __dir__) unless ENV["TEST_INSTALLED_GEM"]
 
 require "valkey"
 
