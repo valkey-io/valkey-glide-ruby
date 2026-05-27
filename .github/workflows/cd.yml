@@ -220,11 +220,14 @@ jobs:
     steps:
       - name: Checkout (for test files)
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.3"
+          bundler-cache: true
 
       - name: Start Valkey
         run: |
@@ -258,24 +261,9 @@ jobs:
             puts \"  Platform dir: #{info[:platform_dir]}\"
           "
 
-      - name: Test basic operations
-        run: |
-          ruby -e "
-            require 'valkey'
-            client = Valkey.new(host: '127.0.0.1', port: 6379)
-            
-            # Test SET/GET
-            client.set('test_key', 'test_value')
-            result = client.get('test_key')
-            raise 'GET failed' unless result == 'test_value'
-            
-            # Test PING
-            pong = client.ping
-            raise 'PING failed' unless pong == 'PONG'
-            
-            # Cleanup
-            client.del('test_key')
-            client.close
-            
-            puts 'All basic tests passed!'
-          "
+      - name: Run standalone tests
+        run: bundle exec rake test:valkey
+
+      - name: Stop Valkey
+        if: always()
+        run: docker stop valkey-test && docker rm valkey-test || true
