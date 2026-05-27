@@ -57,10 +57,10 @@ class Valkey
     # 2. Platform-specific bundled library in lib/valkey/native/{platform}/ (for gem distribution)
     # 3. Legacy bundled library in lib/valkey (fallback for old gem structure)
     lib_paths = [
-      # Submodule build output (release)
-      File.expand_path("../../../valkey-glide/ffi/target/release/libglide_ffi.#{lib_ext}", __dir__),
+      # Submodule build output (release) - from lib/valkey/ go up 2 levels to repo root
+      File.expand_path("../../valkey-glide/ffi/target/release/libglide_ffi.#{lib_ext}", __dir__),
       # Submodule build output (debug)
-      File.expand_path("../../../valkey-glide/ffi/target/debug/libglide_ffi.#{lib_ext}", __dir__),
+      File.expand_path("../../valkey-glide/ffi/target/debug/libglide_ffi.#{lib_ext}", __dir__),
       # Platform-specific bundled library (for gem distribution)
       File.expand_path("./native/#{platform_dir}/libglide_ffi.#{lib_ext}", __dir__),
       # Legacy bundled library (fallback)
