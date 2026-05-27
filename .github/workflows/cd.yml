@@ -238,7 +238,12 @@ jobs:
         run: |
           # Install test dependencies as system gems (not via bundler)
           # This avoids bundler's gemspec loading which would pull in local lib
-          gem install minitest minitest-reporters rake
+          # Use specific versions to match Gemfile.lock for consistency
+          gem install minitest -v 5.27.0
+          gem install minitest-reporters -v 1.8.0
+          gem install ansi
+          gem install ruby-progressbar
+          gem install rake
 
       - name: Start Valkey
         run: |
