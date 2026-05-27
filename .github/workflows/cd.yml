@@ -24,6 +24,22 @@ permissions:
   contents: read
 
 jobs:
+  load-platform-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      PLATFORM_MATRIX: ${{ steps.load-platform-matrix.outputs.PLATFORM_MATRIX }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load platform matrix
+        id: load-platform-matrix
+        shell: bash
+        run: |
+          export PLATFORM_MATRIX=$(jq -c '.' < .github/json_matrices/build-matrix.json)
+          echo "PLATFORM_MATRIX=${PLATFORM_MATRIX}" >> $GITHUB_OUTPUT
+          echo "Loaded platform matrix: ${PLATFORM_MATRIX}"
+
   set-release-version:
     runs-on: ubuntu-latest
     outputs:
@@ -52,29 +68,13 @@ jobs:
           fi
 
   build-native-libraries:
-    needs: [set-release-version]
+    needs: [set-release-version, load-platform-matrix]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            named_os: linux
-            arch: x64
-          - os: ubuntu-24.04-arm
-            target: aarch64-unknown-linux-gnu
-            named_os: linux
-            arch: arm64
-          - os: macos-15
-            target: aarch64-apple-darwin
-            named_os: darwin
-            arch: arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            named_os: darwin
-            arch: x64
+        host: ${{ fromJson(needs.load-platform-matrix.outputs.PLATFORM_MATRIX) }}
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.host.RUNNER }}
     env:
       RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
 
@@ -86,41 +86,25 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Install cross-compilation tools (Linux ARM64)
-        if: matrix.target == 'aarch64-unknown-linux-gnu' && matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
 
       - name: Build native library
         working-directory: valkey-glide/ffi
         run: |
-          cargo build --release --target ${{ matrix.target }}
-
-      - name: Determine library extension
-        id: lib-ext
-        run: |
-          if [[ "${{ matrix.named_os }}" == "darwin" ]]; then
-            echo "ext=dylib" >> $GITHUB_OUTPUT
-          else
-            echo "ext=so" >> $GITHUB_OUTPUT
-          fi
+          cargo build --release
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v4
         with:
-          name: native-lib-${{ matrix.target }}
-          path: valkey-glide/ffi/target/${{ matrix.target }}/release/libglide_ffi.${{ steps.lib-ext.outputs.ext }}
+          name: native-lib-${{ matrix.host.TARGET }}
+          path: valkey-glide/ffi/target/release/libglide_ffi.so
           if-no-files-found: error
 
   build-and-publish-gem:
-    needs: [set-release-version, build-native-libraries]
+    needs: [set-release-version, load-platform-matrix, build-native-libraries]
     runs-on: ubuntu-latest
     env:
       RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+      PLATFORM_MATRIX: ${{ needs.load-platform-matrix.outputs.PLATFORM_MATRIX }}
 
     steps:
       - name: Checkout
@@ -142,21 +126,13 @@ jobs:
 
       - name: Organize native libraries for gem
         run: |
-          echo "Creating native library directories..."
-          mkdir -p lib/valkey/native/x86_64-unknown-linux-gnu
-          mkdir -p lib/valkey/native/aarch64-unknown-linux-gnu
-          mkdir -p lib/valkey/native/x86_64-apple-darwin
-          mkdir -p lib/valkey/native/aarch64-apple-darwin
-
-          echo "Copying native libraries..."
-          cp native-libs/native-lib-x86_64-unknown-linux-gnu/libglide_ffi.so \
-             lib/valkey/native/x86_64-unknown-linux-gnu/
-          cp native-libs/native-lib-aarch64-unknown-linux-gnu/libglide_ffi.so \
-             lib/valkey/native/aarch64-unknown-linux-gnu/
-          cp native-libs/native-lib-x86_64-apple-darwin/libglide_ffi.dylib \
-             lib/valkey/native/x86_64-apple-darwin/
-          cp native-libs/native-lib-aarch64-apple-darwin/libglide_ffi.dylib \
-             lib/valkey/native/aarch64-apple-darwin/
+          echo "Creating native library directories from matrix..."
+          for target in $(echo '${{ env.PLATFORM_MATRIX }}' | jq -r '.[].TARGET'); do
+            echo "Creating directory for $target"
+            mkdir -p "lib/valkey/native/$target"
+            echo "Copying native library for $target"
+            cp "native-libs/native-lib-$target/libglide_ffi.so" "lib/valkey/native/$target/"
+          done
 
           echo "Native libraries organized:"
           find lib/valkey/native -type f -exec ls -lh {} \;
@@ -220,21 +196,13 @@ jobs:
           gem push valkey-rb-${{ env.RELEASE_VERSION }}.gem
 
   test-gem:
-    needs: [set-release-version, build-and-publish-gem]
+    needs: [set-release-version, load-platform-matrix, build-and-publish-gem]
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            ruby: "3.3"
-          - os: ubuntu-24.04-arm
-            ruby: "3.3"
-          - os: macos-15
-            ruby: "3.3"
-          - os: macos-13
-            ruby: "3.3"
+        host: ${{ fromJson(needs.load-platform-matrix.outputs.PLATFORM_MATRIX) }}
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.host.RUNNER }}
     env:
       RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
 
@@ -245,22 +213,13 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: "3.3"
 
-      - name: Start Valkey (Linux)
-        if: startsWith(matrix.os, 'ubuntu')
+      - name: Start Valkey
         run: |
           docker run -d --name valkey-test -p 6379:6379 valkey/valkey:8
           sleep 5
           docker exec valkey-test valkey-cli ping
-
-      - name: Start Valkey (macOS)
-        if: startsWith(matrix.os, 'macos')
-        run: |
-          brew install valkey
-          valkey-server --daemonize yes
-          sleep 2
-          valkey-cli ping
 
       - name: Download gem artifact
         uses: actions/download-artifact@v4
