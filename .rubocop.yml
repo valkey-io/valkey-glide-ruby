@@ -52,6 +52,10 @@ Metrics/BlockLength:
     - 'Rakefile'
     - 'lib/valkey.rb'
 
+Style/IfUnlessModifier:
+  Exclude:
+    - 'test/test_helper.rb'
+
 Metrics/BlockNesting:
   Exclude:
     - 'test_app/**/*.rb'
