@@ -173,14 +173,19 @@ jobs:
           cat valkey.gemspec
 
       - name: Build gem
+        id: build-gem
         run: |
           gem build valkey.gemspec
           echo "Built gem:"
           ls -lh *.gem
+          # Capture the actual gem filename (RubyGems may transform version format)
+          GEM_FILE=$(ls *.gem | head -1)
+          echo "GEM_FILE=${GEM_FILE}" >> $GITHUB_OUTPUT
+          echo "Gem file: ${GEM_FILE}"
 
       - name: Verify gem contents
         run: |
-          gem unpack valkey-rb-${{ env.RELEASE_VERSION }}.gem --target=gem-contents
+          gem unpack ${{ steps.build-gem.outputs.GEM_FILE }} --target=gem-contents
           echo "Gem contents:"
           find gem-contents -type f | head -50
           echo ""
@@ -199,7 +204,7 @@ jobs:
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
-          gem push valkey-rb-${{ env.RELEASE_VERSION }}.gem
+          gem push ${{ steps.build-gem.outputs.GEM_FILE }}
 
   test-gem:
     needs: [set-release-version, load-platform-matrix, build-and-publish-gem]
@@ -235,7 +240,9 @@ jobs:
 
       - name: Install gem
         run: |
-          gem install valkey-rb-${{ env.RELEASE_VERSION }}.gem
+          GEM_FILE=$(ls *.gem | head -1)
+          echo "Installing gem: ${GEM_FILE}"
+          gem install "${GEM_FILE}"
           echo "Installed gem:"
           gem list valkey
 
