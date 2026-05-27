@@ -200,11 +200,16 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to RubyGems
+        id: publish
         if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
         env:
           GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
           gem push ${{ steps.build-gem.outputs.GEM_FILE }}
+          echo "published=true" >> $GITHUB_OUTPUT
+
+    outputs:
+      published: ${{ steps.publish.outputs.published || 'false' }}
 
   test-gem:
     needs: [set-release-version, load-platform-matrix, build-and-publish-gem]
@@ -235,17 +240,29 @@ jobs:
           sleep 5
           docker exec valkey-test valkey-cli ping
 
-      - name: Download gem artifact
+      - name: Download gem artifact (unpublished)
+        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
         uses: actions/download-artifact@v4
         with:
           name: ruby-gem
           path: .
 
-      - name: Install gem
+      - name: Install gem from artifact (unpublished)
+        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
         run: |
           GEM_FILE=$(ls *.gem | head -1)
-          echo "Installing gem: ${GEM_FILE}"
+          echo "Installing gem from artifact: ${GEM_FILE}"
           gem install "${GEM_FILE}"
+          echo "Installed gem:"
+          gem list valkey
+
+      - name: Install gem from RubyGems (published)
+        if: ${{ needs.build-and-publish-gem.outputs.published == 'true' }}
+        run: |
+          echo "Installing published gem from RubyGems..."
+          # Wait a bit for RubyGems to index the new version
+          sleep 30
+          gem install valkey-rb --version "${{ env.RELEASE_VERSION }}" || gem install valkey-rb --pre
           echo "Installed gem:"
           gem list valkey
 
