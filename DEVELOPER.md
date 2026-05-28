@@ -21,16 +21,19 @@ This architecture matches the **Go** and **Python sync** clients (C FFI), not th
 valkey-glide-ruby/
 ├── lib/
 │   ├── valkey.rb                 # Client, pipelining, response conversion
-│   ├── valkey/
-│   │   ├── bindings.rb           # FFI definitions
-│   │   ├── libglide_ffi.so       # Prebuilt Linux native library
-│   │   ├── libglide_ffi.dylib    # Prebuilt macOS native library
-│   │   ├── commands/             # Command modules per data type
-│   │   ├── opentelemetry.rb      # OTel init and sampling
-│   │   ├── pipeline.rb           # Pipeline helper
-│   │   ├── request_type.rb       # Command enum (maps to glide-core)
-│   │   ├── response_type.rb      # Response enum
-│   │   └── errors.rb             # Ruby exception types
+│   └── valkey/
+│       ├── bindings.rb           # FFI definitions
+│       ├── native/               # Platform-specific native libraries (in gem)
+│       │   ├── x86_64-unknown-linux-gnu/
+│       │   └── aarch64-unknown-linux-gnu/
+│       ├── commands/             # Command modules per data type
+│       ├── opentelemetry.rb      # OTel init and sampling
+│       ├── pipeline.rb           # Pipeline helper
+│       ├── request_type.rb       # Command enum (maps to glide-core)
+│       ├── response_type.rb      # Response enum
+│       └── errors.rb             # Ruby exception types
+├── valkey-glide/                 # Git submodule (valkey-io/valkey-glide)
+│   └── ffi/                      # Rust FFI crate (build target)
 ├── test/
 │   ├── valkey/                   # Standalone server tests
 │   ├── cluster/                  # Cluster tests
@@ -39,10 +42,12 @@ valkey-glide-ruby/
 ├── bin/
 │   ├── setup                     # bundle install
 │   └── console                   # IRB with gem loaded
-├── .github/workflows/CI.yml      # RuboCop + test matrix
+├── .github/workflows/
+│   ├── CI.yml                    # RuboCop + test matrix
+│   └── cd.yml                    # Build and publish gem
 ├── valkey.gemspec
 ├── Gemfile
-└── Rakefile                      # test:valkey, test:cluster
+└── Rakefile                      # test:valkey, test:cluster, native:build
 ```
 
 ## Prerequisites
@@ -82,9 +87,15 @@ brew install ruby
 ## Clone and Local Setup
 
 ```bash
-git clone https://github.com/valkey-io/valkey-glide-ruby.git
+git clone --recurse-submodules https://github.com/valkey-io/valkey-glide-ruby.git
 cd valkey-glide-ruby
 bin/setup   # runs bundle install
+```
+
+If you've already cloned without submodules:
+
+```bash
+git submodule update --init --recursive
 ```
 
 Load the gem from the checkout without installing:
@@ -102,34 +113,55 @@ bundle exec bin/console
 
 ## Build Native FFI from Source
 
-The published gem includes prebuilt `libglide_ffi` binaries. To update them from [valkey-glide](https://github.com/valkey-io/valkey-glide):
+This repository includes [valkey-glide](https://github.com/valkey-io/valkey-glide) as a Git submodule. Rake tasks are provided to build the native FFI library.
+
+### Prerequisites for Building
+
+- **Rust toolchain**: Install via [rustup](https://rustup.rs/)
+- **Protobuf compiler**: `protoc` (required for glide-core)
+
+### Build with Rake
 
 ```bash
-VERSION=main   # or a release tag, e.g. v2.4.0
-git clone --branch ${VERSION} https://github.com/valkey-io/valkey-glide.git
-cd valkey-glide/ffi
+# Build the native FFI library (release mode)
+rake native:build
 
-# Install Rust if needed
-# curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-cargo build --release
+# This will:
+# 1. Initialize the valkey-glide submodule if needed
+# 2. Build the Rust FFI library in release mode
+# 3. Output: valkey-glide/ffi/target/release/libglide_ffi.{so,dylib}
 ```
 
-Copy the built library into the Ruby gem:
+### Available Rake Tasks
+
+| Task | Description |
+|------|-------------|
+| `rake native:build` | Build the native FFI library (release mode) |
+| `rake native:build_debug` | Build the native FFI library (debug mode) |
+| `rake native:clean` | Clean native build artifacts |
+| `rake native:submodule` | Initialize/update the valkey-glide submodule |
+| `rake native:package` | Copy built library to `lib/valkey/` for gem packaging |
+
+### Verify the Build
 
 ```bash
-# Linux
-cp target/release/libglide_ffi.so /path/to/valkey-glide-ruby/lib/valkey/
-
-# macOS
-cp target/release/libglide_ffi.dylib /path/to/valkey-glide-ruby/lib/valkey/
-```
-
-Verify the gem loads the new library:
-
-```bash
-cd /path/to/valkey-glide-ruby
 bundle exec ruby -e 'require "valkey"; c = Valkey.new; puts c.ping; c.close'
+```
+
+### Updating the Submodule
+
+To update to a newer version of valkey-glide:
+
+```bash
+cd valkey-glide
+git fetch origin
+git checkout v2.4.0  # or desired tag/branch
+cd ..
+git add valkey-glide
+git commit -m "Update valkey-glide submodule to v2.4.0"
+
+# Rebuild the native library
+rake native:build
 ```
 
 ### Rust Linters (when changing FFI)
