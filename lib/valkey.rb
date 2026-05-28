@@ -588,7 +588,7 @@ class Valkey
   #
   # @example Get client statistics
   #   client = Valkey.new(host: 'localhost', port: 6379)
-  #   stats = client.statistics
+  #   stats = client.get_statistics
   #   puts "Total connections: #{stats[:total_connections]}"
   #   puts "Total clients: #{stats[:total_clients]}"
   #   puts "Values compressed: #{stats[:total_values_compressed]}"
@@ -612,4 +612,6 @@ class Valkey
       compression_skipped_count: stats[:compression_skipped_count]
     }
   end
+
+  alias get_statistics statistics
 end
