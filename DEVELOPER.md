@@ -140,7 +140,7 @@ rake native:build
 | `rake native:build_debug` | Build the native FFI library (debug mode) |
 | `rake native:clean` | Clean native build artifacts |
 | `rake native:submodule` | Initialize/update the valkey-glide submodule |
-| `rake native:package` | Copy built library to `lib/valkey/` for gem packaging |
+| `rake native:package` | Copy built library to `lib/valkey/native/{platform}/` for gem packaging |
 
 ### Verify the Build
 
@@ -342,19 +342,82 @@ GitHub Actions (`.github/workflows/CI.yml`):
 | `standalone` | Ruby 2.6–3.4 + JRuby; Valkey 7.2, 8, 8.1 |
 | `cluster` | Ruby 2.6–3.4; grokzen/redis-cluster |
 
-## Packaging
+## Building the Gem Locally
 
-Release artifacts are built via `valkey.gemspec`:
+The gem includes platform-specific native libraries. For development and testing, you can build a gem that works on your current platform.
 
-- Native libraries under `lib/valkey/` are included in the gem.
-- Test files, `bin/`, and `.github/` are excluded from the release.
-
-Build locally:
+### Quick Build (Current Platform Only)
 
 ```bash
+# 1. Build the native FFI library
+rake native:build
+
+# 2. Package it into lib/valkey/native/{platform}/
+rake native:package
+
+# 3. Build the gem
 gem build valkey.gemspec
+
+# 4. Install locally
 gem install ./valkey-rb-*.gem
 ```
+
+### What `rake native:package` Does
+
+This task copies the built native library to the correct platform-specific directory:
+
+```text
+lib/valkey/native/
+├── x86_64-unknown-linux-gnu/
+│   └── libglide_ffi.so
+├── aarch64-unknown-linux-gnu/
+│   └── libglide_ffi.so
+├── x86_64-apple-darwin/
+│   └── libglide_ffi.dylib
+└── aarch64-apple-darwin/
+    └── libglide_ffi.dylib
+```
+
+The gem automatically detects your platform at runtime and loads the appropriate library.
+
+### Building for Multiple Platforms
+
+For distribution, you need native libraries for each target platform. The CD workflow builds these using GitHub Actions runners:
+
+- **x86_64-unknown-linux-gnu** — Ubuntu x64 runner
+- **aarch64-unknown-linux-gnu** — Ubuntu ARM64 runner
+
+To build for a different platform, you must build on that platform (or use cross-compilation tools).
+
+### Verify the Gem Contents
+
+```bash
+# Unpack and inspect
+gem unpack valkey-rb-*.gem --target=gem-contents
+find gem-contents -name "libglide_ffi.*"
+
+# Or list files in the gem
+gem spec valkey-rb-*.gem files
+```
+
+### Install and Test
+
+```bash
+# Install the locally built gem
+gem install ./valkey-rb-*.gem
+
+# Test it works (requires Valkey running)
+ruby -e "require 'valkey'; c = Valkey.new; puts c.ping; c.close"
+```
+
+### Troubleshooting Gem Builds
+
+| Problem | Solution |
+|---------|----------|
+| `LoadError: Could not find libglide_ffi` | Run `rake native:package` before `gem build` |
+| Wrong platform library | Rebuild on the target platform; don't copy between OS/arch |
+| Gem too large | Check that `valkey-glide/` submodule isn't included (gemspec excludes it) |
+| Version mismatch | Update `lib/valkey/version.rb` before building |
 
 ## Troubleshooting
 

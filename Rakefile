@@ -56,15 +56,42 @@ namespace :native do
     puts "Clean complete!"
   end
 
-  desc "Copy built library to lib/valkey for gem packaging"
+  desc "Copy built library to lib/valkey/native/{platform}/ for gem packaging"
   task package: :build do
     require 'fileutils'
+    require 'rbconfig'
+
+    # Determine platform directory name (matches Rust target triple)
+    os = case RbConfig::CONFIG['host_os']
+         when /darwin/
+           'apple-darwin'
+         when /linux/
+           'unknown-linux-gnu'
+         when /mswin|mingw/
+           'pc-windows-msvc'
+         else
+           abort "Unsupported OS: #{RbConfig::CONFIG['host_os']}"
+         end
+
+    arch = case RbConfig::CONFIG['host_cpu']
+           when /x86_64|amd64/i
+             'x86_64'
+           when /aarch64|arm64/i
+             'aarch64'
+           else
+             abort "Unsupported architecture: #{RbConfig::CONFIG['host_cpu']}"
+           end
+
+    platform_dir = "#{arch}-#{os}"
     src = "valkey-glide/ffi/target/release/libglide_ffi.#{native_lib_ext}"
-    dest = "lib/valkey/libglide_ffi.#{native_lib_ext}"
+    dest_dir = "lib/valkey/native/#{platform_dir}"
+    dest = "#{dest_dir}/libglide_ffi.#{native_lib_ext}"
 
     if File.exist?(src)
+      FileUtils.mkdir_p(dest_dir)
       FileUtils.cp(src, dest)
       puts "Copied #{src} to #{dest}"
+      puts "Platform: #{platform_dir}"
     else
       abort "Native library not found at #{src}. Run 'rake native:build' first."
     end
