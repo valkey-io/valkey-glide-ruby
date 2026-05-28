@@ -60,7 +60,7 @@ valkey-glide-ruby/
 - **Valkey** or Redis OSS (for integration tests)
 - **Docker** (optional; matches CI setup)
 
-To **rebuild** the native FFI library from source:
+To **build** the native FFI library from source:
 
 - **Rust** (`rustup`)
 - **GCC** / Xcode command-line tools
