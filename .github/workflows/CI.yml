@@ -59,6 +59,9 @@ jobs:
 
       - name: Build native library
         working-directory: valkey-glide/ffi
+        env:
+          GLIDE_NAME: GlideRuby
+          GLIDE_VERSION: ${{ github.ref_name }}
         run: cargo build --release
 
       - name: Upload native library

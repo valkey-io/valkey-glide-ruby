@@ -414,7 +414,7 @@ class Valkey
       json_options["connection_timeout"] = (connect_timeout * 1000).to_i
     end
 
-    # Client name
+    # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
     # TLS/SSL certificates

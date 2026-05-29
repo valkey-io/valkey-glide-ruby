@@ -29,7 +29,10 @@ namespace :native do
   task build: :submodule do
     puts "Building native FFI library..."
     Dir.chdir("valkey-glide/ffi") do
-      sh "cargo build --release"
+      # Set GLIDE_NAME to identify this as the Ruby client in CLIENT SETINFO
+      # GLIDE_VERSION is set from lib/valkey/version.rb
+      version = File.read("../../lib/valkey/version.rb")[/VERSION = "([^"]+)"/, 1] || "unknown"
+      sh({ "GLIDE_NAME" => "GlideRuby", "GLIDE_VERSION" => version }, "cargo build --release")
     end
     puts "Native library built successfully!"
     puts "Location: valkey-glide/ffi/target/release/libglide_ffi.#{native_lib_ext}"
@@ -39,7 +42,9 @@ namespace :native do
   task build_debug: :submodule do
     puts "Building native FFI library (debug)..."
     Dir.chdir("valkey-glide/ffi") do
-      sh "cargo build"
+      # Set GLIDE_NAME to identify this as the Ruby client in CLIENT SETINFO
+      version = File.read("../../lib/valkey/version.rb")[/VERSION = "([^"]+)"/, 1] || "unknown"
+      sh({ "GLIDE_NAME" => "GlideRuby", "GLIDE_VERSION" => version }, "cargo build")
     end
     puts "Native library built successfully!"
     puts "Location: valkey-glide/ffi/target/debug/libglide_ffi.#{native_lib_ext}"

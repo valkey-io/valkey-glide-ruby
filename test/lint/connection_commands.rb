@@ -65,6 +65,23 @@ module Lint
       assert info.include?("id="), "Client info should contain client ID"
     end
 
+    def test_library_name_is_set
+      # CLIENT SETINFO (which sets lib-name) was added in Redis/Valkey 7.2
+      target_version "7.2" do
+        # The GLIDE Ruby client should identify itself with lib-name=GlideRuby
+        # This is sent via CLIENT SETINFO lib-name during connection handshake
+        info = r.client(:info)
+        assert_kind_of String, info
+
+        # Extract lib-name from client info
+        lib_name_match = info.match(/lib-name=([^ ]+)/)
+        assert lib_name_match, "Client info should contain lib-name"
+
+        lib_name = lib_name_match[1]
+        assert_equal "GlideRuby", lib_name, "Library name should be 'GlideRuby', got '#{lib_name}'"
+      end
+    end
+
     def test_client_pause_unpause
       # Pause for a short duration
       assert_equal "OK", r.client(:pause, 100) # 100ms pause
