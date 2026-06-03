@@ -4,6 +4,57 @@ module Helper
   module Cluster
     include Generic
 
+    @test_cluster = nil
+
+    class << self
+      attr_accessor :test_cluster
+
+      def cluster_addresses
+        if ENV["CLUSTER_ENDPOINTS"]
+          parse_endpoints(ENV["CLUSTER_ENDPOINTS"])
+        elsif test_cluster
+          test_cluster.addresses
+        else
+          start_cluster
+          test_cluster.addresses
+        end
+      end
+
+      def start_cluster
+        return if test_cluster
+
+        @test_cluster = Valkey::TestCluster.new(
+          cluster_mode: true,
+          tls: ENV["CLUSTER_TLS"] == "true",
+          load_module: parse_module_paths(ENV["CLUSTER_MODULES"])
+        )
+      end
+
+      def stop_cluster
+        test_cluster&.close
+        @test_cluster = nil
+      end
+
+      private
+
+      def parse_endpoints(endpoints_str)
+        return [] if endpoints_str.nil? || endpoints_str.empty?
+
+        endpoints_str.split(",").map do |endpoint|
+          parts = endpoint.strip.rpartition(":")
+          host = parts[0]
+          port_str = parts[2]
+          { host: host, port: port_str.to_i }
+        end
+      end
+
+      def parse_module_paths(modules_str)
+        return nil if modules_str.nil? || modules_str.empty?
+
+        modules_str.split(",").map(&:strip)
+      end
+    end
+
     def init(valkey)
       valkey.flushdb
       valkey
@@ -24,7 +75,7 @@ module Helper
 
     # TODO: it has to come from the server
     def version
-      '7.0'
+      "7.0"
     end
 
     def cluster_mode?
@@ -34,7 +85,9 @@ module Helper
     private
 
     def _new_client(options = {})
-      Valkey.new(options.merge(nodes: CLUSTER_NODES, timeout: TIMEOUT, cluster_mode: true))
+      addresses = Helper::Cluster.cluster_addresses
+      nodes = addresses.empty? ? CLUSTER_NODES : addresses
+      Valkey.new(options.merge(nodes: nodes, timeout: TIMEOUT, cluster_mode: true))
     end
   end
 end

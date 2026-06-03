@@ -17,7 +17,11 @@ module Lint
     end
 
     def test_cluster_nodes
-      defined?(CLUSTER_NODES) ? CLUSTER_NODES : []
+      if cluster_mode?
+        Helper::Cluster.cluster_addresses
+      else
+        []
+      end
     end
 
     def test_ssl_port
@@ -389,8 +393,8 @@ module Lint
         assert_equal "PONG", client.ping
         client.close
 
-        # Test that single node array works
-        single_node = [{ host: "127.0.0.1", port: 7000 }]
+        # Test that single node array works (use first node from dynamic cluster)
+        single_node = [test_cluster_nodes.first]
         client = Valkey.new(
           nodes: single_node,
           cluster_mode: true,

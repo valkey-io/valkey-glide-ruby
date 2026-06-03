@@ -5,6 +5,7 @@
 $LOAD_PATH.unshift File.expand_path("../lib", __dir__) unless ENV["TEST_INSTALLED_GEM"]
 
 require "valkey"
+require "valkey/test_cluster"
 
 require "minitest/autorun"
 require 'minitest/reporters'

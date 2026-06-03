@@ -12,3 +12,5 @@ gem "minitest", "~> 5.16"
 gem "minitest-reporters", "~> 1.4"
 
 gem "rubocop", "~> 1.21"
+
+gem "rantly", "~> 2.0"
