@@ -40,11 +40,13 @@ Metrics/MethodLength:
     - 'lib/valkey.rb'
     - 'lib/valkey/opentelemetry.rb'
     - 'lib/valkey/bindings.rb'
+    - 'lib/valkey/test_cluster.rb'
     - 'test/**/*.rb'
 
 Metrics/ClassLength:
   Exclude:
     - 'lib/valkey.rb'
+    - 'lib/valkey/test_cluster.rb'
     - 'test/**/*.rb'
 
 Metrics/BlockLength:

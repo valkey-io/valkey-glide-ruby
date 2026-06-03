@@ -26,7 +26,7 @@ module Helper
           cluster_mode: false,
           tls: ENV["STANDALONE_TLS"] == "true",
           replica_count: 0,
-          load_module: parse_module_paths(ENV["STANDALONE_MODULES"])
+          load_module: parse_module_paths(ENV.fetch("STANDALONE_MODULES", nil))
         )
       end
 

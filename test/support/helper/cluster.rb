@@ -26,7 +26,7 @@ module Helper
         @test_cluster = Valkey::TestCluster.new(
           cluster_mode: true,
           tls: ENV["CLUSTER_TLS"] == "true",
-          load_module: parse_module_paths(ENV["CLUSTER_MODULES"])
+          load_module: parse_module_paths(ENV.fetch("CLUSTER_MODULES", nil))
         )
       end
 

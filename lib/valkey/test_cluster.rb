@@ -141,9 +141,7 @@ class Valkey
 
       stdout, stderr, status = Open3.capture3(*cmd)
 
-      unless status.success?
-        raise ClusterStartError, "cluster_manager.py failed: #{stderr}"
-      end
+      raise ClusterStartError, "cluster_manager.py failed: #{stderr}" unless status.success?
 
       result = self.class.parse_output(stdout)
       @cluster_folder = result[:cluster_folder]
