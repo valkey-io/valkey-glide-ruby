@@ -222,7 +222,7 @@ jobs:
           bundler-cache: true
       
       - name: Run standalone tests
-        run: bundle exec rake test:valkey
+        run: bundle exec rake test:standalone
       
       - name: Stop Valkey containers
         if: always()

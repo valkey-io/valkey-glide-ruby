@@ -106,7 +106,7 @@ task native: "native:build"
 # =============================================================================
 
 namespace :test do
-  groups = %i[valkey cluster]
+  groups = %i[standalone cluster]
   groups.each do |group|
     Rake::TestTask.new(group) do |t|
       t.libs << "test"
@@ -121,6 +121,6 @@ namespace :test do
   abort "The following test files are in no group:\n#{lost_tests.join("\n")}" unless lost_tests.empty?
 end
 
-task test: ["test:valkey"]
+task test: ["test:standalone", "test:cluster"]
 
 task default: :test
