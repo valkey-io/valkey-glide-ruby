@@ -255,12 +255,16 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Valkey
+      - name: Build and install Valkey from source
         run: |
-          curl -fsSL https://packages.valkey.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/valkey-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/valkey-archive-keyring.gpg] https://packages.valkey.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/valkey.list
-          sudo apt-get update
-          sudo apt-get install -y valkey
+          echo "Building Valkey 8.0.0 from source..."
+          git clone https://github.com/valkey-io/valkey.git
+          cd valkey
+          git checkout 8.0.0
+          make BUILD_TLS=yes -j4
+          sudo make install
+          echo "Verifying Valkey installation..."
+          valkey-server --version
 
       - name: Download native library
         uses: actions/download-artifact@v4
