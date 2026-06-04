@@ -117,7 +117,12 @@ namespace :test do
     end
   end
 
-  lost_tests = Dir["test/**/*_test.rb"] - groups.map { |g| Dir["test/#{g}/**/*_test.rb"] }.flatten
+  # Exclude module directories (valkey/, lint/) from lost_tests check
+  # These contain reusable test modules, not standalone test files
+  module_dirs = %w[valkey lint]
+  lost_tests = Dir["test/**/*_test.rb"] -
+               groups.map { |g| Dir["test/#{g}/**/*_test.rb"] }.flatten -
+               module_dirs.map { |d| Dir["test/#{d}/**/*_test.rb"] }.flatten
   abort "The following test files are in no group:\n#{lost_tests.join("\n")}" unless lost_tests.empty?
 end
 
