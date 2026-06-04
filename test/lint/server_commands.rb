@@ -179,6 +179,10 @@ module Lint
     end
 
     def test_client_kill
+      # CLIENT KILL by address doesn't work reliably in cluster mode because
+      # the command may be routed to a different node than where the client is connected
+      skip("CLIENT KILL by address not reliable in cluster mode") if cluster_mode?
+
       # Create a second client connection using the proper helper
       extra_client = _new_client
       sleep(0.5) # Ensure the new client created
@@ -194,6 +198,10 @@ module Lint
     end
 
     def test_client_kill_simple
+      # CLIENT KILL by address doesn't work reliably in cluster mode because
+      # the command may be routed to a different node than where the client is connected
+      skip("CLIENT KILL by address not reliable in cluster mode") if cluster_mode?
+
       # Create a second client connection using the proper helper
       extra_client = _new_client
       sleep(0.5) # Give it a moment to register with the server
