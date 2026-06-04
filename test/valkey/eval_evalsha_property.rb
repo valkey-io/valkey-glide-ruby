@@ -1,14 +1,10 @@
 # frozen_string_literal: true
 
-require "test_helper"
-
-module EvalEvalshaPropertyTests
-  # Test class for basic eval/evalsha execution and parameter handling properties
-  class TestEvalEvalshaBasicProperties < Minitest::Test
-    include Helper::Client
-
+module ValkeyTests
+  # Module for basic eval/evalsha execution and parameter handling properties
+  module EvalEvalshaBasicProperties
     def setup
-      super
+      super if defined?(super)
       r.script_flush # Ensure the script cache is empty before running tests
     end
 
@@ -93,12 +89,10 @@ module EvalEvalshaPropertyTests
     end
   end
 
-  # Test class for eval/evalsha validation and error handling properties
-  class TestEvalEvalshaValidationProperties < Minitest::Test
-    include Helper::Client
-
+  # Module for eval/evalsha validation and error handling properties
+  module EvalEvalshaValidationProperties
     def setup
-      super
+      super if defined?(super)
       r.script_flush # Ensure the script cache is empty before running tests
     end
 
@@ -145,7 +139,7 @@ module EvalEvalshaPropertyTests
         # Should not raise ArgumentError (may raise CommandError if script not found)
 
         r.evalsha(hash)
-      rescue Valkey::CommandError
+      rescue ::Valkey::CommandError
         # This is expected if script doesn't exist - validation passed
       rescue ArgumentError => e
         flunk "Valid SHA1 hash #{hash} should not raise ArgumentError: #{e.message}"
@@ -168,7 +162,7 @@ module EvalEvalshaPropertyTests
         args = generate_args(rand(4))
 
         # Should raise CommandError for non-existent script
-        assert_raises(Valkey::CommandError) do
+        assert_raises(::Valkey::CommandError) do
           r.evalsha(non_existent_hash, keys: keys, args: args)
         end
       end
@@ -217,7 +211,7 @@ module EvalEvalshaPropertyTests
         # If we get here, the script didn't error (which is unexpected for our error scripts)
         # Some scripts might not error in all Lua versions, so we'll skip validation
         return
-      rescue Valkey::CommandError => e
+      rescue ::Valkey::CommandError => e
         eval_error = e
       end
 
@@ -228,13 +222,13 @@ module EvalEvalshaPropertyTests
         r.evalsha(sha, keys: keys, args: args)
         # If we get here, the script didn't error
         return
-      rescue Valkey::CommandError => e
+      rescue ::Valkey::CommandError => e
         evalsha_error = e
       end
 
       # Verify error properties
       if eval_error
-        assert eval_error.is_a?(Valkey::CommandError),
+        assert eval_error.is_a?(::Valkey::CommandError),
                "eval should raise CommandError for script errors, got #{eval_error.class}"
         assert !eval_error.message.empty?,
                "eval error message should not be empty"
@@ -244,7 +238,7 @@ module EvalEvalshaPropertyTests
 
       return unless evalsha_error
 
-      assert evalsha_error.is_a?(Valkey::CommandError),
+      assert evalsha_error.is_a?(::Valkey::CommandError),
              "evalsha should raise CommandError for script errors, got #{evalsha_error.class}"
       assert !evalsha_error.message.empty?,
              "evalsha error message should not be empty"
@@ -261,12 +255,10 @@ module EvalEvalshaPropertyTests
     end
   end
 
-  # Test class for eval/evalsha type conversion and caching properties
-  class TestEvalEvalshaTypeProperties < Minitest::Test
-    include Helper::Client
-
+  # Module for eval/evalsha type conversion and caching properties
+  module EvalEvalshaTypeProperties
     def setup
-      super
+      super if defined?(super)
       r.script_flush # Ensure the script cache is empty before running tests
     end
 

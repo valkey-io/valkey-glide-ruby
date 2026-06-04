@@ -32,3 +32,8 @@ end
 Dir[File.expand_path("lint/**/*.rb", __dir__)].sort.each do |f|
   require f
 end
+
+# Load valkey shared test modules
+Dir[File.expand_path("valkey/**/*.rb", __dir__)].sort.each do |f|
+  require f
+end

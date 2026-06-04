@@ -1,14 +1,9 @@
 # frozen_string_literal: true
 
-require "test_helper"
-
-module ScriptingCommandsTests
-  class TestScriptingCommands < Minitest::Test
-    include Helper::Client
-    include Lint::ScriptingCommands
-
+module ValkeyTests
+  module ScriptingCommands
     def setup
-      super
+      super if defined?(super)
       r.script_flush
     end
 
@@ -40,7 +35,7 @@ module ScriptingCommandsTests
 
     def test_script_kill
       # there is no script running
-      assert_raises(Valkey::CommandError) { r.script_kill }
+      assert_raises(::Valkey::CommandError) { r.script_kill }
     end
 
     def test_eval_basic
@@ -82,16 +77,14 @@ module ScriptingCommandsTests
     def test_evalsha_nonexistent_script
       # Test that non-existent script raises CommandError
       valid_sha = "1234567890123456789012345678901234567890"
-      assert_raises(Valkey::CommandError) { r.evalsha(valid_sha) }
+      assert_raises(::Valkey::CommandError) { r.evalsha(valid_sha) }
     end
   end
 
-  # Test class for eval/evalsha integration and advanced functionality
-  class TestEvalEvalshaIntegration < Minitest::Test
-    include Helper::Client
-
+  # Module for eval/evalsha integration and advanced functionality
+  module ScriptingCommandsIntegration
     def setup
-      super
+      super if defined?(super)
       r.script_flush # Ensure the script cache is empty before running tests
     end
 
@@ -122,7 +115,7 @@ module ScriptingCommandsTests
       # Test that eval preserves specific error messages from server
       error_script = "error('custom error message')"
 
-      error = assert_raises(Valkey::CommandError) { r.eval(error_script) }
+      error = assert_raises(::Valkey::CommandError) { r.eval(error_script) }
       assert_includes error.message.downcase, "custom error message"
     end
 
@@ -131,7 +124,7 @@ module ScriptingCommandsTests
       error_script = "error('evalsha custom error')"
       sha = r.script_load(error_script)
 
-      error = assert_raises(Valkey::CommandError) { r.evalsha(sha) }
+      error = assert_raises(::Valkey::CommandError) { r.evalsha(sha) }
       assert_includes error.message.downcase, "evalsha custom error"
     end
 
