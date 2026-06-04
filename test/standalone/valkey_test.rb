@@ -11,7 +11,6 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::Bitpos
   include ValkeyTests::FunctionCommands
   include ValkeyTests::GenericCommands
-  include ValkeyTests::OpenTelemetry
   include ValkeyTests::Scanning
   include ValkeyTests::ScriptingCommands
   include ValkeyTests::ScriptingCommandsIntegration
@@ -24,4 +23,19 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::EvalEvalshaBasicProperties
   include ValkeyTests::EvalEvalshaValidationProperties
   include ValkeyTests::EvalEvalshaTypeProperties
+end
+
+# OpenTelemetry tests need their own class to avoid setup interference
+# The OTel module has its own setup that initializes OpenTelemetry once,
+# and including Helper::Client would cause extra commands (flushdb) to
+# generate spans that interfere with span counting tests.
+class TestStandaloneOpenTelemetry < Minitest::Test
+  include ValkeyTests::OpenTelemetry
+
+  # OpenTelemetry tests create their own clients internally and don't need
+  # the standard Helper::Client setup which would generate extra spans.
+  # We just need to provide the cluster_mode? method that the module expects.
+  def cluster_mode?
+    false
+  end
 end

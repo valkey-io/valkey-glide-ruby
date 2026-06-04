@@ -31,7 +31,6 @@ class TestClusterCommands < Minitest::Test
   # ValkeyTests modules without conflicting setup methods
   include ValkeyTests::Bitpos
   include ValkeyTests::GenericCommands
-  include ValkeyTests::OpenTelemetry
   include ValkeyTests::Scanning
   include ValkeyTests::ScriptingCommands
   include ValkeyTests::ScriptingCommandsIntegration

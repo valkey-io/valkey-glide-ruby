@@ -227,9 +227,8 @@ module ValkeyTests
 
       assert_includes span_names, "SET"
       assert_includes span_names, "GET"
-      # Use >= because other tests may have generated additional spans
-      assert span_names.count("SET") >= 1, "Expected at least 1 SET span, got #{span_names.count('SET')}"
-      assert span_names.count("GET") >= 1, "Expected at least 1 GET span, got #{span_names.count('GET')}"
+      assert_equal 1, span_names.count("SET")
+      assert_equal 1, span_names.count("GET")
     end
 
     # Test 6: Multiple commands span export
@@ -259,11 +258,10 @@ module ValkeyTests
 
       span_names = read_span_names(TRACES_FILE)
 
-      # Use >= because other tests may have generated additional spans
-      assert span_names.count("SET") >= 5, "Expected at least 5 SET spans, got #{span_names.count('SET')}"
-      assert span_names.count("GET") >= 5, "Expected at least 5 GET spans, got #{span_names.count('GET')}"
-      assert span_names.count("PING") >= 1, "Expected at least 1 PING span, got #{span_names.count('PING')}"
-      assert span_names.count("DEL") >= 1, "Expected at least 1 DEL span, got #{span_names.count('DEL')}"
+      assert_equal 5, span_names.count("SET")
+      assert_equal 5, span_names.count("GET")
+      assert_equal 1, span_names.count("PING")
+      assert_equal 1, span_names.count("DEL")
     end
 
     # Test 7: Batch/Pipeline span export
@@ -298,8 +296,7 @@ module ValkeyTests
       span_names = read_span_names(TRACES_FILE)
 
       assert_includes span_names, "Batch"
-      # Use >= because other tests may have generated additional spans
-      assert span_names.count("Batch") >= 1, "Expected at least 1 Batch span, got #{span_names.count('Batch')}"
+      assert_equal 1, span_names.count("Batch")
     end
 
     # Test 8: Sampling percentage (low sampling)
