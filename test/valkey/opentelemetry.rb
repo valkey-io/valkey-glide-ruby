@@ -14,6 +14,8 @@ module ValkeyTests
     def setup
       super if defined?(super)
       cleanup_test_files
+      # Ensure OTel is initialized for all tests in this module
+      ensure_otel_initialized
     end
 
     def teardown
@@ -25,6 +27,22 @@ module ValkeyTests
       [TRACES_FILE, METRICS_FILE].each do |file|
         FileUtils.rm_f(file)
       end
+    end
+
+    # Initialize OTel if not already initialized
+    def ensure_otel_initialized
+      return if ::Valkey::OpenTelemetry.initialized?
+
+      ::Valkey::OpenTelemetry.init(
+        traces: {
+          endpoint: "file://#{TRACES_FILE}",
+          sample_percentage: 100
+        },
+        metrics: {
+          endpoint: "file://#{METRICS_FILE}"
+        },
+        flush_interval_ms: 100
+      )
     end
 
     # Helper method to wait for spans to be exported with retry logic
