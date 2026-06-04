@@ -13,6 +13,9 @@ module ValkeyTests
 
     def setup
       super if defined?(super)
+      # Wait a moment for any in-flight spans from previous tests to flush
+      # The flush_interval_ms is 100ms, so 200ms should be enough
+      sleep 0.2
       cleanup_test_files
       # Ensure OTel is initialized for all tests in this module
       ensure_otel_initialized
