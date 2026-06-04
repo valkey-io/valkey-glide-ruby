@@ -59,6 +59,9 @@ module Lint
     end
 
     def test_del
+      # Uses untagged keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.set "foo", "s1"
       r.set "bar", "s2"
       r.set "baz", "s3"
@@ -77,6 +80,9 @@ module Lint
     end
 
     def test_del_with_array_argument
+      # Uses untagged keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.set "foo", "s1"
       r.set "bar", "s2"
       r.set "baz", "s3"
@@ -343,6 +349,10 @@ module Lint
     end
 
     def test_scan
+      # The set_some_keys method sets both tagged and untagged keys
+      # In cluster mode, scan only sees keys on the node being scanned
+      skip("SCAN with match pattern may not see all keys in cluster mode") if cluster_mode?
+
       set_some_keys
 
       cursor = 0

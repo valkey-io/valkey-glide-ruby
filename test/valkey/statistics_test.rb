@@ -115,11 +115,7 @@ module ValkeyTests
 
     # Helper to create a new test client based on the mode
     def new_test_client
-      if cluster_mode?
-        ::Valkey.new(nodes: [{ host: "127.0.0.1", port: 7000 }], cluster_mode: true)
-      else
-        ::Valkey.new(host: "localhost", port: 6379)
-      end
+      _new_client
     end
   end
 end

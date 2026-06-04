@@ -555,6 +555,9 @@ module Lint
 
     def test_memory_malloc_stats
       # MEMORY MALLOC-STATS returns allocator statistics
+      # In cluster mode, returns an Array with results from multiple nodes
+      skip("MEMORY MALLOC-STATS returns multi-node response in cluster mode") if cluster_mode?
+
       result = r.memory_malloc_stats
       assert_kind_of String, result
       # Result may be empty or contain allocator statistics

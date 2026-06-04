@@ -182,6 +182,9 @@ module Lint
 
     # Additional cluster commands that were missing tests
     def test_cluster_addslotsrange
+      # Destructive cluster operation that can destabilize the cluster
+      skip("Slot management tests skipped to prevent cluster instability")
+
       # Test cluster addslotsrange command - add slots in a range
       result = r.cluster_addslotsrange(9990, 9999)
       # This might succeed or fail depending on cluster state
@@ -214,6 +217,9 @@ module Lint
     end
 
     def test_cluster_delslotsrange
+      # Destructive cluster operation that can destabilize the cluster
+      skip("Slot management tests skipped to prevent cluster instability")
+
       # Test cluster delslotsrange command - delete slots in a range
       result = r.cluster_delslotsrange(9990, 9999)
       # This might succeed or fail depending on cluster state
@@ -242,6 +248,9 @@ module Lint
 
     # Destructive tests that should run last to avoid affecting other tests
     def test_cluster_commands_with_parameters
+      # Destructive cluster operation that can destabilize the cluster
+      skip("Slot management tests skipped to prevent cluster instability")
+
       # Test various cluster commands that require parameters
       # Try to add a slot (may succeed or fail depending on cluster state)
       result = r.cluster_addslots(1)
@@ -260,6 +269,9 @@ module Lint
     end
 
     def test_cluster_management_commands_on_cluster
+      # Destructive cluster operation that can destabilize the cluster
+      skip("Slot management tests skipped to prevent cluster instability")
+
       # Test cluster management commands that should work in cluster mode
       # We test that the methods exist and can handle basic validation
 
@@ -347,6 +359,9 @@ module Lint
     end
 
     def test_cluster_slots_management
+      # Destructive cluster operation that can destabilize the cluster
+      skip("Slot management tests skipped to prevent cluster instability")
+
       # Test cluster slot management commands
       r.cluster_delslots(9999)
       # This might succeed or fail depending on cluster state

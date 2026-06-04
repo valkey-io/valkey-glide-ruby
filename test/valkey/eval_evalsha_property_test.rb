@@ -14,6 +14,10 @@ module ValkeyTests
     # should produce identical results
     # **Validates: Requirements 3.1**
     def test_script_execution_consistency
+      # In cluster mode, all KEYS must hash to the same slot
+      # This test generates random keys that may be on different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       # Run property test with 100 iterations
       100.times do
         # Generate a simple Lua script that returns a deterministic result
@@ -57,6 +61,10 @@ module ValkeyTests
     # a Lua script that returns both KEYS and ARGV should receive the exact parameters that were passed in
     # **Validates: Requirements 1.2, 2.2, 3.2, 3.3**
     def test_parameter_round_trip_preservation
+      # In cluster mode, all KEYS must hash to the same slot
+      # This test generates random keys that may be on different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       # Run property test with 100 iterations
       100.times do
         keys = generate_keys(rand(6))

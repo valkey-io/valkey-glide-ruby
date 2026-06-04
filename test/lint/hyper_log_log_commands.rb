@@ -46,6 +46,9 @@ module Lint
     end
 
     def test_pfmerge
+      # Uses untagged keys foo, bar, res across different hash slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       r.pfadd 'foo', 's1'
       r.pfadd 'bar', 's2'
 
