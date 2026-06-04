@@ -82,6 +82,24 @@ module Lint
       end
     end
 
+    def test_library_version_is_set
+      # CLIENT SETINFO (which sets lib-ver) was added in Redis/Valkey 7.2
+      target_version "7.2" do
+        # The GLIDE Ruby client should set lib-ver during connection handshake
+        # Note: In CI builds, GLIDE_VERSION may differ from Valkey::VERSION (e.g., branch name),
+        # so we only verify that lib-ver is set, not its exact value
+        info = r.client(:info)
+        assert_kind_of String, info
+
+        # Extract lib-ver from client info
+        lib_ver_match = info.match(/lib-ver=([^ ]+)/)
+        assert lib_ver_match, "Client info should contain lib-ver"
+
+        lib_ver = lib_ver_match[1]
+        refute_empty lib_ver, "Library version should not be empty"
+      end
+    end
+
     def test_client_pause_unpause
       # Pause for a short duration
       assert_equal "OK", r.client(:pause, 100) # 100ms pause
