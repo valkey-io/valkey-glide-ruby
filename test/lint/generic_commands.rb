@@ -319,6 +319,9 @@ module Lint
     end
 
     def test_rename
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.set("foo", "s1")
       r.rename "foo", "bar"
 
@@ -327,6 +330,9 @@ module Lint
     end
 
     def test_renamenx
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.set("foo", "s1")
       r.set("bar", "s2")
 

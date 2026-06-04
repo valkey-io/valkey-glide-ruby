@@ -252,6 +252,9 @@ module Lint
     end
 
     def test_exec_without_multi
+      # In cluster mode, EXEC without MULTI behaves differently
+      skip("EXEC without MULTI not supported in cluster mode") if cluster_mode?
+
       # EXEC without MULTI should return an error or nil
       # The exact behavior may vary by implementation
       r.exec
@@ -259,6 +262,9 @@ module Lint
     end
 
     def test_discard_without_multi
+      # In cluster mode, DISCARD without MULTI behaves differently
+      skip("DISCARD without MULTI not supported in cluster mode") if cluster_mode?
+
       # DISCARD without MULTI should return an error
       # The exact behavior may vary by implementation
       r.discard

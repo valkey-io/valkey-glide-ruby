@@ -158,6 +158,9 @@ module Lint
           redis.register_function('policyfunc', function(keys, args) return 'policy' end)
         LUA
 
+        # Clean up first in case library exists from previous test
+        r.function_delete("policylib") rescue nil
+
         r.function_load(code)
         payload = r.function_dump
 
@@ -222,6 +225,9 @@ module Lint
             flags={'no-writes'}
           }
         LUA
+
+        # Clean up first in case library exists from previous test
+        r.function_delete("rolib") rescue nil
 
         r.function_load(code)
         result = r.fcall_ro("rofunc", keys: [], args: ["readonly"])
