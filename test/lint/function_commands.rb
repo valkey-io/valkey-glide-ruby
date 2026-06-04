@@ -159,7 +159,11 @@ module Lint
         LUA
 
         # Clean up first in case library exists from previous test
-        r.function_delete("policylib") rescue nil
+        begin
+          r.function_delete("policylib")
+        rescue StandardError
+          nil
+        end
 
         r.function_load(code)
         payload = r.function_dump
@@ -227,7 +231,11 @@ module Lint
         LUA
 
         # Clean up first in case library exists from previous test
-        r.function_delete("rolib") rescue nil
+        begin
+          r.function_delete("rolib")
+        rescue StandardError
+          nil
+        end
 
         r.function_load(code)
         result = r.fcall_ro("rofunc", keys: [], args: ["readonly"])

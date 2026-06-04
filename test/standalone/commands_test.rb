@@ -25,7 +25,7 @@ class TestStandaloneCommands < Minitest::Test
   include Lint::StringCommands
   include Lint::TransactionCommands
 
-  # Note: Lint::ClusterCommands is excluded - only for cluster mode
+  # NOTE: Lint::ClusterCommands is excluded - only for cluster mode
 end
 
 # Modules WITH custom setup methods need their own test class
