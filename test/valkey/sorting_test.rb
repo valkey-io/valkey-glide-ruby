@@ -3,6 +3,9 @@
 module ValkeyTests
   module Sorting
     def test_sort
+      # SORT with GET uses multiple keys that may hash to different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       r.set("foo:1", "s1")
       r.set("foo:2", "s2")
 
@@ -14,6 +17,9 @@ module ValkeyTests
     end
 
     def test_sort_with_an_array_of_gets
+      # SORT with GET uses multiple keys that may hash to different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       r.set("foo:1:a", "s1a")
       r.set("foo:1:b", "s1b")
 
@@ -29,6 +35,9 @@ module ValkeyTests
     end
 
     def test_sort_with_store
+      # SORT with STORE uses multiple keys that may hash to different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       r.set("foo:1", "s1")
       r.set("foo:2", "s2")
 
@@ -40,6 +49,9 @@ module ValkeyTests
     end
 
     def test_sort_with_an_array_of_gets_and_with_store
+      # SORT with GET and STORE uses multiple keys that may hash to different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       r.set("foo:1:a", "s1a")
       r.set("foo:1:b", "s1b")
 

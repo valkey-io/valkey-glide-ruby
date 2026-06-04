@@ -109,6 +109,9 @@ module Lint
     end
 
     def test_geosearchstore_saves_expected_items
+      # In cluster mode, source and destination keys must be in the same slot
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       stored_count = r.geosearchstore(
         "nearby:palermo",
         "Sicily",

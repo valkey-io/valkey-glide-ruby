@@ -277,6 +277,10 @@ module ValkeyTests
     # For any script loaded into the cache, evalsha with the returned hash should successfully execute the script
     # **Validates: Requirements 2.1**
     def test_cached_script_execution
+      # In cluster mode, all KEYS must hash to the same slot
+      # This test generates random keys that may be on different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       # Run property test with 100 iterations
       100.times do
         # Generate various types of Lua scripts

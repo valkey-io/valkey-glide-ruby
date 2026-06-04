@@ -189,6 +189,10 @@ module ValkeyTests
     end
 
     def test_large_parameter_arrays
+      # In cluster mode, all KEYS must hash to the same slot
+      # This test uses 50 different keys that will be on different slots
+      skip("CrossSlot operation not supported in cluster mode") if cluster_mode?
+
       # Test handling of larger parameter arrays
       script = "return #KEYS + #ARGV"
       sha = r.script_load(script)
