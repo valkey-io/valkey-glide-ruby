@@ -30,7 +30,7 @@ For issues that affect the shared Rust core or other language clients, consider 
 3. Run local checks (see [DEVELOPER.md](./DEVELOPER.md)):
    ```bash
    bundle exec rubocop
-   bundle exec rake test:valkey    # standalone — requires Valkey on :6379
+   bundle exec rake test:standalone    # standalone — requires Valkey on :6379
    bundle exec rake test:cluster   # if cluster-related — requires nodes :7000–:7005
    ```
 4. Commit with **DCO sign-off** and **conventional commits**:

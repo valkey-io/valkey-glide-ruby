@@ -54,12 +54,12 @@ bin/setup                              # bundle install
 bundle exec rubocop
 
 # Testing
-bundle exec rake test                  # standalone (default)
-bundle exec rake test:valkey           # standalone explicitly
-bundle exec rake test:cluster          # cluster (needs nodes 7000-7005)
+bundle exec rake test                  # standalone + cluster
+bundle exec rake test:standalone       # standalone only
+bundle exec rake test:cluster          # cluster only (needs nodes 7000-7005)
 
 # Verbose / CI mode
-CI=1 bundle exec rake test:valkey
+CI=1 bundle exec rake test:standalone
 
 # Console
 bundle exec bin/console
@@ -72,7 +72,7 @@ bundle exec bin/console
 bundle exec ruby test/valkey/string_commands_test.rb
 
 # Run with custom port
-VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:valkey
+VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
 
 # Load gem from lib/ without install
 RUBYOPT="-I$(pwd)/lib" ruby -r valkey -e 'p Valkey.new.ping'
@@ -82,7 +82,7 @@ RUBYOPT="-I$(pwd)/lib" ruby -r valkey -e 'p Valkey.new.ping'
 
 | Suite | Server requirement |
 |-------|-------------------|
-| `test:valkey` | Standalone Valkey/Redis on `localhost:6379` (DB 15) |
+| `test:standalone` | Standalone Valkey/Redis on `localhost:6379` (DB 15) |
 | `test:cluster` | 6-node cluster on `127.0.0.1:7000`–`7005` |
 | SSL tests | TLS Valkey on port `6380` + certs in `test/fixtures/ssl/` |
 | Module tests | JSON, Bloom, Search modules loaded (see CI workflow) |
@@ -191,7 +191,7 @@ valkey-glide-ruby/
 ## Quality Gates (Agent Checklist)
 
 - [ ] `bundle exec rubocop` passes
-- [ ] `bundle exec rake test:valkey` passes (with Valkey running)
+- [ ] `bundle exec rake test:standalone` passes (with Valkey running)
 - [ ] `bundle exec rake test:cluster` passes (if cluster commands touched)
 - [ ] New commands have tests in `test/valkey/` and lint coverage where applicable
 - [ ] `RequestType` matches glide-core enum

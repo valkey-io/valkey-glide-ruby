@@ -277,7 +277,7 @@ jobs:
           # The installed gem has the native library, local lib doesn't
           rm -rf lib/
           # Run tests - they will use the installed gem
-          rake test:valkey
+          rake test:standalone
 
       - name: Stop Valkey
         if: always()

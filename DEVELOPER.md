@@ -47,7 +47,7 @@ valkey-glide-ruby/
 │   └── cd.yml                    # Build and publish gem
 ├── valkey.gemspec
 ├── Gemfile
-└── Rakefile                      # test:valkey, test:cluster, native:build
+└── Rakefile                      # test:standalone, test:cluster, native:build
 ```
 
 ## Prerequisites
@@ -211,13 +211,13 @@ docker run -d --name redis-cluster -p 7000-7005:7000-7005 grokzen/redis-cluster:
 # All default (standalone) tests
 bundle exec rake test
 # or
-bundle exec rake test:valkey
+bundle exec rake test:standalone
 
 # Cluster tests only
 bundle exec rake test:cluster
 
 # Verbose output (also enabled when CI=1)
-CI=1 bundle exec rake test:valkey
+CI=1 bundle exec rake test:standalone
 ```
 
 ### SSL Tests
@@ -243,7 +243,7 @@ Load modules when starting Valkey if you run module-specific tests locally.
 ### Environment Overrides
 
 ```bash
-VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:valkey
+VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
 ```
 
 ## Linters

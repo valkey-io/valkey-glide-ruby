@@ -27,14 +27,14 @@ Valkey GLIDE Ruby (`valkey-rb`) is the official Ruby binding for Valkey and Redi
 
 ### Before Task Completion
 
-- Tests cover the change and pass (`bundle exec rake test:valkey` at minimum)
+- Tests cover the change and pass (`bundle exec rake test:standalone` at minimum)
 - `bundle exec rubocop` passes for changed Ruby files
 - If FFI binary updated, smoke-test: `Valkey.new.ping` on target OS
 
 ### Before Push
 
 - `git pull --rebase` on your base branch; resolve conflicts
-- Run tests for relevant scope (`test:valkey` and/or `test:cluster`)
+- Run tests for relevant scope (`test:standalone` and/or `test:cluster`)
 
 ### Before PR Creation/Update
 
@@ -108,7 +108,7 @@ When working on a feature, read these paths first:
 ```bash
 bin/setup
 bundle exec rubocop
-bundle exec rake test:valkey      # needs localhost:6379
+bundle exec rake test:standalone  # needs localhost:6379
 bundle exec rake test:cluster     # needs cluster 7000-7005
 ```
 
