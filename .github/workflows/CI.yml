@@ -35,10 +35,14 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Rust and Protoc
-        uses: ./valkey-glide/.github/actions/install-rust-and-protoc
+      - name: Install Rust
+        uses: ./valkey-glide/.github/actions/install-rust
         with:
           target: x86_64-unknown-linux-gnu
+
+      - name: Install protoc
+        uses: ./valkey-glide/.github/actions/install-protoc
+        with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Cargo
