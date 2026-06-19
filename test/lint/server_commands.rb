@@ -147,6 +147,7 @@ module Lint
     end
 
     def test_client_set_info
+      omit_version("7.2")
       assert_equal "OK", r.client(:set_info, 'lib-name', 'valkey') # TODO: 'implementing lib-var'
       assert_raises(Valkey::CommandError) do
         r.client(:set_info, 'foo', '0.0.1')
@@ -229,6 +230,7 @@ module Lint
     end
 
     def test_client_no_evict
+      omit_version("7.0")
       assert_equal "OK", r.client_no_evict(:on)
       assert_equal "OK", r.client_no_evict(:off)
       assert_raises(Valkey::CommandError) do
@@ -237,6 +239,7 @@ module Lint
     end
 
     def test_client_no_touch
+      omit_version("7.2")
       assert_equal "OK", r.client_no_touch(:on)
       assert_equal "OK", r.client_no_touch(:off)
       assert_raises(Valkey::CommandError) do
@@ -322,11 +325,13 @@ module Lint
     end
 
     def test_acl_dryrun
+      omit_version("7.0")
       result = r.acl_dryrun("default", "get", "key1")
       assert_equal "OK", result
     end
 
     def test_acl_dryrun_denied
+      omit_version("7.0")
       r.acl_setuser("limiteduser", "on", ">pass", "~*", "+@read", "-set")
 
       result = r.acl_dryrun("limiteduser", "set", "key1", "value")
@@ -741,10 +746,12 @@ module Lint
     end
 
     def test_command_info
-      # COMMAND INFO without arguments returns info for all commands
-      result = r.command_info
-      assert_kind_of Array, result
-      assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+      # COMMAND INFO without arguments returns info for all commands (Redis 7.0+)
+      target_version "7.0" do
+        result = r.command_info
+        assert_kind_of Array, result
+        assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+      end
 
       # COMMAND INFO with specific commands
       result = r.command_info("GET", "SET")
