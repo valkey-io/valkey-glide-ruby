@@ -207,7 +207,7 @@ jobs:
             -p 6380:6380 \
             -v $(pwd)/test/fixtures/ssl:/ssl:ro \
             -v /tmp/valkey-ssl.conf:/etc/valkey-ssl.conf:ro \
-            ${{ matrix.engine.type }}/${{ matrix.engine.type }}:${{ matrix.engine.version }} \
+            ${{ matrix.engine.image }} \
             ${{ matrix.engine.type }}-server /etc/valkey-ssl.conf
 
           for i in {1..30}; do
@@ -264,18 +264,27 @@ jobs:
       matrix:
         engine: ${{ fromJson(needs.get-matrices.outputs.engine-matrix-output) }}
     steps:
+      - name: Skip non-Valkey engines
+        if: matrix.engine.type != 'valkey'
+        run: |
+          echo "Module tests only run against Valkey engines (--enable-module-command is Valkey-specific)"
+          echo "Skipping ${{ matrix.engine.type }} ${{ matrix.engine.version }}"
+
       - name: Check out code
+        if: matrix.engine.type == 'valkey'
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Download native library
+        if: matrix.engine.type == 'valkey'
         uses: actions/download-artifact@v4
         with:
           name: native-lib-linux-x64
           path: valkey-glide/ffi/target/release/
 
       - name: Copy modules for testing
+        if: matrix.engine.type == 'valkey'
         run: |
           mkdir -p test/fixtures
           cp .github/files/librejson-v2.8.15.so test/fixtures/redisjson.so
@@ -286,12 +295,13 @@ jobs:
           chmod +x test/fixtures/redisearch.so
 
       - name: Start Valkey with modules enabled
+        if: matrix.engine.type == 'valkey'
         run: |
           docker run -d \
             --name valkey-modules \
             -p 6379:6379 \
             -v $(pwd)/test/fixtures:/tmp/modules:ro \
-            ${{ matrix.engine.type }}/${{ matrix.engine.type }}:${{ matrix.engine.version }} \
+            ${{ matrix.engine.image }} \
             ${{ matrix.engine.type }}-server --enable-module-command yes
 
           for i in {1..30}; do
@@ -303,17 +313,19 @@ jobs:
           done
 
       - name: Set up Ruby
+        if: matrix.engine.type == 'valkey'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
           bundler-cache: true
 
       - name: Run module tests
-        run: bundle exec ruby test/valkey/module_commands_test.rb
+        if: matrix.engine.type == 'valkey'
+        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandaloneModuleCommands/'
         env:
           MODULE_DIR: test/fixtures
 
       - name: Stop containers
-        if: always()
+        if: always() && matrix.engine.type == 'valkey'
         run: |
           docker stop valkey-modules && docker rm valkey-modules || true
