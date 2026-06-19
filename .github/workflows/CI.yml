@@ -35,6 +35,8 @@ jobs:
         with:
           submodules: recursive
 
+      # Composite actions from the valkey-glide submodule use relative paths
+      # (vs reusable workflows which use org/repo/path@ref syntax)
       - name: Install Rust
         uses: ./valkey-glide/.github/actions/install-rust
         with:
