@@ -187,6 +187,27 @@ jobs:
           engine-version: ${{ matrix.engine.version }}
           target: ${{ matrix.host.TARGET }}
 
+      - name: Start standalone server on port 6379
+        run: |
+          # install-engine puts valkey-server/redis-server in /usr/local/bin
+          if command -v valkey-server &> /dev/null; then
+            valkey-server --port 6379 --daemonize yes --save "" --appendonly no
+          elif command -v redis-server &> /dev/null; then
+            redis-server --port 6379 --daemonize yes --save "" --appendonly no
+          else
+            echo "ERROR: No valkey-server or redis-server found in PATH"
+            exit 1
+          fi
+
+          # Wait for server to be ready
+          for i in {1..30}; do
+            if ${{ matrix.engine.type }}-cli -p 6379 ping > /dev/null 2>&1; then
+              echo "Standalone server is ready on port 6379!"
+              break
+            fi
+            sleep 1
+          done
+
       - name: Generate SSL certificates
         run: ruby test/fixtures/ssl/generate_certs.rb
 
@@ -249,10 +270,12 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Stop containers
+      - name: Stop containers and servers
         if: always()
         run: |
           docker stop valkey-ssl && docker rm valkey-ssl || true
+          # Stop the standalone server started with --daemonize
+          ${{ matrix.engine.type }}-cli -p 6379 shutdown nosave || true
 
   module-tests:
     name: Module Tests / ${{ matrix.engine.type }} ${{ matrix.engine.version }}
