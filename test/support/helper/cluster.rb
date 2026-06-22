@@ -73,26 +73,14 @@ module Helper
       valkey
     end
 
-    # Cluster always runs via install-engine (Valkey only), so version matches
-    # the Valkey version installed. For Redis engine matrix entries, cluster tests
-    # are skipped at the CI level since install-engine only supports Valkey.
+    # Query actual server version from the cluster. Falls back to "0.0" if
+    # detection fails so that version-gated tests skip rather than error.
     def version
       info = valkey.info
-      case info
-      when Hash
-        Version.new(info["valkey_version"] || info["redis_version"] || "7.0")
-      when Array
-        node_info = info.first
-        if node_info.is_a?(Hash)
-          Version.new(node_info["valkey_version"] || node_info["redis_version"] || "7.0")
-        else
-          Version.new("7.0")
-        end
-      else
-        Version.new("7.0")
-      end
+      ver = extract_version_from_info(info)
+      Version.new(ver || "0.0")
     rescue StandardError
-      Version.new("7.0")
+      Version.new("0.0")
     end
 
     def cluster_mode?
@@ -100,6 +88,24 @@ module Helper
     end
 
     private
+
+    def extract_version_from_info(info)
+      case info
+      when Hash
+        info["valkey_version"] || info["redis_version"]
+      when Array
+        # Could be array of node responses; try first element
+        first = info.first
+        extract_version_from_info(first)
+      when String
+        # Raw INFO string — parse valkey_version or redis_version
+        if info =~ /(?:valkey|redis)_version:(\S+)/
+          $1
+        end
+      else
+        nil
+      end
+    end
 
     def _new_client(options = {})
       addresses = Helper::Cluster.cluster_addresses

@@ -182,34 +182,24 @@ jobs:
           python-version: '3.11'
 
       - name: Install Valkey engine
-        if: matrix.engine.type == 'valkey'
         uses: ./valkey-glide/.github/actions/install-engine
         with:
           engine-version: ${{ matrix.engine.version }}
           target: ${{ matrix.host.TARGET }}
 
-      - name: Start standalone server on port 6379 (Valkey - from binary)
-        if: matrix.engine.type == 'valkey'
+      - name: Start standalone server on port 6379
         run: |
-          valkey-server --port 6379 --daemonize yes --save "" --appendonly no
-          for i in {1..30}; do
-            if valkey-cli -p 6379 ping > /dev/null 2>&1; then
-              echo "Standalone server is ready on port 6379!"
-              break
-            fi
-            sleep 1
-          done
+          if command -v valkey-server &> /dev/null; then
+            valkey-server --port 6379 --daemonize yes --save "" --appendonly no
+          elif command -v redis-server &> /dev/null; then
+            redis-server --port 6379 --daemonize yes --save "" --appendonly no
+          else
+            echo "ERROR: No valkey-server or redis-server found in PATH"
+            exit 1
+          fi
 
-      - name: Start standalone server on port 6379 (Redis - from Docker)
-        if: matrix.engine.type == 'redis'
-        run: |
-          docker run -d \
-            --name redis-standalone \
-            --network host \
-            ${{ matrix.engine.image }} \
-            redis-server --port 6379 --save "" --appendonly no
           for i in {1..30}; do
-            if docker exec redis-standalone redis-cli -p 6379 ping > /dev/null 2>&1; then
+            if redis-cli -p 6379 ping > /dev/null 2>&1 || valkey-cli -p 6379 ping > /dev/null 2>&1; then
               echo "Standalone server is ready on port 6379!"
               break
             fi
@@ -254,13 +244,7 @@ jobs:
           bundler-cache: true
 
       - name: Run tests
-        run: |
-          if [[ "${{ matrix.engine.type }}" == "valkey" ]]; then
-            bundle exec rake test
-          else
-            # Redis engines only run standalone tests (cluster_manager.py requires Valkey binary)
-            bundle exec rake test:standalone
-          fi
+        run: bundle exec rake test
 
       - name: Upload test artifacts
         if: always()
@@ -288,8 +272,7 @@ jobs:
         if: always()
         run: |
           docker stop valkey-ssl && docker rm valkey-ssl || true
-          docker stop redis-standalone && docker rm redis-standalone || true
-          valkey-cli -p 6379 shutdown nosave 2>/dev/null || true
+          redis-cli -p 6379 shutdown nosave 2>/dev/null || valkey-cli -p 6379 shutdown nosave 2>/dev/null || true
 
   module-tests:
     name: Module Tests / ${{ matrix.engine.type }} ${{ matrix.engine.version }}
