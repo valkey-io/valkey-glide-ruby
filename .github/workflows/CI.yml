@@ -226,7 +226,7 @@ jobs:
             -p 6380:6380 \
             -v $(pwd)/test/fixtures/ssl:/ssl:ro \
             -v /tmp/valkey-ssl.conf:/etc/valkey-ssl.conf:ro \
-            ${{ matrix.engine.image }} \
+            ${{ matrix.engine.type == 'valkey' && format('valkey/valkey:{0}', matrix.engine.version) || format('redis:{0}', matrix.engine.version) }} \
             ${{ matrix.engine.type }}-server /etc/valkey-ssl.conf
 
           for i in {1..30}; do
@@ -321,7 +321,7 @@ jobs:
             --name valkey-modules \
             -p 6379:6379 \
             -v $(pwd)/test/fixtures:/tmp/modules:ro \
-            ${{ matrix.engine.image }} \
+            ${{ matrix.engine.type == 'valkey' && format('valkey/valkey:{0}', matrix.engine.version) || format('redis:{0}', matrix.engine.version) }} \
             ${{ matrix.engine.type }}-server --enable-module-command yes
 
           for i in {1..30}; do
