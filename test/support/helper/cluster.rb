@@ -99,11 +99,7 @@ module Helper
         extract_version_from_info(first)
       when String
         # Raw INFO string — parse valkey_version or redis_version
-        if info =~ /(?:valkey|redis)_version:(\S+)/
-          $1
-        end
-      else
-        nil
+        ::Regexp.last_match(1) if info =~ /(?:valkey|redis)_version:(\S+)/
       end
     end
 
