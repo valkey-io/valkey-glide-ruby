@@ -75,7 +75,11 @@ module Helper
 
     def version
       info = valkey.info
+      # In cluster mode, info might return an Array of node responses
+      info = info.first if info.is_a?(Array)
       Version.new(info["valkey_version"] || info["redis_version"] || "7.0")
+    rescue StandardError
+      Version.new("7.0")
     end
 
     def cluster_mode?
