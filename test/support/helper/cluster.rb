@@ -73,11 +73,24 @@ module Helper
       valkey
     end
 
+    # Cluster always runs via install-engine (Valkey only), so version matches
+    # the Valkey version installed. For Redis engine matrix entries, cluster tests
+    # are skipped at the CI level since install-engine only supports Valkey.
     def version
       info = valkey.info
-      # In cluster mode, info might return an Array of node responses
-      info = info.first if info.is_a?(Array)
-      Version.new(info["valkey_version"] || info["redis_version"] || "7.0")
+      case info
+      when Hash
+        Version.new(info["valkey_version"] || info["redis_version"] || "7.0")
+      when Array
+        node_info = info.first
+        if node_info.is_a?(Hash)
+          Version.new(node_info["valkey_version"] || node_info["redis_version"] || "7.0")
+        else
+          Version.new("7.0")
+        end
+      else
+        Version.new("7.0")
+      end
     rescue StandardError
       Version.new("7.0")
     end
