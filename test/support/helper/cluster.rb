@@ -73,9 +73,9 @@ module Helper
       valkey
     end
 
-    # TODO: it has to come from the server
     def version
-      "7.0"
+      info = valkey.info
+      Version.new(info["valkey_version"] || info["redis_version"] || "7.0")
     end
 
     def cluster_mode?
