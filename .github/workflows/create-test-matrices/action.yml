@@ -30,6 +30,10 @@ runs:
     - name: Generate matrices
       id: generate-matrices
       shell: bash
+      env:
+        RUN_FULL_MATRIX: ${{ inputs.run-full-matrix }}
+        LANGUAGE_NAME: ${{ inputs.language-name }}
+        RUN_WITH_MACOS: ${{ inputs.run-with-macos }}
       run: |
         # Resolve path to JSON matrix files
         MATRICES_DIR="${GITHUB_WORKSPACE}/.github/json_matrices"
@@ -41,7 +45,7 @@ runs:
           exit 1
         fi
 
-        if [[ "${{ inputs.run-full-matrix }}" == "true" ]]; then
+        if [[ "$RUN_FULL_MATRIX" == "true" ]]; then
           ENGINE_MATRIX=$(jq -c '.' "$ENGINE_FILE")
         else
           ENGINE_MATRIX=$(jq -c '[.[] | select(.run == "always")]' "$ENGINE_FILE")
@@ -55,12 +59,12 @@ runs:
         fi
 
         # Filter by language
-        HOST_MATRIX=$(jq -c --arg lang "${{ inputs.language-name }}" \
+        HOST_MATRIX=$(jq -c --arg lang "$LANGUAGE_NAME" \
           '[.[] | select(.languages | index($lang))]' "$HOST_FILE")
 
         # Handle macOS option
-        if [[ "${{ inputs.run-with-macos }}" == "use-github" ]]; then
-          MACOS_ENTRY='{"OS":"macos","NAMED_OS":"darwin","RUNNER":"macos-latest","ARCH":"arm64","TARGET":"aarch64-apple-darwin","languages":["${{ inputs.language-name }}"],"run":"always"}'
+        if [[ "$RUN_WITH_MACOS" == "use-github" ]]; then
+          MACOS_ENTRY="{\"OS\":\"macos\",\"NAMED_OS\":\"darwin\",\"RUNNER\":\"macos-latest\",\"ARCH\":\"arm64\",\"TARGET\":\"aarch64-apple-darwin\",\"languages\":[\"$LANGUAGE_NAME\"],\"run\":\"always\"}"
           HOST_MATRIX=$(echo "$HOST_MATRIX" | jq -c --argjson macos "$MACOS_ENTRY" '. + [$macos]')
         fi
 
@@ -71,15 +75,15 @@ runs:
           exit 1
         fi
 
-        LANG_ENTRY=$(jq -c --arg lang "${{ inputs.language-name }}" \
+        LANG_ENTRY=$(jq -c --arg lang "$LANGUAGE_NAME" \
           '.[] | select(.language == $lang)' "$VERSIONS_FILE")
 
         if [[ -z "$LANG_ENTRY" ]]; then
-          echo "ERROR: Language '${{ inputs.language-name }}' not found in $VERSIONS_FILE"
+          echo "ERROR: Language '$LANGUAGE_NAME' not found in $VERSIONS_FILE"
           exit 1
         fi
 
-        if [[ "${{ inputs.run-full-matrix }}" == "true" ]]; then
+        if [[ "$RUN_FULL_MATRIX" == "true" ]]; then
           VERSION_MATRIX=$(echo "$LANG_ENTRY" | jq -c '.versions')
         else
           VERSION_MATRIX=$(echo "$LANG_ENTRY" | jq -c '."always-run-versions"')

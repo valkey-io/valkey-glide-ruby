@@ -82,10 +82,13 @@ jobs:
 
       - name: Determine full matrix mode
         id: full-matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_MATRIX_INPUT: ${{ inputs.full-matrix }}
         run: |
-          if [[ "${{ github.event_name }}" == "schedule" ]] || \
-             [[ "${{ github.event_name }}" == "workflow_call" ]] || \
-             [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.full-matrix }}" == "true" ]]; then
+          if [[ "$EVENT_NAME" == "schedule" ]] || \
+             [[ "$EVENT_NAME" == "workflow_call" ]] || \
+             [[ "$EVENT_NAME" == "workflow_dispatch" && "$FULL_MATRIX_INPUT" == "true" ]]; then
             echo "run-full-matrix=true" >> "$GITHUB_OUTPUT"
           else
             echo "run-full-matrix=false" >> "$GITHUB_OUTPUT"
