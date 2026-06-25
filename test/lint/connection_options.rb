@@ -182,6 +182,8 @@ module Lint
     end
 
     def test_connection_url_parsing_ssl
+      skip("TLS tests disabled via SKIP_TLS_TESTS") if defined?(SKIP_TLS_TESTS) && SKIP_TLS_TESTS
+
       # Test URL parsing with SSL (rediss://)
       # For self-signed certs, we need to provide the CA cert
       client = if cluster_mode?
@@ -208,6 +210,8 @@ module Lint
     end
 
     def test_connection_with_ssl_option
+      skip("TLS tests disabled via SKIP_TLS_TESTS") if defined?(SKIP_TLS_TESTS) && SKIP_TLS_TESTS
+
       # Test ssl option with CA certificate for self-signed cert
       client = if cluster_mode?
                  Valkey.new(
@@ -425,6 +429,8 @@ module Lint
     end
 
     def test_connection_ssl_params_with_file_paths
+      skip("TLS tests disabled via SKIP_TLS_TESTS") if defined?(SKIP_TLS_TESTS) && SKIP_TLS_TESTS
+
       # Test ssl_params with file paths using proper test certificates
       client = if cluster_mode?
                  Valkey.new(
@@ -459,6 +465,8 @@ module Lint
     end
 
     def test_connection_ssl_params_with_openssl_objects
+      skip("TLS tests disabled via SKIP_TLS_TESTS") if defined?(SKIP_TLS_TESTS) && SKIP_TLS_TESTS
+
       # Test ssl_params with OpenSSL objects loaded from test certificates
       # Need to provide CA cert to trust self-signed server certificate
       client = if cluster_mode?

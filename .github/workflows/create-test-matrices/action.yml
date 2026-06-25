@@ -58,14 +58,23 @@ runs:
           exit 1
         fi
 
-        # Filter by language
+        # Filter by language and exclude macOS entries (macOS is handled separately below)
         HOST_MATRIX=$(jq -c --arg lang "$LANGUAGE_NAME" \
-          '[.[] | select(.languages | index($lang))]' "$HOST_FILE")
+          '[.[] | select((.languages | index($lang)) and .OS != "macos")]' "$HOST_FILE")
 
         # Handle macOS option
         if [[ "$RUN_WITH_MACOS" == "use-github" ]]; then
-          MACOS_ENTRY="{\"OS\":\"macos\",\"NAMED_OS\":\"darwin\",\"RUNNER\":\"macos-latest\",\"ARCH\":\"arm64\",\"TARGET\":\"aarch64-apple-darwin\",\"languages\":[\"$LANGUAGE_NAME\"],\"run\":\"always\"}"
+          # Include macOS entries from build-matrix.json with matching runner
+          MAC_ENTRIES=$(jq --arg lang "$LANGUAGE_NAME" -c \
+            '[.[] | select(.OS == "macos" and (.languages | index($lang)))]' "$HOST_FILE")
+          HOST_MATRIX=$(echo "$HOST_MATRIX" | jq -c --argjson mac "$MAC_ENTRIES" '. + $mac')
+        elif [[ "$RUN_WITH_MACOS" == "use-self-hosted" ]]; then
+          # Override RUNNER with self-hosted label array
+          MACOS_ENTRY='{"OS":"macos","NAMED_OS":"darwin","RUNNER":["self-hosted","macOS","ARM64","ephemeral"],"ARCH":"arm64","TARGET":"aarch64-apple-darwin","languages":["'"$LANGUAGE_NAME"'"]}'
           HOST_MATRIX=$(echo "$HOST_MATRIX" | jq -c --argjson macos "$MACOS_ENTRY" '. + [$macos]')
+        elif [[ "$RUN_WITH_MACOS" != "false" ]]; then
+          echo "ERROR: Invalid run-with-macos value: '$RUN_WITH_MACOS'. Expected 'false', 'use-github', or 'use-self-hosted'."
+          exit 1
         fi
 
         # --- Version Matrix ---
