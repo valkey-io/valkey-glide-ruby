@@ -189,7 +189,7 @@ jobs:
 
       - name: Start standalone server via cluster_manager.py
         run: |
-          python3 valkey-glide/utils/cluster_manager.py start -p 6379 --prefix standalone
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
           echo "Standalone server started on port 6379"
 
       - name: Generate SSL certificates
