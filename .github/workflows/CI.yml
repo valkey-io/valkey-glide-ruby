@@ -187,24 +187,10 @@ jobs:
           engine-version: ${{ matrix.engine.version }}
           target: ${{ matrix.host.TARGET }}
 
-      - name: Start standalone server on port 6379
+      - name: Start standalone server via cluster_manager.py
         run: |
-          if command -v valkey-server &> /dev/null; then
-            valkey-server --port 6379 --daemonize yes --save "" --appendonly no
-          elif command -v redis-server &> /dev/null; then
-            redis-server --port 6379 --daemonize yes --save "" --appendonly no
-          else
-            echo "ERROR: No valkey-server or redis-server found in PATH"
-            exit 1
-          fi
-
-          for i in {1..30}; do
-            if redis-cli -p 6379 ping > /dev/null 2>&1 || valkey-cli -p 6379 ping > /dev/null 2>&1; then
-              echo "Standalone server is ready on port 6379!"
-              break
-            fi
-            sleep 1
-          done
+          python3 valkey-glide/utils/cluster_manager.py start -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
 
       - name: Generate SSL certificates
         run: ruby test/fixtures/ssl/generate_certs.rb
@@ -268,11 +254,13 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Stop containers and servers
+      - name: Stop servers and containers
         if: always()
         run: |
+          # Stop standalone server started via cluster_manager.py
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+          # Stop TLS Docker container
           docker stop valkey-ssl && docker rm valkey-ssl || true
-          redis-cli -p 6379 shutdown nosave 2>/dev/null || valkey-cli -p 6379 shutdown nosave 2>/dev/null || true
 
   module-tests:
     name: Module Tests / ${{ matrix.engine.type }} ${{ matrix.engine.version }}

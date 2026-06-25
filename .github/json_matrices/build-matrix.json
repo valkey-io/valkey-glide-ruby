@@ -5,7 +5,6 @@
         "RUNNER": "ubuntu-24.04",
         "ARCH": "x64",
         "TARGET": "x86_64-unknown-linux-gnu",
-        "PACKAGE_MANAGERS": ["rubygems"],
         "run": "always",
         "languages": ["ruby"]
     },
@@ -15,7 +14,6 @@
         "RUNNER": "ubuntu-24.04-arm",
         "ARCH": "arm64",
         "TARGET": "aarch64-unknown-linux-gnu",
-        "PACKAGE_MANAGERS": ["rubygems"],
         "languages": ["ruby"]
     }
 ]
