@@ -299,8 +299,9 @@ class Valkey
           when :redirect
             args << "REDIRECT" << value.to_s
           when :prefix
-            args << "PREFIX"
-            Array(value).each { |prefix| args << prefix }
+            # Valkey requires the PREFIX keyword before each prefix value,
+            # e.g. PREFIX foo PREFIX bar.
+            Array(value).each { |prefix| args << "PREFIX" << prefix }
           when :bcast
             args << "BCAST" if value
           when :optin

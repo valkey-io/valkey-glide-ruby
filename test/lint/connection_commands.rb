@@ -233,6 +233,68 @@ module Lint
       assert_kind_of Array, info
     end
 
+    def test_client_tracking_with_bcast
+      # Keyword options exercise build_client_tracking_args (BCAST branch).
+      assert_equal "OK", r.client_tracking("ON", bcast: true)
+      assert_equal "OK", r.client_tracking("OFF")
+    end
+
+    def test_client_tracking_with_prefix
+      # PREFIX is only valid alongside BCAST.
+      assert_equal "OK", r.client_tracking("ON", bcast: true, prefix: %w[foo bar])
+      assert_equal "OK", r.client_tracking("OFF")
+    end
+
+    def test_client_tracking_with_optin_optout_keywords
+      # optin: / optout: keyword forms exercise build_client_tracking_args.
+      assert_equal "OK", r.client_tracking("ON", optin: true)
+      assert_equal "OK", r.client_tracking("OFF")
+      assert_equal "OK", r.client_tracking("ON", optout: true)
+      assert_equal "OK", r.client_tracking("OFF")
+    end
+
+    def test_client_tracking_with_noloop
+      assert_equal "OK", r.client_tracking("ON", noloop: true)
+      assert_equal "OK", r.client_tracking("OFF")
+    end
+
+    def test_client_tracking_invalid_status
+      assert_raises(Valkey::CommandError) do
+        r.client_tracking("MAYBE")
+      end
+    end
+
+    def test_client_tracking_info_reflects_state
+      # Tracking state is connection-local; in cluster mode TRACKING and
+      # TRACKINGINFO may hit different nodes, so skip there.
+      skip("CLIENT TRACKINGINFO reflects per-connection state, not reliable in cluster mode") if cluster_mode?
+
+      r.client_tracking("ON")
+      info = r.client_tracking_info
+      assert info.include?("flags"), "tracking info should report flags"
+      assert info.flatten.include?("on"), "flags should report 'on' when tracking enabled"
+
+      r.client_tracking("OFF")
+      info = r.client_tracking_info
+      assert info.flatten.include?("off"), "flags should report 'off' when tracking disabled"
+    end
+
+    def test_client_caching_invalid_mode
+      # CLIENT CACHING requires shared tracking state, not reliable in cluster mode.
+      skip("CLIENT CACHING requires tracking state to be shared, not reliable in cluster mode") if cluster_mode?
+
+      r.client_tracking("ON", "OPTIN")
+      assert_raises(Valkey::CommandError) do
+        r.client_caching("MAYBE")
+      end
+      r.client_tracking("OFF")
+    end
+
+    def test_client_getredir_when_disabled
+      # With no tracking redirection configured, GETREDIR returns -1.
+      assert_equal(-1, r.client_getredir)
+    end
+
     def test_quit
       # NOTE: This test is tricky because QUIT closes the connection
       # We'll skip it in lint tests to avoid connection issues
