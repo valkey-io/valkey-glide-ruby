@@ -15,6 +15,7 @@ module ValkeyTests
     WRONG_CREDENTIALS_HANG_SKIP =
       "Disabled: wrong-credentials tests as it is causing suites to hang. See valkey-glide-ruby/issues/115"
 
+
     # =========================================================
     # Default user -- connect-time
     # =========================================================
