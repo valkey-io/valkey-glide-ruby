@@ -136,8 +136,10 @@ class Valkey
 
         send_command(RequestType::CLIENT_LIST, args) do |reply|
           reply.lines.map do |line|
-            entries = line.chomp.split(/[ =]/)
-            entries.each_slice(2).to_a.to_h
+            line.chomp.split.each_with_object({}) do |pair, hash|
+              key, value = pair.split("=", 2)
+              hash[key] = value || ""
+            end
           end
         end
       end
