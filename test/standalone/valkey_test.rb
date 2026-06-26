@@ -8,6 +8,7 @@ class TestStandaloneValkey < Minitest::Test
   include Helper::Client
 
   # ValkeyTests modules for valkey-glide-ruby specific functionality
+  include ValkeyTests::AuthCommands
   include ValkeyTests::Bitpos
   include ValkeyTests::FunctionCommands
   include ValkeyTests::GenericCommands

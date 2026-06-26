@@ -83,13 +83,23 @@ module Helper
 
     def with_acl
       admin = _new_client
+      # glide-core runs INFO (and CLIENT) during the connection handshake, so the
+      # ACL user must be granted those even though the test only exercises PING/SET.
+      # This mirrors the python reference grant (+ping +info +client +cluster ...);
+      # +set is intentionally withheld so the disallowed-command test still fails.
       admin.acl("SETUSER", "johndoe", "on",
-                "+ping", "+select", "+command", "+cluster|slots", "+cluster|nodes", "+readonly",
+                "+ping", "+select", "+command", "+info", "+client",
+                "+cluster|slots", "+cluster|nodes", "+readonly",
                 ">mysecret")
       yield("johndoe", "mysecret")
     ensure
-      admin.acl("DELUSER", "johndoe")
-      admin.close
+      begin
+        admin&.acl("DELUSER", "johndoe")
+      rescue Valkey::BaseError
+        # best-effort restore; never let teardown cascade into other tests
+      ensure
+        admin&.close
+      end
     end
 
     def with_default_user_password
@@ -97,8 +107,13 @@ module Helper
       admin.acl("SETUSER", "default", ">mysecret")
       yield("default", "mysecret")
     ensure
-      admin.acl("SETUSER", "default", "nopass")
-      admin.close
+      begin
+        admin&.acl("SETUSER", "default", "nopass")
+      rescue Valkey::BaseError
+        # best-effort restore; never let teardown cascade into other tests
+      ensure
+        admin&.close
+      end
     end
   end
 end
