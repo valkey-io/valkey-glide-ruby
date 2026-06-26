@@ -94,7 +94,7 @@ class Valkey
       #   client(:set_name, "my_app")  # => "OK"
       #   client(:list)                # => [{"id" => "1", ...}, ...]
       def client(subcommand, *args)
-        send("client_#{subcommand.to_s.downcase}", *args)
+        public_send("client_#{subcommand.to_s.downcase}", *args)
       end
 
       # Get the current client's ID.
@@ -289,6 +289,12 @@ class Valkey
       def client_no_touch(mode)
         send_command(RequestType::CLIENT_NO_TOUCH, [mode.to_s.upcase])
       end
+
+      # Client-side caching commands are intentionally private.
+      #
+      # GLIDE's managed client-side caching is not yet implemented in the Ruby client
+      # These commands are not meant to be called directly and will be kept private.
+      private :client_tracking, :client_caching, :client_tracking_info, :client_getredir
 
       private
 

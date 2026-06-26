@@ -158,29 +158,6 @@ module Lint
       assert [0, 1].include?(result), "Expected unblock to return 0 or 1"
     end
 
-    def test_redis_rb_client_caching
-      # CLIENT CACHING requires shared tracking state, which is not reliable in
-      # cluster mode because TRACKING and CACHING may hit different nodes.
-      skip("CLIENT CACHING requires tracking state to be shared, not reliable in cluster mode") if cluster_mode?
-
-      # The redis-rb dispatcher (r.client(:caching, mode)) forwards to client_caching.
-      # CLIENT CACHING YES works with OPTIN mode.
-      r.client(:tracking, "ON", "OPTIN")
-      assert_equal "OK", r.client(:caching, "YES")
-      r.client(:tracking, "OFF")
-      # CLIENT CACHING NO requires OPTOUT mode.
-      r.client(:tracking, "ON", "OPTOUT")
-      assert_equal "OK", r.client(:caching, "NO")
-      r.client(:tracking, "OFF")
-    end
-
-    def test_redis_rb_client_tracking
-      # The redis-rb dispatcher (r.client(:tracking, status)) forwards to
-      # client_tracking, which requires a status argument.
-      assert_equal "OK", r.client(:tracking, "ON")
-      assert_equal "OK", r.client(:tracking, "OFF")
-    end
-
     def test_client_reply
       assert_equal "OK", r.client(:reply, "ON") # TODO: "OFF" or "SKIP" doesnt work yet
     end
@@ -221,51 +198,6 @@ module Lint
       else
         skip("No client address found to kill")
       end
-    end
-
-    def test_redis_rb_client_tracking_info
-      # The redis-rb dispatcher (r.client(:tracking_info)) forwards to
-      # client_tracking_info, which takes no arguments.
-      assert_kind_of Array, r.client(:tracking_info)
-    end
-
-    def test_redis_rb_client_tracking_with_options
-      # The dispatcher forwards extra positional args to client_tracking,
-      # so broadcast/optin flags can be passed through r.client(:tracking, ...).
-      assert_equal "OK", r.client(:tracking, "ON", "BCAST")
-      assert_equal "OK", r.client(:tracking, "OFF")
-      assert_equal "OK", r.client(:tracking, "ON", "OPTIN")
-      assert_equal "OK", r.client(:tracking, "OFF")
-    end
-
-    def test_redis_rb_client_tracking_symbol_status
-      # Symbol args are coerced to strings (build_command_args calls #to_s) and
-      # Valkey accepts the status case-insensitively.
-      assert_equal "OK", r.client(:tracking, :on)
-      assert_equal "OK", r.client(:tracking, :off)
-    end
-
-    def test_redis_rb_client_tracking_invalid_status
-      assert_raises(Valkey::CommandError) do
-        r.client(:tracking, "MAYBE")
-      end
-    end
-
-    def test_redis_rb_client_caching_invalid_mode
-      # CLIENT CACHING needs shared tracking state, not reliable in cluster mode.
-      skip("CLIENT CACHING requires tracking state to be shared, not reliable in cluster mode") if cluster_mode?
-
-      r.client(:tracking, "ON", "OPTIN")
-      assert_raises(Valkey::CommandError) do
-        r.client(:caching, "MAYBE")
-      end
-      r.client(:tracking, "OFF")
-    end
-
-    def test_redis_rb_client_getredir
-      # extra_client = Valkey.new
-      # extra_client.client('tracking', 'on', 'bcast') # TODO: Ensure tracking is implemented
-      assert_kind_of Integer, r.client(:getredir)
     end
 
     def test_client_no_evict
