@@ -195,36 +195,11 @@ jobs:
           python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
           echo "Standalone server started on port 6379"
 
-      - name: Generate SSL certificates
-        run: ruby test/fixtures/ssl/generate_certs.rb
-
-      - name: Start TLS-enabled Valkey on port 6380
+      - name: Start TLS server via cluster_manager.py
         run: |
-          cat > /tmp/valkey-ssl.conf << 'EOF'
-          port 0
-          tls-port 6380
-          tls-cert-file /ssl/server-cert.pem
-          tls-key-file /ssl/server-key.pem
-          tls-ca-cert-file /ssl/ca-cert.pem
-          tls-auth-clients no
-          tls-protocols "TLSv1.2 TLSv1.3"
-          EOF
-
-          docker run -d \
-            --name valkey-ssl \
-            -p 6380:6380 \
-            -v $(pwd)/test/fixtures/ssl:/ssl:ro \
-            -v /tmp/valkey-ssl.conf:/etc/valkey-ssl.conf:ro \
-            ${{ matrix.engine.type == 'valkey' && format('valkey/valkey:{0}', matrix.engine.version) || format('redis:{0}', matrix.engine.version) }} \
-            ${{ matrix.engine.type }}-server /etc/valkey-ssl.conf
-
-          for i in {1..30}; do
-            if docker exec valkey-ssl ${{ matrix.engine.type }}-cli --tls --insecure -p 6380 ping > /dev/null 2>&1; then
-              echo "TLS Valkey is ready!"
-              break
-            fi
-            sleep 1
-          done
+          python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
+          echo "TLS server started on port 6380"
+          echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> $GITHUB_ENV
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
@@ -257,13 +232,11 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Stop servers and containers
+      - name: Stop servers
         if: always()
         run: |
-          # Stop standalone server started via cluster_manager.py
           python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
-          # Stop TLS Docker container
-          docker stop valkey-ssl && docker rm valkey-ssl || true
+          python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
 
   module-tests:
     name: Module Tests / ${{ matrix.engine.type }} ${{ matrix.engine.version }}
@@ -294,34 +267,24 @@ jobs:
           name: native-lib-linux-x64
           path: valkey-glide/ffi/target/release/
 
-      - name: Copy modules for testing
+      - name: Set up Python
         if: matrix.engine.type == 'valkey'
-        run: |
-          mkdir -p test/fixtures
-          cp .github/files/librejson-v2.8.15.so test/fixtures/redisjson.so
-          chmod +x test/fixtures/redisjson.so
-          cp .github/files/redisbloom-amd64-v2.6.12.so test/fixtures/redisbloom.so
-          chmod +x test/fixtures/redisbloom.so
-          cp .github/files/redisearch-amd64-v2.10.24.so test/fixtures/redisearch.so
-          chmod +x test/fixtures/redisearch.so
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
-      - name: Start Valkey with modules enabled
+      - name: Install Valkey engine
         if: matrix.engine.type == 'valkey'
-        run: |
-          docker run -d \
-            --name valkey-modules \
-            -p 6379:6379 \
-            -v $(pwd)/test/fixtures:/tmp/modules:ro \
-            ${{ matrix.engine.type == 'valkey' && format('valkey/valkey:{0}', matrix.engine.version) || format('redis:{0}', matrix.engine.version) }} \
-            ${{ matrix.engine.type }}-server --enable-module-command yes
+        uses: ./valkey-glide/.github/actions/install-engine
+        with:
+          engine-version: ${{ matrix.engine.version }}
+          target: x86_64-unknown-linux-gnu
 
-          for i in {1..30}; do
-            if docker exec valkey-modules ${{ matrix.engine.type }}-cli ping > /dev/null 2>&1; then
-              echo "Valkey is ready!"
-              break
-            fi
-            sleep 1
-          done
+      - name: Start module servers via Docker
+        if: matrix.engine.type == 'valkey'
+        uses: ./valkey-glide/.github/actions/start-valkey-docker
+        with:
+          engine-version: ${{ matrix.engine.version }}
 
       - name: Set up Ruby
         if: matrix.engine.type == 'valkey'
@@ -332,11 +295,14 @@ jobs:
 
       - name: Run module tests
         if: matrix.engine.type == 'valkey'
-        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandaloneModuleCommands/'
+        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandaloneModuleCommands|TestStandaloneJsonCommands|TestStandaloneVectorSearchCommands/'
         env:
-          MODULE_DIR: test/fixtures
+          STANDALONE_ENDPOINTS: ${{ env.MODULES_STANDALONE_ENDPOINT }}
 
       - name: Stop containers
         if: always() && matrix.engine.type == 'valkey'
         run: |
-          docker stop valkey-modules && docker rm valkey-modules || true
+          docker stop valkey-modules-standalone && docker rm valkey-modules-standalone || true
+          for port in $(seq 8001 8006); do
+            docker stop "valkey-modules-cluster-${port}" && docker rm "valkey-modules-cluster-${port}" || true
+          done

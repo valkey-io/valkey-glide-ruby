@@ -58,7 +58,7 @@ valkey-glide-ruby/
 - **Bundler**
 - **git**
 - **Valkey** or Redis OSS (for integration tests)
-- **Docker** (optional; matches CI setup)
+- **Docker** (optional; only needed for module tests with `valkey-bundle` image)
 
 To **build** the native FFI library from source:
 
@@ -188,21 +188,25 @@ Default test configuration (see `test/test_helper.rb`):
 |----------|---------|---------|
 | `VALKEY_PORT` | `6379` | Plain TCP |
 | `VALKEY_SSL_PORT` | `6380` | TLS (optional) |
+| `TLS_CERT_DIR` | `valkey-glide/utils/tls_crts` | Path to TLS certs (set by CI) |
 | `TIMEOUT` | `5.0` | Client timeout |
 | DB | `15` | Test database |
 
 ```bash
-# Example: Docker standalone (matches CI)
-docker run -d --name valkey-test -p 6379:6379 valkey/valkey:8 \
-  valkey-server --enable-module-command yes
+# Preferred: use cluster_manager.py (same as CI and all other GLIDE clients)
+python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+
+# Alternative: Docker standalone
+docker run -d --name valkey-test -p 6379:6379 valkey/valkey:8 valkey-server
 ```
 
 ### Start Valkey Cluster
 
-Cluster tests expect six nodes on `127.0.0.1:7000`–`7005`. CI uses `grokzen/redis-cluster:7.0.15`.
+Cluster tests auto-start via `cluster_manager.py` (the `TestCluster` class handles lifecycle).
+You can also start manually:
 
 ```bash
-docker run -d --name redis-cluster -p 7000-7005:7000-7005 grokzen/redis-cluster:7.0.15
+python3 valkey-glide/utils/cluster_manager.py start --cluster-mode --prefix cluster
 ```
 
 ### Run Tests
@@ -222,21 +226,33 @@ CI=1 bundle exec rake test:standalone
 
 ### SSL Tests
 
-Generate test certificates:
+The preferred approach (matching CI and all other GLIDE clients) uses `cluster_manager.py`:
+
+```bash
+# Start a TLS-only server on port 6380 (generates certs in valkey-glide/utils/tls_crts/)
+python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
+
+# Point tests at the generated certs
+export TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts
+
+# Run tests
+bundle exec rake test:standalone
+
+# Stop the TLS server
+python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone
+```
+
+Alternatively, for local development without Python, generate certs and start manually:
 
 ```bash
 ruby test/fixtures/ssl/generate_certs.rb
+# Then start a TLS Valkey server on port 6380 using those certs
 ```
-
-Start TLS Valkey on port 6380 (see `.github/workflows/CI.yml` for a full Docker example).
 
 ### Module Tests (JSON, Bloom, Search)
 
-CI copies prebuilt modules into `test/fixtures/`:
-
-- `redisjson.so` — JSON commands
-- `redisbloom.so` — Bloom filters
-- `redisearch.so` — Vector / FT commands
+CI uses the shared `start-valkey-docker` action with `valkey/valkey-bundle:9.1` (modules pre-loaded).
+Tests connect via `STANDALONE_ENDPOINTS` env var.
 
 Load modules when starting Valkey if you run module-specific tests locally.
 
@@ -427,7 +443,7 @@ ruby -e "require 'valkey'; c = Valkey.new; puts c.ping; c.close"
 | `LoadError` / FFI library not found | Confirm `lib/valkey/libglide_ffi.{so,dylib}` exists and matches your OS/arch. |
 | Wrong architecture after FFI rebuild | Rebuild `glide-ffi` on the target platform; do not copy Linux `.so` to macOS. |
 | Cluster tests flaky | Wait for `cluster_state:ok`; increase `TIMEOUT` env var. |
-| SSL test failures | Regenerate certs: `ruby test/fixtures/ssl/generate_certs.rb`. |
+| SSL test failures | Use `cluster_manager.py --tls` (see SSL Tests above), or regenerate local certs: `ruby test/fixtures/ssl/generate_certs.rb`. |
 | Pipeline / MULTI crashes | Transaction commands in `pipelined` use sequential fallback by design. |
 
 ## Recommended Editor Extensions
