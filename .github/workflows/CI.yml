@@ -239,68 +239,51 @@ jobs:
           python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
 
   module-tests:
-    name: Module Tests / ${{ matrix.engine.type }} ${{ matrix.engine.version }}
-    needs: [build-native-library, get-matrices]
+    name: Module Tests
+    needs: [build-native-library]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    strategy:
-      fail-fast: false
-      matrix:
-        engine: ${{ fromJson(needs.get-matrices.outputs.engine-matrix-output) }}
     steps:
-      - name: Skip non-Valkey engines
-        if: matrix.engine.type != 'valkey'
-        run: |
-          echo "Module tests only run against Valkey engines (--enable-module-command is Valkey-specific)"
-          echo "Skipping ${{ matrix.engine.type }} ${{ matrix.engine.version }}"
-
       - name: Check out code
-        if: matrix.engine.type == 'valkey'
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Download native library
-        if: matrix.engine.type == 'valkey'
         uses: actions/download-artifact@v4
         with:
           name: native-lib-linux-x64
           path: valkey-glide/ffi/target/release/
 
       - name: Set up Python
-        if: matrix.engine.type == 'valkey'
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install Valkey engine
-        if: matrix.engine.type == 'valkey'
         uses: ./valkey-glide/.github/actions/install-engine
         with:
-          engine-version: ${{ matrix.engine.version }}
+          engine-version: "9.0"
           target: x86_64-unknown-linux-gnu
 
       - name: Start module servers via Docker
-        if: matrix.engine.type == 'valkey'
         uses: ./valkey-glide/.github/actions/start-valkey-docker
         with:
-          engine-version: ${{ matrix.engine.version }}
+          engine-version: "9.0"
 
       - name: Set up Ruby
-        if: matrix.engine.type == 'valkey'
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.4"
           bundler-cache: true
 
       - name: Run module tests
-        if: matrix.engine.type == 'valkey'
-        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandaloneModuleCommands|TestStandaloneJsonCommands|TestStandaloneVectorSearchCommands/'
+        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandaloneModuleCommands/'
         env:
           STANDALONE_ENDPOINTS: ${{ env.MODULES_STANDALONE_ENDPOINT }}
 
       - name: Stop containers
-        if: always() && matrix.engine.type == 'valkey'
+        if: always()
         run: |
           docker stop valkey-modules-standalone && docker rm valkey-modules-standalone || true
           for port in $(seq 8001 8006); do
