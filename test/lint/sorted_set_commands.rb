@@ -673,6 +673,8 @@ module Lint
     end
 
     def test_bzmpop
+      # BZMPOP was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
 
@@ -704,6 +706,8 @@ module Lint
     def test_zintercard
       # Uses key1/key2 keys across different hash slots
       skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+      # ZINTERCARD was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
 
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
@@ -715,6 +719,8 @@ module Lint
     def test_zintercard_with_limit
       # Uses key1/key2 keys across different hash slots
       skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+      # ZINTERCARD was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
 
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
@@ -724,6 +730,8 @@ module Lint
     end
 
     def test_zmpop
+      # ZMPOP was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
 

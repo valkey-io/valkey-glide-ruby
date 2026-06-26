@@ -147,6 +147,8 @@ module Lint
     end
 
     def test_client_set_info
+      # CLIENT SETINFO was introduced in Redis 7.2.
+      # Skipped on Redis 7.0, 6.2, and earlier versions.
       omit_version("7.2")
       assert_equal "OK", r.client(:set_info, 'lib-name', 'valkey') # TODO: 'implementing lib-var'
       assert_raises(Valkey::CommandError) do
@@ -230,6 +232,8 @@ module Lint
     end
 
     def test_client_no_evict
+      # CLIENT NO-EVICT was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
       assert_equal "OK", r.client_no_evict(:on)
       assert_equal "OK", r.client_no_evict(:off)
@@ -239,6 +243,8 @@ module Lint
     end
 
     def test_client_no_touch
+      # CLIENT NO-TOUCH was introduced in Redis 7.2.
+      # Skipped on Redis 7.0, 6.2, and earlier versions.
       omit_version("7.2")
       assert_equal "OK", r.client_no_touch(:on)
       assert_equal "OK", r.client_no_touch(:off)
@@ -325,12 +331,16 @@ module Lint
     end
 
     def test_acl_dryrun
+      # ACL DRYRUN was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
       result = r.acl_dryrun("default", "get", "key1")
       assert_equal "OK", result
     end
 
     def test_acl_dryrun_denied
+      # ACL DRYRUN was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
       r.acl_setuser("limiteduser", "on", ">pass", "~*", "+@read", "-set")
 
