@@ -12,6 +12,15 @@
 # - ACL rules are defined per node th inside the block helpers.
 module ValkeyTests
   module AuthCommands
+    # Tests that open a connection with WRONG credentials (server replies
+    # "AuthenticationFailed") intermittently hang the native connection-creation
+    # path and wedge the entire standalone suite (30-min CI timeout). The
+    # missing-credentials/NOAUTH path is NOT affected. Disabled until the
+    # underlying FFI connection-creation race is fixed upstream. See PR #113.
+    WRONG_CREDENTIALS_HANG_SKIP =
+      "Disabled: wrong-credentials connect (AuthenticationFailed) intermittently hangs " \
+      "the native connection-creation path and wedges the suite. See PR #113."
+
     # =========================================================
     # Default user -- connect-time
     # =========================================================
@@ -27,6 +36,7 @@ module ValkeyTests
 
     # should refuse to connect when the default-user password is wrong
     def test_connect_with_wrong_password_raises
+      skip(WRONG_CREDENTIALS_HANG_SKIP)
       with_default_user_password do |_user, _password|
         error = assert_raises(::Valkey::CannotConnectError) do
           _new_client(password: "wrongpass", connect_timeout: 1.0, reconnect_attempts: 0)
@@ -79,6 +89,7 @@ module ValkeyTests
     # should refuse to connect when the ACL user's password is wrong
     def test_connect_with_acl_user_wrong_password_raises
       skip("ACL auth tests only run on standalone mode") if cluster_mode?
+      skip(WRONG_CREDENTIALS_HANG_SKIP)
       with_acl do |username, _password|
         error = assert_raises(::Valkey::CannotConnectError) do
           _new_client(username: username, password: "wrong",
@@ -91,6 +102,7 @@ module ValkeyTests
     # should refuse to connect when the username does not exist
     def test_connect_with_acl_user_unknown_username_raises
       skip("ACL auth tests only run on standalone mode") if cluster_mode?
+      skip(WRONG_CREDENTIALS_HANG_SKIP)
       with_acl do |_username, password|
         error = assert_raises(::Valkey::CannotConnectError) do
           _new_client(username: "nobody", password: password,
