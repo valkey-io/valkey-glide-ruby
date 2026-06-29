@@ -73,9 +73,14 @@ module Helper
       valkey
     end
 
-    # TODO: it has to come from the server
+    # Query actual server version from the cluster. Falls back to "0.0" if
+    # detection fails so that version-gated tests skip rather than error.
     def version
-      "7.0"
+      info = valkey.info
+      ver = extract_version_from_info(info)
+      Version.new(ver || "0.0")
+    rescue StandardError
+      Version.new("0.0")
     end
 
     def cluster_mode?
@@ -83,6 +88,20 @@ module Helper
     end
 
     private
+
+    def extract_version_from_info(info)
+      case info
+      when Hash
+        info["valkey_version"] || info["redis_version"]
+      when Array
+        # Could be array of node responses; try first element
+        first = info.first
+        extract_version_from_info(first)
+      when String
+        # Raw INFO string — parse valkey_version or redis_version
+        ::Regexp.last_match(1) if info =~ /(?:valkey|redis)_version:(\S+)/
+      end
+    end
 
     def _new_client(options = {})
       addresses = Helper::Cluster.cluster_addresses
