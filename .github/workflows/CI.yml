@@ -94,13 +94,27 @@ jobs:
             echo "run-full-matrix=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Determine macOS runner mode
+        id: macos-mode
+        env:
+          RUN_WITH_MACOS: ${{ inputs.run-with-macos || 'false' }}
+          RUN_FULL_MATRIX: ${{ steps.full-matrix.outputs.run-full-matrix }}
+        run: |
+          if [[ "$RUN_WITH_MACOS" != "false" ]]; then
+            echo "run-with-macos=$RUN_WITH_MACOS" >> "$GITHUB_OUTPUT"
+          elif [[ "$RUN_FULL_MATRIX" == "true" ]]; then
+            echo "run-with-macos=use-github" >> "$GITHUB_OUTPUT"
+          else
+            echo "run-with-macos=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create test matrices
         id: create-matrices
         uses: ./.github/workflows/create-test-matrices
         with:
           language-name: ruby
           run-full-matrix: ${{ steps.full-matrix.outputs.run-full-matrix }}
-          run-with-macos: ${{ inputs.run-with-macos || 'false' }}
+          run-with-macos: ${{ steps.macos-mode.outputs.run-with-macos }}
 
   build-native-library:
     name: Build Native Library / ${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
