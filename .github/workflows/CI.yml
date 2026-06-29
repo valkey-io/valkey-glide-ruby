@@ -157,7 +157,7 @@ jobs:
           if-no-files-found: error
 
   test-ruby:
-    name: Test / Ruby ${{ matrix.version }} / ${{ matrix.engine.type }} ${{ matrix.engine.version }} / ${{ matrix.host.ARCH }}
+    name: Test / Ruby ${{ matrix.version }} / ${{ matrix.engine.type }} ${{ matrix.engine.version }} / ${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
     needs: [build-native-library, get-matrices]
     runs-on: ${{ matrix.host.RUNNER }}
     timeout-minutes: 30
