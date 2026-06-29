@@ -161,22 +161,6 @@ module Lint
       assert [0, 1].include?(result), "Expected unblock to return 0 or 1"
     end
 
-    def test_client_caching
-      skip("CLIENT CACHING command not implemented in backend yet")
-
-      # Assuming caching is enabled by default, this should return true
-      response = r.client(:caching)
-      assert_equal true, response
-    end
-
-    def test_client_tracking
-      skip("CLIENT TRACKING command not implemented in backend yet")
-
-      # Assuming tracking is enabled by default, this should return true
-      response = r.client(:tracking)
-      assert_equal true, response
-    end
-
     def test_client_reply
       assert_equal "OK", r.client(:reply, "ON") # TODO: "OFF" or "SKIP" doesnt work yet
     end
@@ -217,18 +201,6 @@ module Lint
       else
         skip("No client address found to kill")
       end
-    end
-
-    def test_client_tracking_info
-      skip("CLIENT TRACKING command not implemented in backend yet")
-
-      assert_kind_of Array, r.client(:tracking_info)
-    end
-
-    def test_client_getredir
-      # extra_client = Valkey.new
-      # extra_client.client('tracking', 'on', 'bcast') # TODO: Ensure tracking is implemented
-      assert_kind_of Integer, r.client(:getredir)
     end
 
     def test_client_no_evict

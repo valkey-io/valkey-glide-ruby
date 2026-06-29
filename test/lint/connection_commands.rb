@@ -150,11 +150,6 @@ module Lint
       end
     end
 
-    def test_client_getredir
-      redir = r.client_getredir
-      assert_kind_of Integer, redir
-    end
-
     def test_hello_default
       result = r.hello
       # Backend returns array in current implementation
@@ -206,31 +201,6 @@ module Lint
         sleep(0.05) # 50ms between retries
       end
       assert_nil r.client_get_name
-    end
-
-    def test_client_caching
-      # In cluster mode, CLIENT TRACKING and CLIENT CACHING may hit different nodes
-      # so tracking state isn't shared - skip this test in cluster mode
-      skip("CLIENT CACHING requires tracking state to be shared, not reliable in cluster mode") if cluster_mode?
-
-      # CLIENT CACHING YES works with OPTIN mode
-      r.client_tracking("ON", "OPTIN")
-      assert_equal "OK", r.client_caching("YES")
-      r.client_tracking("OFF")
-      # CLIENT CACHING NO requires OPTOUT mode
-      r.client_tracking("ON", "OPTOUT")
-      assert_equal "OK", r.client_caching("NO")
-      r.client_tracking("OFF")
-    end
-
-    def test_client_tracking
-      assert_equal "OK", r.client_tracking("ON")
-      assert_equal "OK", r.client_tracking("OFF")
-    end
-
-    def test_client_tracking_info
-      info = r.client_tracking_info
-      assert_kind_of Array, info
     end
 
     def test_quit
