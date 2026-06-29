@@ -243,13 +243,12 @@ class Valkey
   end
 
   def send_command(command_type, command_args = [], &block)
-    # Validate connection
-    if @connection.nil?
-      raise "Connection is nil"
-    elsif @connection.null?
-      raise "Connection pointer is null"
-    elsif @connection.address.zero?
-      raise "Connection address is 0"
+    # Validate connection. A nil/null pointer means the client was closed (or
+    # never established a usable connection); surface it as a typed error with
+    # the same "the client is closed" wording the sibling GLIDE clients use
+    # (Go ClosingError, Node/Java ClosingException).
+    if @connection.nil? || @connection.null? || @connection.address.zero?
+      raise ConnectionError, "the client is closed"
     end
 
     channel = 0
