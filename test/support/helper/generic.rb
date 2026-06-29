@@ -82,7 +82,8 @@ module Helper
     end
 
     def version
-      Version.new(valkey.info["valkey_version"])
+      info = valkey.info
+      Version.new(info["valkey_version"] || info["redis_version"])
     end
 
     def with_acl

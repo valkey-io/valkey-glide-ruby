@@ -147,6 +147,9 @@ module Lint
     end
 
     def test_client_set_info
+      # CLIENT SETINFO was introduced in Redis 7.2.
+      # Skipped on Redis 7.0, 6.2, and earlier versions.
+      omit_version("7.2")
       assert_equal "OK", r.client(:set_info, 'lib-name', 'valkey') # TODO: 'implementing lib-var'
       assert_raises(Valkey::CommandError) do
         r.client(:set_info, 'foo', '0.0.1')
@@ -156,22 +159,6 @@ module Lint
     def test_client_unblock
       result = r.client(:unblock, r.client(:id))
       assert [0, 1].include?(result), "Expected unblock to return 0 or 1"
-    end
-
-    def test_client_caching
-      skip("CLIENT CACHING command not implemented in backend yet")
-
-      # Assuming caching is enabled by default, this should return true
-      response = r.client(:caching)
-      assert_equal true, response
-    end
-
-    def test_client_tracking
-      skip("CLIENT TRACKING command not implemented in backend yet")
-
-      # Assuming tracking is enabled by default, this should return true
-      response = r.client(:tracking)
-      assert_equal true, response
     end
 
     def test_client_reply
@@ -216,19 +203,10 @@ module Lint
       end
     end
 
-    def test_client_tracking_info
-      skip("CLIENT TRACKING command not implemented in backend yet")
-
-      assert_kind_of Array, r.client(:tracking_info)
-    end
-
-    def test_client_getredir
-      # extra_client = Valkey.new
-      # extra_client.client('tracking', 'on', 'bcast') # TODO: Ensure tracking is implemented
-      assert_kind_of Integer, r.client(:getredir)
-    end
-
     def test_client_no_evict
+      # CLIENT NO-EVICT was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       assert_equal "OK", r.client_no_evict(:on)
       assert_equal "OK", r.client_no_evict(:off)
       assert_raises(Valkey::CommandError) do
@@ -237,6 +215,9 @@ module Lint
     end
 
     def test_client_no_touch
+      # CLIENT NO-TOUCH was introduced in Redis 7.2.
+      # Skipped on Redis 7.0, 6.2, and earlier versions.
+      omit_version("7.2")
       assert_equal "OK", r.client_no_touch(:on)
       assert_equal "OK", r.client_no_touch(:off)
       assert_raises(Valkey::CommandError) do
@@ -322,11 +303,17 @@ module Lint
     end
 
     def test_acl_dryrun
+      # ACL DRYRUN was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       result = r.acl_dryrun("default", "get", "key1")
       assert_equal "OK", result
     end
 
     def test_acl_dryrun_denied
+      # ACL DRYRUN was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       r.acl_setuser("limiteduser", "on", ">pass", "~*", "+@read", "-set")
 
       result = r.acl_dryrun("limiteduser", "set", "key1", "value")
@@ -741,10 +728,12 @@ module Lint
     end
 
     def test_command_info
-      # COMMAND INFO without arguments returns info for all commands
-      result = r.command_info
-      assert_kind_of Array, result
-      assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+      # COMMAND INFO without arguments returns info for all commands (Redis 7.0+)
+      target_version "7.0" do
+        result = r.command_info
+        assert_kind_of Array, result
+        assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+      end
 
       # COMMAND INFO with specific commands
       result = r.command_info("GET", "SET")

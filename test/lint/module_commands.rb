@@ -67,6 +67,8 @@ module Lint
           skip("MODULE commands not enabled")
         elsif e.message.include?("No such file") || e.message.include?("cannot open")
           skip("Module file not available at #{MODULE_PATH}")
+        elsif e.message.include?("Error loading")
+          skip("Module failed to load on this engine version")
         else
           raise
         end
@@ -88,6 +90,8 @@ module Lint
           skip("MODULE commands not enabled")
         elsif e.message.include?("No such file") || e.message.include?("cannot open")
           skip("Module file not available at #{MODULE_PATH}")
+        elsif e.message.include?("Error loading")
+          skip("Module failed to load on this engine version")
         else
           raise
         end
@@ -103,6 +107,8 @@ module Lint
           rescue Valkey::CommandError => e
             if e.message.include?("MODULE command not allowed")
               skip("MODULE commands not enabled or module file not available")
+            elsif e.message.include?("Error loading")
+              skip("Module failed to load on this engine version")
             end
             raise
           end
@@ -221,6 +227,8 @@ module Lint
           skip("MODULE commands not enabled")
         elsif e.message.include?("No such file") || e.message.include?("cannot open")
           skip("Module file not available at #{MODULE_PATH}")
+        elsif e.message.include?("Error loading")
+          skip("Module failed to load on this engine version")
         else
           raise
         end
@@ -236,6 +244,8 @@ module Lint
           rescue Valkey::CommandError => e
             if e.message.include?("MODULE command not allowed")
               skip("MODULE commands not enabled or module file not available")
+            elsif e.message.include?("Error loading")
+              skip("Module failed to load on this engine version")
             end
             raise
           end

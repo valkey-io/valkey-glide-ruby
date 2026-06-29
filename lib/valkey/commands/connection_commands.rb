@@ -94,7 +94,7 @@ class Valkey
       #   client(:set_name, "my_app")  # => "OK"
       #   client(:list)                # => [{"id" => "1", ...}, ...]
       def client(subcommand, *args)
-        send("client_#{subcommand.to_s.downcase}", *args)
+        public_send("client_#{subcommand.to_s.downcase}", *args)
       end
 
       # Get the current client's ID.
@@ -136,8 +136,10 @@ class Valkey
 
         send_command(RequestType::CLIENT_LIST, args) do |reply|
           reply.lines.map do |line|
-            entries = line.chomp.split(/[ =]/)
-            entries.each_slice(2).to_a.to_h
+            line.chomp.split.each_with_object({}) do |pair, hash|
+              key, value = pair.split("=", 2)
+              hash[key] = value || ""
+            end
           end
         end
       end
@@ -290,6 +292,12 @@ class Valkey
         send_command(RequestType::CLIENT_NO_TOUCH, [mode.to_s.upcase])
       end
 
+      # Client-side caching commands are intentionally private.
+      #
+      # GLIDE's managed client-side caching is not yet implemented in the Ruby client
+      # These commands are not meant to be called directly and will be kept private.
+      private :client_tracking, :client_caching, :client_tracking_info, :client_getredir
+
       private
 
       def build_client_tracking_args(options)
@@ -299,8 +307,9 @@ class Valkey
           when :redirect
             args << "REDIRECT" << value.to_s
           when :prefix
-            args << "PREFIX"
-            Array(value).each { |prefix| args << prefix }
+            # Valkey requires the PREFIX keyword before each prefix value,
+            # e.g. PREFIX foo PREFIX bar.
+            Array(value).each { |prefix| args << "PREFIX" << prefix }
           when :bcast
             args << "BCAST" if value
           when :optin

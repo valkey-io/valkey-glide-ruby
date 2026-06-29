@@ -1,13 +1,57 @@
 name: CI
 
+run-name: ${{ inputs.name || format('{0} @ {1} {2}', github.ref_name, github.sha, toJson(inputs)) }}
+
 on:
+  pull_request:
+    paths:
+      - lib/**
+      - test/**
+      - valkey-glide/ffi/**
+      - .github/workflows/**
+      - .github/json_matrices/**
+      - Gemfile
+      - Gemfile.lock
+      - Rakefile
+      - valkey.gemspec
+
   push:
     branches:
       - main
+      - release-*
 
-  pull_request:
+  schedule:
+    - cron: "0 6 * * *"
 
   workflow_dispatch:
+    inputs:
+      full-matrix:
+        description: "Run the full matrix"
+        type: boolean
+        default: false
+      run-with-macos:
+        description: "Include macOS runners"
+        type: choice
+        options:
+          - "false"
+          - "use-self-hosted"
+          - "use-github"
+        default: "false"
+      name:
+        description: "Custom run name"
+        type: string
+        required: false
+
+  workflow_call:
+    inputs:
+      run-with-macos:
+        description: "Include macOS runners"
+        type: string
+        default: "false"
+
+concurrency:
+  group: ruby-${{ github.head_ref || github.ref }}-${{ toJson(inputs) }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -25,10 +69,48 @@ jobs:
       - name: Lint
         run: bundle exec rubocop
 
-  build-native-library:
-    name: Build Native Library
+  get-matrices:
+    name: Get Matrices
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    outputs:
+      engine-matrix-output: ${{ steps.create-matrices.outputs.engine-matrix-output }}
+      host-matrix-output: ${{ steps.create-matrices.outputs.host-matrix-output }}
+      version-matrix-output: ${{ steps.create-matrices.outputs.version-matrix-output }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Determine full matrix mode
+        id: full-matrix
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_MATRIX_INPUT: ${{ inputs.full-matrix }}
+        run: |
+          if [[ "$EVENT_NAME" == "schedule" ]] || \
+             [[ "$EVENT_NAME" == "workflow_call" ]] || \
+             [[ "$EVENT_NAME" == "workflow_dispatch" && "$FULL_MATRIX_INPUT" == "true" ]]; then
+            echo "run-full-matrix=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run-full-matrix=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create test matrices
+        id: create-matrices
+        uses: ./.github/workflows/create-test-matrices
+        with:
+          language-name: ruby
+          run-full-matrix: ${{ steps.full-matrix.outputs.run-full-matrix }}
+          run-with-macos: ${{ inputs.run-with-macos || 'false' }}
+
+  build-native-library:
+    name: Build Native Library / ${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
+    needs: [get-matrices]
+    runs-on: ${{ matrix.host.RUNNER }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        host: ${{ fromJson(needs.get-matrices.outputs.host-matrix-output) }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -40,7 +122,7 @@ jobs:
       - name: Install Rust
         uses: ./valkey-glide/.github/actions/install-rust
         with:
-          target: x86_64-unknown-linux-gnu
+          target: ${{ matrix.host.TARGET }}
 
       - name: Install protoc
         uses: ./valkey-glide/.github/actions/install-protoc
@@ -56,9 +138,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             valkey-glide/ffi/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('valkey-glide/ffi/Cargo.lock') }}
+          key: ${{ matrix.host.TARGET }}-cargo-${{ hashFiles('valkey-glide/ffi/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ matrix.host.TARGET }}-cargo-
 
       - name: Build native library
         working-directory: valkey-glide/ffi
@@ -70,202 +152,102 @@ jobs:
       - name: Upload native library
         uses: actions/upload-artifact@v4
         with:
-          name: native-lib-linux-x64
+          name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
           path: valkey-glide/ffi/target/release/libglide_ffi.so
           if-no-files-found: error
 
-  standalone:
-    needs: [build-native-library]
-    runs-on: ubuntu-latest
-    name: Standalone / Ruby ${{ matrix.ruby }} Valkey ${{ matrix.valkey }}
-    timeout-minutes: 15
+  test-ruby:
+    name: Test / Ruby ${{ matrix.version }} / ${{ matrix.engine.type }} ${{ matrix.engine.version }} / ${{ matrix.host.ARCH }}
+    needs: [build-native-library, get-matrices]
+    runs-on: ${{ matrix.host.RUNNER }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        ruby:
-          - 3.4
-          - 3.3
-          - 3.2
-          - 3.1
-          - 3.0
-        valkey:
-          - 7.2.10
-          - 8
-          - 8.1
-
+        engine: ${{ fromJson(needs.get-matrices.outputs.engine-matrix-output) }}
+        version: ${{ fromJson(needs.get-matrices.outputs.version-matrix-output) }}
+        host: ${{ fromJson(needs.get-matrices.outputs.host-matrix-output) }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v4
         with:
           submodules: recursive
 
       - name: Download native library
         uses: actions/download-artifact@v4
         with:
-          name: native-lib-linux-x64
+          name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
           path: valkey-glide/ffi/target/release/
-
-      - name: Copy modules for testing
-        run: |
-          echo "Copying modules for testing..."
-          mkdir -p test/fixtures
-
-          echo "Copying RedisJSON module for JSON commands testing..."
-          cp .github/files/librejson-v2.8.15.so test/fixtures/redisjson.so
-          chmod +x test/fixtures/redisjson.so
-          ls -lh test/fixtures/redisjson.so
-
-          echo "Copying RedisBloom module..."
-          cp .github/files/redisbloom-amd64-v2.6.12.so test/fixtures/redisbloom.so
-          chmod +x test/fixtures/redisbloom.so
-          ls -lh test/fixtures/redisbloom.so
-
-          echo "Copying RediSearch module for Vector Search commands testing..."
-          cp .github/files/redisearch-amd64-v2.10.24.so test/fixtures/redisearch.so
-          chmod +x test/fixtures/redisearch.so
-          ls -lh test/fixtures/redisearch.so
-
-      - name: Generate SSL certificates for testing
-        run: |
-          echo "Generating SSL certificates for SSL/TLS testing..."
-          ruby test/fixtures/ssl/generate_certs.rb
-          echo "SSL certificates generated:"
-          ls -lh test/fixtures/ssl/*.pem
-
-      - name: Start Valkey with MODULE commands enabled
-        run: |
-          echo "Starting Valkey ${{ matrix.valkey }} with MODULE commands enabled..."
-          docker run -d \
-            --name valkey-test \
-            -p 6379:6379 \
-            -v $(pwd)/test/fixtures:/tmp/modules:ro \
-            valkey/valkey:${{ matrix.valkey }} \
-            valkey-server --enable-module-command yes
-
-          echo "Waiting for Valkey to be ready..."
-          for i in {1..30}; do
-            if docker exec valkey-test valkey-cli ping > /dev/null 2>&1; then
-              echo "Valkey is ready!"
-              break
-            fi
-            echo "Waiting... ($i/30)"
-            sleep 1
-          done
-
-          echo "Verifying MODULE commands are enabled..."
-          docker exec valkey-test valkey-cli CONFIG GET enable-module-command
-
-          echo "Verifying module files are accessible..."
-          docker exec valkey-test ls -lh /tmp/modules/
-
-      - name: Start SSL-enabled Valkey on port 6380
-        run: |
-          echo "Creating Valkey SSL configuration..."
-          cat > /tmp/valkey-ssl.conf << 'EOF'
-          # Disable regular port, use TLS port only
-          port 0
-          tls-port 6380
-
-          # SSL/TLS certificate files
-          tls-cert-file /ssl/server-cert.pem
-          tls-key-file /ssl/server-key.pem
-          tls-ca-cert-file /ssl/ca-cert.pem
-
-          # Don't require client certificates (optional)
-          tls-auth-clients no
-
-          # Allow TLS v1.2 and v1.3
-          tls-protocols "TLSv1.2 TLSv1.3"
-          EOF
-
-          echo "SSL configuration created:"
-          cat /tmp/valkey-ssl.conf
-
-          echo "Verifying SSL certificate files exist..."
-          ls -lh $(pwd)/test/fixtures/ssl/*.pem
-
-          echo "Starting SSL-enabled Valkey on port 6380..."
-          docker run -d \
-            --name valkey-ssl \
-            -p 6380:6380 \
-            -v $(pwd)/test/fixtures/ssl:/ssl:ro \
-            -v /tmp/valkey-ssl.conf:/etc/valkey-ssl.conf:ro \
-            valkey/valkey:${{ matrix.valkey }} \
-            valkey-server /etc/valkey-ssl.conf
-
-          echo "Waiting for container to start..."
-          sleep 2
-
-          echo "Checking if container is running..."
-          docker ps -a | grep valkey-ssl || echo "Container not found!"
-
-          echo "Checking container logs..."
-          docker logs valkey-ssl || echo "Could not get logs"
-
-          echo "Verifying SSL cert files are accessible inside container..."
-          docker exec valkey-ssl ls -lh /ssl/ || echo "Cannot access /ssl/ directory"
-          docker exec valkey-ssl cat /etc/valkey-ssl.conf || echo "Cannot read config file"
-
-          echo "Waiting for SSL Valkey to be ready..."
-          for i in {1..30}; do
-            if docker exec valkey-ssl valkey-cli --tls --insecure -p 6380 ping > /dev/null 2>&1; then
-              echo "SSL Valkey is ready!"
-              break
-            fi
-            echo "Waiting... ($i/30)"
-            sleep 1
-          done
-
-          echo "Verifying SSL connection from host..."
-          docker exec valkey-ssl valkey-cli --tls --insecure -p 6380 ping || echo "SSL verification failed"
-
-          echo "Testing connection from host machine..."
-          docker run --rm --network host valkey/valkey:${{ matrix.valkey }} valkey-cli --tls --insecure -p 6380 ping || echo "Host connection test failed"
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
-
-      - name: Run standalone tests
-        run: bundle exec rake test:standalone
-
-      - name: Stop Valkey containers
-        if: always()
-        run: |
-          docker stop valkey-test && docker rm valkey-test || true
-          docker stop valkey-ssl && docker rm valkey-ssl || true
-
-  cluster:
-    needs: [build-native-library]
-    runs-on: ubuntu-latest
-    name: Cluster / Ruby ${{ matrix.ruby }}
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        ruby:
-          - 3.4
-          - 3.3
-          - 3.2
-          - 3.1
-          - 3.0
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install Valkey
+      - name: Install Valkey engine
         uses: ./valkey-glide/.github/actions/install-engine
         with:
-          engine-version: "8.0"
-          target: x86_64-unknown-linux-gnu
+          engine-version: ${{ matrix.engine.version }}
+          target: ${{ matrix.host.TARGET }}
+
+      - name: Start standalone server via cluster_manager.py
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
+
+      - name: Start TLS server via cluster_manager.py
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
+          echo "TLS server started on port 6380"
+          echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> $GITHUB_ENV
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.version }}
+          bundler-cache: true
+
+      - name: Run tests
+        run: bundle exec rake test
+
+      - name: Upload test artifacts
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-ruby-${{ matrix.version }}-${{ matrix.engine.type }}-${{ matrix.engine.version }}-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
+          path: |
+            test/reports/
+            tmp/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload cluster logs on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-logs-ruby-${{ matrix.version }}-${{ matrix.engine.type }}-${{ matrix.engine.version }}-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
+          path: valkey-glide/utils/clusters/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stop servers
+        if: always()
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+          python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
+
+  module-tests:
+    name: Module Tests
+    needs: [build-native-library]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Download native library
         uses: actions/download-artifact@v4
@@ -273,20 +255,37 @@ jobs:
           name: native-lib-linux-x64
           path: valkey-glide/ffi/target/release/
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Valkey engine
+        uses: ./valkey-glide/.github/actions/install-engine
+        with:
+          engine-version: "9.0"
+          target: x86_64-unknown-linux-gnu
+
+      - name: Start module servers via Docker
+        uses: ./valkey-glide/.github/actions/start-valkey-docker
+        with:
+          engine-version: "9.0"
+
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: ${{ matrix.ruby }}
+          ruby-version: "3.4"
           bundler-cache: true
 
-      - name: Run cluster tests
-        run: bundle exec rake test:cluster
-        timeout-minutes: 25
+      - name: Run module tests
+        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandaloneModuleCommands/'
+        env:
+          STANDALONE_ENDPOINTS: ${{ env.MODULES_STANDALONE_ENDPOINT }}
 
-      - name: Upload cluster logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: cluster-logs-${{ matrix.ruby }}
-          path: valkey-glide/utils/clusters/
-          retention-days: 7
+      - name: Stop containers
+        if: always()
+        run: |
+          docker stop valkey-modules-standalone && docker rm valkey-modules-standalone || true
+          for port in $(seq 8001 8006); do
+            docker stop "valkey-modules-cluster-${port}" && docker rm "valkey-modules-cluster-${port}" || true
+          done

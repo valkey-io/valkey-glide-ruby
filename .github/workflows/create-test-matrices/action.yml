@@ -1,0 +1,130 @@
+name: Create Test Matrices
+description: "Filters JSON matrix files to produce engine, host, and language version matrices based on full/reduced mode"
+
+inputs:
+  language-name:
+    description: "The language to filter for (e.g., 'ruby')"
+    required: true
+  run-full-matrix:
+    description: "Whether to run the full matrix (true) or reduced matrix (false)"
+    required: true
+  run-with-macos:
+    description: "Include macOS runners: 'false', 'use-self-hosted', or 'use-github'"
+    required: false
+    default: "false"
+
+outputs:
+  engine-matrix-output:
+    description: "Filtered engine versions as a JSON array"
+    value: ${{ steps.generate-matrices.outputs.engine-matrix-output }}
+  host-matrix-output:
+    description: "Filtered host/runner entries as a JSON array"
+    value: ${{ steps.generate-matrices.outputs.host-matrix-output }}
+  version-matrix-output:
+    description: "Filtered language versions as a JSON array"
+    value: ${{ steps.generate-matrices.outputs.version-matrix-output }}
+
+runs:
+  using: composite
+  steps:
+    - name: Generate matrices
+      id: generate-matrices
+      shell: bash
+      env:
+        RUN_FULL_MATRIX: ${{ inputs.run-full-matrix }}
+        LANGUAGE_NAME: ${{ inputs.language-name }}
+        RUN_WITH_MACOS: ${{ inputs.run-with-macos }}
+      run: |
+        # Resolve path to JSON matrix files
+        MATRICES_DIR="${GITHUB_WORKSPACE}/.github/json_matrices"
+
+        # --- Engine Matrix ---
+        ENGINE_FILE="${MATRICES_DIR}/engine-matrix.json"
+        if [[ ! -f "$ENGINE_FILE" ]]; then
+          echo "ERROR: Engine matrix file not found: $ENGINE_FILE"
+          exit 1
+        fi
+
+        if [[ "$RUN_FULL_MATRIX" == "true" ]]; then
+          ENGINE_MATRIX=$(jq -c '.' "$ENGINE_FILE")
+        else
+          ENGINE_MATRIX=$(jq -c '[.[] | select(.run == "always")]' "$ENGINE_FILE")
+        fi
+
+        # --- Host Matrix ---
+        HOST_FILE="${MATRICES_DIR}/build-matrix.json"
+        if [[ ! -f "$HOST_FILE" ]]; then
+          echo "ERROR: Build matrix file not found: $HOST_FILE"
+          exit 1
+        fi
+
+        # Filter by language
+        HOST_MATRIX=$(jq -c --arg lang "$LANGUAGE_NAME" \
+          '[.[] | select(.languages | index($lang))]' "$HOST_FILE")
+
+        # Handle macOS option
+        if [[ "$RUN_WITH_MACOS" == "use-github" ]]; then
+          MACOS_ENTRY="{\"OS\":\"macos\",\"NAMED_OS\":\"darwin\",\"RUNNER\":\"macos-latest\",\"ARCH\":\"arm64\",\"TARGET\":\"aarch64-apple-darwin\",\"languages\":[\"$LANGUAGE_NAME\"],\"run\":\"always\"}"
+          HOST_MATRIX=$(echo "$HOST_MATRIX" | jq -c --argjson macos "$MACOS_ENTRY" '. + [$macos]')
+        fi
+
+        # --- Version Matrix ---
+        VERSIONS_FILE="${MATRICES_DIR}/supported-languages-versions.json"
+        if [[ ! -f "$VERSIONS_FILE" ]]; then
+          echo "ERROR: Supported languages versions file not found: $VERSIONS_FILE"
+          exit 1
+        fi
+
+        LANG_ENTRY=$(jq -c --arg lang "$LANGUAGE_NAME" \
+          '.[] | select(.language == $lang)' "$VERSIONS_FILE")
+
+        if [[ -z "$LANG_ENTRY" ]]; then
+          echo "ERROR: Language '$LANGUAGE_NAME' not found in $VERSIONS_FILE"
+          exit 1
+        fi
+
+        if [[ "$RUN_FULL_MATRIX" == "true" ]]; then
+          VERSION_MATRIX=$(echo "$LANG_ENTRY" | jq -c '.versions')
+        else
+          VERSION_MATRIX=$(echo "$LANG_ENTRY" | jq -c '."always-run-versions"')
+        fi
+
+        # --- Set outputs ---
+        echo "engine-matrix-output=$ENGINE_MATRIX" >> "$GITHUB_OUTPUT"
+        echo "host-matrix-output=$HOST_MATRIX" >> "$GITHUB_OUTPUT"
+        echo "version-matrix-output=$VERSION_MATRIX" >> "$GITHUB_OUTPUT"
+
+        echo "Engine matrix: $ENGINE_MATRIX"
+        echo "Host matrix: $HOST_MATRIX"
+        echo "Version matrix: $VERSION_MATRIX"
+
+    - name: Validate matrices are non-empty
+      shell: bash
+      run: |
+        ENGINE_MATRIX='${{ steps.generate-matrices.outputs.engine-matrix-output }}'
+        HOST_MATRIX='${{ steps.generate-matrices.outputs.host-matrix-output }}'
+        VERSION_MATRIX='${{ steps.generate-matrices.outputs.version-matrix-output }}'
+
+        FAILED=0
+
+        if [[ $(echo "$ENGINE_MATRIX" | jq 'length') -eq 0 ]]; then
+          echo "ERROR: Engine matrix is empty"
+          FAILED=1
+        fi
+
+        if [[ $(echo "$HOST_MATRIX" | jq 'length') -eq 0 ]]; then
+          echo "ERROR: Host matrix is empty"
+          FAILED=1
+        fi
+
+        if [[ $(echo "$VERSION_MATRIX" | jq 'length') -eq 0 ]]; then
+          echo "ERROR: Version matrix is empty"
+          FAILED=1
+        fi
+
+        if [[ $FAILED -eq 1 ]]; then
+          echo "Matrix validation failed: one or more matrices are empty"
+          exit 1
+        fi
+
+        echo "All matrices validated successfully"
