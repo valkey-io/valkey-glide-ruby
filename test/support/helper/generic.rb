@@ -87,14 +87,6 @@ module Helper
     end
 
     def with_acl
-      # NOTE: The ACL auth tests intermittently hang the entire standalone suite
-      # in CI. Investigation (PR #113) showed the ACL tests' connection/command
-      # pattern wedges the shared glide-core FFI runtime, after which a later
-      # unrelated FFI command (e.g. FUNCTION LOAD) blocks indefinitely with no
-      # client-side timeout, exceeding the 30-minute job cap. Skipped until the
-      # underlying FFI robustness issue is resolved.
-      skip("ACL auth tests temporarily disabled: cause intermittent CI hang (see PR #113)")
-
       admin = _new_client
       # glide-core runs INFO (and CLIENT) during the connection handshake, so the
       # ACL user must be granted those even though the test only exercises PING/SET.

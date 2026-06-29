@@ -12,9 +12,14 @@
 # - ACL rules are defined per node th inside the block helpers.
 module ValkeyTests
   module AuthCommands
+    # Tests that open a connection with WRONG credentials (server replies
+    # "AuthenticationFailed") intermittently hang the native connection-creation
+    # path and wedge the entire standalone suite (30-min CI timeout). The
+    # missing-credentials/NOAUTH path is NOT affected. Disabled until the
+    # underlying FFI connection-creation race is fixed upstream. See PR #113.
     WRONG_CREDENTIALS_HANG_SKIP =
-      "Disabled: wrong-credentials tests as it is causing suites to hang. See valkey-glide-ruby/issues/115"
-
+      "Disabled: wrong-credentials connect (AuthenticationFailed) intermittently hangs " \
+      "the native connection-creation path and wedges the suite. See PR #113."
 
     # =========================================================
     # Default user -- connect-time
