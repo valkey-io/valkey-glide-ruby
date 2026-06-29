@@ -28,7 +28,7 @@ module ValkeyTests
       assert_equal ["ABORT"], capture_failover_args(abort: true, timeout: 5000)
     end
 
-    # should not emit "FORCE" unless a TO target is supplied
+    # should not send "FORCE" unless a TO target is supplied
     def test_failover_force_without_target_omits_force
       assert_equal [], capture_failover_args(force: true)
     end
