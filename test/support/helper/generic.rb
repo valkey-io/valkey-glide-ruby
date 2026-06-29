@@ -8,6 +8,10 @@ module Helper
 
     alias r valkey
 
+    # Credentials used by the auth helpers (with_acl / with_default_user_password).
+    AUTH_TEST_PASSWORD = "mysecret"
+    ACL_TEST_USERNAME = "johndoe"
+
     def run
       if respond_to?(:around)
         around { super }
@@ -87,33 +91,44 @@ module Helper
       # ACL user must be granted those even though the test only exercises PING/SET.
       # This mirrors the python reference grant (+ping +info +client +cluster ...);
       # +set is intentionally withheld so the disallowed-command test still fails.
-      admin.acl("SETUSER", "johndoe", "on",
+      admin.acl("SETUSER", ACL_TEST_USERNAME, "on",
                 "+ping", "+select", "+command", "+info", "+client",
                 "+cluster|slots", "+cluster|nodes", "+readonly",
-                ">mysecret")
-      yield("johndoe", "mysecret")
+                ">#{AUTH_TEST_PASSWORD}")
+      yield(ACL_TEST_USERNAME, AUTH_TEST_PASSWORD)
     ensure
-      begin
-        admin&.acl("DELUSER", "johndoe")
-      rescue Valkey::BaseError
-        # best-effort restore; never let teardown cascade into other tests
-      ensure
-        admin&.close
-      end
+      admin&.close
+      delete_acl_user(ACL_TEST_USERNAME)
+    end
+
+    # Remove the ACL test user. Mirrors restore_default_user_nopass: run the
+    # cleanup from a fresh privileged (default / no-password) connection rather
+    # than as `johndoe` (which lacks +acl) or via a possibly-stale `admin`.
+    def delete_acl_user(username)
+      client = _new_client
+      client.acl("DELUSER", username)
+    rescue Valkey::BaseError => e
+      warn "[auth-helper] could not delete ACL user `#{username}`: #{e.class}: #{e.message}"
+    ensure
+      client&.close
     end
 
     def with_default_user_password
-      admin = _new_client
-      admin.acl("SETUSER", "default", ">mysecret")
-      yield("default", "mysecret")
+      client = _new_client
+      client.acl("SETUSER", "default", ">#{AUTH_TEST_PASSWORD}")
+      yield("default", AUTH_TEST_PASSWORD)
     ensure
-      begin
-        admin&.acl("SETUSER", "default", "nopass")
-      rescue Valkey::BaseError
-        # best-effort restore; never let teardown cascade into other tests
-      ensure
-        admin&.close
-      end
+      client&.close
+      restore_default_user_nopass
+    end
+
+    def restore_default_user_nopass
+      client = _new_client(password: AUTH_TEST_PASSWORD)
+      client.acl("SETUSER", "default", "nopass")
+    rescue Valkey::BaseError => e
+      warn "[auth-helper] could not reset `default` user to nopass: #{e.class}: #{e.message}"
+    ensure
+      client&.close
     end
   end
 end
