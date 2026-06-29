@@ -2,10 +2,11 @@
     {
         "OS": "ubuntu",
         "NAMED_OS": "linux",
-        "RUNNER": "ubuntu-latest",
+        "RUNNER": "ubuntu-24.04",
         "ARCH": "x64",
         "TARGET": "x86_64-unknown-linux-gnu",
-        "run": "always"
+        "run": "always",
+        "languages": ["ruby"]
     },
     {
         "OS": "ubuntu",
@@ -13,6 +14,7 @@
         "RUNNER": "ubuntu-24.04-arm",
         "ARCH": "arm64",
         "TARGET": "aarch64-unknown-linux-gnu",
-        "run": "always"
+        "run": "always",
+        "languages": ["ruby"]
     }
 ]

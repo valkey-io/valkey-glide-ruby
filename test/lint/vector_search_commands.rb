@@ -492,6 +492,10 @@ module Lint
           skip("RediSearch module file not available at #{REDISEARCH_MODULE_PATH}")
         elsif e.message.include?("MODULE command not allowed")
           skip("MODULE commands not enabled")
+        elsif e.message.include?("unknown command")
+          skip("MODULE command not supported on this server version")
+        elsif e.message.include?("Error loading the extension")
+          skip("RediSearch module failed to load on this engine")
         else
           raise
         end
