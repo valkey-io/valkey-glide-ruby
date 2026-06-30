@@ -15,10 +15,6 @@
 # All are standalone-shaped and skipped in cluster mode.
 module ValkeyTests
   module ConnectionLifecycle
-    # =================================================================
-    # Test 4 — command on a closed client
-    # =================================================================
-
     # should raise a connection error stating the client is closed when a
     # command is issued after close
     def test_closed_client_raises_error
@@ -30,10 +26,6 @@ module ValkeyTests
       error = assert_raises(Valkey::ConnectionError) { client.set("foo", "bar") }
       assert_match(/the client is closed/, error.message)
     end
-
-    # =================================================================
-    # Test 5 — client recreation after close
-    # =================================================================
 
     # should let a new client connect and round-trip set/get after a previous
     # client was closed (the shared FFI pipe stays valid across lifecycles)
@@ -53,10 +45,6 @@ module ValkeyTests
       client2.del(key)
       client2.close
     end
-
-    # =================================================================
-    # Test 6 — connection timeout on an unavailable host
-    # =================================================================
 
     # should fail fast (within ~2.5x the connect timeout) instead of hanging
     # when connecting to an unreachable host
@@ -91,10 +79,6 @@ module ValkeyTests
              "connect took #{elapsed.round(2)}s, expected < #{max_allowed}s " \
              "(connect_timeout not being respected)"
     end
-
-    # =================================================================
-    # Test 7 — connection timeout while the server is blocked
-    # =================================================================
 
     # should reject a new connection with a small connect timeout while the
     # server is blocked by a long-running command, yet allow one with a
