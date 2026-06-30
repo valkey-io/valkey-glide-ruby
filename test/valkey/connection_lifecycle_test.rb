@@ -50,7 +50,6 @@ module ValkeyTests
     # when connecting to an unreachable host
     def test_connection_timeout_on_unavailable_host
       skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
-      skip("connect_timeout not enforced by the native sync client for an unreachable host; hangs CI (see PR #114)")
 
       connect_timeout = 1.0
       # 192.0.2.1 is TEST-NET-1 (RFC 5737), reserved and unroutable, so the
@@ -62,7 +61,7 @@ module ValkeyTests
           host: "192.0.2.1",
           port: 6379,
           connect_timeout: connect_timeout,
-          reconnect_attempts: 1
+          reconnect_attempts: 1 # Should be zero however issue #117 blocks this.
         )
       end
       elapsed = monotonic_now - started
@@ -96,7 +95,7 @@ module ValkeyTests
 
       # A short connection timeout must fail while the server is blocked.
       assert_raises(Valkey::CannotConnectError) do
-        _new_client(connect_timeout: 0.1, reconnect_attempts: 1)
+        _new_client(connect_timeout: 0.1, reconnect_attempts: 1) # Should be zero however issue #117 blocks this.
       end
 
       # A generous connection timeout should still connect once the block clears.
