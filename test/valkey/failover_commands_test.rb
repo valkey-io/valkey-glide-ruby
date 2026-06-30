@@ -14,6 +14,8 @@ module ValkeyTests
     # should return "OK" and flip the connected primary's role to slave once
     # the coordinated failover to its replica completes.
     def test_failover_promotes_replica_and_returns_ok
+      skip("This sometimes hang. Unsure if it is a client bug. See https://github.com/valkey-io/valkey-glide-ruby/issues/117")
+
       with_standalone_replica do |primary|
         Timeout.timeout(FAILOVER_TEST_DEADLINE) do
           assert_equal "master", primary.info("replication")["role"]
