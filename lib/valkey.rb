@@ -247,9 +247,7 @@ class Valkey
     # never established a usable connection); surface it as a typed error with
     # the same "the client is closed" wording the sibling GLIDE clients use
     # (Go ClosingError, Node/Java ClosingException).
-    if @connection.nil? || @connection.null? || @connection.address.zero?
-      raise ConnectionError, "the client is closed"
-    end
+    raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
 
     channel = 0
     route = ""

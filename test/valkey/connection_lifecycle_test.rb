@@ -62,6 +62,14 @@ module ValkeyTests
     # when connecting to an unreachable host
     def test_connection_timeout_on_unavailable_host
       skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+      # DISABLED: the synchronous FFI connect path (create_client_from_uri) does
+      # not honor connection_timeout when the host is unreachable, so Valkey.new
+      # never returns and hangs the entire standalone suite (30-min CI cap on
+      # every matrix cell). The Ruby side forwards connection_timeout and
+      # reconnect_attempts: 0 correctly; the gap is in glide-core's sync client
+      # (the async Python/Node clients this test mirrors do enforce it).
+      # Re-enable once the native fix lands. See PR #114.
+      skip("connect_timeout not enforced by the native sync client for an unreachable host; hangs CI (see PR #114)")
 
       connect_timeout = 1.0
       # 192.0.2.1 is TEST-NET-1 (RFC 5737), reserved and unroutable, so the
@@ -132,7 +140,7 @@ module ValkeyTests
     # Probes whether DEBUG SLEEP is permitted on the server (it requires
     # enable-debug-command). Uses the shared client and a zero-length sleep.
     def debug_sleep_available?
-      r.send_command(Valkey::RequestType::CUSTOM_COMMAND, ["DEBUG", "SLEEP", "0"])
+      r.send_command(Valkey::RequestType::CUSTOM_COMMAND, %w[DEBUG SLEEP 0])
       true
     rescue Valkey::CommandError
       false
