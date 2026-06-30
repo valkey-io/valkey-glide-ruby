@@ -25,6 +25,10 @@ DB          = 15
 TIMEOUT = Float(ENV["TIMEOUT"] || 5.0) # Increased from 3.0 to 5.0 for CI stability
 LOW_TIMEOUT = Float(ENV["LOW_TIMEOUT"] || 0.01) # for blocking-command tests
 
+# When SKIP_TLS_TESTS is set to "true", TLS/SSL tests are skipped gracefully.
+# This is used on macOS CI where Docker-based TLS server setup is unavailable.
+SKIP_TLS_TESTS = ENV["SKIP_TLS_TESTS"] == "true"
+
 CLUSTER_NODES = 6.times.map do |i|
   { host: "127.0.0.1", port: 7000 + i }
 end

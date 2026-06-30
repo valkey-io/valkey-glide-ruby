@@ -94,13 +94,27 @@ jobs:
             echo "run-full-matrix=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Determine macOS runner mode
+        id: macos-mode
+        env:
+          RUN_WITH_MACOS: ${{ inputs.run-with-macos || 'false' }}
+          RUN_FULL_MATRIX: ${{ steps.full-matrix.outputs.run-full-matrix }}
+        run: |
+          if [[ "$RUN_WITH_MACOS" != "false" ]]; then
+            echo "run-with-macos=$RUN_WITH_MACOS" >> "$GITHUB_OUTPUT"
+          elif [[ "$RUN_FULL_MATRIX" == "true" ]]; then
+            echo "run-with-macos=use-github" >> "$GITHUB_OUTPUT"
+          else
+            echo "run-with-macos=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Create test matrices
         id: create-matrices
         uses: ./.github/workflows/create-test-matrices
         with:
           language-name: ruby
           run-full-matrix: ${{ steps.full-matrix.outputs.run-full-matrix }}
-          run-with-macos: ${{ inputs.run-with-macos || 'false' }}
+          run-with-macos: ${{ steps.macos-mode.outputs.run-with-macos }}
 
   build-native-library:
     name: Build Native Library / ${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
@@ -153,11 +167,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
-          path: valkey-glide/ffi/target/release/libglide_ffi.so
+          path: valkey-glide/ffi/target/release/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   test-ruby:
-    name: Test / Ruby ${{ matrix.version }} / ${{ matrix.engine.type }} ${{ matrix.engine.version }} / ${{ matrix.host.ARCH }}
+    name: Test / Ruby ${{ matrix.version }} / ${{ matrix.engine.type }} ${{ matrix.engine.version }} / ${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
     needs: [build-native-library, get-matrices]
     runs-on: ${{ matrix.host.RUNNER }}
     timeout-minutes: 30
@@ -196,6 +210,7 @@ jobs:
           echo "Standalone server started on port 6379"
 
       - name: Start TLS server via cluster_manager.py
+        if: matrix.host.OS != 'macos'
         run: |
           python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
           echo "TLS server started on port 6380"
@@ -209,6 +224,8 @@ jobs:
 
       - name: Run tests
         run: bundle exec rake test
+        env:
+          SKIP_TLS_TESTS: ${{ matrix.host.OS == 'macos' && 'true' || '' }}
 
       - name: Upload test artifacts
         if: always()
@@ -236,7 +253,10 @@ jobs:
         if: always()
         run: |
           python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
-          python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
+          # Stop TLS server (skip on macOS where TLS setup is unavailable)
+          if [[ "${{ matrix.host.OS }}" != "macos" ]]; then
+            python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
+          fi
 
   module-tests:
     name: Module Tests

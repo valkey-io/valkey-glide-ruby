@@ -93,6 +93,10 @@ jobs:
           version: "29.1"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install openssl (macOS)
+        if: matrix.host.OS == 'macos'
+        run: brew install openssl
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         env:
@@ -105,7 +109,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: native-lib-${{ matrix.host.TARGET }}
-          path: valkey-glide/ffi/target/release/libglide_ffi.so
+          path: valkey-glide/ffi/target/release/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   build-and-publish-gem:
@@ -139,8 +143,16 @@ jobs:
           for target in $(echo '${{ env.PLATFORM_MATRIX }}' | jq -r '.[].TARGET'); do
             echo "Creating directory for $target"
             mkdir -p "lib/valkey/native/$target"
-            echo "Copying native library for $target"
-            cp "native-libs/native-lib-$target/libglide_ffi.so" "lib/valkey/native/$target/"
+
+            # Determine correct file extension based on target
+            if [[ "$target" == *"apple-darwin"* ]]; then
+              LIB_EXT="dylib"
+            else
+              LIB_EXT="so"
+            fi
+
+            echo "Copying native library for $target (extension: $LIB_EXT)"
+            cp "native-libs/native-lib-$target/libglide_ffi.$LIB_EXT" "lib/valkey/native/$target/"
           done
 
           echo "Native libraries organized:"
@@ -166,10 +178,31 @@ jobs:
       - name: Verify gem contents
         run: |
           gem unpack ${{ steps.build-gem.outputs.GEM_FILE }} --target=gem-contents
-          echo "Gem contents:"
-          find gem-contents -type f | head -50
-          echo ""
-          echo "Native libraries in gem:"
+
+          # Find the unpacked gem directory (gem unpack creates a subdirectory)
+          GEM_DIR=$(find gem-contents -maxdepth 1 -type d | tail -1)
+          echo "Unpacked gem directory: $GEM_DIR"
+
+          # Verify all platform libraries are present
+          MISSING=""
+          for target in $(echo '${{ env.PLATFORM_MATRIX }}' | jq -r '.[].TARGET'); do
+            if [[ "$target" == *"apple-darwin"* ]]; then
+              LIB_EXT="dylib"
+            else
+              LIB_EXT="so"
+            fi
+            LIB_PATH="$GEM_DIR/lib/valkey/native/$target/libglide_ffi.$LIB_EXT"
+            if [[ ! -f "$LIB_PATH" ]]; then
+              MISSING="$MISSING\n  - $target (expected: $LIB_PATH)"
+            fi
+          done
+
+          if [[ -n "$MISSING" ]]; then
+            echo "ERROR: Missing native libraries for platforms:$MISSING"
+            exit 1
+          fi
+
+          echo "All platform libraries verified present"
           find gem-contents -name "libglide_ffi.*" -exec ls -lh {} \;
 
       - name: Upload gem artifact
@@ -178,6 +211,7 @@ jobs:
           name: ruby-gem
           path: "*.gem"
           if-no-files-found: error
+          retention-days: 7
 
       - name: Publish to RubyGems
         id: publish
@@ -225,11 +259,21 @@ jobs:
           gem install ruby-progressbar
           gem install rake
 
-      - name: Start Valkey
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Valkey engine
+        uses: ./valkey-glide/.github/actions/install-engine
+        with:
+          engine-version: "9.0"
+          target: ${{ matrix.host.TARGET }}
+
+      - name: Start standalone server via cluster_manager.py
         run: |
-          docker run -d --name valkey-test -p 6379:6379 valkey/valkey:8
-          sleep 5
-          docker exec valkey-test valkey-cli ping
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
 
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
@@ -284,4 +328,5 @@ jobs:
 
       - name: Stop Valkey
         if: always()
-        run: docker stop valkey-test && docker rm valkey-test || true
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
