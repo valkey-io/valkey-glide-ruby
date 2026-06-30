@@ -1,20 +1,35 @@
 # frozen_string_literal: true
 
+require "timeout"
+
 # Integration test for the standalone FAILOVER command.
 # NOTE: FAILOVER is a standalone-only command.
 module ValkeyTests
   module FailoverCommands
+    FAILOVER_TIMEOUT_MS = 10_000
+
+    # Wall-clock backstop, above the wait_for_role? budget (60 * 0.5s = 30s).
+    FAILOVER_TEST_DEADLINE = 45
+
     # should return "OK" and flip the connected primary's role to slave once
-    # the coordinated failover to its replica completes
+    # the coordinated failover to its replica completes.
     def test_failover_promotes_replica_and_returns_ok
       with_standalone_replica do |primary|
-        assert_equal "master", primary.info("replication")["role"]
+        Timeout.timeout(FAILOVER_TEST_DEADLINE) do
+          assert_equal "master", primary.info("replication")["role"]
 
-        assert_equal "OK", primary.failover
+          # FAILOVER's TIMEOUT bounds the wait server-side; without it the wait is
+          # "infinite" and the blocking command never returns. See
+          # https://valkey.io/commands/failover/
+          assert_equal "OK", primary.failover(timeout: FAILOVER_TIMEOUT_MS)
 
-        assert wait_for_role?(primary, "slave"),
-               "timed out waiting for the primary to become a replica (role:slave)"
+          assert wait_for_role?(primary, "slave"),
+                 "timed out waiting for the primary to become a replica (role:slave)"
+        end
       end
+    rescue Timeout::Error
+      flunk("failover did not complete within #{FAILOVER_TEST_DEADLINE}s " \
+            "(client likely hanged during the role transition)")
     end
 
     # should raise a error when ABORT is requested but no failover is
