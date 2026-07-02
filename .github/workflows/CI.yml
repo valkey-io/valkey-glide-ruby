@@ -330,7 +330,7 @@ jobs:
         engine: ${{ fromJson(needs.get-matrices.outputs.engine-matrix-output) }}
     steps:
       - name: Install system dependencies
-        run: apk add --no-cache build-base python3 openssl-dev git curl bash protobuf-dev
+        run: apk add --no-cache build-base python3 openssl openssl-dev git curl bash protobuf-dev
 
       - name: Check out code
         uses: actions/checkout@v4

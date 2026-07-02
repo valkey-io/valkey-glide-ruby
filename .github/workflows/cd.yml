@@ -361,7 +361,7 @@ jobs:
 
     steps:
       - name: Install system dependencies
-        run: apk add --no-cache build-base python3 openssl-dev git curl bash
+        run: apk add --no-cache build-base python3 openssl openssl-dev git curl bash
 
       - name: Checkout (for test files)
         uses: actions/checkout@v4

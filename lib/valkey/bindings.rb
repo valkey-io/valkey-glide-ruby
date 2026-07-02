@@ -7,7 +7,7 @@ class Valkey
     # Detect whether the current Linux system uses musl libc (e.g., Alpine Linux).
     # Uses a three-check cascade — any single match is sufficient.
     def self.musl_libc?
-      return false unless FFI::Platform.linux?
+      return false unless FFI::Platform::OS == "linux"
 
       # Check 1: RUBY_PLATFORM contains 'musl' (e.g., Alpine-built Ruby)
       return true if RUBY_PLATFORM.include?("musl")
