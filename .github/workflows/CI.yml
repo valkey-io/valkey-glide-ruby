@@ -362,6 +362,7 @@ jobs:
         env:
           GLIDE_NAME: GlideRuby
           GLIDE_VERSION: ${{ github.ref_name }}
+          RUSTFLAGS: "-C target-feature=-crt-static"
         run: |
           source "$HOME/.cargo/env"
           cargo build --release
@@ -372,7 +373,6 @@ jobs:
           echo "Looking for libglide_ffi.so..."
           find valkey-glide/ffi/target -name "libglide_ffi*" -type f 2>/dev/null || echo "No files found!"
           ls -la valkey-glide/ffi/target/release/libglide_ffi* 2>/dev/null || echo "Not in target/release/"
-          ls -la valkey-glide/ffi/target/x86_64-unknown-linux-musl/release/libglide_ffi* 2>/dev/null || echo "Not in target/x86_64-unknown-linux-musl/release/"
 
       - name: Build and install Valkey engine
         shell: bash
