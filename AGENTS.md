@@ -36,7 +36,7 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-rb` gem. 
 
 - Linux: Ubuntu 20+, Amazon Linux 2/2023 (x86_64, aarch64)
 - macOS: 13.7+ (x86_64), 14.7+ (aarch64)
-- **Note:** Alpine Linux / MUSL is **not** supported
+- Alpine Linux (musl): x86_64
 
 **Ruby Versions:** 2.6, 2.7, 3.0, 3.1, 3.2, 3.3, 3.4, JRuby (CI matrix)
 
