@@ -2,6 +2,11 @@
 
 module ValkeyTests
   module Call
+    # E2E: confirms call/call_v actually reach the server and the raw reply comes
+    # back untyped. Argument-construction correctness (flattening order, flag
+    # emission, coercion) is covered by the stub-based unit tests below — these
+    # only need to prove the whole pipeline (construct -> dispatch -> reply) works.
+
     def test_call_round_trip
       assert_equal "OK", r.call("SET", "call:key", "value")
       assert_equal "value", r.call("GET", "call:key")
@@ -26,69 +31,33 @@ module ValkeyTests
       end
     end
 
-    def test_call_stringifies_integers_and_floats
-      assert_equal "OK", r.call("SET", "call:num", 42)
-      assert_equal "42", r.call("GET", "call:num")
+    # should apply flattened Array/Hash args and kwargs-derived flags correctly
+    # end-to-end (server-visible effects: 3-element list, hash field set, TTL from
+    # a flag) in a single pass through the real dispatch path — the granular
+    # flattening/flag-construction cases themselves are unit-tested below.
+    def test_call_end_to_end_with_flattening_and_flags
+      r.del("call:e2e:list", "call:e2e:hash")
 
-      assert_equal "OK", r.call("SET", "call:float", 3.5)
-      assert_equal "3.5", r.call("GET", "call:float")
-    end
+      assert_equal 3, r.call("LPUSH", "call:e2e:list", [1, 2, 3])
+      assert_equal %w[3 2 1], r.call("LRANGE", "call:e2e:list", 0, -1)
 
-    def test_call_flattens_array_arguments
-      r.del("call:list")
+      assert_equal "OK", r.call("HMSET", "call:e2e:hash", { "foo" => "1" })
+      assert_equal "1", r.call("HGET", "call:e2e:hash", "foo")
 
-      assert_equal 3, r.call("LPUSH", "call:list", [1, 2, 3])
-      assert_equal %w[3 2 1], r.call("LRANGE", "call:list", 0, -1)
-    end
-
-    def test_call_flattens_nested_array_arguments
-      r.del("call:list2")
-
-      assert_equal 3, r.call("LPUSH", "call:list2", [1, [2, 3]])
-      assert_equal %w[3 2 1], r.call("LRANGE", "call:list2", 0, -1)
-    end
-
-    def test_call_flattens_hash_arguments
-      r.del("call:hash")
-
-      assert_equal "OK", r.call("HMSET", "call:hash", { "foo" => "1" })
-      assert_equal "1", r.call("HGET", "call:hash", "foo")
-    end
-
-    def test_call_v_flattens_array_and_hash_arguments
-      r.del("call:v:list")
-      r.del("call:v:hash")
-
-      assert_equal 3, r.call_v(["LPUSH", "call:v:list", [1, 2, 3]])
-      assert_equal "OK", r.call_v(["HMSET", "call:v:hash", { "foo" => "1" }])
-    end
-
-    def test_call_kwargs_become_trailing_flags
-      r.del("call:flags")
-
-      assert_equal "OK", r.call("SET", "call:flags", "v", nx: true, ex: 60)
-      assert_in_range 1..60, r.ttl("call:flags")
+      assert_equal "OK", r.call("SET", "call:e2e:flagged", "v", nx: true, ex: 60)
+      assert_in_range 1..60, r.ttl("call:e2e:flagged")
 
       # NX means "only set if not exists" — key already exists, so this is a no-op (nil reply)
-      assert_nil r.call("SET", "call:flags", "v2", nx: true)
-      assert_equal "v", r.call("GET", "call:flags")
+      assert_nil r.call("SET", "call:e2e:flagged", "v2", nx: true)
+      assert_equal "v", r.call("GET", "call:e2e:flagged")
     end
 
-    def test_call_drops_falsy_and_nil_kwargs
-      r.del("call:flags2")
-
-      # nx: false and ex: nil should be dropped entirely, not stringified
-      assert_equal "OK", r.call("SET", "call:flags2", "v", nx: false, ex: nil)
-      assert_equal(-1, r.ttl("call:flags2"))
-    end
-
-    # The tests above exercise flattening/coercion indirectly, through server-visible
-    # side effects (e.g. LPUSH's returned length, LRANGE's returned order) — they
-    # confirm the server *received something equivalent*, not the exact argument
-    # array `call`/`call_v` constructed. These stub `send_command` (same technique as
-    # `capture_failover_args` in failover_commands_test.rb) to assert on the literal
-    # flattened/coerced array before it ever reaches the network, independent of any
-    # particular command's server-side semantics.
+    # Everything below stubs `send_command` (same technique as `capture_failover_args`
+    # in failover_commands_test.rb) to assert on the literal flattened/coerced
+    # argument array before it ever reaches the network — independent of any
+    # particular command's server-side semantics. This is where flattening/flag
+    # correctness is actually verified; the E2E tests above just prove the pipeline
+    # composes.
 
     # should pass args through unchanged when they are already flat strings
     def test_call_arg_construction_passthrough
