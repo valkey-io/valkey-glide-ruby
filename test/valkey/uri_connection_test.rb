@@ -853,6 +853,31 @@ module ValkeyTests
       # Expected if no cluster
     end
 
+    def test_cluster_mode_predicate_true_when_enabled
+      skip("URI connection tests only run on standalone mode") if cluster_mode?
+      # cluster_mode: true against a standalone server requires an actual reachable
+      # cluster node to construct successfully (the client validates topology on
+      # connect) - use the same single-node cluster target as
+      # test_cluster_mode_with_single_node above, and skip if no cluster is running
+      # on port 7000 rather than asserting against an unreachable target.
+      client = ::Valkey.new(
+        nodes: [{ host: "localhost", port: 7000 }],
+        cluster_mode: true,
+        connect_timeout: 1.0
+      )
+      assert client.cluster_mode?
+      client.close
+    rescue ::Valkey::CannotConnectError
+      skip("No cluster node reachable on port 7000 to verify cluster_mode? against a live connection")
+    end
+
+    def test_cluster_mode_predicate_false_by_default
+      skip("URI connection tests only run on standalone mode") if cluster_mode?
+      client = ::Valkey.new(host: "localhost", port: 6379)
+      refute client.cluster_mode?
+      client.close
+    end
+
     # ====================
     # COMBINED EDGE CASES
     # ====================
