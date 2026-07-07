@@ -5,15 +5,7 @@ require "json"
 # Unit tests for the connection config options added in this PR: read_from,
 # client_az, inflight_requests_limit, lazy_connect, periodic_checks.
 #
-# Matching Python/Java/Go: none of these 5 options are type/range/shape-validated
-# on the client side. They're passed straight through to the native core (via
-# extra_options_json), which is the sole validator of their contents -- except for
-# one cross-field check (read_from AZ-affinity requires client_az) that mirrors an
-# explicit precedent in Go's config.go, not Ruby-only strictness.
-#
-# These are pure unit tests: instead of opening a real connection and asserting
-# `PING` succeeds (which only proves the client didn't crash, not that the
-# option was serialized correctly), we stub `Bindings.create_client_from_uri`,
+# These are pure unit tests: we stub `Bindings.create_client_from_uri`,
 # capture the `extra_options_json` string it was actually called with, and
 # assert on its parsed shape. This is mode-agnostic (no real socket needed) and
 # is included by both the standalone and cluster test classes via

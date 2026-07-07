@@ -131,8 +131,7 @@ class Valkey
   # Builds the `periodic_checks` extra_options_json value from the `periodic_checks:`
   # constructor option. Accepts either `{ manual_interval: { duration_in_sec: N } }` or
   # `{ disabled: true/false }` (symbol or string keys), converting Ruby symbol keys to
-  # the string keys GLIDE's native core expects. No shape/type validation here, matching
-  # Python/Java/Go -- the core is the sole validator of the option's contents.
+  # the string keys GLIDE's native core expects.
   def build_periodic_checks(periodic_checks)
     if periodic_checks.key?(:disabled) || periodic_checks.key?("disabled")
       disabled = periodic_checks.key?(:disabled) ? periodic_checks[:disabled] : periodic_checks["disabled"]
@@ -431,9 +430,7 @@ class Valkey
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
-    # Read routing preference (which node(s) to read from). Matches sibling clients
-    # (Python/Java/Go): passed straight through to the native core, which is the sole
-    # validator of the value. Ruby-friendly symbols are mapped to the canonical GLIDE
+    # Read routing preference (which node(s) to read from). Ruby-friendly symbols are mapped to the canonical GLIDE
     # strings; anything else (including typos) is forwarded as-is and rejected by the
     # core with its own error, rather than duplicating that validation here.
     if options.key?(:read_from)
@@ -453,33 +450,19 @@ class Valkey
                                   end
     end
 
-    # Client availability zone (for AZAffinity / AZAffinityReplicasAndPrimary read_from
-    # routing). No type validation here, matching Python/Java/Go -- passed straight
-    # through to the native core.
     json_options["client_az"] = options[:client_az] if options[:client_az]
 
-    # Cross-field check matching Go's config.go: AZ-affinity read_from without client_az
-    # silently falls back to PreferReplica in the native core (a Rust-side log warning,
-    # no error) -- Go rejects this combination client-side instead. Mirrored here since
-    # it's an explicit sibling-client precedent, not Ruby-only strictness.
     az_affinity_values = %w[AZAffinity AZAffinityReplicasAndPrimary].freeze
     if az_affinity_values.include?(json_options["read_from"]) && !options[:client_az]
       raise ArgumentError, "client_az must be set when read_from is AZAffinity or AZAffinityReplicasAndPrimary"
     end
 
-    # Maximum number of concurrent in-flight requests. No type/range validation here,
-    # matching Python/Java/Go -- passed straight through to the native core.
     if options.key?(:inflight_requests_limit)
       json_options["inflight_requests_limit"] = options[:inflight_requests_limit]
     end
 
-    # Lazy connect: delay the actual connection until the first command is sent
     json_options["lazy_connect"] = true if options[:lazy_connect]
 
-    # Periodic topology-refresh checks. Cluster-only in effect (create_cluster_client),
-    # but accepted (and ignored) on standalone connections without error. No shape
-    # validation here, matching Python/Java/Go -- passed straight through (with symbol
-    # keys converted to the string keys the core expects) to the native core.
     json_options["periodic_checks"] = build_periodic_checks(options[:periodic_checks]) if options.key?(:periodic_checks)
 
     # TLS/SSL certificates
