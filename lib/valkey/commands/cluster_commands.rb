@@ -71,13 +71,30 @@ class Valkey
         send_command(RequestType::CLUSTER_DEL_SLOTS_RANGE, [start_slot, end_slot])
       end
 
+      # Valid modes for CLUSTER FAILOVER: FORCE, TAKEOVER.
+      CLUSTER_FAILOVER_MODES = %i[force takeover].freeze
+
       # Force a failover of the cluster.
       #
-      # @param [String] force force the failover
+      # Must be sent to a replica node. Without a mode, performs a coordinated
+      # failover (the primary is asked to pause clients and hand over). +:force+
+      # promotes the replica without coordinating with the primary (useful when
+      # the primary is unreachable); +:takeover+ promotes it without any cluster
+      # consensus (most aggressive — risks data loss / split brain).
+      #
+      # @param [Symbol, nil] mode optional failover mode: +:force+ or +:takeover+
       # @return [String] `"OK"`
-      def cluster_failover(force = nil)
+      # @raise [ArgumentError] if +mode+ is not nil, +:force+, or +:takeover+
+      # @see https://valkey.io/commands/cluster-failover/
+      def cluster_failover(mode = nil)
         args = []
-        args << "FORCE" if force
+        unless mode.nil?
+          unless CLUSTER_FAILOVER_MODES.include?(mode)
+            raise ArgumentError, "invalid CLUSTER FAILOVER mode #{mode.inspect}: expected :force or :takeover"
+          end
+
+          args << mode.to_s.upcase
+        end
         send_command(RequestType::CLUSTER_FAILOVER, args)
       end
 
