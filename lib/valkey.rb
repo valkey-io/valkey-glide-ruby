@@ -382,7 +382,8 @@ class Valkey
     json_options = {}
 
     # Cluster mode
-    json_options["cluster_mode_enabled"] = true if options[:cluster_mode]
+    @cluster_mode = options[:cluster_mode] ? true : false
+    json_options["cluster_mode_enabled"] = true if @cluster_mode
 
     # Protocol
     json_options["protocol"] = case options[:protocol]
@@ -557,6 +558,13 @@ class Valkey
     @queued_commands = []
     # Track if we're inside a multi block (multi { ... }) vs direct multi calls
     @in_multi_block = false
+  end
+
+  # Whether this client was configured for cluster mode.
+  #
+  # @return [Boolean] true if the client was created with `cluster_mode: true`
+  def cluster_mode?
+    @cluster_mode
   end
 
   def close
