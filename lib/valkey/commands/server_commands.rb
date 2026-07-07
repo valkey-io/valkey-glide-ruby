@@ -499,13 +499,19 @@ class Valkey
       # @see https://valkey.io/commands/failover/
       def failover(to: nil, force: false, abort: false, timeout: nil)
         args = []
-        if to
-          host, port = to.split
-          args << "TO" << host << port
+        if abort
+          # ABORT is mutually exclusive: cancels an ongoing failover and
+          # ignores any other arguments (matches the core GLIDE clients).
+          args << "ABORT"
+        else
+          if to
+            host, port = to.split
+            args << "TO" << host << port
+            # FORCE is only valid in combination with TO.
+            args << "FORCE" if force
+          end
+          args << "TIMEOUT" << timeout.to_s if timeout
         end
-        args << "FORCE" if force
-        args << "ABORT" if abort
-        args << "TIMEOUT" << timeout.to_s if timeout
         send_command(RequestType::FAIL_OVER, args)
       end
 
