@@ -5,6 +5,12 @@ require "json"
 # Unit tests for the connection config options added in this PR: read_from,
 # client_az, inflight_requests_limit, lazy_connect, periodic_checks.
 #
+# Matching Python/Java/Go: none of these 5 options are type/range/shape-validated
+# on the client side. They're passed straight through to the native core (via
+# extra_options_json), which is the sole validator of their contents -- except for
+# one cross-field check (read_from AZ-affinity requires client_az) that mirrors an
+# explicit precedent in Go's config.go, not Ruby-only strictness.
+#
 # These are pure unit tests: instead of opening a real connection and asserting
 # `PING` succeeds (which only proves the client didn't crash, not that the
 # option was serialized correctly), we stub `Bindings.create_client_from_uri`,
@@ -41,8 +47,8 @@ module ValkeyTests
     end
 
     # NOTE: "LowestLatency" is a valid read_from value per the FFI docs
-    # (ffi/src/lib.rs) and is accepted by Ruby's validation, but the currently
-    # vendored glide-core build panics with `todo!()` when converting it
+    # (ffi/src/lib.rs) and is accepted by Ruby, but the currently vendored
+    # glide-core build panics with `todo!()` when converting it
     # (glide-core/src/client/types.rs, `impl From<protobuf::ConnectionRequest>`,
     # reached via ffi/src/lib.rs's create_client_from_uri -> ConnectionRequest::from).
     # This is an upstream native-core gap, not a Ruby-side bug. Because these
@@ -52,9 +58,7 @@ module ValkeyTests
     READ_FROM_JSON_VALUES = {
       "Primary" => :primary,
       "PreferReplica" => :prefer_replica,
-      "LowestLatency" => :lowest_latency,
-      "AZAffinity" => :az_affinity,
-      "AZAffinityReplicasAndPrimary" => :az_affinity_replicas_and_primary
+      "LowestLatency" => :lowest_latency
     }.freeze
 
     # ====================
@@ -75,18 +79,42 @@ module ValkeyTests
       end
     end
 
-    def test_read_from_rejects_unknown_string
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, read_from: "Bogus")
-      end
-      assert_match(/Invalid read_from value/, error.message)
+    def test_read_from_az_affinity_requires_client_az
+      json_options = captured_json_options(read_from: :az_affinity, client_az: "us-west-2a")
+      assert_equal "AZAffinity", json_options["read_from"]
+      assert_equal "us-west-2a", json_options["client_az"]
     end
 
-    def test_read_from_rejects_unknown_symbol
+    def test_read_from_az_affinity_replicas_and_primary_requires_client_az
+      json_options = captured_json_options(read_from: :az_affinity_replicas_and_primary, client_az: "us-west-2a")
+      assert_equal "AZAffinityReplicasAndPrimary", json_options["read_from"]
+      assert_equal "us-west-2a", json_options["client_az"]
+    end
+
+    def test_read_from_az_affinity_without_client_az_raises
       error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, read_from: :bogus)
+        ::Valkey.new(host: "localhost", port: 6379, read_from: :az_affinity)
       end
-      assert_match(/Invalid read_from value/, error.message)
+      assert_match(/client_az must be set/, error.message)
+    end
+
+    def test_read_from_az_affinity_replicas_and_primary_without_client_az_raises
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, read_from: :az_affinity_replicas_and_primary)
+      end
+      assert_match(/client_az must be set/, error.message)
+    end
+
+    def test_read_from_unknown_symbol_is_passed_through_as_string
+      # Unknown values are forwarded as-is (stringified) rather than rejected in
+      # Ruby -- the native core is the sole validator, matching Python/Java/Go.
+      json_options = captured_json_options(read_from: :bogus)
+      assert_equal "bogus", json_options["read_from"]
+    end
+
+    def test_read_from_unknown_string_is_passed_through_unchanged
+      json_options = captured_json_options(read_from: "Bogus")
+      assert_equal "Bogus", json_options["read_from"]
     end
 
     def test_read_from_omitted_when_not_provided
@@ -98,16 +126,9 @@ module ValkeyTests
     # client_az
     # ====================
 
-    def test_client_az_accepts_string
+    def test_client_az_is_passed_through
       json_options = captured_json_options(client_az: "us-west-2a")
       assert_equal "us-west-2a", json_options["client_az"]
-    end
-
-    def test_client_az_rejects_non_string
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, client_az: 123)
-      end
-      assert_match(/client_az must be a string/, error.message)
     end
 
     def test_client_az_omitted_when_not_provided
@@ -119,7 +140,7 @@ module ValkeyTests
     # inflight_requests_limit
     # ====================
 
-    def test_inflight_requests_limit_accepts_positive_integer
+    def test_inflight_requests_limit_is_passed_through
       json_options = captured_json_options(inflight_requests_limit: 1000)
       assert_equal 1000, json_options["inflight_requests_limit"]
     end
@@ -127,20 +148,6 @@ module ValkeyTests
     def test_inflight_requests_limit_accepts_zero
       json_options = captured_json_options(inflight_requests_limit: 0)
       assert_equal 0, json_options["inflight_requests_limit"]
-    end
-
-    def test_inflight_requests_limit_rejects_negative
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, inflight_requests_limit: -1)
-      end
-      assert_match(/inflight_requests_limit must be non-negative/, error.message)
-    end
-
-    def test_inflight_requests_limit_rejects_non_integer
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, inflight_requests_limit: "1000")
-      end
-      assert_match(/inflight_requests_limit must be an integer/, error.message)
     end
 
     def test_inflight_requests_limit_omitted_when_not_provided
@@ -210,63 +217,20 @@ module ValkeyTests
       refute json_options.key?("periodic_checks")
     end
 
-    def test_periodic_checks_rejects_non_hash
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, periodic_checks: "manual_interval")
-      end
-      assert_match(/periodic_checks must be a Hash/, error.message)
-    end
-
-    def test_periodic_checks_rejects_missing_manual_interval_and_disabled
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, periodic_checks: {})
-      end
-      assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
-    end
-
-    def test_periodic_checks_rejects_non_integer_duration
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(
-          host: "localhost",
-          port: 6379,
-          periodic_checks: { manual_interval: { duration_in_sec: "30" } }
-        )
-      end
-      assert_match(/duration_in_sec must be an integer/, error.message)
-    end
-
-    def test_periodic_checks_rejects_negative_duration
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(
-          host: "localhost",
-          port: 6379,
-          periodic_checks: { manual_interval: { duration_in_sec: -1 } }
-        )
-      end
-      assert_match(/duration_in_sec must be non-negative/, error.message)
-    end
-
-    def test_periodic_checks_rejects_invalid_disabled_type
-      error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, periodic_checks: { disabled: "yes" })
-      end
-      assert_match(/periodic_checks disabled must be a boolean/, error.message)
-    end
-
     # ====================
-    # Combined options (multiple options serialized together correctly)
+    # Combined options (multiple options serialize independently)
     # ====================
 
     def test_multiple_options_serialize_independently
       json_options = captured_json_options(
-        read_from: :prefer_replica,
+        read_from: :az_affinity,
         client_az: "us-west-2a",
         inflight_requests_limit: 500,
         lazy_connect: true,
         periodic_checks: { disabled: true }
       )
 
-      assert_equal "PreferReplica", json_options["read_from"]
+      assert_equal "AZAffinity", json_options["read_from"]
       assert_equal "us-west-2a", json_options["client_az"]
       assert_equal 500, json_options["inflight_requests_limit"]
       assert_equal true, json_options["lazy_connect"]

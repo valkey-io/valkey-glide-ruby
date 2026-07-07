@@ -659,17 +659,18 @@ module Lint
       client.close
     end
 
-    def test_connection_with_invalid_read_from_raises_before_connecting
-      # Negative control: an invalid read_from string must raise ArgumentError
-      # in Ruby before any FFI call is made.
+    def test_connection_with_az_affinity_read_from_without_client_az_raises
+      # Negative control: the one client-side cross-field check this PR keeps
+      # (mirroring Go's config.go precedent) -- read_from: AZAffinity without
+      # client_az must raise ArgumentError in Ruby before any FFI call is made.
       error = assert_raises(ArgumentError) do
         if cluster_mode?
-          Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, read_from: "Bogus", timeout: test_timeout)
+          Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, read_from: :az_affinity, timeout: test_timeout)
         else
-          Valkey.new(host: "127.0.0.1", port: test_port, read_from: "Bogus", timeout: test_timeout)
+          Valkey.new(host: "127.0.0.1", port: test_port, read_from: :az_affinity, timeout: test_timeout)
         end
       end
-      assert_match(/Invalid read_from value/, error.message)
+      assert_match(/client_az must be set/, error.message)
     end
   end
 end
