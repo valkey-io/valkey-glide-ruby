@@ -384,6 +384,38 @@ module Lint
       assert_equal r.wait(0, 0), 0
     end
 
+    # call/call_v generic-command primitive tests
+    #
+    # These mirror how sibling clients (Go/Python/Node) actually use their own
+    # generic-command primitive throughout their own test suites: as a utility for
+    # fetching diagnostic info (CLIENT INFO, CLUSTER NODES) other tests lean on,
+    # not just as an isolated unit-tested method.
+
+    def test_call_client_info
+      info = r.call("CLIENT", "INFO")
+
+      assert_kind_of String, info
+      assert_includes info, "id="
+    end
+
+    def test_call_cluster_nodes
+      skip("CLUSTER NODES only meaningful in cluster mode") unless cluster_mode?
+
+      nodes = r.call("CLUSTER", "NODES")
+
+      assert_kind_of String, nodes
+      refute_empty nodes
+    end
+
+    def test_call_v_dbsize
+      r.set("call_v:probe", "1")
+
+      size = r.call_v(["DBSIZE"])
+
+      assert_kind_of Integer, size
+      assert size >= 1
+    end
+
     # Keys command tests
 
     def test_keys
