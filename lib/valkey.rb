@@ -137,7 +137,7 @@ class Valkey
     end
 
     if periodic_checks.key?(:disabled) || periodic_checks.key?("disabled")
-      disabled = periodic_checks[:disabled] || periodic_checks["disabled"]
+      disabled = periodic_checks.key?(:disabled) ? periodic_checks[:disabled] : periodic_checks["disabled"]
       unless [true, false].include?(disabled)
         raise ArgumentError, "periodic_checks disabled must be a boolean, got: #{disabled.class}"
       end
