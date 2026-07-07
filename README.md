@@ -153,6 +153,11 @@ end
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
 | `reconnect_attempts`, `reconnect_delay`, `reconnect_delay_max` | Connection retry strategy |
+| `read_from` *(GLIDE-native)* | Read routing: `:primary`, `:prefer_replica`, `:lowest_latency`, `:az_affinity`, `:az_affinity_replicas_and_primary` (or the exact-match GLIDE strings, e.g. `"PreferReplica"`) |
+| `client_az` *(GLIDE-native)* | Availability-zone identifier for `:az_affinity` / `:az_affinity_replicas_and_primary` routing (e.g. `"us-west-2a"`) |
+| `inflight_requests_limit` *(GLIDE-native)* | Maximum concurrent in-flight requests (non-negative integer) |
+| `lazy_connect` *(GLIDE-native)* | Delay the actual connection until the first command is sent |
+| `periodic_checks` *(GLIDE-native)* | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
 
 ```ruby
 client = Valkey.new(

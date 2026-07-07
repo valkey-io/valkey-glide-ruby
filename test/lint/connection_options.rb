@@ -527,5 +527,149 @@ module Lint
       assert_equal "PONG", client.ping
       client.close
     end
+
+    # ====================
+    # Connection config parity: read_from, client_az, inflight_requests_limit,
+    # lazy_connect, periodic_checks
+    # ====================
+
+    def test_connection_with_read_from_option
+      client = if cluster_mode?
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   read_from: :prefer_replica,
+                   timeout: test_timeout
+                 )
+               else
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_port,
+                   read_from: :prefer_replica,
+                   timeout: test_timeout
+                 )
+               end
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_connection_with_client_az_option
+      client = if cluster_mode?
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   client_az: "us-west-2a",
+                   timeout: test_timeout
+                 )
+               else
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_port,
+                   client_az: "us-west-2a",
+                   timeout: test_timeout
+                 )
+               end
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_connection_with_inflight_requests_limit_option
+      client = if cluster_mode?
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   inflight_requests_limit: 1000,
+                   timeout: test_timeout
+                 )
+               else
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_port,
+                   inflight_requests_limit: 1000,
+                   timeout: test_timeout
+                 )
+               end
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_connection_with_lazy_connect_option
+      client = if cluster_mode?
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   lazy_connect: true,
+                   timeout: test_timeout
+                 )
+               else
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_port,
+                   lazy_connect: true,
+                   timeout: test_timeout
+                 )
+               end
+      # The connection is deferred until the first command; issuing one here
+      # confirms lazy_connect doesn't prevent normal operation.
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_connection_with_periodic_checks_option
+      periodic_checks = { manual_interval: { duration_in_sec: 30 } }
+
+      client = if cluster_mode?
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   periodic_checks: periodic_checks,
+                   timeout: test_timeout
+                 )
+               else
+                 # periodic_checks is cluster-only in effect but must be accepted
+                 # (as a no-op) on standalone connections without raising.
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_port,
+                   periodic_checks: periodic_checks,
+                   timeout: test_timeout
+                 )
+               end
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_connection_with_periodic_checks_disabled_option
+      client = if cluster_mode?
+                 Valkey.new(
+                   nodes: test_cluster_nodes,
+                   cluster_mode: true,
+                   periodic_checks: { disabled: true },
+                   timeout: test_timeout
+                 )
+               else
+                 Valkey.new(
+                   host: "127.0.0.1",
+                   port: test_port,
+                   periodic_checks: { disabled: true },
+                   timeout: test_timeout
+                 )
+               end
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_connection_with_invalid_read_from_raises_before_connecting
+      # Negative control: an invalid read_from string must raise ArgumentError
+      # in Ruby before any FFI call is made.
+      error = assert_raises(ArgumentError) do
+        if cluster_mode?
+          Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, read_from: "Bogus", timeout: test_timeout)
+        else
+          Valkey.new(host: "127.0.0.1", port: test_port, read_from: "Bogus", timeout: test_timeout)
+        end
+      end
+      assert_match(/Invalid read_from value/, error.message)
+    end
   end
 end

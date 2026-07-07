@@ -128,6 +128,39 @@ class Valkey
     results
   end
 
+  # Builds the `periodic_checks` extra_options_json value from the `periodic_checks:`
+  # constructor option. Accepts either `{ manual_interval: { duration_in_sec: N } }` or
+  # `{ disabled: true }`, matching the shape GLIDE's native core expects.
+  def build_periodic_checks(periodic_checks)
+    unless periodic_checks.is_a?(Hash)
+      raise ArgumentError, "periodic_checks must be a Hash, got: #{periodic_checks.class}"
+    end
+
+    if periodic_checks.key?(:disabled) || periodic_checks.key?("disabled")
+      disabled = periodic_checks[:disabled] || periodic_checks["disabled"]
+      unless [true, false].include?(disabled)
+        raise ArgumentError, "periodic_checks disabled must be a boolean, got: #{disabled.class}"
+      end
+
+      return { "disabled" => disabled }
+    end
+
+    manual_interval = periodic_checks[:manual_interval] || periodic_checks["manual_interval"]
+    raise ArgumentError, "periodic_checks must contain :manual_interval or :disabled" unless manual_interval.is_a?(Hash)
+
+    duration_in_sec = manual_interval[:duration_in_sec] || manual_interval["duration_in_sec"]
+    unless duration_in_sec.is_a?(Integer)
+      raise ArgumentError,
+            "periodic_checks manual_interval duration_in_sec must be an integer, got: #{duration_in_sec.class}"
+    end
+    if duration_in_sec.negative?
+      raise ArgumentError,
+            "periodic_checks manual_interval duration_in_sec must be non-negative, got: #{duration_in_sec}"
+    end
+
+    { "manual_interval" => { "duration_in_sec" => duration_in_sec } }
+  end
+
   def build_command_args(command_args)
     # For empty arrays, pass NULL pointers as per Rust FFI contract
     # This matches Go's approach which successfully uses nil pointers
@@ -416,6 +449,55 @@ class Valkey
 
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
+
+    # Read routing preference (which node(s) to read from)
+    if options.key?(:read_from)
+      json_options["read_from"] = case options[:read_from]
+                                  when :primary, "Primary"
+                                    "Primary"
+                                  when :prefer_replica, "PreferReplica"
+                                    "PreferReplica"
+                                  when :lowest_latency, "LowestLatency"
+                                    "LowestLatency"
+                                  when :az_affinity, "AZAffinity"
+                                    "AZAffinity"
+                                  when :az_affinity_replicas_and_primary, "AZAffinityReplicasAndPrimary"
+                                    "AZAffinityReplicasAndPrimary"
+                                  else
+                                    raise ArgumentError, "Invalid read_from value: #{options[:read_from].inspect}"
+                                  end
+    end
+
+    # Client availability zone (for AZAffinity / AZAffinityReplicasAndPrimary read_from routing)
+    if options[:client_az]
+      unless options[:client_az].is_a?(String)
+        raise ArgumentError, "client_az must be a string, got: #{options[:client_az].class}"
+      end
+
+      json_options["client_az"] = options[:client_az]
+    end
+
+    # Maximum number of concurrent in-flight requests
+    if options.key?(:inflight_requests_limit)
+      inflight_requests_limit = options[:inflight_requests_limit]
+      unless inflight_requests_limit.is_a?(Integer)
+        raise ArgumentError,
+              "inflight_requests_limit must be an integer, got: #{inflight_requests_limit.class}"
+      end
+      if inflight_requests_limit.negative?
+        raise ArgumentError,
+              "inflight_requests_limit must be non-negative, got: #{inflight_requests_limit}"
+      end
+
+      json_options["inflight_requests_limit"] = inflight_requests_limit
+    end
+
+    # Lazy connect: delay the actual connection until the first command is sent
+    json_options["lazy_connect"] = true if options[:lazy_connect]
+
+    # Periodic topology-refresh checks. Cluster-only in effect (create_cluster_client),
+    # but accepted (and ignored) on standalone connections without error.
+    json_options["periodic_checks"] = build_periodic_checks(options[:periodic_checks]) if options.key?(:periodic_checks)
 
     # TLS/SSL certificates
     root_certs = []
