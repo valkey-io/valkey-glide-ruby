@@ -571,17 +571,25 @@ class Valkey
 
       # Flattens Arrays and Hashes (to alternating key/value) and stringifies
       # Integers/Floats, matching `redis-client`'s documented `#call`/`#call_v` behavior.
-      def flatten_call_args(args)
-        args.flat_map do |arg|
+      #
+      # Appends into a single accumulator instead of flat_map + recursive return
+      # values, which would allocate a new intermediate array at every nesting
+      # level for large/deeply-nested inputs.
+      def flatten_call_args(args, acc = [])
+        args.each do |arg|
           case arg
           when Array
-            flatten_call_args(arg)
+            flatten_call_args(arg, acc)
           when Hash
-            flatten_call_args(arg.to_a.flatten(1))
+            arg.each do |key, value|
+              acc << key.to_s
+              flatten_call_args([value], acc)
+            end
           else
-            arg.to_s
+            acc << arg.to_s
           end
         end
+        acc
       end
 
       # Converts `call`'s **kwargs into trailing command flags: a truthy value emits
