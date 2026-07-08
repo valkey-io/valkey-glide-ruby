@@ -38,10 +38,6 @@ module ValkeyTests
       captured[:json].nil? ? {} : JSON.parse(captured[:json])
     end
 
-    # ====================
-    # read_from
-    # ====================
-
     def test_read_from_accepts_canonical_strings
       ::Valkey::READ_FROM_MAP.each_value do |value|
         json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
@@ -113,10 +109,6 @@ module ValkeyTests
       refute json_options.key?("read_from")
     end
 
-    # ====================
-    # client_az
-    # ====================
-
     def test_client_az_is_passed_through
       json_options = captured_json_options(client_az: "us-west-2a")
       assert_equal "us-west-2a", json_options["client_az"]
@@ -126,10 +118,6 @@ module ValkeyTests
       json_options = captured_json_options
       refute json_options.key?("client_az")
     end
-
-    # ====================
-    # inflight_requests_limit
-    # ====================
 
     def test_inflight_requests_limit_is_passed_through
       json_options = captured_json_options(inflight_requests_limit: 1000)
@@ -145,10 +133,6 @@ module ValkeyTests
       json_options = captured_json_options
       refute json_options.key?("inflight_requests_limit")
     end
-
-    # ====================
-    # lazy_connect
-    # ====================
 
     def test_lazy_connect_true_is_serialized
       json_options = captured_json_options(lazy_connect: true)
@@ -167,10 +151,6 @@ module ValkeyTests
       json_options = captured_json_options
       refute json_options.key?("lazy_connect")
     end
-
-    # ====================
-    # periodic_checks
-    # ====================
 
     def test_periodic_checks_serializes_manual_interval
       json_options = captured_json_options(periodic_checks: { manual_interval: { duration_in_sec: 30 } })
@@ -231,10 +211,6 @@ module ValkeyTests
       end
       assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
     end
-
-    # ====================
-    # Combined options (multiple options serialize independently)
-    # ====================
 
     def test_multiple_options_serialize_independently
       json_options = captured_json_options(
