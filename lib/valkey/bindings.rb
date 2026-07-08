@@ -4,6 +4,23 @@ class Valkey
   module Bindings
     extend FFI::Library
 
+    # Detect whether the current Linux system uses musl libc (e.g., Alpine Linux).
+    # Uses a three-check cascade — any single match is sufficient.
+    def self.musl_libc?
+      return false unless FFI::Platform::OS == "linux"
+
+      # Check 1: RUBY_PLATFORM contains 'musl' (e.g., Alpine-built Ruby)
+      return true if RUBY_PLATFORM.include?("musl")
+
+      # Check 2: /etc/alpine-release exists (Alpine Linux indicator)
+      return true if File.exist?("/etc/alpine-release")
+
+      # Check 3: RbConfig target_os contains 'musl'
+      return true if RbConfig::CONFIG["target_os"].to_s.include?("musl")
+
+      false
+    end
+
     # Determine platform-specific library extension and directory name
     def self.platform_info
       os = if FFI::Platform.mac?
@@ -40,7 +57,7 @@ class Valkey
                      when "darwin"
                        "#{arch}-apple-darwin"
                      when "linux"
-                       "#{arch}-unknown-linux-gnu"
+                       musl_libc? ? "#{arch}-unknown-linux-musl" : "#{arch}-unknown-linux-gnu"
                      when "windows"
                        "#{arch}-pc-windows-msvc"
                      end

@@ -125,6 +125,11 @@ jobs:
       fail-fast: false
       matrix:
         host: ${{ fromJson(needs.get-matrices.outputs.host-matrix-output) }}
+        exclude:
+          - host:
+              TARGET: "x86_64-unknown-linux-musl"
+          - host:
+              TARGET: "aarch64-unknown-linux-musl"
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -181,6 +186,11 @@ jobs:
         engine: ${{ fromJson(needs.get-matrices.outputs.engine-matrix-output) }}
         version: ${{ fromJson(needs.get-matrices.outputs.version-matrix-output) }}
         host: ${{ fromJson(needs.get-matrices.outputs.host-matrix-output) }}
+        exclude:
+          - host:
+              TARGET: "x86_64-unknown-linux-musl"
+          - host:
+              TARGET: "aarch64-unknown-linux-musl"
     steps:
       - name: Check out code
         uses: actions/checkout@v4
@@ -309,3 +319,110 @@ jobs:
           for port in $(seq 8001 8006); do
             docker stop "valkey-modules-cluster-${port}" && docker rm "valkey-modules-cluster-${port}" || true
           done
+
+  build-and-test-musl:
+    name: Test musl / ${{ matrix.engine.type }} ${{ matrix.engine.version }}
+    needs: [get-matrices]
+    runs-on: ubuntu-24.04
+    container:
+      image: ruby:3.3-alpine
+      options: --user root --privileged
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ${{ fromJson(needs.get-matrices.outputs.engine-matrix-output) }}
+    steps:
+      - name: Install system dependencies
+        run: apk add --no-cache build-base python3 openssl openssl-dev git curl bash protobuf-dev linux-headers
+
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        shell: bash
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            valkey-glide/ffi/target/
+          key: musl-x64-cargo-${{ hashFiles('valkey-glide/ffi/Cargo.lock') }}
+          restore-keys: |
+            musl-x64-cargo-
+
+      - name: Build native library (musl)
+        working-directory: valkey-glide/ffi
+        shell: bash
+        env:
+          GLIDE_NAME: GlideRuby
+          GLIDE_VERSION: ${{ github.ref_name }}
+          RUSTFLAGS: "-C target-feature=-crt-static"
+        run: |
+          source "$HOME/.cargo/env"
+          cargo build --release
+
+      - name: Build and install Valkey engine
+        shell: bash
+        env:
+          ENGINE_VERSION: ${{ matrix.engine.version }}
+        run: |
+          git clone https://github.com/valkey-io/valkey.git valkey-engine
+          cd valkey-engine
+          git checkout $ENGINE_VERSION
+          make BUILD_TLS=yes -j$(nproc)
+          make install
+
+      - name: Install Ruby dependencies
+        shell: bash
+        run: bundle install
+
+      - name: Start standalone server
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
+
+      - name: Start TLS server
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
+          echo "TLS server started on port 6380"
+          echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> $GITHUB_ENV
+
+      - name: Start cluster
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start --cluster-mode -r 1 -n 3 --prefix cluster
+          echo "Cluster started"
+
+      - name: Run tests
+        shell: bash
+        run: bundle exec rake test
+
+      - name: Upload cluster logs on failure
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-logs-musl-${{ matrix.engine.type }}-${{ matrix.engine.version }}
+          path: valkey-glide/utils/clusters/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stop servers
+        if: always()
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+          python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix cluster || true

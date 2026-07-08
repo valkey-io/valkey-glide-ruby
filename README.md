@@ -36,8 +36,7 @@ The release of Valkey GLIDE Ruby was tested on the following platforms:
 
 - Ubuntu 20+ (x86_64/amd64 and arm64/aarch64)
 - Amazon Linux 2 (AL2) and 2023 (AL2023) (x86_64)
-
-**Note:** Alpine Linux / MUSL is **not** currently supported.
+- Alpine Linux 3.18+ (x86_64 and arm64/aarch64) — musl libc
 
 **macOS:**
 
