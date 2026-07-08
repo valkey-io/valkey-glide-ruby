@@ -21,6 +21,14 @@ class Valkey
   include Commands
   include PubSubCallback
 
+  # read_from values map.
+  READ_FROM_MAP = {
+    primary: "Primary",
+    prefer_replica: "PreferReplica",
+    az_affinity: "AZAffinity",
+    az_affinity_replicas_and_primary: "AZAffinityReplicasAndPrimary"
+  }.freeze
+
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
@@ -128,24 +136,9 @@ class Valkey
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
-    # Read routing preference (which node(s) to read from). Ruby-friendly symbols are mapped to the canonical GLIDE
-    # strings; anything else (including typos) is forwarded as-is and rejected by the
-    # core with its own error, rather than duplicating that validation here.
+    # read_from parsing.
     if options.key?(:read_from)
-      json_options["read_from"] = case options[:read_from]
-                                  when :primary
-                                    "Primary"
-                                  when :prefer_replica
-                                    "PreferReplica"
-                                  when :lowest_latency
-                                    "LowestLatency"
-                                  when :az_affinity
-                                    "AZAffinity"
-                                  when :az_affinity_replicas_and_primary
-                                    "AZAffinityReplicasAndPrimary"
-                                  else
-                                    options[:read_from].to_s
-                                  end
+      json_options["read_from"] = READ_FROM_MAP[options[:read_from]] || options[:read_from].to_s
     end
 
     json_options["client_az"] = options[:client_az] if options[:client_az]

@@ -38,35 +38,20 @@ module ValkeyTests
       captured[:json].nil? ? {} : JSON.parse(captured[:json])
     end
 
-    # NOTE: "LowestLatency" is a valid read_from value per the FFI docs
-    # (ffi/src/lib.rs) and is accepted by Ruby, but the currently vendored
-    # glide-core build panics with `todo!()` when converting it
-    # (glide-core/src/client/types.rs, `impl From<protobuf::ConnectionRequest>`,
-    # reached via ffi/src/lib.rs's create_client_from_uri -> ConnectionRequest::from).
-    # This is an upstream native-core gap, not a Ruby-side bug. Because these
-    # tests stub the FFI call entirely, the panic can never actually be reached
-    # here -- but the value is still listed for completeness of the
-    # canonical-string/symbol mapping being verified.
-    READ_FROM_JSON_VALUES = {
-      "Primary" => :primary,
-      "PreferReplica" => :prefer_replica,
-      "LowestLatency" => :lowest_latency
-    }.freeze
-
     # ====================
     # read_from
     # ====================
 
     def test_read_from_accepts_canonical_strings
-      READ_FROM_JSON_VALUES.each_key do |value|
-        json_options = captured_json_options(read_from: value)
+      ::Valkey::READ_FROM_MAP.each_value do |value|
+        json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
         assert_equal value, json_options["read_from"]
       end
     end
 
     def test_read_from_accepts_ruby_friendly_symbols
-      READ_FROM_JSON_VALUES.each do |expected_string, symbol|
-        json_options = captured_json_options(read_from: symbol)
+      ::Valkey::READ_FROM_MAP.each do |symbol, expected_string|
+        json_options = captured_json_options(read_from: symbol, client_az: "us-west-2a")
         assert_equal expected_string, json_options["read_from"]
       end
     end
