@@ -337,18 +337,20 @@ jobs:
         run: apk add --no-cache build-base python3 openssl openssl-dev git curl bash protobuf-dev linux-headers
 
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           submodules: recursive
 
       - name: Install Rust
         shell: bash
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o /tmp/rustup-init.sh
+          sh /tmp/rustup-init.sh -y
+          rm /tmp/rustup-init.sh
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
       - name: Cache Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
             ~/.cargo/bin/
@@ -412,7 +414,7 @@ jobs:
       - name: Upload cluster logs on failure
         if: failure()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: cluster-logs-musl-${{ matrix.engine.type }}-${{ matrix.engine.version }}
           path: valkey-glide/utils/clusters/
