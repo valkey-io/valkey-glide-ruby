@@ -209,6 +209,30 @@ module ValkeyTests
       refute json_options.key?("periodic_checks")
     end
 
+    def test_periodic_checks_rejects_non_hash
+      # Shape check, not value validation -- a non-Hash can't be inspected for
+      # :disabled/:manual_interval, so without this it'd be a NoMethodError.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, periodic_checks: "manual_interval")
+      end
+      assert_match(/periodic_checks must be a Hash/, error.message)
+    end
+
+    def test_periodic_checks_rejects_empty_hash
+      # Same rationale: {} has neither key, so manual_interval would be nil.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, periodic_checks: {})
+      end
+      assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
+    end
+
+    def test_periodic_checks_rejects_manual_interval_non_hash
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, periodic_checks: { manual_interval: "30" })
+      end
+      assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
+    end
+
     # ====================
     # Combined options (multiple options serialize independently)
     # ====================

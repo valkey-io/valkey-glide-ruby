@@ -542,17 +542,23 @@ class Valkey
     results
   end
 
-  # Builds the `periodic_checks` extra_options_json value from the `periodic_checks:`
-  # constructor option. Accepts either `{ manual_interval: { duration_in_sec: N } }` or
-  # `{ disabled: true/false }` (symbol or string keys), converting Ruby symbol keys to
-  # the string keys GLIDE's native core expects.
+  # Builds the `periodic_checks` extra_options_json value. Accepts
+  # `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true/false }`
+  # (symbol or string keys). Only checks shape (Hash present, manual_interval
+  # is a Hash) to avoid a NoMethodError -- the core validates values.
   def build_periodic_checks(periodic_checks)
+    unless periodic_checks.is_a?(Hash)
+      raise ArgumentError, "periodic_checks must be a Hash, got: #{periodic_checks.class}"
+    end
+
     if periodic_checks.key?(:disabled) || periodic_checks.key?("disabled")
       disabled = periodic_checks.key?(:disabled) ? periodic_checks[:disabled] : periodic_checks["disabled"]
       return { "disabled" => disabled }
     end
 
     manual_interval = periodic_checks[:manual_interval] || periodic_checks["manual_interval"]
+    raise ArgumentError, "periodic_checks must contain :manual_interval or :disabled" unless manual_interval.is_a?(Hash)
+
     duration_in_sec = manual_interval[:duration_in_sec] || manual_interval["duration_in_sec"]
 
     { "manual_interval" => { "duration_in_sec" => duration_in_sec } }
