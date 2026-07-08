@@ -600,12 +600,16 @@ class Valkey
       # Converts `call`'s **kwargs into trailing command flags: a truthy value emits
       # the upcased flag name, and a non-boolean truthy value also emits the
       # stringified value. Falsy/nil values are dropped entirely, not stringified.
+      #
+      # @example
+      #   call_flags(nx: true, ex: 60, cond: false, ttl: nil)
+      #   # => ["NX", "EX", "60"]
       def call_flags(kwargs)
         kwargs.each_with_object([]) do |(name, value), flags|
           next unless value
 
           flags << name.to_s.upcase
-          flags << value.to_s unless [true, false].include?(value)
+          flags << value.to_s unless value == true
         end
       end
     end
