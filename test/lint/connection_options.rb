@@ -672,5 +672,23 @@ module Lint
       end
       assert_match(/client_az must be set/, error.message)
     end
+
+    def test_connection_with_unrecognized_read_from_string_raises_cannot_connect_error
+      # Negative control against the real native core (not stubbed): Ruby forwards
+      # an unrecognized read_from value as-is rather than rejecting it (see
+      # test/valkey/connection_config_test.rb's unit tests for that). This confirms
+      # what actually happens when the bogus value reaches the core -- confirmed
+      # directly against ffi/src/lib.rs's JSON parsing: it's rejected at JSON-parse
+      # time with `Err(format!("Unknown read_from value: {}", read_from_str))`,
+      # surfaced here as CannotConnectError, not a crash or a silent fallback.
+      error = assert_raises(Valkey::CannotConnectError) do
+        if cluster_mode?
+          Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, read_from: "Bogus", timeout: test_timeout)
+        else
+          Valkey.new(host: "127.0.0.1", port: test_port, read_from: "Bogus", timeout: test_timeout)
+        end
+      end
+      assert_match(/Unknown read_from value/, error.message)
+    end
   end
 end

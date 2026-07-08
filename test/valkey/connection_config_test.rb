@@ -56,6 +56,20 @@ module ValkeyTests
       end
     end
 
+    def test_read_from_accepts_read_from_constants
+      # Valkey::ReadFrom::* constants are just the canonical strings -- confirm
+      # they round-trip through the same path as any other canonical string.
+      [
+        Valkey::ReadFrom::PRIMARY,
+        Valkey::ReadFrom::PREFER_REPLICA,
+        Valkey::ReadFrom::AZ_AFFINITY,
+        Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
+      ].each do |value|
+        json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
+        assert_equal value, json_options["read_from"]
+      end
+    end
+
     def test_read_from_az_affinity_requires_client_az
       json_options = captured_json_options(read_from: :az_affinity, client_az: "us-west-2a")
       assert_equal "AZAffinity", json_options["read_from"]
