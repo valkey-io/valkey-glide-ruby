@@ -623,6 +623,10 @@ module ValkeyTests
     end
 
     def test_ssl_with_unreadable_file
+      # Root can read any file regardless of permissions, so this test
+      # only works when running as a non-root user.
+      skip "Cannot test file permission checks as root" if Process.uid.zero?
+
       # Create a temporary file and remove read permissions
       Tempfile.create("test_cert") do |file|
         file.write("dummy cert")
