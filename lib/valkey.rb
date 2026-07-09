@@ -129,9 +129,8 @@ class Valkey
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
-
     # read_from parsing.
-    json_options["read_from"] = options[:read_from].to_s if options.key?(:read_from)
+    json_options["read_from"] = options[:read_from] if options[:read_from]
 
     # client_az
     json_options["client_az"] = options[:client_az] if options[:client_az]
@@ -149,7 +148,7 @@ class Valkey
       json_options["inflight_requests_limit"] = options[:inflight_requests_limit]
     end
 
-    json_options["lazy_connect"] = true if options[:lazy_connect]
+    json_options["lazy_connect"] = options[:lazy_connect]
 
     json_options["periodic_checks"] = build_periodic_checks(options[:periodic_checks]) if options.key?(:periodic_checks)
 
