@@ -137,6 +137,45 @@ end
 
 > **Note:** Transactional commands (`MULTI` / `EXEC` / `DISCARD`) in a pipeline are executed sequentially as a workaround for FFI batch stability. Prefer `multi` / `exec` on the main client for transactions.
 
+### Generic Command Dispatch (`call` / `call_v`)
+
+Not every command has a dedicated method yet. `call`/`call_v` are the escape hatch — send any
+command as plain arguments and get the raw reply back, matching `redis-client`'s `#call`/`#call_v`:
+
+```ruby
+client.call("SET", "mykey", "value")
+# => "OK"
+
+client.call_v(["MGET"] + keys)
+```
+
+`call`/`call_v` apply the same argument coercion as `redis-client`:
+
+```ruby
+# Integers/Floats auto-stringify
+client.call("SET", "mykey", 42)
+# equivalent to call("SET", "mykey", "42")
+
+# Arrays flatten (including nested arrays)
+client.call("LPUSH", "list", [1, 2, 3])
+# equivalent to call("LPUSH", "list", "1", "2", "3")
+
+# Hashes flatten to alternating key/value
+client.call("HMSET", "hash", { "foo" => "1" })
+# equivalent to call("HMSET", "hash", "foo", "1")
+
+# Keyword args become trailing command flags (call only, not call_v):
+# a truthy value emits the upcased flag name; a non-boolean value also emits
+# the stringified value. Falsy/nil values are dropped entirely, not stringified.
+client.call("SET", "k", "v", nx: true, ex: 60)
+# equivalent to call("SET", "k", "v", "NX", "EX", "60")
+client.call("SET", "k", "v", nx: false, ex: nil)
+# equivalent to call("SET", "k", "v")
+```
+
+`call_v` takes the whole command as a single Array (no keyword flags) — useful when the command is
+built dynamically. Both return the raw reply with no type-casting based on the command name.
+
 ### Connection Options (redis-rb compatible)
 
 | Option | Description |

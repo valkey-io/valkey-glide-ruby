@@ -7,19 +7,20 @@ module Lint
     def setup
       super
       @json_not_available = false
-      # Try to load JSON module if not already loaded
+      # Verify JSON commands work by probing directly.
+      # We avoid MODULE LIST since the MODULE command may be disabled on the server
+      # (e.g., enable-module-command not set). The valkey-bundle Docker image has
+      # JSON pre-loaded, so we just test if the commands are available.
       begin
-        modules = r.module_list
-        json_loaded = modules.any? do |m|
-          m.is_a?(Array) && m.include?("name") && %w[ReJSON rejson].include?(m[m.index("name") + 1])
-        end
-        r.module_load(JSON_MODULE_PATH) unless json_loaded
-
-        # Verify JSON commands work
         r.json_set("test:json:check", "$", '{"test":1}')
         r.json_del("test:json:check")
-      rescue Valkey::CommandError
-        @json_not_available = true
+      rescue Valkey::CommandError => e
+        @json_not_available = if e.message.include?("unknown command") || e.message.include?("ERR unknown")
+                                # JSON module genuinely not available, try loading it
+                                !try_load_json_module
+                              else
+                                true
+                              end
       rescue StandardError
         @json_not_available = true
       end
@@ -274,6 +275,24 @@ module Lint
       rescue StandardError
         nil
       end
+    end
+
+    private
+
+    # Attempt to load the JSON module and verify it works.
+    # Returns true if successful, false if module is unavailable.
+    # Raises on unexpected errors (OOM, permission, misconfiguration).
+    def try_load_json_module
+      r.module_load(JSON_MODULE_PATH)
+      r.json_set("test:json:check", "$", '{"test":1}')
+      r.json_del("test:json:check")
+      true
+    rescue Valkey::CommandError => e
+      raise unless e.message.include?("unknown command") || e.message.include?("No such file") ||
+                   e.message.include?("MODULE command not allowed") || e.message.include?("cannot open") ||
+                   e.message.include?("Error loading the extension")
+
+      false
     end
   end
 end
