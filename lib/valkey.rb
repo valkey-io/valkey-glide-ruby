@@ -135,12 +135,12 @@ class Valkey
     # client_az
     json_options["client_az"] = options[:client_az] if options[:client_az]
 
-    if json_options["client_az"]
+    unless json_options["client_az"]
       case json_options["read_from"]
-        when ReadFrom::AZ_AFFINITY
-          raise ArgumentError, "client_az must be set when read_from is AZAffinity"
-        when ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
-          raise ArgumentError, "client_az must be set when read_from is AZAffinityReplicasAndPrimary"
+      when ReadFrom::AZ_AFFINITY
+        raise ArgumentError, "client_az must be set when read_from is AZAffinity"
+      when ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
+        raise ArgumentError, "client_az must be set when read_from is AZAffinityReplicasAndPrimary"
       end
     end
 
@@ -148,7 +148,7 @@ class Valkey
       json_options["inflight_requests_limit"] = options[:inflight_requests_limit]
     end
 
-    json_options["lazy_connect"] = options[:lazy_connect]
+    json_options["lazy_connect"] = options[:lazy_connect] if options.key?(:lazy_connect)
 
     json_options["periodic_checks"] = build_periodic_checks(options[:periodic_checks]) if options.key?(:periodic_checks)
 
