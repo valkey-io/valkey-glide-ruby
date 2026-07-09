@@ -538,14 +538,14 @@ module Lint
                  Valkey.new(
                    nodes: test_cluster_nodes,
                    cluster_mode: true,
-                   read_from: :prefer_replica,
+                   read_from: Valkey::ReadFrom::PREFER_REPLICA,
                    timeout: test_timeout
                  )
                else
                  Valkey.new(
                    host: "127.0.0.1",
                    port: test_port,
-                   read_from: :prefer_replica,
+                   read_from: Valkey::ReadFrom::PREFER_REPLICA,
                    timeout: test_timeout
                  )
                end
@@ -665,9 +665,11 @@ module Lint
       # client_az must raise ArgumentError in Ruby before any FFI call is made.
       error = assert_raises(ArgumentError) do
         if cluster_mode?
-          Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, read_from: :az_affinity, timeout: test_timeout)
+          Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, read_from: Valkey::ReadFrom::AZ_AFFINITY,
+                     timeout: test_timeout)
         else
-          Valkey.new(host: "127.0.0.1", port: test_port, read_from: :az_affinity, timeout: test_timeout)
+          Valkey.new(host: "127.0.0.1", port: test_port, read_from: Valkey::ReadFrom::AZ_AFFINITY,
+                     timeout: test_timeout)
         end
       end
       assert_match(/client_az must be set/, error.message)

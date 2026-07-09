@@ -39,22 +39,15 @@ module ValkeyTests
     end
 
     def test_read_from_accepts_canonical_strings
-      ::Valkey::READ_FROM_MAP.each_value do |value|
+      %w[Primary PreferReplica AZAffinity AZAffinityReplicasAndPrimary].each do |value|
         json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
         assert_equal value, json_options["read_from"]
       end
     end
 
-    def test_read_from_accepts_ruby_friendly_symbols
-      ::Valkey::READ_FROM_MAP.each do |symbol, expected_string|
-        json_options = captured_json_options(read_from: symbol, client_az: "us-west-2a")
-        assert_equal expected_string, json_options["read_from"]
-      end
-    end
-
     def test_read_from_accepts_read_from_constants
       # Valkey::ReadFrom::* constants are just the canonical strings -- confirm
-      # they round-trip through the same path as any other canonical string.
+      # they round-trip through the passthrough unchanged.
       [
         Valkey::ReadFrom::PRIMARY,
         Valkey::ReadFrom::PREFER_REPLICA,
@@ -66,37 +59,44 @@ module ValkeyTests
       end
     end
 
+    def test_read_from_symbol_is_passed_through_as_snake_case
+      # read_from is a pure passthrough now -- Ruby does no symbol-to-canonical
+      # translation. A symbol serializes to its snake_case string form via
+      # JSON.generate, not the PascalCase the core expects; the core is the
+      # sole validator and would reject this, but that's out of scope for this
+      # unit test (which stubs the FFI call). Documents the actual contract:
+      # use Valkey::ReadFrom::* constants or exact-match strings, not symbols.
+      json_options = captured_json_options(read_from: :prefer_replica)
+      assert_equal "prefer_replica", json_options["read_from"]
+    end
+
     def test_read_from_az_affinity_requires_client_az
-      json_options = captured_json_options(read_from: :az_affinity, client_az: "us-west-2a")
+      json_options = captured_json_options(read_from: Valkey::ReadFrom::AZ_AFFINITY, client_az: "us-west-2a")
       assert_equal "AZAffinity", json_options["read_from"]
       assert_equal "us-west-2a", json_options["client_az"]
     end
 
     def test_read_from_az_affinity_replicas_and_primary_requires_client_az
-      json_options = captured_json_options(read_from: :az_affinity_replicas_and_primary, client_az: "us-west-2a")
+      json_options = captured_json_options(
+        read_from: Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY,
+        client_az: "us-west-2a"
+      )
       assert_equal "AZAffinityReplicasAndPrimary", json_options["read_from"]
       assert_equal "us-west-2a", json_options["client_az"]
     end
 
     def test_read_from_az_affinity_without_client_az_raises
       error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, read_from: :az_affinity)
+        ::Valkey.new(host: "localhost", port: 6379, read_from: Valkey::ReadFrom::AZ_AFFINITY)
       end
       assert_match(/client_az must be set/, error.message)
     end
 
     def test_read_from_az_affinity_replicas_and_primary_without_client_az_raises
       error = assert_raises(ArgumentError) do
-        ::Valkey.new(host: "localhost", port: 6379, read_from: :az_affinity_replicas_and_primary)
+        ::Valkey.new(host: "localhost", port: 6379, read_from: Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY)
       end
       assert_match(/client_az must be set/, error.message)
-    end
-
-    def test_read_from_unknown_symbol_is_passed_through_as_string
-      # Unknown values are forwarded as-is (stringified) rather than rejected in
-      # Ruby -- the native core is the sole validator, matching Python/Java/Go.
-      json_options = captured_json_options(read_from: :bogus)
-      assert_equal "bogus", json_options["read_from"]
     end
 
     def test_read_from_unknown_string_is_passed_through_unchanged
@@ -139,12 +139,11 @@ module ValkeyTests
       assert_equal true, json_options["lazy_connect"]
     end
 
-    def test_lazy_connect_false_is_omitted
-      # Matches the implementation: `lazy_connect` is only written to
-      # json_options when truthy, mirroring how other boolean-ish options in
-      # this file are handled (e.g. `cluster_mode_enabled`).
+    def test_lazy_connect_false_is_serialized
+      # Pure passthrough now: explicitly passing false is forwarded as false,
+      # not omitted -- only "not provided at all" omits the key (see below).
       json_options = captured_json_options(lazy_connect: false)
-      refute json_options.key?("lazy_connect")
+      assert_equal false, json_options["lazy_connect"]
     end
 
     def test_lazy_connect_omitted_when_not_provided
@@ -214,7 +213,7 @@ module ValkeyTests
 
     def test_multiple_options_serialize_independently
       json_options = captured_json_options(
-        read_from: :az_affinity,
+        read_from: Valkey::ReadFrom::AZ_AFFINITY,
         client_az: "us-west-2a",
         inflight_requests_limit: 500,
         lazy_connect: true,
