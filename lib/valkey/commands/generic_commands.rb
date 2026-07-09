@@ -559,12 +559,12 @@ class Valkey
       # @example
       #   valkey.call_v(["MGET"] + keys)
       #
-      # @param [Array<String, Integer, Float, Array, Hash>] args command name and its arguments
+      # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
       def call_v(argv)
-        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(args))
+        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv))
       end
 
       private
