@@ -547,8 +547,8 @@ class Valkey
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
-      def call(*args, **kwargs)
-        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(args) + call_flags(kwargs))
+      def call(*argv, **kwargs)
+        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv).concat(call_flags(kwargs)))
       end
 
       # Send any command as a single Array of arguments and get the raw reply back.
@@ -563,7 +563,7 @@ class Valkey
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
-      def call_v(args)
+      def call_v(argv)
         send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(args))
       end
 
