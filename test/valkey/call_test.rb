@@ -90,9 +90,12 @@ module ValkeyTests
       assert_equal %w[CMD k foo 1 2], capture_call_args("CMD", "k", { "foo" => [1, 2] })
     end
 
-    # should apply the same flattening to call_v's single Array argument
+    # should apply the same flattening to call_v's single Array argument,
+    # including a Hash value that is itself an Array (mirrors
+    # test_call_arg_construction_flattens_hash_with_array_values for call)
     def test_call_v_arg_construction_flattens
       assert_equal %w[LPUSH list 1 2 3], capture_call_v_args(["LPUSH", "list", [1, 2, 3]])
+      assert_equal %w[CMD k foo 1 2], capture_call_v_args(["CMD", "k", { "foo" => [1, 2] }])
     end
 
     # should append upcased flag names for truthy boolean kwargs, in the order given
