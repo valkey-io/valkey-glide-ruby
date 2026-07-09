@@ -22,14 +22,6 @@ class Valkey
   include Commands
   include PubSubCallback
 
-  # read_from values map.
-  READ_FROM_MAP = {
-    primary: "Primary",
-    prefer_replica: "PreferReplica",
-    az_affinity: "AZAffinity",
-    az_affinity_replicas_and_primary: "AZAffinityReplicasAndPrimary"
-  }.freeze
-
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
@@ -137,11 +129,11 @@ class Valkey
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
-    # read_from parsing.
-    if options.key?(:read_from)
-      json_options["read_from"] = READ_FROM_MAP[options[:read_from]] || options[:read_from].to_s
-    end
 
+    # read_from parsing.
+    json_options["read_from"] = options[:read_from].to_s if options.key?(:read_from)
+
+    # client_az
     json_options["client_az"] = options[:client_az] if options[:client_az]
 
     az_affinity_values = %w[AZAffinity AZAffinityReplicasAndPrimary].freeze
