@@ -52,6 +52,19 @@ module ValkeyTests
       assert_equal "v", r.call("GET", "call:e2e:flagged")
     end
 
+    # should apply the same Array/Hash flattening end-to-end via call_v's
+    # single-Array argument (mirrors test_call_end_to_end_with_flattening_and_flags
+    # for call — no kwargs/flags case here, since call_v doesn't take any).
+    def test_call_v_end_to_end_with_flattening
+      r.del("call:v:e2e:list", "call:v:e2e:hash")
+
+      assert_equal 3, r.call_v(["LPUSH", "call:v:e2e:list", [1, 2, 3]])
+      assert_equal %w[3 2 1], r.call_v(["LRANGE", "call:v:e2e:list", 0, -1])
+
+      assert_equal "OK", r.call_v(["HMSET", "call:v:e2e:hash", { "foo" => "1" }])
+      assert_equal "1", r.call_v(["HGET", "call:v:e2e:hash", "foo"])
+    end
+
     # Everything below stubs `send_command` (same technique as `capture_failover_args`
     # in failover_commands_test.rb) to assert on the literal flattened/coerced
     # argument array before it ever reaches the network — independent of any
