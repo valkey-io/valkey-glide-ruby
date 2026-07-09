@@ -541,7 +541,7 @@ class Valkey
       #   valkey.call("SET", "k", "v", nx: true, ex: 60)
       #     # equivalent to call("SET", "k", "v", "NX", "EX", "60")
       #
-      # @param [Array<String, Integer, Float, Array, Hash>] args command name and its arguments
+      # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
       # @param [Hash] kwargs trailing command flags; truthy values emit the upcased flag name,
       #   non-boolean values also emit the stringified value; falsy/nil values are dropped
       # @return [Object] the raw reply, with no type-casting based on the command name
