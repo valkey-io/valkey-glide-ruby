@@ -136,9 +136,13 @@ class Valkey
     # client_az
     json_options["client_az"] = options[:client_az] if options[:client_az]
 
-    az_affinity_values = %w[AZAffinity AZAffinityReplicasAndPrimary].freeze
-    if az_affinity_values.include?(json_options["read_from"]) && !options[:client_az]
-      raise ArgumentError, "client_az must be set when read_from is AZAffinity or AZAffinityReplicasAndPrimary"
+    if json_options["client_az"]
+      case json_options["read_from"]
+        when ReadFrom::AZ_AFFINITY
+          raise ArgumentError, "client_az must be set when read_from is AZAffinity"
+        when ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
+          raise ArgumentError, "client_az must be set when read_from is AZAffinityReplicasAndPrimary"
+      end
     end
 
     if options.key?(:inflight_requests_limit)
