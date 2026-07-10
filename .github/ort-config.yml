@@ -1,0 +1,37 @@
+ort:
+  analyzer:
+    skip_excluded: true
+    allowDynamicVersions: true
+    enabledPackageManagers: [Cargo, Bundler]
+  excludes:
+    paths:
+    - pattern: "ort/**"
+      reason: "BUILD_TOOL_OF"
+      comment: "ORT tool directory, not part of the Ruby project"
+    - pattern: "**/funTest/**"
+      reason: "BUILD_TOOL_OF"
+      comment: "ORT functional test files should be excluded"
+    - pattern: "**/synthetic/**"
+      reason: "BUILD_TOOL_OF"
+      comment: "ORT synthetic test projects should be excluded"
+    - pattern: "valkey-glide/java/**"
+      reason: "DOCUMENTATION_OF"
+      comment: "Java client bindings, not core Rust dependencies"
+    - pattern: "valkey-glide/node/**"
+      reason: "DOCUMENTATION_OF"
+      comment: "Node.js client bindings, not core Rust dependencies"
+    - pattern: "valkey-glide/python/**"
+      reason: "DOCUMENTATION_OF"
+      comment: "Python client bindings, not core Rust dependencies"
+    - pattern: "valkey-glide/go/**"
+      reason: "DOCUMENTATION_OF"
+      comment: "Go client bindings, not core Rust dependencies"
+    - pattern: "valkey-glide/csharp/**"
+      reason: "DOCUMENTATION_OF"
+      comment: "C# client bindings, not core Rust dependencies"
+    - pattern: "valkey-glide/benchmarks/**"
+      reason: "DOCUMENTATION_OF"
+      comment: "Benchmark code, not core dependencies"
+    - pattern: "**/cpp/**"
+      reason: "BUILD_TOOL_OF"
+      comment: "C++ bindings directory should not be analyzed by ORT"
