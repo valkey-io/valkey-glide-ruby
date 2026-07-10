@@ -134,10 +134,23 @@ jobs:
                   echo "Bundle install completed. Checking for Gemfile.lock:"
                   ls -la Gemfile.lock || echo "Warning: Gemfile.lock not found"
 
+              # Temporarily move ORT's own checkout out of the workspace before scanning the
+              # Ruby project root. run-ort-tools needs ./ort/ present (relative to github.workspace)
+              # as its working directory, but scanning the whole workspace (folder_path is
+              # github.workspace) would otherwise also walk into ./ort and crash trying to
+              # resolve ORT's own bundled test fixtures against an unrelated git repository.
+            - name: Move ORT out of the workspace before scanning Ruby
+              run: mv ./ort /tmp/ort
+
             - name: Run ORT tools for Ruby
               uses: ./valkey-glide/.github/workflows/run-ort-tools
               with:
                   folder_path: "${{ github.workspace }}"
+
+              # Restore ./ort in case a later cache-save step or re-run expects it in place
+            - name: Restore ORT into the workspace
+              if: always()
+              run: mv /tmp/ort ./ort
 
               ### Get licenses ###
             - name: Retrieve licenses list
