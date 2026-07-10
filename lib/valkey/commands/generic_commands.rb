@@ -520,6 +520,98 @@ class Valkey
 
         send_command(command, args, &block)
       end
+
+      # Send any command as plain arguments and get the raw reply back, with no
+      # per-command method needed. Escape hatch for commands without a dedicated
+      # method yet, matching `redis-client`'s `#call`.
+      #
+      # @example Basic dispatch
+      #   valkey.call("SET", "mykey", "value")
+      #     # => "OK"
+      # @example Integers/Floats auto-stringify
+      #   valkey.call("SET", "mykey", 42)
+      #     # equivalent to call("SET", "mykey", "42")
+      # @example Arrays flatten
+      #   valkey.call("LPUSH", "list", [1, 2, 3])
+      #     # equivalent to call("LPUSH", "list", "1", "2", "3")
+      # @example Hashes flatten to alternating key/value
+      #   valkey.call("HMSET", "hash", { "foo" => "1" })
+      #     # equivalent to call("HMSET", "hash", "foo", "1")
+      # @example Keyword args become command flags; falsy/nil flags are dropped
+      #   valkey.call("SET", "k", "v", nx: true, ex: 60)
+      #     # equivalent to call("SET", "k", "v", "NX", "EX", "60")
+      #
+      # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
+      # @param [Hash] kwargs trailing command flags; truthy values emit the upcased flag name,
+      #   non-boolean values also emit the stringified value; falsy/nil values are dropped
+      # @return [Object] the raw reply, with no type-casting based on the command name
+      #
+      # @see https://valkey.io/commands/
+      def call(*argv, **kwargs)
+        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv).concat(call_flags(kwargs)))
+      end
+
+      # Send any command as a single Array of arguments and get the raw reply back.
+      # Same as {#call} but takes the whole command as one Array instead of splatted
+      # args, useful when the command is built dynamically. Matches `redis-client`'s
+      # `#call_v` — no keyword flags.
+      #
+      # @example
+      #   valkey.call_v(["MGET"] + keys)
+      #
+      # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
+      # @return [Object] the raw reply, with no type-casting based on the command name
+      #
+      # @see https://valkey.io/commands/
+      def call_v(argv)
+        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv))
+      end
+
+      private
+
+      # Flattens Arrays and Hashes (to alternating key/value) and stringifies
+      # Integers/Floats, matching `redis-client`'s documented `#call`/`#call_v` behavior.
+      #
+      # @example
+      #   flatten_call_args(["CMD", [1, [2, 3]], { "a" => 1, "b" => [2, 3] }])
+      #   # => ["CMD", "1", "2", "3", "a", "1", "b", "2", "3"]
+      def flatten_call_args(args)
+        acc = []
+        # Ruby doesn't have a built in queue, so we use a reversed stack instead
+        # Insertions into the stack needs to be reversed to maintain the Queue LIFO
+        # ordering
+        stack = args.reverse
+
+        until stack.empty?
+          arg = stack.pop
+          case arg
+          when Array
+            stack.concat(arg.reverse)
+          when Hash
+            arg.to_a.reverse_each { |pair| stack.concat(pair.reverse) }
+          else
+            acc << arg.to_s
+          end
+        end
+
+        acc
+      end
+
+      # Converts `call`'s **kwargs into trailing command flags: a truthy value emits
+      # the upcased flag name, and a non-boolean truthy value also emits the
+      # stringified value. Falsy/nil values are dropped entirely, not stringified.
+      #
+      # @example
+      #   call_flags(nx: true, ex: 60, cond: false, ttl: nil)
+      #   # => ["NX", "EX", "60"]
+      def call_flags(kwargs)
+        kwargs.each_with_object([]) do |(name, value), flags|
+          next unless value
+
+          flags << name.to_s.upcase
+          flags << value.to_s unless value == true
+        end
+      end
     end
   end
 end

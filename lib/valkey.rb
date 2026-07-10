@@ -7,6 +7,7 @@ require "cgi"
 require "valkey/version"
 require "valkey/request_type"
 require "valkey/response_type"
+require "valkey/read_from"
 require "valkey/request_error_type"
 require "valkey/bindings"
 require "valkey/utils"
@@ -29,292 +30,6 @@ class Valkey
     return [] if pipeline.commands.empty?
 
     send_batch_commands(pipeline.commands, exception: exception)
-  end
-
-  def send_batch_commands(commands, exception: true)
-    # WORKAROUND: The underlying Glide FFI backend has stability issues when
-    # batching transactional commands like MULTI / EXEC / DISCARD. To avoid
-    # native crashes we fall back to issuing those commands sequentially
-    # instead of via `Bindings.batch`.
-    tx_types = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD]
-
-    if commands.any? { |(command_type, _args, _block)| tx_types.include?(command_type) }
-      results = []
-
-      commands.each do |command_type, command_args, block|
-        res = send_command(command_type, command_args)
-        res = block.call(res) if block
-        results << res
-      end
-
-      return results
-    end
-
-    cmds = []
-    blocks = []
-    buffers = [] # Keep references to prevent GC
-
-    commands.each do |command_type, command_args, block|
-      arg_ptrs, arg_lens, arg_bufs = build_command_args(command_args)
-
-      cmd = Bindings::CmdInfo.new
-      cmd[:request_type] = command_type
-      cmd[:args] = arg_ptrs
-      cmd[:arg_count] = command_args.size
-      cmd[:args_len] = arg_lens
-
-      cmds << cmd
-      blocks << block
-      buffers << [arg_ptrs, arg_lens, arg_bufs] # Prevent GC
-    end
-
-    # Create array of pointers to CmdInfo structs
-    cmd_ptrs = FFI::MemoryPointer.new(:pointer, cmds.size)
-    cmds.each_with_index do |cmd, i|
-      cmd_ptrs[i].put_pointer(0, cmd.to_ptr)
-    end
-
-    batch_info = Bindings::BatchInfo.new
-    batch_info[:cmd_count] = cmds.size
-    batch_info[:cmds] = cmd_ptrs
-    batch_info[:is_atomic] = false
-
-    batch_options = Bindings::BatchOptionsInfo.new
-    batch_options[:retry_server_error] = true
-    batch_options[:retry_connection_error] = true
-    batch_options[:has_timeout] = false
-    batch_options[:timeout] = 0 # No timeout
-    batch_options[:route_info] = FFI::Pointer::NULL
-
-    # Create OpenTelemetry span for batch operation if sampling is enabled
-    # TODO: add parent span propagation via create_batch_otel_span_with_parent
-    # to support distributed tracing context (see Go client base_client.go for reference)
-    span_ptr = 0
-    if OpenTelemetry.should_sample?
-      begin
-        span_ptr = Bindings.create_batch_otel_span
-      rescue StandardError => e
-        warn "Failed to create OpenTelemetry batch span: #{e.message}"
-        span_ptr = 0
-      end
-    end
-
-    begin
-      res = Bindings.batch(
-        @connection,
-        0,
-        batch_info,
-        exception,
-        batch_options.to_ptr,
-        span_ptr
-      )
-
-      results = convert_response(res)
-    ensure
-      # Always drop the span if one was created
-      if span_ptr != 0
-        begin
-          Bindings.drop_otel_span(span_ptr)
-        rescue StandardError => e
-          warn "Failed to drop OpenTelemetry batch span: #{e.message}"
-        end
-      end
-    end
-
-    blocks.each_with_index do |block, i|
-      results[i] = block.call(results[i]) if block
-    end
-
-    results
-  end
-
-  def build_command_args(command_args)
-    # For empty arrays, pass NULL pointers as per Rust FFI contract
-    # This matches Go's approach which successfully uses nil pointers
-    return [FFI::Pointer::NULL, FFI::Pointer::NULL, []] if command_args.empty?
-
-    arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
-    arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
-    buffers = []
-
-    command_args.each_with_index do |arg, i|
-      arg = arg.to_s # Ensure we convert to string
-
-      buf = FFI::MemoryPointer.from_string(arg.to_s)
-      buffers << buf # prevent garbage collection
-      arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
-      arg_lens.put_ulong(i * 8, arg.bytesize)
-    end
-
-    [arg_ptrs, arg_lens, buffers]
-  end
-
-  def convert_response(res, &block)
-    result = Bindings::CommandResult.new(res)
-
-    if result[:response].null?
-      error = result[:command_error]
-
-      case error[:command_error_type]
-      when RequestErrorType::EXECABORT, RequestErrorType::UNSPECIFIED
-        raise CommandError, error[:command_error_message]
-      when RequestErrorType::TIMEOUT
-        raise TimeoutError, error[:command_error_message]
-      when RequestErrorType::DISCONNECT
-        raise ConnectionError, error[:command_error_message]
-      else
-        raise "Unknown error type: #{error[:command_error_type]}"
-      end
-    end
-
-    result = result[:response]
-
-    convert_response = lambda { |response_item|
-      # TODO: handle all types of responses
-      case response_item[:response_type]
-      when ResponseType::STRING
-        response_item[:string_value].read_string(response_item[:string_value_len])
-      when ResponseType::INT
-        response_item[:int_value]
-      when ResponseType::FLOAT
-        response_item[:float_value]
-      when ResponseType::BOOL
-        response_item[:bool_value]
-      when ResponseType::ARRAY
-        ptr = response_item[:array_value]
-        count = response_item[:array_value_len].to_i
-        return [] if count.zero? || ptr.null?
-
-        count.times.map do |i|
-          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
-          convert_response.call(item)
-        end
-      when ResponseType::MAP
-        return nil if response_item[:array_value].null?
-
-        ptr = response_item[:array_value]
-        count = response_item[:array_value_len].to_i
-        map = {}
-
-        Array.new(count) do |i|
-          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
-
-          map_key = convert_response.call(Bindings::CommandResponse.new(item[:map_key]))
-          map_value = convert_response.call(Bindings::CommandResponse.new(item[:map_value]))
-
-          map[map_key] = map_value
-        end
-
-        # technically it has to return a Hash, but as of now we return just one pair
-        map.to_a.flatten(1) # Flatten to get pairs
-      when ResponseType::SETS
-        ptr = response_item[:sets_value]
-        count = response_item[:sets_value_len].to_i
-
-        Array.new(count) do |i|
-          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
-          convert_response.call(item)
-        end
-      when ResponseType::NULL
-        nil
-      when ResponseType::OK
-        "OK"
-      when ResponseType::ERROR
-        # For errors in arrays (like EXEC responses), return an error object
-        # instead of raising. The error message is typically in string_value.
-        error_msg = if response_item[:string_value].null?
-                      "Unknown error"
-                    else
-                      response_item[:string_value].read_string(response_item[:string_value_len])
-                    end
-        CommandError.new(error_msg)
-      else
-        raise "Unsupported response type: #{response_item[:response_type]}"
-      end
-    }
-
-    response = convert_response.call(result)
-
-    if block_given?
-      block.call(response)
-    else
-      response
-    end
-  end
-
-  def send_command(command_type, command_args = [], &block)
-    # Validate connection. A nil/null pointer means the client was closed (or
-    # never established a usable connection); surface it as a typed error with
-    # the same "the client is closed" wording the sibling GLIDE clients use
-    # (Go ClosingError, Node/Java ClosingException).
-    raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
-
-    channel = 0
-    route = ""
-
-    route_buf = FFI::MemoryPointer.from_string(route)
-
-    # Handle empty command_args case
-    if command_args.empty?
-      arg_ptrs = FFI::MemoryPointer.new(:pointer, 1)
-      arg_lens = FFI::MemoryPointer.new(:ulong, 1)
-      arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
-      arg_lens.put_ulong(0, 0)
-      _buffers = [] # nothing to keep alive
-    else
-      arg_ptrs, arg_lens, _buffers = build_command_args(command_args)
-    end
-
-    # Create OpenTelemetry span if sampling is enabled
-    # TODO: add parent span propagation via create_otel_span_with_parent
-    # to support distributed tracing context (see Go client base_client.go for reference)
-    span_ptr = 0
-    if OpenTelemetry.should_sample?
-      begin
-        span_ptr = Bindings.create_otel_span(command_type)
-      rescue StandardError => e
-        # Log error but continue execution - tracing is non-critical
-        warn "Failed to create OpenTelemetry span: #{e.message}"
-        span_ptr = 0
-      end
-    end
-
-    begin
-      res = Bindings.command(
-        @connection,
-        channel,
-        command_type,
-        command_args.size,
-        arg_ptrs,
-        arg_lens,
-        route_buf,
-        route.bytesize,
-        span_ptr
-      )
-
-      result = convert_response(res, &block)
-    ensure
-      # Always drop the span if one was created, even if command fails
-      if span_ptr != 0
-        begin
-          Bindings.drop_otel_span(span_ptr)
-        rescue StandardError => e
-          # Log but don't raise - span cleanup errors shouldn't break command execution
-          warn "Failed to drop OpenTelemetry span: #{e.message}"
-        end
-      end
-    end
-
-    # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
-    if @in_multi && !@queued_commands.nil?
-      tx_commands = [
-        RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD,
-        RequestType::WATCH, RequestType::UNWATCH
-      ]
-      @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
-    end
-
-    result
   end
 
   def initialize(options = {})
@@ -413,6 +128,29 @@ class Valkey
 
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
+
+    # read_from parsing.
+    json_options["read_from"] = options[:read_from] if options[:read_from]
+
+    # client_az
+    json_options["client_az"] = options[:client_az] if options[:client_az]
+
+    unless json_options["client_az"]
+      case json_options["read_from"]
+      when ReadFrom::AZ_AFFINITY
+        raise ArgumentError, "client_az must be set when read_from is AZAffinity"
+      when ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
+        raise ArgumentError, "client_az must be set when read_from is AZAffinityReplicasAndPrimary"
+      end
+    end
+
+    if options.key?(:inflight_requests_limit)
+      json_options["inflight_requests_limit"] = options[:inflight_requests_limit]
+    end
+
+    json_options["lazy_connect"] = options[:lazy_connect] if options.key?(:lazy_connect)
+
+    json_options["periodic_checks"] = build_periodic_checks(options[:periodic_checks]) if options.key?(:periodic_checks)
 
     # TLS/SSL certificates
     root_certs = []
@@ -611,4 +349,321 @@ class Valkey
   end
 
   alias get_statistics statistics
+
+  # Sends a single low-level command to the server, converting the response to
+  # a Ruby value. This is the primitive every command method in
+  # `lib/valkey/commands/*.rb` is built on. Public (rather than private) because
+  # some test helpers (e.g. `test/lint/vector_search_commands.rb`,
+  # `test/valkey/connection_lifecycle_test.rb`) call it directly with an
+  # explicit receiver to issue commands with no dedicated wrapper method yet
+  # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
+  def send_command(command_type, command_args = [], &block)
+    # Validate connection. A nil/null pointer means the client was closed (or
+    # never established a usable connection); surface it as a typed error with
+    # the same "the client is closed" wording the sibling GLIDE clients use
+    # (Go ClosingError, Node/Java ClosingException).
+    raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
+
+    channel = 0
+    route = ""
+
+    route_buf = FFI::MemoryPointer.from_string(route)
+
+    # Handle empty command_args case
+    if command_args.empty?
+      arg_ptrs = FFI::MemoryPointer.new(:pointer, 1)
+      arg_lens = FFI::MemoryPointer.new(:ulong, 1)
+      arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
+      arg_lens.put_ulong(0, 0)
+      _buffers = [] # nothing to keep alive
+    else
+      arg_ptrs, arg_lens, _buffers = build_command_args(command_args)
+    end
+
+    # Create OpenTelemetry span if sampling is enabled
+    # TODO: add parent span propagation via create_otel_span_with_parent
+    # to support distributed tracing context (see Go client base_client.go for reference)
+    span_ptr = 0
+    if OpenTelemetry.should_sample?
+      begin
+        span_ptr = Bindings.create_otel_span(command_type)
+      rescue StandardError => e
+        # Log error but continue execution - tracing is non-critical
+        warn "Failed to create OpenTelemetry span: #{e.message}"
+        span_ptr = 0
+      end
+    end
+
+    begin
+      res = Bindings.command(
+        @connection,
+        channel,
+        command_type,
+        command_args.size,
+        arg_ptrs,
+        arg_lens,
+        route_buf,
+        route.bytesize,
+        span_ptr
+      )
+
+      result = convert_response(res, &block)
+    ensure
+      # Always drop the span if one was created, even if command fails
+      if span_ptr != 0
+        begin
+          Bindings.drop_otel_span(span_ptr)
+        rescue StandardError => e
+          # Log but don't raise - span cleanup errors shouldn't break command execution
+          warn "Failed to drop OpenTelemetry span: #{e.message}"
+        end
+      end
+    end
+
+    # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
+    if @in_multi && !@queued_commands.nil?
+      tx_commands = [
+        RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD,
+        RequestType::WATCH, RequestType::UNWATCH
+      ]
+      @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
+    end
+
+    result
+  end
+
+  private
+
+  def send_batch_commands(commands, exception: true)
+    # WORKAROUND: The underlying Glide FFI backend has stability issues when
+    # batching transactional commands like MULTI / EXEC / DISCARD. To avoid
+    # native crashes we fall back to issuing those commands sequentially
+    # instead of via `Bindings.batch`.
+    tx_types = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD]
+
+    if commands.any? { |(command_type, _args, _block)| tx_types.include?(command_type) }
+      results = []
+
+      commands.each do |command_type, command_args, block|
+        res = send_command(command_type, command_args)
+        res = block.call(res) if block
+        results << res
+      end
+
+      return results
+    end
+
+    cmds = []
+    blocks = []
+    buffers = [] # Keep references to prevent GC
+
+    commands.each do |command_type, command_args, block|
+      arg_ptrs, arg_lens, arg_bufs = build_command_args(command_args)
+
+      cmd = Bindings::CmdInfo.new
+      cmd[:request_type] = command_type
+      cmd[:args] = arg_ptrs
+      cmd[:arg_count] = command_args.size
+      cmd[:args_len] = arg_lens
+
+      cmds << cmd
+      blocks << block
+      buffers << [arg_ptrs, arg_lens, arg_bufs] # Prevent GC
+    end
+
+    # Create array of pointers to CmdInfo structs
+    cmd_ptrs = FFI::MemoryPointer.new(:pointer, cmds.size)
+    cmds.each_with_index do |cmd, i|
+      cmd_ptrs[i].put_pointer(0, cmd.to_ptr)
+    end
+
+    batch_info = Bindings::BatchInfo.new
+    batch_info[:cmd_count] = cmds.size
+    batch_info[:cmds] = cmd_ptrs
+    batch_info[:is_atomic] = false
+
+    batch_options = Bindings::BatchOptionsInfo.new
+    batch_options[:retry_server_error] = true
+    batch_options[:retry_connection_error] = true
+    batch_options[:has_timeout] = false
+    batch_options[:timeout] = 0 # No timeout
+    batch_options[:route_info] = FFI::Pointer::NULL
+
+    # Create OpenTelemetry span for batch operation if sampling is enabled
+    # TODO: add parent span propagation via create_batch_otel_span_with_parent
+    # to support distributed tracing context (see Go client base_client.go for reference)
+    span_ptr = 0
+    if OpenTelemetry.should_sample?
+      begin
+        span_ptr = Bindings.create_batch_otel_span
+      rescue StandardError => e
+        warn "Failed to create OpenTelemetry batch span: #{e.message}"
+        span_ptr = 0
+      end
+    end
+
+    begin
+      res = Bindings.batch(
+        @connection,
+        0,
+        batch_info,
+        exception,
+        batch_options.to_ptr,
+        span_ptr
+      )
+
+      results = convert_response(res)
+    ensure
+      # Always drop the span if one was created
+      if span_ptr != 0
+        begin
+          Bindings.drop_otel_span(span_ptr)
+        rescue StandardError => e
+          warn "Failed to drop OpenTelemetry batch span: #{e.message}"
+        end
+      end
+    end
+
+    blocks.each_with_index do |block, i|
+      results[i] = block.call(results[i]) if block
+    end
+
+    results
+  end
+
+  # Builds the `periodic_checks` extra_options_json value. Accepts
+  # `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true/false }`
+  # (symbol or string keys). Only checks shape (Hash present, manual_interval
+  # is a Hash) to avoid a NoMethodError -- the core validates values.
+  def build_periodic_checks(periodic_checks)
+    unless periodic_checks.is_a?(Hash)
+      raise ArgumentError, "periodic_checks must be a Hash, got: #{periodic_checks.class}"
+    end
+
+    if periodic_checks.key?(:disabled) || periodic_checks.key?("disabled")
+      disabled = periodic_checks.key?(:disabled) ? periodic_checks[:disabled] : periodic_checks["disabled"]
+      return { "disabled" => disabled }
+    end
+
+    manual_interval = periodic_checks[:manual_interval] || periodic_checks["manual_interval"]
+    raise ArgumentError, "periodic_checks must contain :manual_interval or :disabled" unless manual_interval.is_a?(Hash)
+
+    duration_in_sec = manual_interval[:duration_in_sec] || manual_interval["duration_in_sec"]
+
+    { "manual_interval" => { "duration_in_sec" => duration_in_sec } }
+  end
+
+  def build_command_args(command_args)
+    # For empty arrays, pass NULL pointers as per Rust FFI contract
+    # This matches Go's approach which successfully uses nil pointers
+    return [FFI::Pointer::NULL, FFI::Pointer::NULL, []] if command_args.empty?
+
+    arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
+    arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
+    buffers = []
+
+    command_args.each_with_index do |arg, i|
+      arg = arg.to_s # Ensure we convert to string
+
+      buf = FFI::MemoryPointer.from_string(arg.to_s)
+      buffers << buf # prevent garbage collection
+      arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
+      arg_lens.put_ulong(i * 8, arg.bytesize)
+    end
+
+    [arg_ptrs, arg_lens, buffers]
+  end
+
+  def convert_response(res, &block)
+    result = Bindings::CommandResult.new(res)
+
+    if result[:response].null?
+      error = result[:command_error]
+
+      case error[:command_error_type]
+      when RequestErrorType::EXECABORT, RequestErrorType::UNSPECIFIED
+        raise CommandError, error[:command_error_message]
+      when RequestErrorType::TIMEOUT
+        raise TimeoutError, error[:command_error_message]
+      when RequestErrorType::DISCONNECT
+        raise ConnectionError, error[:command_error_message]
+      else
+        raise "Unknown error type: #{error[:command_error_type]}"
+      end
+    end
+
+    result = result[:response]
+
+    convert_response = lambda { |response_item|
+      # TODO: handle all types of responses
+      case response_item[:response_type]
+      when ResponseType::STRING
+        response_item[:string_value].read_string(response_item[:string_value_len])
+      when ResponseType::INT
+        response_item[:int_value]
+      when ResponseType::FLOAT
+        response_item[:float_value]
+      when ResponseType::BOOL
+        response_item[:bool_value]
+      when ResponseType::ARRAY
+        ptr = response_item[:array_value]
+        count = response_item[:array_value_len].to_i
+        return [] if count.zero? || ptr.null?
+
+        count.times.map do |i|
+          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
+          convert_response.call(item)
+        end
+      when ResponseType::MAP
+        return nil if response_item[:array_value].null?
+
+        ptr = response_item[:array_value]
+        count = response_item[:array_value_len].to_i
+        map = {}
+
+        Array.new(count) do |i|
+          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
+
+          map_key = convert_response.call(Bindings::CommandResponse.new(item[:map_key]))
+          map_value = convert_response.call(Bindings::CommandResponse.new(item[:map_value]))
+
+          map[map_key] = map_value
+        end
+
+        # technically it has to return a Hash, but as of now we return just one pair
+        map.to_a.flatten(1) # Flatten to get pairs
+      when ResponseType::SETS
+        ptr = response_item[:sets_value]
+        count = response_item[:sets_value_len].to_i
+
+        Array.new(count) do |i|
+          item = Bindings::CommandResponse.new(ptr + (i * Bindings::CommandResponse.size))
+          convert_response.call(item)
+        end
+      when ResponseType::NULL
+        nil
+      when ResponseType::OK
+        "OK"
+      when ResponseType::ERROR
+        # For errors in arrays (like EXEC responses), return an error object
+        # instead of raising. The error message is typically in string_value.
+        error_msg = if response_item[:string_value].null?
+                      "Unknown error"
+                    else
+                      response_item[:string_value].read_string(response_item[:string_value_len])
+                    end
+        CommandError.new(error_msg)
+      else
+        raise "Unsupported response type: #{response_item[:response_type]}"
+      end
+    }
+
+    response = convert_response.call(result)
+
+    if block_given?
+      block.call(response)
+    else
+      response
+    end
+  end
 end
