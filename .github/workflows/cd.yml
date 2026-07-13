@@ -102,16 +102,31 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y musl-tools
+          # Create a wrapper script that ensures static libgcc linking
+          sudo bash -c 'cat > /usr/local/bin/musl-gcc-wrapper << "WRAPPER"
+          #!/bin/bash
+          # Replace -lgcc_s with static libgcc to avoid missing libgcc_s.so.1
+          args=()
+          for arg in "$@"; do
+            if [ "$arg" = "-lgcc_s" ]; then
+              args+=("-lgcc")
+            else
+              args+=("$arg")
+            fi
+          done
+          exec musl-gcc "${args[@]}"
+          WRAPPER'
+          sudo chmod +x /usr/local/bin/musl-gcc-wrapper
 
       - name: Add Rust musl target
         if: contains(matrix.host.TARGET, 'musl')
         run: |
           rustup target add ${{ matrix.host.TARGET }}
-          # Configure Cargo to use musl-gcc as the linker for musl targets
+          # Configure Cargo to use musl-gcc wrapper as the linker for musl targets
           mkdir -p ~/.cargo
           cat >> ~/.cargo/config.toml <<EOF
           [target.${{ matrix.host.TARGET }}]
-          linker = "musl-gcc"
+          linker = "musl-gcc-wrapper"
           EOF
 
       - name: Build native library
@@ -119,7 +134,7 @@ jobs:
         env:
           GLIDE_NAME: GlideRuby
           GLIDE_VERSION: ${{ env.RELEASE_VERSION }}
-          RUSTFLAGS: ${{ contains(matrix.host.TARGET, 'musl') && '-C target-feature=-crt-static -C link-arg=-static-libgcc' || '' }}
+          RUSTFLAGS: ${{ contains(matrix.host.TARGET, 'musl') && '-C target-feature=-crt-static' || '' }}
         run: |
           if [[ "${{ matrix.host.TARGET }}" == *"musl"* ]]; then
             cargo build --release --target ${{ matrix.host.TARGET }}
