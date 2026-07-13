@@ -119,7 +119,7 @@ jobs:
         env:
           GLIDE_NAME: GlideRuby
           GLIDE_VERSION: ${{ env.RELEASE_VERSION }}
-          RUSTFLAGS: ${{ contains(matrix.host.TARGET, 'musl') && '-C target-feature=-crt-static' || '' }}
+          RUSTFLAGS: ${{ contains(matrix.host.TARGET, 'musl') && '-C target-feature=-crt-static -C link-arg=-static-libgcc' || '' }}
         run: |
           if [[ "${{ matrix.host.TARGET }}" == *"musl"* ]]; then
             cargo build --release --target ${{ matrix.host.TARGET }}
