@@ -453,6 +453,176 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
+    # --- Structured ft_create tests (fields: / options:) ---
+
+    def test_ft_create_structured_text_field
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [Valkey::Search::TextField.new("title")])
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_multiple_fields
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [
+                               Valkey::Search::TextField.new("title", sortable: true),
+                               Valkey::Search::NumericField.new("price", sortable: true),
+                               Valkey::Search::TagField.new("category")
+                             ])
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_with_options
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [
+                               Valkey::Search::TextField.new("title"),
+                               Valkey::Search::NumericField.new("price")
+                             ],
+                             options: Valkey::Search::FtCreateOptions.new(
+                               data_type: :hash,
+                               prefixes: ["product:"]
+                             ))
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+
+        # Verify it actually indexes prefixed keys
+        r.send_command(Valkey::RequestType::HSET, ["product:1", "title", "Widget", "price", "9.99"])
+        sleep 0.1
+        results = r.ft_search(TEST_INDEX, "Widget")
+        assert_kind_of Array, results
+        count = results[0]
+        assert(count.is_a?(Integer) ? count >= 1 : count.to_i >= 1,
+               "Should find at least one document")
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_vector_flat
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [
+                               Valkey::Search::TextField.new("title"),
+                               Valkey::Search::VectorFieldFlat.new("embedding",
+                                                                   dim: 128,
+                                                                   distance_metric: :cosine)
+                             ],
+                             options: Valkey::Search::FtCreateOptions.new(
+                               data_type: :hash,
+                               prefixes: ["doc:"]
+                             ))
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_vector_hnsw
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [
+                               Valkey::Search::TextField.new("title"),
+                               Valkey::Search::VectorFieldHnsw.new("embedding",
+                                                                   dim: 768,
+                                                                   distance_metric: :l2,
+                                                                   m: 16,
+                                                                   ef_construction: 200,
+                                                                   ef_runtime: 10)
+                             ],
+                             options: Valkey::Search::FtCreateOptions.new(
+                               data_type: :hash,
+                               prefixes: ["vec:"]
+                             ))
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_json_data_type
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [
+                               Valkey::Search::TextField.new("$.title", field_alias: "title"),
+                               Valkey::Search::NumericField.new("$.price", field_alias: "price")
+                             ],
+                             options: Valkey::Search::FtCreateOptions.new(
+                               data_type: :json,
+                               prefixes: ["item:"]
+                             ))
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_with_stopwords
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [Valkey::Search::TextField.new("body")],
+                             options: Valkey::Search::FtCreateOptions.new(
+                               stopwords: ["the", "a", "is"]
+                             ))
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_create_structured_tag_with_separator
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             fields: [
+                               Valkey::Search::TagField.new("tags", separator: ";",
+                                                            case_sensitive: true)
+                             ],
+                             options: Valkey::Search::FtCreateOptions.new(
+                               data_type: :hash,
+                               prefixes: ["item:"]
+                             ))
+        assert_equal "OK", result
+        assert index_exists?(TEST_INDEX)
+
+        # Verify separator works
+        r.send_command(Valkey::RequestType::HSET, ["item:1", "tags", "ruby;python;go"])
+        sleep 0.1
+        results = r.ft_search(TEST_INDEX, "@tags:{ruby}")
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
     private
 
     # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB

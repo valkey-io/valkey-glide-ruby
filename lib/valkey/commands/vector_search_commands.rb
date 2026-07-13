@@ -99,24 +99,57 @@ class Valkey
 
       # Create a search index with the given schema.
       #
-      # @example Create a basic index
+      # Supports two calling conventions:
+      #
+      # 1. **Raw args** (original interface, backward-compatible):
+      #    Pass all FT.CREATE arguments as positional strings.
+      #
+      # 2. **Structured options** (new, recommended):
+      #    Pass +fields:+ (array of {Valkey::Search::Field} subclasses) and
+      #    optionally +options:+ ({Valkey::Search::FtCreateOptions}).
+      #
+      # @example Raw args (backward-compatible)
       #   valkey.ft_create("myIndex", "SCHEMA", "title", "TEXT", "price", "NUMERIC")
       #     # => "OK"
       #
-      # @example Create an index with vector field
+      # @example Raw args with vector field
       #   valkey.ft_create("vecIndex", "ON", "HASH", "PREFIX", "1", "doc:",
       #                    "SCHEMA", "embedding", "VECTOR", "HNSW", "6",
       #                    "TYPE", "FLOAT32", "DIM", "128", "DISTANCE_METRIC", "COSINE")
       #     # => "OK"
       #
-      # @param [String] index the index name
-      # @param [Array<String>] args schema definition and options
+      # @example Structured options
+      #   valkey.ft_create("myIndex",
+      #     fields: [
+      #       Valkey::Search::TextField.new("title", sortable: true),
+      #       Valkey::Search::NumericField.new("price", sortable: true),
+      #       Valkey::Search::VectorFieldHnsw.new("embedding",
+      #         dim: 128, distance_metric: :cosine)
+      #     ],
+      #     options: Valkey::Search::FtCreateOptions.new(
+      #       data_type: :hash, prefixes: ["doc:"]
+      #     )
+      #   )
+      #     # => "OK"
+      #
+      # @param index [String] the index name
+      # @param args [Array<String>] raw schema definition and options (legacy interface)
+      # @param fields [Array<Valkey::Search::Field>, nil] structured field definitions
+      # @param options [Valkey::Search::FtCreateOptions, nil] index-level options
       # @return [String] "OK" on success
       #
-      # @see https://redis.io/commands/ft.create/
-      def ft_create(index, *args)
-        command_args = [index] + args
-        send_command(RequestType::FT_CREATE, command_args)
+      # @see https://valkey.io/commands/ft.create/
+      def ft_create(index, *args, fields: nil, options: nil)
+        if fields
+          command_args = [index]
+          command_args.concat(options.to_args) if options
+          command_args << "SCHEMA"
+          fields.each { |field| command_args.concat(field.to_args) }
+          send_command(RequestType::FT_CREATE, command_args)
+        else
+          command_args = [index] + args
+          send_command(RequestType::FT_CREATE, command_args)
+        end
       end
 
       # Drop an index and optionally delete all documents.
