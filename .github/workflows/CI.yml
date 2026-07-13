@@ -396,7 +396,7 @@ jobs:
         shell: bash
         run: |
           # Determine the platform directory that Ruby would resolve on this system
-          PLATFORM_DIR=$(bundle exec ruby -e "require 'valkey/bindings'; puts Valkey::Bindings.platform_info[:platform_dir]")
+          PLATFORM_DIR=$(bundle exec ruby -e "require 'ffi'; require 'rbconfig'; require 'valkey/bindings'; puts Valkey::Bindings.platform_info[:platform_dir]")
           echo "Detected platform_dir: $PLATFORM_DIR"
 
           # Verify it's the musl variant
