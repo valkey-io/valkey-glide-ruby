@@ -105,7 +105,14 @@ jobs:
 
       - name: Add Rust musl target
         if: contains(matrix.host.TARGET, 'musl')
-        run: rustup target add ${{ matrix.host.TARGET }}
+        run: |
+          rustup target add ${{ matrix.host.TARGET }}
+          # Configure Cargo to use musl-gcc as the linker for musl targets
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml <<EOF
+          [target.${{ matrix.host.TARGET }}]
+          linker = "musl-gcc"
+          EOF
 
       - name: Build native library
         working-directory: valkey-glide/ffi
