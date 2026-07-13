@@ -388,6 +388,32 @@ jobs:
         shell: bash
         run: bundle install
 
+      - name: Verify platform_info resolves correctly on musl
+        shell: bash
+        run: |
+          # Determine the platform directory that Ruby would resolve on this system
+          PLATFORM_DIR=$(bundle exec ruby -e "require 'valkey/bindings'; puts Valkey::Bindings.platform_info[:platform_dir]")
+          echo "Detected platform_dir: $PLATFORM_DIR"
+
+          # Verify it's the musl variant
+          if [[ "$PLATFORM_DIR" != *"-musl" ]]; then
+            echo "ERROR: Expected musl platform_dir but got: $PLATFORM_DIR"
+            exit 1
+          fi
+
+          # Copy library to the native path (simulating gem install layout)
+          mkdir -p lib/valkey/native/$PLATFORM_DIR
+          cp valkey-glide/ffi/target/release/libglide_ffi.so lib/valkey/native/$PLATFORM_DIR/
+
+          # Remove the submodule build output so Ruby must use the native/ path
+          mv valkey-glide/ffi/target/release/libglide_ffi.so valkey-glide/ffi/target/release/libglide_ffi.so.bak
+
+          # Verify the gem loads successfully from the native path
+          bundle exec ruby -e "require 'valkey'; client = Valkey.new(host: 'localhost', port: 6379, lazy_connect: true); puts 'Library loaded from native/$PLATFORM_DIR successfully'"
+
+          # Restore the library for subsequent test steps
+          mv valkey-glide/ffi/target/release/libglide_ffi.so.bak valkey-glide/ffi/target/release/libglide_ffi.so
+
       - name: Start standalone server
         shell: bash
         run: |
