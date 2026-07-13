@@ -15,6 +15,8 @@ require "valkey/errors"
 require "valkey/pubsub_callback"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
+require "valkey/search/field"
+require "valkey/search/ft_create_options"
 
 class Valkey
   include Utils

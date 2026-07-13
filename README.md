@@ -257,6 +257,17 @@ For AI-assisted development, see [AGENTS.md](./AGENTS.md) and [CLAUDE.md](./CLAU
 
 Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## Project Documentation (SDD)
+
+Detailed project documentation lives in the `sdd/` directory:
+
+- `sdd/PRODUCT.md` — Product definition and rationale
+- `sdd/TECH.md` — Technical architecture and system diagram
+- `sdd/TDD.md` — Test specifications (Given/When/Then rubrics)
+- `sdd/POLICY.md` — Development rules and constraints
+
+For AI-assisted development, see [AGENTS.md](./AGENTS.md) and [CLAUDE.md](./CLAUDE.md).
+
 ## Community and Feedback
 
 We encourage you to join our community to support, share feedback, and ask questions on Valkey Slack: [Join Valkey Slack](https://join.slack.com/t/valkey-oss-developer/shared_invite/zt-2nxs51chx-EB9hu9Qdch3GMfRcztTSkQ).
