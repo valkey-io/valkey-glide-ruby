@@ -36,8 +36,7 @@ The release of Valkey GLIDE Ruby was tested on the following platforms:
 
 - Ubuntu 20+ (x86_64/amd64 and arm64/aarch64)
 - Amazon Linux 2 (AL2) and 2023 (AL2023) (x86_64)
-
-**Note:** Alpine Linux / MUSL is **not** currently supported.
+- Alpine Linux 3.18+ (x86_64 and arm64/aarch64) — musl libc
 
 **macOS:**
 
@@ -137,6 +136,45 @@ end
 
 > **Note:** Transactional commands (`MULTI` / `EXEC` / `DISCARD`) in a pipeline are executed sequentially as a workaround for FFI batch stability. Prefer `multi` / `exec` on the main client for transactions.
 
+### Generic Command Dispatch (`call` / `call_v`)
+
+Not every command has a dedicated method yet. `call`/`call_v` are the escape hatch — send any
+command as plain arguments and get the raw reply back, matching `redis-client`'s `#call`/`#call_v`:
+
+```ruby
+client.call("SET", "mykey", "value")
+# => "OK"
+
+client.call_v(["MGET"] + keys)
+```
+
+`call`/`call_v` apply the same argument coercion as `redis-client`:
+
+```ruby
+# Integers/Floats auto-stringify
+client.call("SET", "mykey", 42)
+# equivalent to call("SET", "mykey", "42")
+
+# Arrays flatten (including nested arrays)
+client.call("LPUSH", "list", [1, 2, 3])
+# equivalent to call("LPUSH", "list", "1", "2", "3")
+
+# Hashes flatten to alternating key/value
+client.call("HMSET", "hash", { "foo" => "1" })
+# equivalent to call("HMSET", "hash", "foo", "1")
+
+# Keyword args become trailing command flags (call only, not call_v):
+# a truthy value emits the upcased flag name; a non-boolean value also emits
+# the stringified value. Falsy/nil values are dropped entirely, not stringified.
+client.call("SET", "k", "v", nx: true, ex: 60)
+# equivalent to call("SET", "k", "v", "NX", "EX", "60")
+client.call("SET", "k", "v", nx: false, ex: nil)
+# equivalent to call("SET", "k", "v")
+```
+
+`call_v` takes the whole command as a single Array (no keyword flags) — useful when the command is
+built dynamically. Both return the raw reply with no type-casting based on the command name.
+
 ### Connection Options (redis-rb compatible)
 
 | Option | Description |
@@ -153,6 +191,11 @@ end
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
 | `reconnect_attempts`, `reconnect_delay`, `reconnect_delay_max` | Connection retry strategy |
+| `read_from` *(GLIDE-native)* | Read routing: `:primary`, `:prefer_replica`, `:az_affinity`, `:az_affinity_replicas_and_primary` symbols, the exact-match GLIDE strings (e.g. `"PreferReplica"`), or the `Valkey::ReadFrom::*` constants (e.g. `Valkey::ReadFrom::PREFER_REPLICA`). `:az_affinity`/`:az_affinity_replicas_and_primary` require `client_az` to also be set. `LowestLatency` is a valid GLIDE value but not yet usable via the vendored native library. |
+| `client_az` *(GLIDE-native)* | Availability-zone identifier for `:az_affinity` / `:az_affinity_replicas_and_primary` routing (e.g. `"us-west-2a"`) |
+| `inflight_requests_limit` *(GLIDE-native)* | Maximum concurrent in-flight requests (non-negative integer) |
+| `lazy_connect` *(GLIDE-native)* | Delay the actual connection until the first command is sent |
+| `periodic_checks` *(GLIDE-native)* | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
 
 ```ruby
 client = Valkey.new(

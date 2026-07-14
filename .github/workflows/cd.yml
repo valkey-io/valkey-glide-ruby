@@ -97,19 +97,56 @@ jobs:
         if: matrix.host.OS == 'macos'
         run: brew install openssl
 
+      - name: Install musl toolchain
+        if: contains(matrix.host.TARGET, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          # Create a wrapper script that ensures static libgcc linking
+          sudo bash -c 'cat > /usr/local/bin/musl-gcc-wrapper << "WRAPPER"
+          #!/bin/bash
+          # Replace -lgcc_s with static libgcc to avoid missing libgcc_s.so.1
+          args=()
+          for arg in "$@"; do
+            if [ "$arg" = "-lgcc_s" ]; then
+              args+=("-lgcc")
+            else
+              args+=("$arg")
+            fi
+          done
+          exec musl-gcc "${args[@]}"
+          WRAPPER'
+          sudo chmod +x /usr/local/bin/musl-gcc-wrapper
+
+      - name: Add Rust musl target
+        if: contains(matrix.host.TARGET, 'musl')
+        run: |
+          rustup target add ${{ matrix.host.TARGET }}
+          # Configure Cargo to use musl-gcc wrapper as the linker for musl targets
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml <<EOF
+          [target.${{ matrix.host.TARGET }}]
+          linker = "musl-gcc-wrapper"
+          EOF
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         env:
           GLIDE_NAME: GlideRuby
           GLIDE_VERSION: ${{ env.RELEASE_VERSION }}
+          RUSTFLAGS: ${{ contains(matrix.host.TARGET, 'musl') && '-C target-feature=-crt-static' || '' }}
         run: |
-          cargo build --release
+          if [[ "${{ matrix.host.TARGET }}" == *"musl"* ]]; then
+            cargo build --release --target ${{ matrix.host.TARGET }}
+          else
+            cargo build --release
+          fi
 
       - name: Upload native library artifact
         uses: actions/upload-artifact@v4
         with:
           name: native-lib-${{ matrix.host.TARGET }}
-          path: valkey-glide/ffi/target/release/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
+          path: valkey-glide/ffi/target/${{ contains(matrix.host.TARGET, 'musl') && format('{0}/release', matrix.host.TARGET) || 'release' }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   build-and-publish-gem:
@@ -231,6 +268,11 @@ jobs:
       fail-fast: false
       matrix:
         host: ${{ fromJson(needs.load-platform-matrix.outputs.PLATFORM_MATRIX) }}
+        exclude:
+          - host:
+              TARGET: "x86_64-unknown-linux-musl"
+          - host:
+              TARGET: "aarch64-unknown-linux-musl"
 
     runs-on: ${{ matrix.host.RUNNER }}
     env:
@@ -330,3 +372,107 @@ jobs:
         if: always()
         run: |
           python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+
+  test-gem-musl:
+    name: Test Gem (musl)
+    needs: [set-release-version, build-and-publish-gem]
+    runs-on: ubuntu-24.04
+    container:
+      image: ruby:3.3-alpine
+      options: --user root --privileged
+    timeout-minutes: 35
+    env:
+      RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+
+    steps:
+      - name: Install system dependencies
+        run: apk add --no-cache build-base python3 openssl openssl-dev git curl bash linux-headers
+
+      - name: Checkout (for test files)
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          submodules: recursive
+
+      - name: Download gem artifact (unpublished)
+        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ruby-gem
+          path: .
+
+      - name: Install gem from artifact (unpublished)
+        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
+        shell: bash
+        run: |
+          GEM_FILE=$(ls *.gem | head -1)
+          echo "Installing gem from artifact: ${GEM_FILE}"
+          gem install "${GEM_FILE}"
+          echo "Installed gem:"
+          GEM_NAME=$(ruby -e "puts Gem::Specification.load('valkey.gemspec').name")
+          gem list "${GEM_NAME}"
+
+      - name: Install gem from RubyGems (published)
+        if: ${{ needs.build-and-publish-gem.outputs.published == 'true' }}
+        shell: bash
+        run: |
+          echo "Installing published gem from RubyGems..."
+          sleep 30
+          GEM_NAME=$(ruby -e "puts Gem::Specification.load('valkey.gemspec').name")
+          echo "Installing gem: ${GEM_NAME}"
+          gem install "${GEM_NAME}" --version "${{ env.RELEASE_VERSION }}" || gem install "${GEM_NAME}" --pre
+          echo "Installed gem:"
+          gem list "${GEM_NAME}"
+
+      - name: Verify gem loading
+        shell: bash
+        run: |
+          ruby -e "
+            require 'valkey'
+            puts 'Valkey gem loaded successfully on Alpine (musl)!'
+            puts 'FFI library loaded: OK'
+          "
+
+      - name: Install test dependencies
+        shell: bash
+        run: |
+          gem install minitest -v 5.27.0
+          gem install minitest-reporters -v 1.8.0
+          gem install ansi
+          gem install ruby-progressbar
+          gem install rake
+
+      - name: Build and install Valkey engine
+        shell: bash
+        run: |
+          git clone https://github.com/valkey-io/valkey.git valkey-engine
+          cd valkey-engine
+          git checkout 9.0
+          make BUILD_TLS=yes -j$(nproc)
+          make install
+
+      - name: Start standalone server
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
+
+      - name: Start cluster
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start --cluster-mode -r 1 -n 3 --prefix cluster
+          echo "Cluster started"
+
+      - name: Run tests
+        shell: bash
+        env:
+          TEST_INSTALLED_GEM: "true"
+        run: |
+          rm -rf lib/
+          rake test
+
+      - name: Stop servers
+        if: always()
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix cluster || true
