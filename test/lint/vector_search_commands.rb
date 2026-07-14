@@ -623,6 +623,317 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
+    # --- Structured ft_search tests (options:) ---
+
+    def test_ft_search_structured_basic
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "goodbye world"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello",
+                             options: Valkey::Search::FtSearchOptions.new)
+        assert_kind_of Valkey::Search::FtSearchResult, result
+        assert result.total_results >= 1
+        assert_kind_of Valkey::Search::FtSearchDocument, result.documents.first
+        assert_equal "hello world", result.documents.first["title"]
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_search_structured_with_limit
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        5.times do |i|
+          r.send_command(Valkey::RequestType::HSET, ["doc:#{i}", "title", "hello item #{i}"])
+        end
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello",
+                             options: Valkey::Search::FtSearchOptions.new(
+                               limit: Valkey::Search::FtSearchLimit.new(offset: 0, count: 2)
+                             ))
+        assert_kind_of Valkey::Search::FtSearchResult, result
+        assert result.total_results >= 5
+        assert_equal 2, result.documents.size
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_search_structured_with_return_fields
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:",
+                    "SCHEMA", "title", "TEXT", "price", "NUMERIC")
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "widget", "price", "9.99"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "widget",
+                             options: Valkey::Search::FtSearchOptions.new(
+                               return_fields: [Valkey::Search::ReturnField.new("title")]
+                             ))
+        assert_kind_of Valkey::Search::FtSearchResult, result
+        assert result.total_results >= 1
+        doc = result.documents.first
+        assert_equal "widget", doc["title"]
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_search_structured_sortby
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:",
+                    "SCHEMA", "title", "TEXT", "price", "NUMERIC", "SORTABLE")
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "cheap", "price", "5"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "pricey", "price", "50"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "*",
+                             options: Valkey::Search::FtSearchOptions.new(
+                               sortby: "price", sortby_order: :asc
+                             ))
+        assert_kind_of Valkey::Search::FtSearchResult, result
+        assert_equal 2, result.total_results
+        # First document should be the cheapest
+        assert_equal "5", result.documents.first["price"]
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_search_structured_nocontent
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello",
+                             options: Valkey::Search::FtSearchOptions.new(nocontent: true))
+        assert_kind_of Valkey::Search::FtSearchResult, result
+        assert result.total_results >= 1
+        # Documents should have empty fields when nocontent is used
+        assert_equal({}, result.documents.first.fields)
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_search_structured_verbatim
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "running quickly"])
+        sleep 0.1
+
+        # Without verbatim, "run" would match "running" via stemming
+        # With verbatim, "run" should NOT match "running"
+        result = r.ft_search(TEST_INDEX, "run",
+                             options: Valkey::Search::FtSearchOptions.new(verbatim: true))
+        assert_kind_of Valkey::Search::FtSearchResult, result
+        assert_equal 0, result.total_results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_search_raw_still_works
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello"])
+        sleep 0.1
+
+        # Verify backward compat: raw args still return raw array
+        results = r.ft_search(TEST_INDEX, "hello")
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # --- Structured ft_aggregate tests (options:) ---
+
+    def test_ft_aggregate_structured_groupby_count
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
+        r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
+        r.send_command(Valkey::RequestType::HSET, ["product:2", "category", "electronics", "price", "200"])
+        r.send_command(Valkey::RequestType::HSET, ["product:3", "category", "books", "price", "50"])
+        sleep 0.1
+
+        results = r.ft_aggregate(TEST_INDEX, "*",
+                                 options: Valkey::Search::FtAggregateOptions.new(
+                                   clauses: [
+                                     Valkey::Search::GroupBy.new(["@category"],
+                                                                reducers: [Valkey::Search::Reducer.new("COUNT", [], name: "count")])
+                                   ]
+                                 ))
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_aggregate_structured_with_load
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
+        r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
+        r.send_command(Valkey::RequestType::HSET, ["product:2", "category", "electronics", "price", "200"])
+        sleep 0.1
+
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 inf]",
+                                 options: Valkey::Search::FtAggregateOptions.new(
+                                   load_fields: ["@price"],
+                                   clauses: [
+                                     Valkey::Search::GroupBy.new(["@category"],
+                                                                reducers: [Valkey::Search::Reducer.new("SUM", ["@price"], name: "total")])
+                                   ]
+                                 ))
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_aggregate_structured_sortby_limit
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
+        r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "a", "price", "10"])
+        r.send_command(Valkey::RequestType::HSET, ["product:2", "category", "b", "price", "20"])
+        r.send_command(Valkey::RequestType::HSET, ["product:3", "category", "c", "price", "30"])
+        sleep 0.1
+
+        results = r.ft_aggregate(TEST_INDEX, "*",
+                                 options: Valkey::Search::FtAggregateOptions.new(
+                                   clauses: [
+                                     Valkey::Search::GroupBy.new(["@category"],
+                                                                reducers: [Valkey::Search::Reducer.new("COUNT", [], name: "count")]),
+                                     Valkey::Search::SortBy.new([Valkey::Search::SortProperty.new("@count", :desc)]),
+                                     Valkey::Search::AggregateLimit.new(offset: 0, count: 2)
+                                   ]
+                                 ))
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_aggregate_structured_apply_filter
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
+        r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
+        r.send_command(Valkey::RequestType::HSET, ["product:2", "category", "electronics", "price", "200"])
+        sleep 0.1
+
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 inf]",
+                                 options: Valkey::Search::FtAggregateOptions.new(
+                                   load_fields: ["@price"],
+                                   clauses: [
+                                     Valkey::Search::Apply.new("@price * 1.1", name: "taxed"),
+                                     Valkey::Search::Filter.new("@taxed > 150")
+                                   ]
+                                 ))
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_aggregate_raw_still_works
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
+                    "SCHEMA", "category", "TAG")
+        r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "books"])
+        sleep 0.1
+
+        # Raw args backward compat
+        results = r.ft_aggregate(TEST_INDEX, "*", "GROUPBY", "1", "@category",
+                                 "REDUCE", "COUNT", "0", "AS", "count")
+        assert_kind_of Array, results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # --- Structured ft_info tests (options:) ---
+
+    def test_ft_info_structured_default
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+
+        # options: with empty FtInfoOptions should behave same as no options
+        info = r.ft_info(TEST_INDEX, options: Valkey::Search::FtInfoOptions.new)
+        assert_kind_of Array, info
+        assert info.include?("index_name") || info.any? { |item| item.is_a?(Array) && item.include?("index_name") }
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    def test_ft_info_structured_local_scope
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+
+        # LOCAL scope should work on standalone (it's the default behavior)
+        info = r.ft_info(TEST_INDEX, options: Valkey::Search::FtInfoOptions.new(scope: :local))
+        assert_kind_of Array, info
+      end
+    rescue Valkey::CommandError => e
+      # LOCAL might not be recognized on older search module versions
+      if e.message.include?("unknown command") || e.message.include?("Unknown")
+        skip("FT.INFO scope options not supported on this version")
+      else
+        skip_if_redisearch_unavailable(e)
+      end
+    end
+
+    def test_ft_info_raw_still_works
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+
+        # Raw call without options still works
+        info = r.ft_info(TEST_INDEX)
+        assert_kind_of Array, info
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
     private
 
     # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB
