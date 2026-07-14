@@ -17,6 +17,10 @@ require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/search/field"
 require "valkey/search/ft_create_options"
+require "valkey/search/ft_search_options"
+require "valkey/search/ft_search_result"
+require "valkey/search/ft_aggregate_options"
+require "valkey/search/ft_info_options"
 
 class Valkey
   include Utils

@@ -25,19 +25,44 @@ class Valkey
 
       # Run a search query with aggregations.
       #
-      # @example Perform an aggregation query
-      #   valkey.ft_aggregate("myIndex", "*", "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0", "AS", "count")
-      #     # => [[1, ["category", "electronics", "count", "5"]]]
+      # Supports two calling conventions:
       #
-      # @param [String] index the index name to search
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments (GROUPBY, REDUCE, etc.)
+      # 1. **Raw args** (original interface, backward-compatible):
+      #    Pass all FT.AGGREGATE arguments as positional strings.
+      #
+      # 2. **Structured options** (new, recommended):
+      #    Pass +options:+ ({Valkey::Search::FtAggregateOptions}) with pipeline
+      #    clauses and query-level settings.
+      #
+      # @example Raw args (backward-compatible)
+      #   valkey.ft_aggregate("myIndex", "*", "GROUPBY", "1", "@category",
+      #                       "REDUCE", "COUNT", "0", "AS", "count")
+      #
+      # @example Structured options
+      #   valkey.ft_aggregate("myIndex", "@price:[0 inf]",
+      #     options: Valkey::Search::FtAggregateOptions.new(
+      #       load_fields: ["@price"],
+      #       clauses: [
+      #         Valkey::Search::GroupBy.new(["@category"],
+      #           reducers: [Valkey::Search::Reducer.new("SUM", ["@price"], name: "total")])
+      #       ]
+      #     ))
+      #
+      # @param index [String] the index name to search
+      # @param query [String] the search query
+      # @param args [Array<String>] additional query arguments (legacy interface)
+      # @param options [Valkey::Search::FtAggregateOptions, nil] structured options
       # @return [Array] aggregation results
       #
-      # @see https://redis.io/commands/ft.aggregate/
-      def ft_aggregate(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_AGGREGATE, command_args)
+      # @see https://valkey.io/commands/ft.aggregate/
+      def ft_aggregate(index, query, *args, options: nil)
+        if options
+          command_args = [index, query] + options.to_args
+          send_command(RequestType::FT_AGGREGATE, command_args)
+        else
+          command_args = [index, query] + args
+          send_command(RequestType::FT_AGGREGATE, command_args)
+        end
       end
 
       # Add an alias to an index.
@@ -213,12 +238,19 @@ class Valkey
       #   valkey.ft_info("myIndex")
       #     # => ["index_name", "myIndex", "fields", [...], ...]
       #
-      # @param [String] index the index name
+      # @example Get cluster-wide info
+      #   valkey.ft_info("myIndex",
+      #     options: Valkey::Search::FtInfoOptions.new(scope: :cluster))
+      #
+      # @param index [String] the index name
+      # @param options [Valkey::Search::FtInfoOptions, nil] cluster scope options
       # @return [Array] index information as array of key-value pairs
       #
-      # @see https://redis.io/commands/ft.info/
-      def ft_info(index)
-        send_command(RequestType::FT_INFO, [index])
+      # @see https://valkey.io/commands/ft.info/
+      def ft_info(index, options: nil)
+        args = [index]
+        args.concat(options.to_args) if options
+        send_command(RequestType::FT_INFO, args)
       end
 
       # Profile a search or aggregation query.
@@ -244,30 +276,54 @@ class Valkey
 
       # Search an index with a query.
       #
-      # @example Basic search
-      #   valkey.ft_search("myIndex", "hello world")
-      #     # => [1, "doc1", ["title", "hello world"]]
+      # Supports two calling conventions:
       #
-      # @example Search with options
-      #   valkey.ft_search("myIndex", "@title:hello", "LIMIT", "0", "10", "RETURN", "2", "title", "price")
-      #     # => [total_results, doc_id, [field1, value1, field2, value2], ...]
+      # 1. **Raw args** (original interface, backward-compatible):
+      #    Pass all FT.SEARCH options as positional strings. Returns the raw
+      #    response array.
+      #
+      # 2. **Structured options** (new, recommended):
+      #    Pass +options:+ ({Valkey::Search::FtSearchOptions}). Returns a
+      #    {Valkey::Search::FtSearchResult} with typed documents.
+      #
+      # @example Raw args (backward-compatible)
+      #   valkey.ft_search("myIndex", "hello world")
+      #     # => [1, {"doc1" => {"title" => "hello world"}}]
+      #
+      # @example Structured options with pagination
+      #   result = valkey.ft_search("myIndex", "@title:hello",
+      #     options: Valkey::Search::FtSearchOptions.new(
+      #       limit: Valkey::Search::FtSearchLimit.new(offset: 0, count: 10),
+      #       return_fields: [Valkey::Search::ReturnField.new("title")]
+      #     ))
+      #   result.total_results  # => 2
+      #   result.documents.first["title"]  # => "hello world"
       #
       # @example Vector similarity search
-      #   valkey.ft_search("vecIndex", "*=>[KNN 5 @embedding $vec]",
-      #                    "PARAMS", "2", "vec", vector_blob,
-      #                    "RETURN", "1", "__embedding_score",
-      #                    "DIALECT", "2")
-      #     # => [results_count, doc_id, ["__embedding_score", "0.95"], ...]
+      #   result = valkey.ft_search("vecIndex", "*=>[KNN 5 @embedding $vec]",
+      #     options: Valkey::Search::FtSearchOptions.new(
+      #       params: { "vec" => vector_blob },
+      #       dialect: 2
+      #     ))
+      #   result.total_results  # => 5
       #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments (LIMIT, RETURN, SORTBY, etc.)
-      # @return [Array] search results with total count and matching documents
+      # @param index [String] the index name
+      # @param query [String] the search query
+      # @param args [Array<String>] additional query arguments (legacy interface)
+      # @param options [Valkey::Search::FtSearchOptions, nil] structured options
+      # @return [Array, Valkey::Search::FtSearchResult] raw array (legacy) or
+      #   structured result (when options: is provided)
       #
-      # @see https://redis.io/commands/ft.search/
-      def ft_search(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_SEARCH, command_args)
+      # @see https://valkey.io/commands/ft.search/
+      def ft_search(index, query, *args, options: nil)
+        if options
+          command_args = [index, query] + options.to_args
+          raw = send_command(RequestType::FT_SEARCH, command_args)
+          Search::FtSearchResult.from_raw(raw, withsortkeys: options.withsortkeys)
+        else
+          command_args = [index, query] + args
+          send_command(RequestType::FT_SEARCH, command_args)
+        end
       end
 
       # Convenience method for FT.* commands.
