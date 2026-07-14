@@ -64,9 +64,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
@@ -82,7 +82,7 @@ jobs:
       version-matrix-output: ${{ steps.create-matrices.outputs.version-matrix-output }}
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Determine full matrix mode
         id: full-matrix
@@ -136,7 +136,7 @@ jobs:
               TARGET: "aarch64-unknown-linux-musl"
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
 
@@ -153,7 +153,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Cargo
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
             ~/.cargo/bin/
@@ -173,7 +173,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload native library
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
           path: valkey-glide/ffi/target/release/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
@@ -197,18 +197,18 @@ jobs:
               TARGET: "aarch64-unknown-linux-musl"
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
 
       - name: Download native library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
           path: valkey-glide/ffi/target/release/
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
 
@@ -231,7 +231,7 @@ jobs:
           echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> $GITHUB_ENV
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
         with:
           ruby-version: ${{ matrix.version }}
           bundler-cache: true
@@ -244,7 +244,7 @@ jobs:
       - name: Upload test artifacts
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-report-ruby-${{ matrix.version }}-${{ matrix.engine.type }}-${{ matrix.engine.version }}-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
           path: |
@@ -256,7 +256,7 @@ jobs:
       - name: Upload cluster logs on failure
         if: failure()
         continue-on-error: true
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cluster-logs-ruby-${{ matrix.version }}-${{ matrix.engine.type }}-${{ matrix.engine.version }}-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
           path: valkey-glide/utils/clusters/
@@ -279,18 +279,18 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
 
       - name: Download native library
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: native-lib-linux-x64
           path: valkey-glide/ffi/target/release/
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.11'
 
@@ -306,7 +306,7 @@ jobs:
           engine-version: "9.0"
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
         with:
           ruby-version: "3.4"
           bundler-cache: true

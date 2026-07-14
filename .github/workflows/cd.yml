@@ -30,7 +30,7 @@ jobs:
       PLATFORM_MATRIX: ${{ steps.load-platform-matrix.outputs.PLATFORM_MATRIX }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Load platform matrix
         id: load-platform-matrix
@@ -48,9 +48,12 @@ jobs:
       - name: Set the release version
         id: release-version
         shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ github.event.inputs.version }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            R_VERSION="${{ github.event.inputs.version }}"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            R_VERSION="$INPUT_VERSION"
           else
             # Remove 'v' prefix from tag
             R_VERSION="${GITHUB_REF_NAME#v}"
@@ -59,8 +62,9 @@ jobs:
           echo "RELEASE_VERSION=$R_VERSION" >> $GITHUB_OUTPUT
 
       - name: Validate version format
+        env:
+          VERSION: ${{ steps.release-version.outputs.RELEASE_VERSION }}
         run: |
-          VERSION="${{ steps.release-version.outputs.RELEASE_VERSION }}"
           if ! echo "$VERSION" | grep -Pq '^\d+\.\d+\.\d+(-rc\d+)?$'; then
             echo "Invalid version format: $VERSION"
             echo "Expected format: X.Y.Z or X.Y.Z-rcN"
@@ -80,15 +84,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
 
       - name: Install protoc (protobuf)
-        uses: arduino/setup-protoc@v3
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "29.1"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -143,7 +147,7 @@ jobs:
           fi
 
       - name: Upload native library artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-lib-${{ matrix.host.TARGET }}
           path: valkey-glide/ffi/target/${{ contains(matrix.host.TARGET, 'musl') && format('{0}/release', matrix.host.TARGET) || 'release' }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
@@ -158,18 +162,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
 
       - name: Download all native library artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: native-lib-*
           path: native-libs
@@ -243,7 +247,7 @@ jobs:
           find gem-contents -name "libglide_ffi.*" -exec ls -lh {} \;
 
       - name: Upload gem artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ruby-gem
           path: "*.gem"
@@ -280,12 +284,12 @@ jobs:
 
     steps:
       - name: Checkout (for test files)
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
         with:
           ruby-version: "3.3"
           bundler-cache: false  # We'll install gems manually
@@ -319,7 +323,7 @@ jobs:
 
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: ruby-gem
           path: .
