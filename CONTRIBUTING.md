@@ -102,7 +102,7 @@ This project follows the [Amazon Open Source Code of Conduct](https://aws.github
 
 ## Security
 
-Report security vulnerabilities via [valkey-glide SECURITY.md](https://github.com/valkey-io/valkey-glide/blob/main/SECURITY.md).
+See [SECURITY.md](https://github.com/valkey-io/.github/blob/main/SECURITY.md).
 
 ## Licensing
 
