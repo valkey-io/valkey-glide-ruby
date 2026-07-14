@@ -4,8 +4,87 @@ class Valkey
   module Bindings
     extend FFI::Library
 
-    lib_ext = FFI::Platform.mac? ? "dylib" : "so"
-    ffi_lib File.expand_path("./libglide_ffi.#{lib_ext}", __dir__)
+    # Determine platform-specific library extension and directory name
+    def self.platform_info
+      os = if FFI::Platform.mac?
+             "darwin"
+           elsif FFI::Platform.windows?
+             "windows"
+           else
+             "linux"
+           end
+
+      # Detect architecture
+      arch = case RbConfig::CONFIG["host_cpu"]
+             when /x86_64|amd64/i
+               "x86_64"
+             when /aarch64|arm64/i
+               "aarch64"
+             when /i[3-6]86/i
+               "x86"
+             else
+               RbConfig::CONFIG["host_cpu"]
+             end
+
+      lib_ext = case os
+                when "darwin"
+                  "dylib"
+                when "windows"
+                  "dll"
+                else
+                  "so"
+                end
+
+      # Platform directory name matches Rust target triple convention
+      platform_dir = case os
+                     when "darwin"
+                       "#{arch}-apple-darwin"
+                     when "linux"
+                       "#{arch}-unknown-linux-gnu"
+                     when "windows"
+                       "#{arch}-pc-windows-msvc"
+                     end
+
+      { os: os, arch: arch, lib_ext: lib_ext, platform_dir: platform_dir }
+    end
+
+    platform = platform_info
+    lib_ext = platform[:lib_ext]
+    platform_dir = platform[:platform_dir]
+
+    # Look for the native library in the following locations (in order):
+    # 1. valkey-glide submodule build output (development/source builds)
+    # 2. Platform-specific bundled library in lib/valkey/native/{platform}/ (for gem distribution)
+    # 3. Legacy bundled library in lib/valkey (fallback for old gem structure)
+    lib_paths = [
+      # Submodule build output (release) - from lib/valkey/ go up 2 levels to repo root
+      File.expand_path("../../valkey-glide/ffi/target/release/libglide_ffi.#{lib_ext}", __dir__),
+      # Submodule build output (debug)
+      File.expand_path("../../valkey-glide/ffi/target/debug/libglide_ffi.#{lib_ext}", __dir__),
+      # Platform-specific bundled library (for gem distribution)
+      File.expand_path("./native/#{platform_dir}/libglide_ffi.#{lib_ext}", __dir__),
+      # Legacy bundled library (fallback)
+      File.expand_path("./libglide_ffi.#{lib_ext}", __dir__)
+    ]
+
+    lib_path = lib_paths.find { |path| File.exist?(path) }
+
+    unless lib_path
+      raise LoadError, <<~ERROR
+        Could not find libglide_ffi native library for platform: #{platform_dir}
+
+        Searched in:
+        #{lib_paths.map { |p| "  - #{p}" }.join("\n")}
+
+        To build from source:
+          1. Initialize the submodule: git submodule update --init --recursive
+          2. Build the FFI library: cd valkey-glide/ffi && cargo build --release
+
+        Detected platform: OS=#{platform[:os]}, Arch=#{platform[:arch]}
+      ERROR
+    end
+
+    ffi_lib lib_path
 
     class ClientType < FFI::Struct
       layout(
@@ -75,7 +154,8 @@ class Valkey
         :map_key, :pointer,           # CommandResponse*
         :map_value, :pointer,         # CommandResponse*
         :sets_value, :pointer,        # CommandResponse*
-        :sets_value_len, :long
+        :sets_value_len, :long,
+        :arena_ptr, :pointer          # *mut c_void - arena allocator pointer
       )
     end
 
@@ -98,7 +178,8 @@ class Valkey
     class CommandResult < FFI::Struct
       layout(
         :response, CommandResponse.by_ref,
-        :command_error, CommandError.by_ref
+        :command_error, CommandError.by_ref,
+        :arena, :pointer # *mut ResponseArena
       )
     end
 
@@ -117,6 +198,17 @@ class Valkey
       :pubsub_callback # callback
     ], :pointer        # *const ConnectionResponse
 
+    attach_function :create_client_from_uri, [
+      :string,         # *const c_char (uri_str)
+      :string,         # *const c_char (extra_options_json)
+      ClientType.by_ref, # *const ClientType
+      :pubsub_callback # callback
+    ], :pointer        # *const ConnectionResponse
+
+    attach_function :free_connection_response, [
+      :pointer # *mut ConnectionResponse
+    ], :void
+
     attach_function :close_client, [
       :pointer # client_adapter_ptr
     ], :void
@@ -131,7 +223,7 @@ class Valkey
       :pointer,     # route_bytes
       :ulong,       # route_bytes_len
       :ulong        # span_ptr (u64)
-    ], :pointer     # returns *mut CommandResult
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
     attach_function :batch, [
       :pointer,        # client_ptr
@@ -140,7 +232,7 @@ class Valkey
       :bool,           # raise_on_error
       :pointer,        # *const BatchOptionsInfo
       :ulong           # span_ptr (u64)
-    ], :pointer # returns *mut CommandResult
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
     attach_function :store_script, [
       :pointer, # *const u8 (script_bytes)
@@ -158,8 +250,9 @@ class Valkey
       :pointer,        # args (pointer to usize[])
       :pointer,        # args_len (pointer to c_ulong[])
       :pointer,        # route_bytes (pointer to u8)
-      :ulong           # route_bytes_len (usize)
-    ], :pointer # returns *mut CommandResult
+      :ulong,          # route_bytes_len (usize)
+      :uint64          # span_ptr (OpenTelemetry span pointer)
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
     # OpenTelemetry structures
     class OpenTelemetryTracesConfig < FFI::Struct
@@ -188,14 +281,16 @@ class Valkey
     # Statistics structure
     class Statistics < FFI::Struct
       layout(
-        :total_connections, :ulong,        # total connections opened to Valkey
-        :total_clients, :ulong,            # total GLIDE clients created
-        :total_values_compressed, :ulong,  # number of values compressed
-        :total_values_decompressed, :ulong, # number of values decompressed
-        :total_original_bytes, :ulong,     # bytes before compression
-        :total_bytes_compressed, :ulong,   # bytes after compression
-        :total_bytes_decompressed, :ulong, # bytes after decompression
-        :compression_skipped_count, :ulong # times compression was skipped
+        :total_connections, :ulong,
+        :total_clients, :ulong,
+        :total_values_compressed, :ulong,
+        :total_values_decompressed, :ulong,
+        :total_original_bytes, :ulong,
+        :total_bytes_compressed, :ulong,
+        :total_bytes_decompressed, :ulong,
+        :compression_skipped_count, :ulong,
+        :subscription_out_of_sync_count, :ulong,
+        :subscription_last_sync_timestamp, :ulong
       )
     end
 

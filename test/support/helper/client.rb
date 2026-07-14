@@ -4,6 +4,27 @@ module Helper
   module Client
     include Generic
 
+    class << self
+      def server_address
+        if ENV["STANDALONE_ENDPOINTS"]
+          parse_endpoint(ENV["STANDALONE_ENDPOINTS"])
+        else
+          { host: "127.0.0.1", port: PORT }
+        end
+      end
+
+      private
+
+      def parse_endpoint(endpoint_str)
+        return { host: "127.0.0.1", port: PORT } if endpoint_str.nil? || endpoint_str.empty?
+
+        parts = endpoint_str.strip.rpartition(":")
+        host = parts[0]
+        port_str = parts[2]
+        { host: host, port: port_str.to_i }
+      end
+    end
+
     def init(valkey)
       valkey.select 14
       valkey.flushdb
@@ -27,7 +48,8 @@ module Helper
     private
 
     def _new_client(options = {})
-      Valkey.new(options.merge(port: PORT, timeout: TIMEOUT))
+      address = Helper::Client.server_address
+      Valkey.new(options.merge(host: address[:host], port: address[:port], timeout: TIMEOUT))
     end
   end
 end

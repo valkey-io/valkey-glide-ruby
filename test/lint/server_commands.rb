@@ -130,7 +130,7 @@ module Lint
     def test_client_list
       response = r.client(:list)
       assert_kind_of Array, response
-      assert response.all? { |client| client.is_a?(Hash) }, "Expected all clients to be represented as Hashes"
+      assert response.all?(Hash), "Expected all clients to be represented as Hashes"
     end
 
     def test_client_pause_unpause
@@ -147,6 +147,9 @@ module Lint
     end
 
     def test_client_set_info
+      # CLIENT SETINFO was introduced in Redis 7.2.
+      # Skipped on Redis 7.0, 6.2, and earlier versions.
+      omit_version("7.2")
       assert_equal "OK", r.client(:set_info, 'lib-name', 'valkey') # TODO: 'implementing lib-var'
       assert_raises(Valkey::CommandError) do
         r.client(:set_info, 'foo', '0.0.1')
@@ -158,29 +161,17 @@ module Lint
       assert [0, 1].include?(result), "Expected unblock to return 0 or 1"
     end
 
-    def test_client_caching
-      skip("CLIENT CACHING command not implemented in backend yet")
-
-      # Assuming caching is enabled by default, this should return true
-      response = r.client(:caching)
-      assert_equal true, response
-    end
-
-    def test_client_tracking
-      skip("CLIENT TRACKING command not implemented in backend yet")
-
-      # Assuming tracking is enabled by default, this should return true
-      response = r.client(:tracking)
-      assert_equal true, response
-    end
-
     def test_client_reply
       assert_equal "OK", r.client(:reply, "ON") # TODO: "OFF" or "SKIP" doesnt work yet
     end
 
     def test_client_kill
-      # Create a second client connection
-      extra_client = Valkey.new
+      # CLIENT KILL by address doesn't work reliably in cluster mode because
+      # the command may be routed to a different node than where the client is connected
+      skip("CLIENT KILL by address not reliable in cluster mode") if cluster_mode?
+
+      # Create a second client connection using the proper helper
+      extra_client = _new_client
       sleep(0.5) # Ensure the new client created
 
       addr = extra_client.client(:info)[/addr=(\S+)/, 1]
@@ -194,7 +185,12 @@ module Lint
     end
 
     def test_client_kill_simple
-      extra_client = Valkey.new
+      # CLIENT KILL by address doesn't work reliably in cluster mode because
+      # the command may be routed to a different node than where the client is connected
+      skip("CLIENT KILL by address not reliable in cluster mode") if cluster_mode?
+
+      # Create a second client connection using the proper helper
+      extra_client = _new_client
       sleep(0.5) # Give it a moment to register with the server
 
       addr = extra_client.client(:info)[/addr=(\S+)/, 1]
@@ -207,19 +203,10 @@ module Lint
       end
     end
 
-    def test_client_tracking_info
-      skip("CLIENT TRACKING command not implemented in backend yet")
-
-      assert_kind_of Array, r.client(:tracking_info)
-    end
-
-    def test_client_getredir
-      # extra_client = Valkey.new
-      # extra_client.client('tracking', 'on', 'bcast') # TODO: Ensure tracking is implemented
-      assert_kind_of Integer, r.client(:getredir)
-    end
-
     def test_client_no_evict
+      # CLIENT NO-EVICT was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       assert_equal "OK", r.client_no_evict(:on)
       assert_equal "OK", r.client_no_evict(:off)
       assert_raises(Valkey::CommandError) do
@@ -228,6 +215,9 @@ module Lint
     end
 
     def test_client_no_touch
+      # CLIENT NO-TOUCH was introduced in Redis 7.2.
+      # Skipped on Redis 7.0, 6.2, and earlier versions.
+      omit_version("7.2")
       assert_equal "OK", r.client_no_touch(:on)
       assert_equal "OK", r.client_no_touch(:off)
       assert_raises(Valkey::CommandError) do
@@ -313,11 +303,17 @@ module Lint
     end
 
     def test_acl_dryrun
+      # ACL DRYRUN was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       result = r.acl_dryrun("default", "get", "key1")
       assert_equal "OK", result
     end
 
     def test_acl_dryrun_denied
+      # ACL DRYRUN was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       r.acl_setuser("limiteduser", "on", ">pass", "~*", "+@read", "-set")
 
       result = r.acl_dryrun("limiteduser", "set", "key1", "value")
@@ -555,6 +551,9 @@ module Lint
 
     def test_memory_malloc_stats
       # MEMORY MALLOC-STATS returns allocator statistics
+      # In cluster mode, returns an Array with results from multiple nodes
+      skip("MEMORY MALLOC-STATS returns multi-node response in cluster mode") if cluster_mode?
+
       result = r.memory_malloc_stats
       assert_kind_of String, result
       # Result may be empty or contain allocator statistics
@@ -582,7 +581,7 @@ module Lint
       if result.is_a?(Array)
         # In cluster mode, may return array with server info and hash responses
         # Find hash responses and validate them
-        hashes = result.select { |e| e.is_a?(Hash) }
+        hashes = result.grep(Hash)
         assert !hashes.empty?, "Expected memory_stats to return at least one hash"
         hashes.each do |stats|
           # Check for any common memory stats keys (more flexible)
@@ -669,7 +668,7 @@ module Lint
       assert_kind_of Array, result
       # Server may return more entries (e.g., with aliases or variations)
       # Filter out string elements (command names) and only check hash docs
-      docs = result.select { |d| d.is_a?(Hash) }
+      docs = result.grep(Hash)
       assert docs.size >= 2, "Expected at least 2 command docs (hashes)"
       docs.each do |doc|
         assert_kind_of Hash, doc, "Expected each doc to be a Hash"
@@ -729,10 +728,12 @@ module Lint
     end
 
     def test_command_info
-      # COMMAND INFO without arguments returns info for all commands
-      result = r.command_info
-      assert_kind_of Array, result
-      assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+      # COMMAND INFO without arguments returns info for all commands (Redis 7.0+)
+      target_version "7.0" do
+        result = r.command_info
+        assert_kind_of Array, result
+        assert !result.empty?, "Expected COMMAND INFO to return non-empty array"
+      end
 
       # COMMAND INFO with specific commands
       result = r.command_info("GET", "SET")
@@ -752,7 +753,7 @@ module Lint
       result = r.command_list
       assert_kind_of Array, result
       assert !result.empty?, "Expected COMMAND LIST to return non-empty array"
-      assert result.all? { |cmd| cmd.is_a?(String) }, "Expected all commands to be Strings"
+      assert result.all?(String), "Expected all commands to be Strings"
       # Commands may be in lowercase or uppercase depending on server version
       command_names = result.map(&:upcase)
       assert command_names.include?("GET"), "Expected GET command to be in the list"

@@ -3,7 +3,7 @@
 require_relative "lib/valkey/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "valkey"
+  spec.name = "valkey-glide-rb"
   spec.version = Valkey::VERSION
   spec.authors = ["Valkey GLIDE Maintainers"]
 
@@ -19,15 +19,15 @@ Gem::Specification.new do |spec|
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
+  # Native libraries (lib/valkey/native/**) are added separately since they're built during CD.
   gemspec = File.basename(__FILE__)
   spec.files = IO.popen(%w[git ls-files -z], chdir: __dir__, err: IO::NULL) do |ls|
     ls.readlines("\x0", chomp: true).reject do |f|
       (f == gemspec) ||
-        f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile])
+        f.start_with?(*%w[bin/ test/ spec/ features/ .git .github appveyor Gemfile valkey-glide/])
     end
-  end
+  end + Dir.glob("lib/valkey/native/**/*").reject { |f| File.directory?(f) }
   spec.require_paths = ["lib"]
 
   spec.add_dependency "ffi", "~> 1.17.0"
-  spec.add_dependency "google-protobuf", "~> 3.23", ">= 3.23.4"
 end

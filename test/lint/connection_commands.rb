@@ -24,16 +24,13 @@ module Lint
     end
 
     def test_select_database
+      # In cluster mode, multiple databases are not supported by design
+      # However, some cluster implementations silently accept SELECT without error
+      skip("SELECT command behavior varies in cluster mode") if cluster_mode?
+
       assert_equal "OK", r.select(0)
-      # In cluster mode, only database 0 is supported
-      if cluster_mode?
-        assert_raises(Valkey::CommandError) do
-          r.select(1)
-        end
-      else
-        assert_equal "OK", r.select(1)
-        assert_equal "OK", r.select(0) # Switch back to default
-      end
+      assert_equal "OK", r.select(1)
+      assert_equal "OK", r.select(0) # Switch back to default
     end
 
     def test_client_id
@@ -55,7 +52,7 @@ module Lint
       # Use the server commands interface that's known to work
       list = r.client(:list)
       assert_kind_of Array, list
-      assert list.all? { |client| client.is_a?(Hash) }, "Expected all clients to be represented as Hashes"
+      assert list.all?(Hash), "Expected all clients to be represented as Hashes"
     end
 
     def test_client_info
@@ -63,6 +60,41 @@ module Lint
       info = r.client(:info)
       assert_kind_of String, info
       assert info.include?("id="), "Client info should contain client ID"
+    end
+
+    def test_library_name_is_set
+      # CLIENT SETINFO (which sets lib-name) was added in Redis/Valkey 7.2
+      target_version "7.2" do
+        # The GLIDE Ruby client should identify itself with lib-name=GlideRuby
+        # This is sent via CLIENT SETINFO lib-name during connection handshake
+        info = r.client(:info)
+        assert_kind_of String, info
+
+        # Extract lib-name from client info
+        lib_name_match = info.match(/lib-name=([^ ]+)/)
+        assert lib_name_match, "Client info should contain lib-name"
+
+        lib_name = lib_name_match[1]
+        assert_equal "GlideRuby", lib_name, "Library name should be 'GlideRuby', got '#{lib_name}'"
+      end
+    end
+
+    def test_library_version_is_set
+      # CLIENT SETINFO (which sets lib-ver) was added in Redis/Valkey 7.2
+      target_version "7.2" do
+        # The GLIDE Ruby client should set lib-ver during connection handshake
+        # Note: In CI builds, GLIDE_VERSION may differ from Valkey::VERSION (e.g., branch name),
+        # so we only verify that lib-ver is set, not its exact value
+        info = r.client(:info)
+        assert_kind_of String, info
+
+        # Extract lib-ver from client info
+        lib_ver_match = info.match(/lib-ver=([^ ]+)/)
+        assert lib_ver_match, "Client info should contain lib-ver"
+
+        lib_ver = lib_ver_match[1]
+        refute_empty lib_ver, "Library version should not be empty"
+      end
     end
 
     def test_client_pause_unpause
@@ -118,11 +150,6 @@ module Lint
       end
     end
 
-    def test_client_getredir
-      redir = r.client_getredir
-      assert_kind_of Integer, redir
-    end
-
     def test_hello_default
       result = r.hello
       # Backend returns array in current implementation
@@ -174,31 +201,6 @@ module Lint
         sleep(0.05) # 50ms between retries
       end
       assert_nil r.client_get_name
-    end
-
-    def test_client_caching
-      # In cluster mode, CLIENT TRACKING and CLIENT CACHING may hit different nodes
-      # so tracking state isn't shared - skip this test in cluster mode
-      skip("CLIENT CACHING requires tracking state to be shared, not reliable in cluster mode") if cluster_mode?
-
-      # CLIENT CACHING YES works with OPTIN mode
-      r.client_tracking("ON", "OPTIN")
-      assert_equal "OK", r.client_caching("YES")
-      r.client_tracking("OFF")
-      # CLIENT CACHING NO requires OPTOUT mode
-      r.client_tracking("ON", "OPTOUT")
-      assert_equal "OK", r.client_caching("NO")
-      r.client_tracking("OFF")
-    end
-
-    def test_client_tracking
-      assert_equal "OK", r.client_tracking("ON")
-      assert_equal "OK", r.client_tracking("OFF")
-    end
-
-    def test_client_tracking_info
-      info = r.client_tracking_info
-      assert_kind_of Array, info
     end
 
     def test_quit

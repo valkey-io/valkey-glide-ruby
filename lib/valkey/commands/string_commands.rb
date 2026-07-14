@@ -198,6 +198,18 @@ class Valkey
         result
       end
 
+      # Atomically set +key+ to +value+ and return the previous value.
+      #
+      # Implemented as +SET key value GET+ (Redis 6.2+ / Valkey 7+). This matches +GETSET+
+      # and avoids RequestType::GET_SET, which the Glide FFI layer does not implement yet.
+      #
+      # @param [String] key
+      # @param [#to_s] value
+      # @return [String, nil] the old value, or +nil+ if the key did not exist
+      def getset(key, value)
+        set(key, value, get: true)
+      end
+
       # Get the values of all the given keys.
       #
       # @example

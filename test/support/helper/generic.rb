@@ -8,6 +8,10 @@ module Helper
 
     alias r valkey
 
+    # Credentials used by the auth helpers (with_acl / with_default_user_password).
+    AUTH_TEST_PASSWORD = "mysecret"
+    ACL_TEST_USERNAME = "johndoe"
+
     def run
       if respond_to?(:around)
         around { super }
@@ -78,27 +82,54 @@ module Helper
     end
 
     def version
-      Version.new(valkey.info["valkey_version"])
+      info = valkey.info
+      Version.new(info["valkey_version"] || info["redis_version"])
     end
 
     def with_acl
       admin = _new_client
-      admin.acl("SETUSER", "johndoe", "on",
-                "+ping", "+select", "+command", "+cluster|slots", "+cluster|nodes", "+readonly",
-                ">mysecret")
-      yield("johndoe", "mysecret")
+      # glide-core runs INFO (and CLIENT) during the connection handshake, so the
+      # ACL user must be granted those even though the test only exercises PING/SET.
+      # This mirrors the python reference grant (+ping +info +client +cluster ...);
+      # +set is intentionally withheld so the disallowed-command test still fails.
+      admin.acl("SETUSER", ACL_TEST_USERNAME, "on",
+                "+ping", "+select", "+command", "+info", "+client",
+                "+cluster|slots", "+cluster|nodes", "+readonly",
+                ">#{AUTH_TEST_PASSWORD}")
+      yield(ACL_TEST_USERNAME, AUTH_TEST_PASSWORD)
     ensure
-      admin.acl("DELUSER", "johndoe")
-      admin.close
+      admin&.close
+      delete_acl_user(ACL_TEST_USERNAME)
+    end
+
+    # Remove the ACL test user. Mirrors restore_default_user_nopass: run the
+    # cleanup from a fresh privileged (default / no-password) connection rather
+    # than as `johndoe` (which lacks +acl) or via a possibly-stale `admin`.
+    def delete_acl_user(username)
+      client = _new_client
+      client.acl("DELUSER", username)
+    rescue Valkey::BaseError => e
+      warn "[auth-helper] could not delete ACL user `#{username}`: #{e.class}: #{e.message}"
+    ensure
+      client&.close
     end
 
     def with_default_user_password
-      admin = _new_client
-      admin.acl("SETUSER", "default", ">mysecret")
-      yield("default", "mysecret")
+      client = _new_client
+      client.acl("SETUSER", "default", ">#{AUTH_TEST_PASSWORD}")
+      yield("default", AUTH_TEST_PASSWORD)
     ensure
-      admin.acl("SETUSER", "default", "nopass")
-      admin.close
+      client&.close
+      restore_default_user_nopass
+    end
+
+    def restore_default_user_nopass
+      client = _new_client(password: AUTH_TEST_PASSWORD)
+      client.acl("SETUSER", "default", "nopass")
+    rescue Valkey::BaseError => e
+      warn "[auth-helper] could not reset `default` user to nopass: #{e.class}: #{e.message}"
+    ensure
+      client&.close
     end
   end
 end

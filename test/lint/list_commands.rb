@@ -3,6 +3,9 @@
 module Lint
   module Lists
     def test_lmove
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version "6.2" do
         r.lpush("foo", "s1")
         r.lpush("foo", "s2") # foo = [s2, s1]

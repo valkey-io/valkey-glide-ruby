@@ -182,6 +182,9 @@ module Lint
     end
 
     def test_smove
+      # Cross-slot operation in cluster mode - use hash tags version instead
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.sadd 'foo', 's1'
       r.sadd 'bar', 's2'
 
@@ -190,6 +193,9 @@ module Lint
     end
 
     def test_sinter
+      # Cross-slot operation in cluster mode - use hash tags version instead
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.sadd 'foo', 's1'
       r.sadd 'foo', 's2'
       r.sadd 'bar', 's2'
@@ -218,6 +224,9 @@ module Lint
     end
 
     def test_sinterstore
+      # Cross-slot operation in cluster mode - use hash tags version instead
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.sadd 'foo', 's1'
       r.sadd 'foo', 's2'
       r.sadd 'bar', 's2'
@@ -238,6 +247,7 @@ module Lint
     end
 
     def test_sunion
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
       r.sadd 'foo', 's1'
       r.sadd 'foo', 's2'
       r.sadd 'bar', 's2'
@@ -257,6 +267,7 @@ module Lint
     end
 
     def test_sunionstore
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
       r.sadd 'foo', 's1'
       r.sadd 'foo', 's2'
       r.sadd 'bar', 's2'
@@ -278,6 +289,7 @@ module Lint
     end
 
     def test_sdiff
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
       r.sadd 'foo', 's1'
       r.sadd 'foo', 's2'
       r.sadd 'bar', 's2'
@@ -298,6 +310,7 @@ module Lint
     end
 
     def test_sdiffstore
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
       r.sadd 'foo', 's1'
       r.sadd 'foo', 's2'
       r.sadd 'bar', 's2'

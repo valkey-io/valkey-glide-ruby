@@ -1,0 +1,11 @@
+name: Semgrep
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  semgrep:
+    uses: valkey-io/valkey-glide/.github/workflows/semgrep.yml@main

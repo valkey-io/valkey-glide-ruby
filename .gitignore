@@ -11,6 +11,15 @@
 /test/version_tmp/
 /tmp/
 
+### Rust/Cargo build artifacts ###
+# The valkey-glide submodule's build output
+valkey-glide/ffi/target/
+
+### Native library (built from submodule) ###
+# These are generated during build, not committed
+lib/valkey/libglide_ffi.so
+lib/valkey/libglide_ffi.dylib
+
 # Used by dotenv library to load environment variables.
 # .env
 

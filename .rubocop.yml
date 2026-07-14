@@ -39,12 +39,22 @@ Metrics/MethodLength:
   Exclude:
     - 'lib/valkey.rb'
     - 'lib/valkey/opentelemetry.rb'
+    - 'lib/valkey/bindings.rb'
     - 'test/**/*.rb'
 
 Metrics/ClassLength:
   Exclude:
     - 'lib/valkey.rb'
     - 'test/**/*.rb'
+
+Metrics/BlockLength:
+  Exclude:
+    - 'Rakefile'
+    - 'lib/valkey.rb'
+
+Style/IfUnlessModifier:
+  Exclude:
+    - 'test/test_helper.rb'
 
 Metrics/BlockNesting:
   Exclude:
@@ -55,4 +65,5 @@ Metrics/ModuleLength:
     - 'lib/valkey/request_type.rb'
     - 'lib/valkey/utils.rb'
     - 'lib/valkey/commands/*.rb'
+    - 'lib/valkey/bindings.rb'
     - 'test/**/*.rb'

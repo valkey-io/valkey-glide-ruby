@@ -285,6 +285,9 @@ module Lint
     end
 
     def test_zrangestore
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd "foo", 1, "s1"
         r.zadd "foo", 2, "s2"
@@ -390,6 +393,9 @@ module Lint
     end
 
     def test_zunion
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 2, 's2'
@@ -402,6 +408,9 @@ module Lint
     end
 
     def test_zunion_with_weights
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 2, 's2'
@@ -420,6 +429,9 @@ module Lint
     end
 
     def test_zunion_with_aggregate
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 20, 's2'
@@ -439,6 +451,9 @@ module Lint
     end
 
     def test_zunionstore
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.zadd 'foo', 1, 's1'
       r.zadd 'bar', 2, 's2'
       r.zadd 'foo', 3, 's3'
@@ -449,6 +464,9 @@ module Lint
     end
 
     def test_zunionstore_with_weights
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.zadd 'foo', 1, 's1'
       r.zadd 'foo', 3, 's3'
       r.zadd 'bar', 20, 's2'
@@ -462,6 +480,9 @@ module Lint
     end
 
     def test_zunionstore_with_aggregate
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.zadd 'foo', 1, 's1'
       r.zadd 'foo', 2, 's2'
       r.zadd 'bar', 4, 's2'
@@ -484,6 +505,9 @@ module Lint
     end
 
     def test_zdiff
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 2, 's2'
@@ -499,6 +523,9 @@ module Lint
     end
 
     def test_zdiffstore
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 2, 's2'
@@ -515,6 +542,9 @@ module Lint
     end
 
     def test_zinter
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'bar', 2, 's1'
@@ -527,6 +557,9 @@ module Lint
     end
 
     def test_zinter_with_weights
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 2, 's2'
@@ -544,6 +577,9 @@ module Lint
     end
 
     def test_zinter_with_aggregate
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       target_version("6.2") do
         r.zadd 'foo', 1, 's1'
         r.zadd 'foo', 2, 's2'
@@ -564,6 +600,9 @@ module Lint
     end
 
     def test_zinterstore
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.zadd 'foo', 1, 's1'
       r.zadd 'bar', 2, 's1'
       r.zadd 'foo', 3, 's3'
@@ -574,6 +613,9 @@ module Lint
     end
 
     def test_zinterstore_with_weights
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.zadd 'foo', 1, 's1'
       r.zadd 'foo', 2, 's2'
       r.zadd 'foo', 3, 's3'
@@ -592,6 +634,9 @@ module Lint
     end
 
     def test_zinterstore_with_aggregate
+      # Uses foo/bar keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+
       r.zadd 'foo', 1, 's1'
       r.zadd 'foo', 2, 's2'
       r.zadd 'foo', 3, 's3'
@@ -628,6 +673,9 @@ module Lint
     end
 
     def test_bzmpop
+      # BZMPOP was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
 
       result = r.bzmpop(0.1, "key1", modifier: "MAX", count: 2)
@@ -656,6 +704,12 @@ module Lint
     end
 
     def test_zintercard
+      # Uses key1/key2 keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+      # ZINTERCARD was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
+
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
       r.zadd("key2", [[1, "b"], [2, "c"], [3, "d"]])
 
@@ -663,6 +717,12 @@ module Lint
     end
 
     def test_zintercard_with_limit
+      # Uses key1/key2 keys across different hash slots
+      skip("Cross-slot operation not supported in cluster mode") if cluster_mode?
+      # ZINTERCARD was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
+
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
       r.zadd("key2", [[1, "b"], [2, "c"], [3, "d"]])
 
@@ -670,6 +730,9 @@ module Lint
     end
 
     def test_zmpop
+      # ZMPOP was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       r.zadd("key1", [[1, "a"], [2, "b"], [3, "c"]])
 
       result = r.zmpop("key1", modifier: "MAX", count: 2)

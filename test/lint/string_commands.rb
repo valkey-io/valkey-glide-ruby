@@ -145,7 +145,6 @@ module Lint
     end
 
     def test_getset
-      skip "getset is deprecated in Redis 6.2.0"
       r.set("foo", "bar")
 
       assert_equal "bar", r.getset("foo", "baz")
@@ -153,7 +152,6 @@ module Lint
     end
 
     def test_getset_with_non_string_value
-      skip "getset is deprecated in Redis 6.2.0"
       r.set("foo", "zap")
 
       value = %w[b a r]

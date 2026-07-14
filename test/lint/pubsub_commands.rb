@@ -41,6 +41,9 @@ module Lint
     end
 
     def test_pubsub_shardchannels
+      # PUBSUB SHARDCHANNELS was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       # List all active shard channels
       channels = r.pubsub_shardchannels
       assert_kind_of Array, channels
@@ -52,6 +55,9 @@ module Lint
     end
 
     def test_pubsub_shardchannels_with_pattern
+      # PUBSUB SHARDCHANNELS was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       # List shard channels matching a pattern
       channels = r.pubsub_shardchannels("shard*")
       assert_kind_of Array, channels
@@ -63,6 +69,9 @@ module Lint
     end
 
     def test_pubsub_shardnumsub
+      # PUBSUB SHARDNUMSUB was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       # Get subscriber counts for shard channels
       result = r.pubsub_shardnumsub("shard1", "shard2")
       assert_kind_of Array, result
@@ -74,6 +83,9 @@ module Lint
     end
 
     def test_spublish
+      # SPUBLISH was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       # Publish to a shard channel with no subscribers
       result = r.spublish("test_shard", "Hello, Shard!")
       assert_kind_of Integer, result
@@ -110,6 +122,9 @@ module Lint
     end
 
     def test_pubsub_convenience_method_shardchannels
+      # PUBSUB SHARDCHANNELS was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       channels = r.pubsub(:shardchannels)
       assert_kind_of Array, channels
     rescue Valkey::TimeoutError
@@ -120,6 +135,9 @@ module Lint
     end
 
     def test_pubsub_convenience_method_shardnumsub
+      # PUBSUB SHARDNUMSUB was introduced in Redis 7.0.
+      # Skipped on Redis 6.2 and earlier versions.
+      omit_version("7.0")
       result = r.pubsub(:shardnumsub, "shard1", "shard2")
       assert_kind_of Array, result
     rescue Valkey::TimeoutError
