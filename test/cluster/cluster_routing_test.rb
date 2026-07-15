@@ -76,7 +76,7 @@ class TestClusterRouting < Minitest::Test
   end
 
   def test_call_v_with_route
-    result = r.call_v(["ECHO", "hello"], route: Valkey::Route.random)
+    result = r.call_v(%w[ECHO hello], route: Valkey::Route.random)
 
     assert_instance_of Valkey::ClusterValue, result
     assert result.single_node?
