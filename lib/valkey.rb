@@ -16,6 +16,8 @@ require "valkey/errors"
 require "valkey/pubsub_callback"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
+require "valkey/route"
+require "valkey/cluster_value"
 
 class Valkey
   include Utils
@@ -357,7 +359,7 @@ class Valkey
   # `test/valkey/connection_lifecycle_test.rb`) call it directly with an
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
-  def send_command(command_type, command_args = [], &block)
+  def send_command(command_type, command_args = [], route: nil, &block)
     # Validate connection. A nil/null pointer means the client was closed (or
     # never established a usable connection); surface it as a typed error with
     # the same "the client is closed" wording the sibling GLIDE clients use
@@ -365,9 +367,6 @@ class Valkey
     raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
 
     channel = 0
-    route = ""
-
-    route_buf = FFI::MemoryPointer.from_string(route)
 
     # Handle empty command_args case
     if command_args.empty?
@@ -395,17 +394,38 @@ class Valkey
     end
 
     begin
-      res = Bindings.command(
-        @connection,
-        channel,
-        command_type,
-        command_args.size,
-        arg_ptrs,
-        arg_lens,
-        route_buf,
-        route.bytesize,
-        span_ptr
-      )
+      if route
+        # Use the new command_with_route_info entrypoint (no protobuf needed).
+        # Builds a RouteInfo C struct and passes it directly to the FFI layer.
+        route_info, _pinned_bufs = route.to_ffi
+        res = Bindings.command_with_route_info(
+          @connection,
+          channel,
+          command_type,
+          command_args.size,
+          arg_ptrs,
+          arg_lens,
+          route_info.to_ptr,
+          FFI::Pointer::NULL, # response_buf (NULL = normal response path)
+          0,                  # response_buf_len
+          span_ptr
+        )
+      else
+        # Existing path — no route (protobuf with empty bytes)
+        route_str = ""
+        route_buf = FFI::MemoryPointer.from_string(route_str)
+        res = Bindings.command(
+          @connection,
+          channel,
+          command_type,
+          command_args.size,
+          arg_ptrs,
+          arg_lens,
+          route_buf,
+          route_str.bytesize,
+          span_ptr
+        )
+      end
 
       result = convert_response(res, &block)
     ensure
@@ -429,7 +449,12 @@ class Valkey
       @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
     end
 
-    result
+    # Wrap in ClusterValue when an explicit route was provided
+    if route
+      ClusterValue.new(result, multi_node: route.multi_node?)
+    else
+      result
+    end
   end
 
   private

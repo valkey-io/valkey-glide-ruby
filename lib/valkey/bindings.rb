@@ -123,6 +123,17 @@ class Valkey
       )
     end
 
+    class RouteInfo < FFI::Struct
+      layout(
+        :route_type, :int,       # RouteType enum (AllNodes=0, AllPrimaries=1, Random=2, SlotId=3, SlotKey=4, ByAddress=5)
+        :slot_id, :int32,        # slot number (for SlotId route)
+        :slot_key, :pointer,     # *const c_char (for SlotKey route; NULL otherwise)
+        :slot_type, :int,        # SlotType enum (Primary=0, Replica=1)
+        :hostname, :pointer,     # *const c_char (for ByAddress route; NULL otherwise)
+        :port, :int32            # port number (for ByAddress route)
+      )
+    end
+
     class BatchOptionsInfo < FFI::Struct
       layout(
         :retry_server_error, :bool,
@@ -239,6 +250,19 @@ class Valkey
       :pointer,     # args_len (pointer to c_ulong[])
       :pointer,     # route_bytes
       :ulong,       # route_bytes_len
+      :ulong        # span_ptr (u64)
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
+
+    attach_function :command_with_route_info, [
+      :pointer,     # client_adapter_ptr
+      :ulong,       # request_id
+      :int,         # command_type (RequestType)
+      :ulong,       # arg_count
+      :pointer,     # args (pointer to usize[])
+      :pointer,     # args_len (pointer to c_ulong[])
+      :pointer,     # route_info (*const RouteInfo, or NULL for no route)
+      :pointer,     # response_buf (NULL = normal response path)
+      :ulong,       # response_buf_len (0 if response_buf is NULL)
       :ulong        # span_ptr (u64)
     ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
