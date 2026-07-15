@@ -125,7 +125,7 @@ class Valkey
 
     class RouteInfo < FFI::Struct
       layout(
-        :route_type, :int,       # RouteType enum (AllNodes=0, AllPrimaries=1, Random=2, SlotId=3, SlotKey=4, ByAddress=5)
+        :route_type, :int,       # RouteType: AllNodes=0, AllPrimaries=1, Random=2, SlotId=3, SlotKey=4, ByAddress=5
         :slot_id, :int32,        # slot number (for SlotId route)
         :slot_key, :pointer,     # *const c_char (for SlotKey route; NULL otherwise)
         :slot_type, :int,        # SlotType enum (Primary=0, Replica=1)

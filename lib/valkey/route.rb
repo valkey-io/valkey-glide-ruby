@@ -97,27 +97,23 @@ class Valkey
       info[:port] = @port || 0
 
       pinned = [] # prevent GC of string buffers during FFI call
-
-      if @slot_key
-        buf = FFI::MemoryPointer.from_string(@slot_key)
-        info[:slot_key] = buf
-        pinned << buf
-      else
-        info[:slot_key] = FFI::Pointer::NULL
-      end
-
-      if @hostname
-        buf = FFI::MemoryPointer.from_string(@hostname)
-        info[:hostname] = buf
-        pinned << buf
-      else
-        info[:hostname] = FFI::Pointer::NULL
-      end
+      info[:slot_key] = pin_string(@slot_key, pinned)
+      info[:hostname] = pin_string(@hostname, pinned)
 
       [info, pinned]
     end
 
     private
+
+    # Pin a string into an FFI pointer (or NULL if nil), appending the buffer
+    # to +pinned+ so it is not garbage-collected before the FFI call completes.
+    def pin_string(str, pinned)
+      return FFI::Pointer::NULL unless str
+
+      buf = FFI::MemoryPointer.from_string(str)
+      pinned << buf
+      buf
+    end
 
     def initialize(route_type, multi_node:)
       @route_type = route_type
