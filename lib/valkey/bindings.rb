@@ -123,12 +123,28 @@ class Valkey
       )
     end
 
+    # Mirrors Rust's `RouteType` enum (valkey-glide/ffi/src/lib.rs)
+    RouteType = enum(
+      :all_nodes, 0,
+      :all_primaries,
+      :random,
+      :slot_id,
+      :slot_key,
+      :by_address
+    )
+
+    # Mirrors Rust's `SlotType` enum (a mirror of `SlotAddr`)
+    SlotType = enum(
+      :primary, 0,
+      :replica
+    )
+
     class RouteInfo < FFI::Struct
       layout(
-        :route_type, :int,       # RouteType: AllNodes=0, AllPrimaries=1, Random=2, SlotId=3, SlotKey=4, ByAddress=5
+        :route_type, RouteType,
         :slot_id, :int32,        # slot number (for SlotId route)
         :slot_key, :pointer,     # *const c_char (for SlotKey route; NULL otherwise)
-        :slot_type, :int,        # SlotType enum (Primary=0, Replica=1)
+        :slot_type, SlotType,
         :hostname, :pointer,     # *const c_char (for ByAddress route; NULL otherwise)
         :port, :int32            # port number (for ByAddress route)
       )

@@ -393,38 +393,27 @@ class Valkey
     end
 
     begin
+      # Always use command_with_route_info — pass NULL route_info when no route given.
       if route
-        # Use the new command_with_route_info entrypoint (no protobuf needed).
-        # Builds a RouteInfo C struct and passes it directly to the FFI layer.
         route_info, _pinned_bufs = route.to_ffi
-        res = Bindings.command_with_route_info(
-          @connection,
-          channel,
-          command_type,
-          command_args.size,
-          arg_ptrs,
-          arg_lens,
-          route_info.to_ptr,
-          FFI::Pointer::NULL, # response_buf (NULL = normal response path)
-          0,                  # response_buf_len
-          span_ptr
-        )
+        route_ptr = route_info.to_ptr
       else
-        # Existing path — no route (protobuf with empty bytes)
-        route_str = ""
-        route_buf = FFI::MemoryPointer.from_string(route_str)
-        res = Bindings.command(
-          @connection,
-          channel,
-          command_type,
-          command_args.size,
-          arg_ptrs,
-          arg_lens,
-          route_buf,
-          route_str.bytesize,
-          span_ptr
-        )
+        route_ptr = FFI::Pointer::NULL
+        _pinned_bufs = nil
       end
+
+      res = Bindings.command_with_route_info(
+        @connection,
+        channel,
+        command_type,
+        command_args.size,
+        arg_ptrs,
+        arg_lens,
+        route_ptr,
+        FFI::Pointer::NULL, # response_buf (NULL = normal response path)
+        0,                  # response_buf_len
+        span_ptr
+      )
 
       result = convert_response(res, &block)
     ensure
