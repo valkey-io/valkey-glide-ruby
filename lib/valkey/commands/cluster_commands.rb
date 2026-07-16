@@ -128,7 +128,11 @@ class Valkey
       # @return [Hash<String, String>] cluster information
       def cluster_info(route: nil)
         send_command(RequestType::CLUSTER_INFO, [], route: route) do |reply|
-          Utils::HashifyInfo.call(reply)
+          if reply.is_a?(Hash)
+            reply.transform_values { |v| Utils::HashifyInfo.call(v) }
+          else
+            Utils::HashifyInfo.call(reply)
+          end
         end
       end
 
