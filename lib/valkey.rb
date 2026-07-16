@@ -288,6 +288,9 @@ class Valkey
     @connection = res[:conn_ptr]
     Bindings.free_connection_response(response_ptr)
 
+    # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
+    @cluster_mode = options[:cluster_mode] ? true : false
+
     # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
@@ -425,7 +428,7 @@ class Valkey
         )
       end
 
-      result = convert_response(res, return_map_as_hash: !route.nil?, &block)
+      result = convert_response(res, return_map_as_hash: @cluster_mode, &block)
     ensure
       # Always drop the span if one was created, even if command fails
       if span_ptr != 0
@@ -648,8 +651,8 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # Return as Hash when routed (multi-node responses are node => value maps).
-        # Flatten to pairs for unrouted calls (redis-rb compatibility).
+        # Return as Hash in cluster mode (multi-node responses, HELLO, etc.).
+        # Flatten to pairs in standalone mode (redis-rb RESP2 compatibility).
         return_map_as_hash ? map : map.to_a.flatten(1)
       when ResponseType::SETS
         ptr = response_item[:sets_value]

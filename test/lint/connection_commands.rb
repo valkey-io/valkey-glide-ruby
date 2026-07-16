@@ -152,27 +152,35 @@ module Lint
 
     def test_hello_default
       result = r.hello
-      # Backend returns array in current implementation
-      # TODO: Backend should convert RESP3 map to Ruby Hash
-      assert_kind_of Array, result
-      assert result.include?("server"), "HELLO response should contain server info"
+      if cluster_mode?
+        assert_kind_of Hash, result
+        assert result.key?("server"), "HELLO response should contain server info"
+      else
+        assert_kind_of Array, result
+        assert result.include?("server"), "HELLO response should contain server info"
+      end
     end
 
     def test_hello_with_version
       result = r.hello(3)
-      # Backend returns array in current implementation
-      # TODO: Backend should convert RESP3 map to Ruby Hash
-      assert_kind_of Array, result
-      proto_index = result.index("proto")
-      assert_equal 3, result[proto_index + 1] if proto_index
+      if cluster_mode?
+        assert_kind_of Hash, result
+        assert_equal 3, result["proto"]
+      else
+        assert_kind_of Array, result
+        proto_index = result.index("proto")
+        assert_equal 3, result[proto_index + 1] if proto_index
+      end
     end
 
     def test_hello_with_setname
       client_name = "hello_lint_test"
       result = r.hello(3, setname: client_name)
-      # Backend returns array in current implementation
-      # TODO: Backend should convert RESP3 map to Ruby Hash
-      assert_kind_of Array, result
+      if cluster_mode?
+        assert_kind_of Hash, result
+      else
+        assert_kind_of Array, result
+      end
       # In cluster mode, HELLO and CLIENT GETNAME might hit different nodes
       # so we can't reliably assert the name was set
       assert_equal client_name, r.client_get_name unless cluster_mode?
