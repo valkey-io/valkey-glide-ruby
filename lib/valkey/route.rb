@@ -19,48 +19,50 @@ class Valkey
     attr_reader :multi_node
     alias multi_node? multi_node
 
-    # Route to all nodes (primaries + replicas).
-    # @note Don't use with write commands — they could be routed to replicas and fail.
-    # @return [Route]
-    def self.all_nodes
-      new(:all_nodes, multi_node: true)
-    end
+    class << self
+      # Route to all nodes (primaries + replicas).
+      # @note Don't use with write commands — they could be routed to replicas and fail.
+      # @return [Route]
+      def all_nodes
+        new(:all_nodes, multi_node: true)
+      end
 
-    # Route to all primary nodes.
-    # @return [Route]
-    def self.all_primaries
-      new(:all_primaries, multi_node: true)
-    end
+      # Route to all primary nodes.
+      # @return [Route]
+      def all_primaries
+        new(:all_primaries, multi_node: true)
+      end
 
-    # Route to a random node.
-    # @note Don't use with write commands — they could be randomly routed to a replica and fail.
-    # @return [Route]
-    def self.random
-      new(:random, multi_node: false)
-    end
+      # Route to a random node.
+      # @note Don't use with write commands — they could be randomly routed to a replica and fail.
+      # @return [Route]
+      def random
+        new(:random, multi_node: false)
+      end
 
-    # Route to a specific slot by ID.
-    # @param slot_id [Integer] slot number (0–16383)
-    # @param slot_type [Symbol] :primary or :replica
-    # @return [Route]
-    def self.slot_id(slot_id, slot_type = :primary)
-      new(:slot_id, multi_node: false, slot_id: slot_id.to_i, slot_type: slot_type)
-    end
+      # Route to a specific slot by ID.
+      # @param slot_id [Integer] slot number (0–16383)
+      # @param slot_type [Symbol] :primary or :replica
+      # @return [Route]
+      def slot_id(slot_id, slot_type = :primary)
+        new(:slot_id, multi_node: false, slot_id: slot_id.to_i, slot_type: slot_type)
+      end
 
-    # Route to the node owning a specific key's slot.
-    # @param key [String] the key whose slot determines routing
-    # @param slot_type [Symbol] :primary or :replica
-    # @return [Route]
-    def self.slot_key(key, slot_type = :primary)
-      new(:slot_key, multi_node: false, slot_key: key.to_s, slot_type: slot_type)
-    end
+      # Route to the node owning a specific key's slot.
+      # @param key [String] the key whose slot determines routing
+      # @param slot_type [Symbol] :primary or :replica
+      # @return [Route]
+      def slot_key(key, slot_type = :primary)
+        new(:slot_key, multi_node: false, slot_key: key.to_s, slot_type: slot_type)
+      end
 
-    # Route to a specific node by address.
-    # @param host [String] hostname or IP
-    # @param port [Integer] port number
-    # @return [Route]
-    def self.by_address(host, port)
-      new(:by_address, multi_node: false, hostname: host.to_s, port: port.to_i)
+      # Route to a specific node by address.
+      # @param host [String] hostname or IP
+      # @param port [Integer] port number
+      # @return [Route]
+      def by_address(host, port)
+        new(:by_address, multi_node: false, hostname: host.to_s, port: port.to_i)
+      end
     end
 
     # Build the FFI RouteInfo struct for passing to command_with_route_info.
