@@ -226,6 +226,10 @@ class Valkey
       :pointer # *mut ConnectionResponse
     ], :void
 
+    attach_function :free_command_result, [
+      :pointer # *mut CommandResult
+    ], :void
+
     attach_function :close_client, [
       :pointer # client_adapter_ptr
     ], :void

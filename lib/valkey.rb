@@ -409,6 +409,9 @@ class Valkey
 
       result = convert_response(res, &block)
     ensure
+      # Free the native CommandResult (arena + response + error) to prevent memory leak
+      Bindings.free_command_result(res) if res && !res.null?
+
       # Always drop the span if one was created, even if command fails
       if span_ptr != 0
         begin
@@ -514,6 +517,9 @@ class Valkey
 
       results = convert_response(res)
     ensure
+      # Free the native CommandResult (arena + response + error) to prevent memory leak
+      Bindings.free_command_result(res) if res && !res.null?
+
       # Always drop the span if one was created
       if span_ptr != 0
         begin
