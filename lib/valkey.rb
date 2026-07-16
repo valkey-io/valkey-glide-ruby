@@ -653,7 +653,7 @@ class Valkey
 
         # Only return Hash at the top level in cluster mode.
         # Nested MAPs (e.g. stream entry fields) always flatten for compatibility.
-        (top_level && return_map_as_hash) ? map : map.to_a.flatten(1)
+        top_level && return_map_as_hash ? map : map.to_a.flatten(1)
       when ResponseType::SETS
         ptr = response_item[:sets_value]
         count = response_item[:sets_value_len].to_i
