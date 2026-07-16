@@ -288,9 +288,6 @@ class Valkey
     @connection = res[:conn_ptr]
     Bindings.free_connection_response(response_ptr)
 
-    # Store cluster mode flag for response handling
-    @cluster_mode = options[:cluster_mode] ? true : false
-
     # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
@@ -396,29 +393,39 @@ class Valkey
     end
 
     begin
-      # Always use command_with_route_info — pass NULL route_info when no route given.
       if route
+        # Use command_with_route_info when an explicit route is provided.
         route_info, _pinned_bufs = route.to_ffi
-        route_ptr = route_info.to_ptr
+        res = Bindings.command_with_route_info(
+          @connection,
+          channel,
+          command_type,
+          command_args.size,
+          arg_ptrs,
+          arg_lens,
+          route_info.to_ptr,
+          FFI::Pointer::NULL, # response_buf (NULL = normal response path)
+          0,                  # response_buf_len
+          span_ptr
+        )
       else
-        route_ptr = FFI::Pointer::NULL
-        _pinned_bufs = nil
+        # Use legacy command() for unrouted calls to preserve existing behavior.
+        route_str = ""
+        route_buf = FFI::MemoryPointer.from_string(route_str)
+        res = Bindings.command(
+          @connection,
+          channel,
+          command_type,
+          command_args.size,
+          arg_ptrs,
+          arg_lens,
+          route_buf,
+          route_str.bytesize,
+          span_ptr
+        )
       end
 
-      res = Bindings.command_with_route_info(
-        @connection,
-        channel,
-        command_type,
-        command_args.size,
-        arg_ptrs,
-        arg_lens,
-        route_ptr,
-        FFI::Pointer::NULL, # response_buf (NULL = normal response path)
-        0,                  # response_buf_len
-        span_ptr
-      )
-
-      result = convert_response(res, &block)
+      result = convert_response(res, return_map_as_hash: !route.nil?, &block)
     ensure
       # Always drop the span if one was created, even if command fails
       if span_ptr != 0
@@ -585,7 +592,7 @@ class Valkey
     [arg_ptrs, arg_lens, buffers]
   end
 
-  def convert_response(res, &block)
+  def convert_response(res, return_map_as_hash: false, &block)
     result = Bindings::CommandResult.new(res)
 
     if result[:response].null?
@@ -641,9 +648,9 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # In cluster mode, return the map as-is (multi-node responses are Hash).
-        # In standalone mode, flatten to pairs for redis-rb compatibility.
-        @cluster_mode ? map : map.to_a.flatten(1)
+        # Return as Hash when routed (multi-node responses are node => value maps).
+        # Flatten to pairs for unrouted calls (redis-rb compatibility).
+        return_map_as_hash ? map : map.to_a.flatten(1)
       when ResponseType::SETS
         ptr = response_item[:sets_value]
         count = response_item[:sets_value_len].to_i
