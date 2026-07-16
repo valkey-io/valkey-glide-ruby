@@ -288,6 +288,9 @@ class Valkey
     @connection = res[:conn_ptr]
     Bindings.free_connection_response(response_ptr)
 
+    # Store cluster mode flag for response handling
+    @cluster_mode = options[:cluster_mode] ? true : false
+
     # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
@@ -638,8 +641,9 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # technically it has to return a Hash, but as of now we return just one pair
-        map.to_a.flatten(1) # Flatten to get pairs
+        # In cluster mode, return the map as-is (multi-node responses are Hash).
+        # In standalone mode, flatten to pairs for redis-rb compatibility.
+        @cluster_mode ? map : map.to_a.flatten(1)
       when ResponseType::SETS
         ptr = response_item[:sets_value]
         count = response_item[:sets_value_len].to_i
