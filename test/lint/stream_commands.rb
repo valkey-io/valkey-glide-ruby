@@ -71,43 +71,49 @@ module Lint
 
     def test_xrange
       # Clean up any existing stream first
-      r.del "{t}xrange"
+      r.del "mystream"
 
-      id1 = r.xadd("{t}xrange", { "field1" => "value1" })
-      id2 = r.xadd("{t}xrange", { "field2" => "value2" })
-      id3 = r.xadd("{t}xrange", { "field3" => "value3" })
+      id1 = r.xadd("mystream", { "field1" => "value1" }, id: "1000-0")
+      r.xadd("mystream", { "field2" => "value2" }, id: "2000-0")
+      r.xadd("mystream", { "field3" => "value3" }, id: "3000-0")
 
-      # Get all entries
-      entries = r.xrange("{t}xrange", "-", "+")
+      # Get all entries (redis-rb format: [id, [field, value, ...]])
+      entries = r.xrange("mystream", "-", "+")
       assert_equal 3, entries.length
       assert_equal id1, entries[0][0]
+      assert_kind_of Array, entries[0][1] # field-value array (redis-rb format)
 
       # Get entries with count
-      entries = r.xrange("{t}xrange", "-", "+", count: 2)
+      entries = r.xrange("mystream", "-", "+", count: 2)
       assert_equal 2, entries.length
 
-      r.del "{t}xrange"
+      # Get entries in specific range
+      entries = r.xrange("mystream", "1000-0", "2000-0")
+      assert_equal 2, entries.length
+
+      r.del "mystream"
     end
 
     def test_xrevrange
       # Clean up any existing stream first
-      r.del "{t}xrevrange"
+      r.del "mystream"
 
-      r.xadd("{t}xrevrange", { "field1" => "value1" })
-      r.xadd("{t}xrevrange", { "field2" => "value2" })
-      id3 = r.xadd("{t}xrevrange", { "field3" => "value3" })
+      r.xadd("mystream", { "field1" => "value1" }, id: "1000-0")
+      r.xadd("mystream", { "field2" => "value2" }, id: "2000-0")
+      id3 = r.xadd("mystream", { "field3" => "value3" }, id: "3000-0")
 
-      # Get all entries in reverse
-      entries = r.xrevrange("{t}xrevrange")
+      # Get all entries in reverse (redis-rb format: [id, [field, value, ...]])
+      entries = r.xrevrange("mystream")
       assert_equal 3, entries.length
       assert_equal id3, entries[0][0] # Last entry first
+      assert_kind_of Array, entries[0][1] # field-value array (redis-rb format)
 
       # Get last entry
-      entries = r.xrevrange("{t}xrevrange", "+", "-", count: 1)
+      entries = r.xrevrange("mystream", "+", "-", count: 1)
       assert_equal 1, entries.length
       assert_equal id3, entries[0][0]
 
-      r.del "{t}xrevrange"
+      r.del "mystream"
     end
 
     def test_xtrim
@@ -131,53 +137,53 @@ module Lint
 
     def test_xread
       # Clean up any existing stream first
-      r.del "{t}xread"
+      r.del "mystream"
 
       # Add entries to stream
-      r.xadd("{t}xread", { "field1" => "value1" })
-      r.xadd("{t}xread", { "field2" => "value2" })
+      r.xadd("mystream", { "field1" => "value1" })
+      r.xadd("mystream", { "field2" => "value2" })
 
       # Read from beginning
-      result = r.xread(["{t}xread"], ["0"])
+      result = r.xread(["mystream"], ["0"])
       assert_kind_of Hash, result
-      assert result.key?("{t}xread")
-      assert_operator result["{t}xread"].length, :>=, 2
+      assert result.key?("mystream")
+      assert_operator result["mystream"].length, :>=, 2
       # Verify entries are in redis-rb format: [id, [field, value, ...]]
-      assert_kind_of Array, result["{t}xread"][0]
-      assert_equal 2, result["{t}xread"][0].length
-      assert_kind_of Array, result["{t}xread"][0][1]
+      assert_kind_of Array, result["mystream"][0]
+      assert_equal 2, result["mystream"][0].length
+      assert_kind_of Array, result["mystream"][0][1]
 
       # Read with count
-      result = r.xread(["{t}xread"], ["0"], count: 1)
-      assert_operator result["{t}xread"].length, :<=, 1
+      result = r.xread(["mystream"], ["0"], count: 1)
+      assert_operator result["mystream"].length, :<=, 1
 
-      r.del "{t}xread"
+      r.del "mystream"
     end
 
     def test_xreadgroup
       # Clean up any existing stream first
-      r.del "{t}xreadgroup"
+      r.del "mystream"
 
       # Create stream and add entries
-      r.xadd("{t}xreadgroup", { "field1" => "value1" })
-      r.xadd("{t}xreadgroup", { "field2" => "value2" })
+      r.xadd("mystream", { "field1" => "value1" })
+      r.xadd("mystream", { "field2" => "value2" })
 
       # Create consumer group
-      r.xgroup_create("{t}xreadgroup", "mygroup", "0", mkstream: true)
+      r.xgroup_create("mystream", "mygroup", "0", mkstream: true)
 
       # Read from consumer group
-      result = r.xreadgroup("mygroup", "consumer1", ["{t}xreadgroup"], [">"])
+      result = r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
       # After HashifyStreams conversion, should be Hash format
       assert_kind_of Hash, result
-      assert result.key?("{t}xreadgroup")
+      assert result.key?("mystream")
       # Entries are converted to [id, hash] format
-      assert_operator result["{t}xreadgroup"].length, :>=, 2
+      assert_operator result["mystream"].length, :>=, 2
       # Verify entries are in redis-rb format: [id, [field, value, ...]]
-      assert_kind_of Array, result["{t}xreadgroup"][0]
-      assert_equal 2, result["{t}xreadgroup"][0].length
-      assert_kind_of Array, result["{t}xreadgroup"][0][1]
+      assert_kind_of Array, result["mystream"][0]
+      assert_equal 2, result["mystream"][0].length
+      assert_kind_of Array, result["mystream"][0][1]
 
-      r.del "{t}xreadgroup"
+      r.del "mystream"
     end
 
     def test_xgroup_create
@@ -297,19 +303,19 @@ module Lint
 
     def test_xclaim
       # Clean up any existing stream first
-      r.del "{t}xclaim"
+      r.del "mystream"
 
-      id1 = r.xadd("{t}xclaim", { "field1" => "value1" })
-      r.xgroup_create("{t}xclaim", "mygroup", "0")
+      id1 = r.xadd("mystream", { "field1" => "value1" })
+      r.xgroup_create("mystream", "mygroup", "0")
 
       # Read message with consumer1
-      r.xreadgroup("mygroup", "consumer1", ["{t}xclaim"], [">"])
+      r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
 
       # Wait a bit for idle time
       sleep(0.1)
 
       # Claim message for consumer2 (redis-rb format: [id, [field, value, ...]])
-      claimed = r.xclaim("{t}xclaim", "mygroup", "consumer2", 100, [id1])
+      claimed = r.xclaim("mystream", "mygroup", "consumer2", 100, [id1])
       assert_kind_of Array, claimed
       assert_operator claimed.length, :>=, 1 # Should claim at least 1 message
       # Each entry should be [id, [field, value, ...]] format (redis-rb)
@@ -320,7 +326,7 @@ module Lint
         assert_kind_of Array, entry[1] # field-value array (redis-rb format)
       end
 
-      r.del "{t}xclaim"
+      r.del "mystream"
     end
 
     def test_xautoclaim

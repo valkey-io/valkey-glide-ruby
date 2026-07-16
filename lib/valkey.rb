@@ -615,7 +615,7 @@ class Valkey
 
     result = result[:response]
 
-    convert_response = lambda { |response_item|
+    convert_response = lambda { |response_item, top_level: false|
       # TODO: handle all types of responses
       case response_item[:response_type]
       when ResponseType::STRING
@@ -651,9 +651,9 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # Return as Hash in cluster mode (multi-node responses, HELLO, etc.).
-        # Flatten to pairs in standalone mode (redis-rb RESP2 compatibility).
-        return_map_as_hash ? map : map.to_a.flatten(1)
+        # Only return Hash at the top level in cluster mode.
+        # Nested MAPs (e.g. stream entry fields) always flatten for compatibility.
+        (top_level && return_map_as_hash) ? map : map.to_a.flatten(1)
       when ResponseType::SETS
         ptr = response_item[:sets_value]
         count = response_item[:sets_value_len].to_i
@@ -680,7 +680,7 @@ class Valkey
       end
     }
 
-    response = convert_response.call(result)
+    response = convert_response.call(result, top_level: true)
 
     if block_given?
       block.call(response)
