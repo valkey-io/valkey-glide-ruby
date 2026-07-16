@@ -9,16 +9,16 @@ class Valkey
     module ServerCommands
       # Asynchronously rewrite the append-only file.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String]
       def bgrewriteaof(route: nil)
         send_command(RequestType::BG_REWRITE_AOF, [], route: route)
       end
 
       # Asynchronously save the dataset to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String]
       def bgsave(route: nil)
         send_command(RequestType::BG_SAVE, [], route: route)
       end
@@ -37,8 +37,8 @@ class Valkey
       # Sends the CONFIG GET command with the given arguments.
       #
       # @param [Array<String>] args Configuration parameters to get
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Hash, String, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Hash, String]
       #
       # @example Get all configuration parameters
       #   config_get('*')
@@ -61,7 +61,7 @@ class Valkey
       #
       # @param [Array<String>] args Key-value pairs to set configuration
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] Returns "OK" if successful
+      # @return [String] Returns "OK" if successful
       #
       # @example Set maxmemory to 100mb
       #   config_set('maxmemory', '100mb')
@@ -74,7 +74,7 @@ class Valkey
       # Sends the CONFIG RESETSTAT command.
       #
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] Returns "OK" if successful
+      # @return [String] Returns "OK" if successful
       #
       # @example
       #   config_resetstat
@@ -87,7 +87,7 @@ class Valkey
       # Sends the CONFIG REWRITE command.
       #
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] Returns "OK" if successful
+      # @return [String] Returns "OK" if successful
       #
       # @example
       #   config_rewrite
@@ -97,8 +97,8 @@ class Valkey
 
       # Return the number of keys in the selected database.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Integer, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Integer]
       def dbsize(route: nil)
         send_command(RequestType::DB_SIZE, [], route: route)
       end
@@ -108,7 +108,7 @@ class Valkey
       # @param [Hash] options
       #   - `:async => Boolean`: async flush (default: false)
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] `OK`
+      # @return [String] `OK`
       def flushall(options = nil, route: nil)
         if options && options[:async]
           send_command(RequestType::FLUSH_ALL, ["async"], route: route)
@@ -122,7 +122,7 @@ class Valkey
       # @param [Hash] options
       #   - `:async => Boolean`: async flush (default: false)
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] `OK`
+      # @return [String] `OK`
       def flushdb(options = nil, route: nil)
         if options && options[:async]
           send_command(RequestType::FLUSH_DB, ["async"], route: route)
@@ -134,8 +134,8 @@ class Valkey
       # Get information and statistics about the server.
       #
       # @param cmd [String, Symbol, nil] section name (e.g. "commandstats")
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Hash, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Hash]
       def info(cmd = nil, route: nil)
         send_command(RequestType::INFO, [cmd].compact, route: route) do |reply|
           if reply.is_a?(String)
@@ -156,8 +156,8 @@ class Valkey
 
       # Get the UNIX time stamp of the last successful save to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Integer, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Integer]
       def lastsave(route: nil)
         send_command(RequestType::LAST_SAVE, [], route: route)
       end
@@ -181,7 +181,7 @@ class Valkey
       # Synchronously save the dataset to disk.
       #
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue]
+      # @return [String]
       def save(route: nil)
         send_command(RequestType::SAVE, [], route: route)
       end
@@ -224,8 +224,8 @@ class Valkey
       # @example
       #   r.time # => [ 1333093196, 606806 ]
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Array<Integer>, ClusterValue] tuple of seconds since UNIX epoch and
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Array<Integer>] tuple of seconds since UNIX epoch and
       #   microseconds in the current second
       def time(route: nil)
         send_command(RequestType::TIME, [], route: route)
@@ -528,8 +528,8 @@ class Valkey
       # Display some computer art and the Valkey version.
       #
       # @param version [Integer, nil] optional version number for different art
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, ClusterValue] ASCII art and version information
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String] ASCII art and version information
       #
       # @example
       #   valkey.lolwut

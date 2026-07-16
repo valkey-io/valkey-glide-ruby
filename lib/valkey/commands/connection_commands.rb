@@ -19,13 +19,13 @@ class Valkey
       # Ping the server.
       #
       # @param message [String, nil] optional message to echo back
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String]
       #
       # @example
       #   ping             #=> "PONG"
       #   ping("hello")    #=> "hello"
-      #   ping(route: Valkey::Route.all_nodes)  #=> ClusterValue
+      #   ping(route: Valkey::Route.all_nodes)  #=> Hash (multi-node)
       def ping(message = nil, route: nil)
         send_command(RequestType::PING, [message].compact, route: route)
       end
@@ -33,8 +33,8 @@ class Valkey
       # Echo the given string.
       #
       # @param value [String]
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String]
       def echo(value, route: nil)
         send_command(RequestType::ECHO, [value], route: route)
       end
@@ -106,8 +106,8 @@ class Valkey
 
       # Get the current client's ID.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Integer, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Integer]
       def client_id(route: nil)
         send_command(RequestType::CLIENT_ID, [], route: route)
       end
@@ -214,7 +214,7 @@ class Valkey
       # Unpause client processing.
       #
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] `OK`
+      # @return [String] `OK`
       def client_unpause(route: nil)
         send_command(RequestType::CLIENT_UNPAUSE, [], route: route)
       end

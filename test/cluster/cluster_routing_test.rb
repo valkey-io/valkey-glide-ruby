@@ -13,9 +13,8 @@ class TestClusterRouting < Minitest::Test
   def test_custom_command_info_all_primaries
     result = r.call("INFO", route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    result.multi_value.each_value do |info|
+    assert_kind_of Hash, result
+    result.each_value do |info|
       assert_includes info.downcase, "# stats"
     end
   end
@@ -23,50 +22,40 @@ class TestClusterRouting < Minitest::Test
   def test_custom_command_echo_random
     result = r.call("ECHO", "GO GLIDE GO", route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_equal "GO GLIDE GO", result.single_value
+    assert_equal "GO GLIDE GO", result
   end
 
   def test_custom_command_ping_all_nodes
     result = r.call("PING", route: Valkey::Route.all_nodes)
 
-    assert_instance_of Valkey::ClusterValue, result
-    # AllNodes with PING returns aggregated single value (response policy)
-    assert_equal "PONG", result.value
+    assert_equal "PONG", result
   end
 
   def test_custom_command_dbsize_random
     result = r.call("DBSIZE", route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of Integer, result.single_value
-    assert_operator result.single_value, :>=, 0
+    assert_kind_of Integer, result
+    assert_operator result, :>=, 0
   end
 
   def test_custom_command_dbsize_all_primaries
     result = r.call("DBSIZE", route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    # DBSize with AllPrimaries sums across nodes (response policy)
-    assert_kind_of Integer, result.value
-    assert_operator result.value, :>=, 0
+    assert_kind_of Integer, result
+    assert_operator result, :>=, 0
   end
 
   def test_custom_command_config_get_random
     result = r.call("CONFIG", "GET", "*file", route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
+    refute_nil result
   end
 
   def test_custom_command_config_get_all_primaries
     result = r.call("CONFIG", "GET", "*file", route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    assert_operator result.multi_value.size, :>, 0
+    assert_kind_of Hash, result
+    assert_operator result.size, :>, 0
   end
 
   def test_custom_command_invalid_route
@@ -78,9 +67,7 @@ class TestClusterRouting < Minitest::Test
   def test_call_v_with_route
     result = r.call_v(%w[ECHO hello], route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_equal "hello", result.single_value
+    assert_equal "hello", result
   end
 
   # --- ping ---
@@ -88,14 +75,12 @@ class TestClusterRouting < Minitest::Test
   def test_ping_no_route
     result = r.ping
     assert_equal "PONG", result
-    refute_instance_of Valkey::ClusterValue, result
   end
 
   def test_ping_with_message_and_route
     result = r.ping("hello", route: Valkey::Route.all_nodes)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert_equal "hello", result.value
+    assert_equal "hello", result
   end
 
   def test_ping_invalid_route
@@ -109,26 +94,16 @@ class TestClusterRouting < Minitest::Test
   def test_echo_random_route
     result = r.echo("hello", route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_equal "hello", result.single_value
+    assert_equal "hello", result
   end
 
   def test_echo_all_primaries_route
     result = r.echo("hello", route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    result.multi_value.each_value do |msg|
-      assert_equal "hello", msg.downcase
+    assert_kind_of Hash, result
+    result.each_value do |msg|
+      assert_equal "hello", msg
     end
-  end
-
-  def test_echo_empty_message
-    result = r.echo("", route: Valkey::Route.all_primaries)
-
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
   end
 
   # --- time ---
@@ -143,19 +118,16 @@ class TestClusterRouting < Minitest::Test
   def test_time_random_route
     result = r.time(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of Array, result.single_value
-    assert_equal 2, result.single_value.size
+    assert_kind_of Array, result
+    assert_equal 2, result.size
   end
 
   def test_time_all_nodes_route
     result = r.time(route: Valkey::Route.all_nodes)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    assert_operator result.multi_value.size, :>, 1
-    result.multi_value.each_value do |time_val|
+    assert_kind_of Hash, result
+    assert_operator result.size, :>, 1
+    result.each_value do |time_val|
       assert_kind_of Array, time_val
     end
   end
@@ -171,16 +143,13 @@ class TestClusterRouting < Minitest::Test
   def test_dbsize_random_route
     result = r.dbsize(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of Integer, result.single_value
-    assert_operator result.single_value, :>=, 0
+    assert_kind_of Integer, result
+    assert_operator result, :>=, 0
   end
 
   def test_dbsize_without_route
     result = r.dbsize
     assert_kind_of Integer, result
-    refute_instance_of Valkey::ClusterValue, result
   end
 
   # --- info ---
@@ -188,22 +157,19 @@ class TestClusterRouting < Minitest::Test
   def test_info_with_random_route
     result = r.info("server", route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
+    assert_kind_of Hash, result
   end
 
   def test_info_with_all_primaries_route
     result = r.info("server", route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    assert_operator result.multi_value.size, :>=, 3
+    assert_kind_of Hash, result
+    assert_operator result.size, :>=, 3
   end
 
   def test_info_without_route
     result = r.info
     assert_kind_of Hash, result
-    refute_instance_of Valkey::ClusterValue, result
   end
 
   # --- config ---
@@ -211,15 +177,14 @@ class TestClusterRouting < Minitest::Test
   def test_config_get_with_random_route
     result = r.config_get("maxmemory", route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
+    refute_nil result
   end
 
   def test_config_resetstat_with_all_primaries_route
     result = r.config_resetstat(route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
+    # Multi-node response for OK commands
+    refute_nil result
   end
 
   # --- flushall ---
@@ -227,8 +192,7 @@ class TestClusterRouting < Minitest::Test
   def test_flushall_with_all_primaries_route
     result = r.flushall(nil, route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
+    refute_nil result
   end
 
   # --- lolwut ---
@@ -236,9 +200,7 @@ class TestClusterRouting < Minitest::Test
   def test_lolwut_with_random_route
     result = r.lolwut(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of String, result.single_value
+    assert_kind_of String, result
   end
 
   # --- client_id ---
@@ -246,18 +208,15 @@ class TestClusterRouting < Minitest::Test
   def test_client_id_random_route
     result = r.client_id(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of Integer, result.single_value
-    assert_operator result.single_value, :>, 0
+    assert_kind_of Integer, result
+    assert_operator result, :>, 0
   end
 
   def test_client_id_all_primaries_route
     result = r.client_id(route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    result.multi_value.each_value do |id|
+    assert_kind_of Hash, result
+    result.each_value do |id|
       assert_kind_of Integer, id
       assert_operator id, :>, 0
     end
@@ -275,15 +234,13 @@ class TestClusterRouting < Minitest::Test
   def test_cluster_info_random_route
     result = r.cluster_info(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
+    assert_kind_of Hash, result
   end
 
   def test_cluster_info_all_nodes_route
     result = r.cluster_info(route: Valkey::Route.all_nodes)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
+    assert_kind_of Hash, result
   end
 
   # --- cluster_nodes ---
@@ -291,8 +248,7 @@ class TestClusterRouting < Minitest::Test
   def test_cluster_nodes_random_route
     result = r.cluster_nodes(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
+    refute_nil result
   end
 
   # --- cluster_myid ---
@@ -300,9 +256,8 @@ class TestClusterRouting < Minitest::Test
   def test_cluster_myid_all_primaries_route
     result = r.cluster_myid(route: Valkey::Route.all_primaries)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.multi_node?
-    result.multi_value.each_value do |id|
+    assert_kind_of Hash, result
+    result.each_value do |id|
       assert_kind_of String, id
       refute_empty id
     end
@@ -311,10 +266,8 @@ class TestClusterRouting < Minitest::Test
   def test_cluster_myid_random_route
     result = r.cluster_myid(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of String, result.single_value
-    refute_empty result.single_value
+    assert_kind_of String, result
+    refute_empty result
   end
 
   # --- randomkey ---
@@ -323,8 +276,7 @@ class TestClusterRouting < Minitest::Test
     r.set("routing_test_rk", "val")
     result = r.randomkey(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
+    refute_nil result
   end
 
   # --- lastsave ---
@@ -332,10 +284,8 @@ class TestClusterRouting < Minitest::Test
   def test_lastsave_random_route
     result = r.lastsave(route: Valkey::Route.random)
 
-    assert_instance_of Valkey::ClusterValue, result
-    assert result.single_node?
-    assert_kind_of Integer, result.single_value
-    assert_operator result.single_value, :>, 0
+    assert_kind_of Integer, result
+    assert_operator result, :>, 0
   end
 
   private

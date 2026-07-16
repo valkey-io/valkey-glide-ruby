@@ -2,13 +2,12 @@
 
 require "test_helper"
 
-# Unit tests for Valkey::Route and Valkey::ClusterValue classes.
+# Unit tests for Valkey::Route class.
 # These do not require a running server — they test the Ruby layer only.
 class TestRouteUnit < Minitest::Test
   def test_all_nodes_route
     route = Valkey::Route.all_nodes
     assert route.multi_node?
-    refute route.single_node? if route.respond_to?(:single_node?)
   end
 
   def test_all_primaries_route
@@ -44,31 +43,5 @@ class TestRouteUnit < Minitest::Test
   def test_by_address_route
     route = Valkey::Route.by_address("10.0.0.1", 6379)
     refute route.multi_node?
-  end
-
-  def test_cluster_value_single_node
-    cv = Valkey::ClusterValue.new("PONG", multi_node: false)
-
-    assert cv.single_node?
-    refute cv.multi_node?
-    assert_equal "PONG", cv.single_value
-    assert_equal "PONG", cv.value
-  end
-
-  def test_cluster_value_multi_node
-    data = { "node1:6379" => 120, "node2:6379" => 98 }
-    cv = Valkey::ClusterValue.new(data, multi_node: true)
-
-    assert cv.multi_node?
-    refute cv.single_node?
-    assert_equal data, cv.multi_value
-    assert_equal data, cv.value
-  end
-
-  def test_cluster_value_nil_value
-    cv = Valkey::ClusterValue.new(nil, multi_node: false)
-
-    assert cv.single_node?
-    assert_nil cv.single_value
   end
 end

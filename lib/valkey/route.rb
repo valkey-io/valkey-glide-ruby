@@ -5,8 +5,9 @@ class Valkey
   # that support explicit cluster routing (no-key commands like DBSIZE, INFO,
   # PING, FLUSHALL, FUNCTION_*, etc.).
   #
-  # When `route:` is provided the command returns a {ClusterValue} instead of
-  # the plain redis-rb-compatible value.
+  # When `route:` is provided the command response type depends on the route:
+  # single-node routes return the value directly, multi-node routes return a
+  # Hash of `"host:port" => value`.
   #
   # @example
   #   client.dbsize(route: Valkey::Route.all_primaries)

@@ -15,7 +15,7 @@ class Valkey
       #
       # @param [String] library_name the library name to delete
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] "OK"
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-delete/
       def function_delete(library_name, route: nil)
@@ -28,8 +28,8 @@ class Valkey
       #   valkey.function_dump
       #     # => <binary string>
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, ClusterValue] the serialized payload
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String] the serialized payload
       #
       # @see https://valkey.io/commands/function-dump/
       def function_dump(route: nil)
@@ -51,7 +51,7 @@ class Valkey
       # @param [Boolean] async flush asynchronously
       # @param [Boolean] sync flush synchronously
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] "OK"
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-flush/
       def function_flush(async: false, sync: false, route: nil)
@@ -73,7 +73,7 @@ class Valkey
       #     # => "OK"
       #
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] "OK"
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-kill/
       def function_kill(route: nil)
@@ -94,8 +94,8 @@ class Valkey
       #
       # @param [String] library_name filter by library name pattern
       # @param [Boolean] with_code include the library code in the response
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Array<Hash>, ClusterValue] array of library information
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Array<Hash>] array of library information
       #
       # @see https://valkey.io/commands/function-list/
       def function_list(library_name: nil, with_code: false, route: nil)
@@ -124,7 +124,7 @@ class Valkey
       # @param [String] function_code the source code
       # @param [Boolean] replace replace the library if it exists
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] the library name that was loaded
+      # @return [String] the library name that was loaded
       #
       # @see https://valkey.io/commands/function-load/
       def function_load(function_code, replace: false, route: nil)
@@ -154,7 +154,7 @@ class Valkey
       # @param [String] serialized_value the serialized payload from FUNCTION DUMP
       # @param [String] policy the restore policy: "FLUSH", "APPEND", or "REPLACE"
       # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String, ClusterValue] "OK"
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-restore/
       def function_restore(serialized_value, policy: nil, route: nil)
@@ -171,8 +171,8 @@ class Valkey
       #   valkey.function_stats
       #     # => {"running_script" => {...}, "engines" => {...}}
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Hash, ClusterValue] function execution statistics
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Hash] function execution statistics
       #
       # @see https://valkey.io/commands/function-stats/
       def function_stats(route: nil)
@@ -191,8 +191,8 @@ class Valkey
       # @param [String] function the function name
       # @param [Array<String>] keys the keys to pass to the function
       # @param [Array<String>] args the arguments to pass to the function
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Object, ClusterValue] the function result
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall/
       def fcall(function, keys: [], args: [], route: nil)
@@ -209,8 +209,8 @@ class Valkey
       # @param [String] function the function name
       # @param [Array<String>] keys the keys to pass to the function
       # @param [Array<String>] args the arguments to pass to the function
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Object, ClusterValue] the function result
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall_ro/
       def fcall_ro(function, keys: [], args: [], route: nil)

@@ -394,8 +394,8 @@ class Valkey
 
       # Return a random key from the keyspace.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [String, nil, ClusterValue]
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [String, nil]
       def randomkey(route: nil)
         send_command(RequestType::RANDOM_KEY, [], route: route)
       end
@@ -553,8 +553,8 @@ class Valkey
       # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
       # @param [Hash] kwargs trailing command flags; truthy values emit the upcased flag name,
       #   non-boolean values also emit the stringified value; falsy/nil values are dropped
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Object, ClusterValue] the raw reply, with no type-casting based on the command name
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
       def call(*argv, route: nil, **kwargs)
@@ -570,8 +570,8 @@ class Valkey
       #   valkey.call_v(["MGET"] + keys)
       #
       # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
-      # @param route [Valkey::Route, nil] cluster routing. When provided, returns a {ClusterValue}.
-      # @return [Object, ClusterValue] the raw reply, with no type-casting based on the command name
+      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
       def call_v(argv, route: nil)

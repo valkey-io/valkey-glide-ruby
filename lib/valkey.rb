@@ -17,7 +17,6 @@ require "valkey/pubsub_callback"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
-require "valkey/cluster_value"
 
 class Valkey
   include Utils
@@ -449,12 +448,7 @@ class Valkey
       @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
     end
 
-    # Wrap in ClusterValue when an explicit route was provided
-    if route
-      ClusterValue.new(result, multi_node: route.multi_node?)
-    else
-      result
-    end
+    result
   end
 
   private
