@@ -102,6 +102,11 @@ class Valkey
     HashifyStreamEntries = lambda { |reply|
       return [] if reply.nil?
 
+      # In cluster mode, MAP responses come as Hash: {id => [fields], ...}
+      if reply.is_a?(Hash)
+        return reply.map { |entry_id, values| [entry_id, values.is_a?(Array) ? values.flatten : []] }
+      end
+
       return [] if !reply.is_a?(Array) || reply.empty?
 
       # Reply format: [[entry_id, [field1, value1, field2, value2, ...]], ...]
