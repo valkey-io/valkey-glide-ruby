@@ -124,7 +124,7 @@ class Valkey
 
       # Get information about the cluster.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Hash<String, String>] cluster information
       def cluster_info(route: nil)
         send_command(RequestType::CLUSTER_INFO, [], route: route) do |reply|
@@ -142,7 +142,7 @@ class Valkey
 
       # Get information about cluster links.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of link information
       def cluster_links(route: nil)
         send_command(RequestType::CLUSTER_LINKS, [], route: route)
@@ -159,7 +159,7 @@ class Valkey
 
       # Get the ID of the current node.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String] node ID
       def cluster_myid(route: nil)
         send_command(RequestType::CLUSTER_MY_ID, [], route: route)
@@ -167,7 +167,7 @@ class Valkey
 
       # Get the shard ID of the current node.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String] shard ID
       def cluster_myshardid(route: nil)
         send_command(RequestType::CLUSTER_MY_SHARD_ID, [], route: route)
@@ -175,7 +175,7 @@ class Valkey
 
       # Get information about all nodes in the cluster.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of node information
       def cluster_nodes(route: nil)
         send_command(RequestType::CLUSTER_NODES, [], route: route) do |reply|
@@ -240,7 +240,7 @@ class Valkey
 
       # Get information about cluster shards.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of shard information
       def cluster_shards(route: nil)
         send_command(RequestType::CLUSTER_SHARDS, [], route: route)

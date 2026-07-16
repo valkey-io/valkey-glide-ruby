@@ -9,7 +9,7 @@ class Valkey
     module ServerCommands
       # Asynchronously rewrite the append-only file.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String]
       def bgrewriteaof(route: nil)
         send_command(RequestType::BG_REWRITE_AOF, [], route: route)
@@ -17,7 +17,7 @@ class Valkey
 
       # Asynchronously save the dataset to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String]
       def bgsave(route: nil)
         send_command(RequestType::BG_SAVE, [], route: route)
@@ -37,7 +37,7 @@ class Valkey
       # Sends the CONFIG GET command with the given arguments.
       #
       # @param [Array<String>] args Configuration parameters to get
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Hash, String]
       #
       # @example Get all configuration parameters
@@ -97,7 +97,7 @@ class Valkey
 
       # Return the number of keys in the selected database.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Integer]
       def dbsize(route: nil)
         send_command(RequestType::DB_SIZE, [], route: route)
@@ -134,7 +134,7 @@ class Valkey
       # Get information and statistics about the server.
       #
       # @param cmd [String, Symbol, nil] section name (e.g. "commandstats")
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Hash]
       def info(cmd = nil, route: nil)
         send_command(RequestType::INFO, [cmd].compact, route: route) do |reply|
@@ -156,7 +156,7 @@ class Valkey
 
       # Get the UNIX time stamp of the last successful save to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Integer]
       def lastsave(route: nil)
         send_command(RequestType::LAST_SAVE, [], route: route)
@@ -224,7 +224,7 @@ class Valkey
       # @example
       #   r.time # => [ 1333093196, 606806 ]
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Integer>] tuple of seconds since UNIX epoch and
       #   microseconds in the current second
       def time(route: nil)
@@ -528,7 +528,7 @@ class Valkey
       # Display some computer art and the Valkey version.
       #
       # @param version [Integer, nil] optional version number for different art
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String] ASCII art and version information
       #
       # @example

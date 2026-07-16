@@ -19,7 +19,7 @@ class Valkey
       # Ping the server.
       #
       # @param message [String, nil] optional message to echo back
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String]
       #
       # @example
@@ -33,7 +33,7 @@ class Valkey
       # Echo the given string.
       #
       # @param value [String]
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String]
       def echo(value, route: nil)
         send_command(RequestType::ECHO, [value], route: route)
@@ -106,7 +106,7 @@ class Valkey
 
       # Get the current client's ID.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When provided, response type depends on the route (single value or Hash of node => value).
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Integer]
       def client_id(route: nil)
         send_command(RequestType::CLIENT_ID, [], route: route)
