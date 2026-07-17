@@ -18,18 +18,25 @@ class Valkey
 
       # Ping the server.
       #
-      # @param [optional, String] message
-      # @return [String] `PONG`
-      def ping(message = nil)
-        send_command(RequestType::PING, [message].compact)
+      # @param message [String, nil] optional message to echo back
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @return [String]
+      #
+      # @example
+      #   ping             #=> "PONG"
+      #   ping("hello")    #=> "hello"
+      #   ping(route: Valkey::Route.all_nodes)  #=> Hash (multi-node)
+      def ping(message = nil, route: nil)
+        send_command(RequestType::PING, [message].compact, route: route)
       end
 
       # Echo the given string.
       #
-      # @param [String] value
+      # @param value [String]
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String]
-      def echo(value)
-        send_command(RequestType::ECHO, [value])
+      def echo(value, route: nil)
+        send_command(RequestType::ECHO, [value], route: route)
       end
 
       # Change the selected database for the current connection.
@@ -99,9 +106,10 @@ class Valkey
 
       # Get the current client's ID.
       #
-      # @return [Integer] Unique client ID
-      def client_id
-        send_command(RequestType::CLIENT_ID)
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @return [Integer]
+      def client_id(route: nil)
+        send_command(RequestType::CLIENT_ID, [], route: route)
       end
 
       # Get the current client's name.
@@ -205,9 +213,10 @@ class Valkey
 
       # Unpause client processing.
       #
+      # @param route [Valkey::Route, nil] cluster routing.
       # @return [String] `OK`
-      def client_unpause
-        send_command(RequestType::CLIENT_UNPAUSE)
+      def client_unpause(route: nil)
+        send_command(RequestType::CLIENT_UNPAUSE, [], route: route)
       end
 
       # Configure client reply mode.

@@ -140,7 +140,7 @@ module ValkeyTests
     # failover_commands_test.rb.
     def capture_call_args(*args, **kwargs)
       captured = nil
-      stub = lambda do |_request_type, sent_args = [], &_block|
+      stub = lambda do |_request_type, sent_args = [], **_opts, &_block|
         captured = sent_args
         "OK"
       end
@@ -150,7 +150,7 @@ module ValkeyTests
 
     def capture_call_v_args(args)
       captured = nil
-      stub = lambda do |_request_type, sent_args = [], &_block|
+      stub = lambda do |_request_type, sent_args = [], **_opts, &_block|
         captured = sent_args
         "OK"
       end

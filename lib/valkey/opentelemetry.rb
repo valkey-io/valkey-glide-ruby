@@ -44,6 +44,7 @@ class Valkey
   module OpenTelemetry
     @initialized = false
     @config = nil
+    @parent_span_context_provider = nil
 
     class << self
       # Initialize OpenTelemetry in the Valkey GLIDE core.
@@ -67,12 +68,16 @@ class Valkey
       # @param flush_interval_ms [Integer, nil] Flush interval in milliseconds (default: 5000)
       #   Must be a positive integer
       #
+      # @param parent_span_context_provider [Proc, nil] Optional callable returning a Hash describing
+      #   the current application span context (see {set_parent_span_context_provider}). Equivalent to
+      #   calling {set_parent_span_context_provider} separately; provided here for convenience.
+      #
       # @raise [ArgumentError] if neither traces nor metrics is provided
       # @raise [ArgumentError] if sample_percentage is not between 0-100
       # @raise [RuntimeError] if initialization fails
       #
       # @return [void]
-      def init(traces: nil, metrics: nil, flush_interval_ms: nil)
+      def init(traces: nil, metrics: nil, flush_interval_ms: nil, parent_span_context_provider: nil)
         if @initialized
           warn "Valkey::OpenTelemetry already initialized - ignoring new configuration"
           return
@@ -106,6 +111,7 @@ class Valkey
 
         @initialized = true
         @config = { traces: traces, metrics: metrics, flush_interval_ms: flush_interval_ms }
+        set_parent_span_context_provider(parent_span_context_provider) if parent_span_context_provider
 
         puts "✅ Valkey OpenTelemetry initialized successfully"
         puts "   Traces: #{traces ? traces[:endpoint] : 'disabled'}"
@@ -135,15 +141,87 @@ class Valkey
       # @return [Hash, nil] the configuration hash or nil if not initialized
       attr_reader :config
 
+      # Register a callable that returns the current application span context, so that
+      # spans created for Valkey commands become children of it instead of independent
+      # root spans. This is how distributed tracing context (e.g. from the Rails request
+      # span) is propagated into the native OpenTelemetry spans created for each command.
+      #
+      # @param callable [Proc, nil] Called with no arguments before each command. Must return
+      #   either nil (no active context - the command gets an independent span) or a Hash with:
+      #   - :trace_id [String] 32-character lowercase hex trace ID
+      #   - :span_id [String] 16-character lowercase hex span ID
+      #   - :trace_flags [Integer] 0-255
+      #   - :tracestate [String, nil] W3C tracestate header, optional
+      #   Pass nil (and no block) to clear a previously registered provider.
+      #
+      # @example
+      #   Valkey::OpenTelemetry.set_parent_span_context_provider do
+      #     span = ::OpenTelemetry::Trace.current_span
+      #     next nil unless span.context.valid?
+      #
+      #     {
+      #       trace_id: span.context.hex_trace_id,
+      #       span_id: span.context.hex_span_id,
+      #       trace_flags: span.context.trace_flags.sampled? ? 1 : 0,
+      #       tracestate: span.context.tracestate.to_s
+      #     }
+      #   end
+      #
+      # @return [void]
+      def set_parent_span_context_provider(callable = nil, &block)
+        @parent_span_context_provider = block || callable
+      end
+
+      # Invoke the registered parent-span-context provider (if any) and return a validated
+      # context Hash, or nil if no provider is registered, the provider returned nil, the
+      # provider raised, or the returned context failed validation.
+      #
+      # @return [Hash, nil]
+      def parent_span_context
+        return nil unless @parent_span_context_provider
+
+        ctx = @parent_span_context_provider.call
+        return nil if ctx.nil?
+
+        validate_parent_span_context!(ctx)
+        ctx
+      rescue StandardError => e
+        warn "Valkey::OpenTelemetry parent_span_context_provider failed: #{e.message}"
+        nil
+      end
+
       # Reset initialization state (for testing only).
       #
       # @api private
       def reset!
         @initialized = false
         @config = nil
+        @parent_span_context_provider = nil
       end
 
       private
+
+      def validate_parent_span_context!(ctx)
+        raise ArgumentError, "parent span context must be a Hash, got: #{ctx.class}" unless ctx.is_a?(Hash)
+
+        unless ctx[:trace_id].is_a?(String) && ctx[:trace_id].match?(/\A[0-9a-f]{32}\z/)
+          raise ArgumentError, "trace_id must be a 32-character lowercase hex string, got: #{ctx[:trace_id].inspect}"
+        end
+
+        unless ctx[:span_id].is_a?(String) && ctx[:span_id].match?(/\A[0-9a-f]{16}\z/)
+          raise ArgumentError, "span_id must be a 16-character lowercase hex string, got: #{ctx[:span_id].inspect}"
+        end
+
+        trace_flags = ctx[:trace_flags]
+        unless trace_flags.is_a?(Integer) && trace_flags >= 0 && trace_flags <= 255
+          raise ArgumentError, "trace_flags must be an integer between 0 and 255, got: #{trace_flags.inspect}"
+        end
+
+        tracestate = ctx[:tracestate]
+        return if tracestate.nil? || tracestate.is_a?(String)
+
+        raise ArgumentError, "tracestate must be a String or nil, got: #{tracestate.class}"
+      end
 
       def build_config(traces, metrics, flush_interval_ms)
         config_struct = Bindings::OpenTelemetryConfig.new

@@ -238,6 +238,50 @@ client.set("key", "value")  # traced when sampling applies
 
 OpenTelemetry can only be initialized **once per process**. Spans are created in the FFI layer when sampling is enabled.
 
+### Distributed tracing (parent context propagation)
+
+By default, every command span is an independent root span — it doesn't nest under your
+application's request trace. To fix that, register a `parent_span_context_provider`: a
+callable invoked before every command that returns the current W3C trace context (or `nil`
+when there isn't one). When it returns a valid context, the command/pipeline span is created
+as a **child** of it instead of an independent span.
+
+```ruby
+require "valkey"
+require "opentelemetry/sdk" # if your app uses the real opentelemetry-ruby gem
+
+Valkey::OpenTelemetry.init(
+  traces: { endpoint: "http://localhost:4318/v1/traces", sample_percentage: 10 }
+)
+
+Valkey::OpenTelemetry.set_parent_span_context_provider do
+  span = ::OpenTelemetry::Trace.current_span
+  next nil unless span.context.valid?
+
+  {
+    trace_id: span.context.hex_trace_id,
+    span_id: span.context.hex_span_id,
+    trace_flags: span.context.trace_flags.sampled? ? 1 : 0,
+    tracestate: span.context.tracestate.to_s
+  }
+end
+```
+
+The provider must return either `nil` or a Hash with `:trace_id` (32-char lowercase hex),
+`:span_id` (16-char lowercase hex), `:trace_flags` (Integer 0-255), and `:tracestate`
+(String or `nil`). Anything else is rejected with a warning and treated as `nil` — a broken
+provider degrades to independent root spans, it never raises into your command path.
+
+You can also pass `parent_span_context_provider:` directly to `init(...)` instead of calling
+`set_parent_span_context_provider` separately.
+
+**Note on the `OpenTelemetry` constant name:** `Valkey::OpenTelemetry` (this gem's module) and
+the real `opentelemetry-ruby` gem's top-level `::OpenTelemetry` module are unrelated constants
+and don't collide. But if you write a provider block from code that's lexically nested inside
+`Valkey` (uncommon for typical app-level code), a bare `OpenTelemetry::Trace` reference would
+resolve to `Valkey::OpenTelemetry::Trace` (undefined) instead of the real gem — always use the
+leading-`::` form, `::OpenTelemetry::Trace`, as in the example above.
+
 ## Examples
 
 Runnable examples are in [examples/](./examples/):

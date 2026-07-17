@@ -123,6 +123,33 @@ class Valkey
       )
     end
 
+    # Mirrors Rust's `RouteType` enum (valkey-glide/ffi/src/lib.rs)
+    RouteType = enum(
+      :all_nodes, 0,
+      :all_primaries,
+      :random,
+      :slot_id,
+      :slot_key,
+      :by_address
+    )
+
+    # Mirrors Rust's `SlotType` enum (a mirror of `SlotAddr`)
+    SlotType = enum(
+      :primary, 0,
+      :replica
+    )
+
+    class RouteInfo < FFI::Struct
+      layout(
+        :route_type, RouteType,
+        :slot_id, :int32,        # slot number (for SlotId route)
+        :slot_key, :pointer,     # *const c_char (for SlotKey route; NULL otherwise)
+        :slot_type, SlotType,
+        :hostname, :pointer,     # *const c_char (for ByAddress route; NULL otherwise)
+        :port, :int32            # port number (for ByAddress route)
+      )
+    end
+
     class BatchOptionsInfo < FFI::Struct
       layout(
         :retry_server_error, :bool,
@@ -259,6 +286,19 @@ class Valkey
       :ulong        # span_ptr (u64)
     ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
 
+    attach_function :command_with_route_info, [
+      :pointer,     # client_adapter_ptr
+      :ulong,       # request_id
+      :int,         # command_type (RequestType)
+      :ulong,       # arg_count
+      :pointer,     # args (pointer to usize[])
+      :pointer,     # args_len (pointer to c_ulong[])
+      :pointer,     # route_info (*const RouteInfo, or NULL for no route)
+      :pointer,     # response_buf (NULL = normal response path)
+      :ulong,       # response_buf_len (0 if response_buf is NULL)
+      :ulong        # span_ptr (u64)
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
+
     attach_function :batch, [
       :pointer,        # client_ptr
       :ulong,          # callback_index
@@ -342,6 +382,21 @@ class Valkey
     ], :uint64 # returns span pointer (u64) or 0 on failure
 
     attach_function :create_batch_otel_span, [], :uint64 # returns span pointer (u64) or 0 on failure
+
+    attach_function :create_otel_span_with_trace_context, [
+      :int,    # request_type (RequestType enum value)
+      :string, # trace_id (32-char lowercase hex, or nil for an independent span)
+      :string, # span_id (16-char lowercase hex, or nil for an independent span)
+      :uint8,  # trace_flags
+      :string  # trace_state (W3C tracestate header, or nil)
+    ], :uint64 # returns span pointer (u64); falls back to an independent span on invalid context
+
+    attach_function :create_batch_otel_span_with_trace_context, [
+      :string, # trace_id (32-char lowercase hex, or nil for an independent span)
+      :string, # span_id (16-char lowercase hex, or nil for an independent span)
+      :uint8,  # trace_flags
+      :string  # trace_state (W3C tracestate header, or nil)
+    ], :uint64 # returns span pointer (u64); falls back to an independent batch span on invalid context
 
     attach_function :drop_otel_span, [
       :uint64 # span_ptr to close

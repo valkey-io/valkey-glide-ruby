@@ -41,10 +41,29 @@ end
 client.del("otel_key", "otel_pipe_1")
 client.close
 
+# Distributed tracing: register a parent_span_context_provider so command spans
+# become children of the app's current trace instead of independent root spans.
+# Here we hand-roll a fake W3C trace context (no dependency on the real
+# opentelemetry-ruby gem); in a real app this would read from
+# ::OpenTelemetry::Trace.current_span.context (see README).
+fake_trace_id = "4bf92f3577b34da6a3ce929d0e0e4736"
+fake_span_id = "00f067aa0ba902b7"
+
+Valkey::OpenTelemetry.set_parent_span_context_provider do
+  { trace_id: fake_trace_id, span_id: fake_span_id, trace_flags: 1, tracestate: nil }
+end
+
+client = Valkey.new(host: host, port: port)
+client.set("otel_traced_key", "value") # span will be a child of fake_trace_id/fake_span_id
+client.close
+
+Valkey::OpenTelemetry.set_parent_span_context_provider(nil)
+
 # Allow exporter flush
 sleep 2
 
 puts "OpenTelemetry initialized: #{Valkey::OpenTelemetry.initialized?}"
 puts "Traces file: #{TRACES_FILE} (#{File.size?(TRACES_FILE) || 0} bytes)"
 puts "Metrics file: #{METRICS_FILE} (#{File.size?(METRICS_FILE) || 0} bytes)"
-puts "Done."
+puts "Done. Inspect #{TRACES_FILE} - the SET span for otel_traced_key should have " \
+     "trace_id=#{fake_trace_id} and parent_span_id=#{fake_span_id}."

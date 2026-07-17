@@ -44,3 +44,9 @@ class TestStandaloneOpenTelemetry < Minitest::Test
     false
   end
 end
+
+# Pure unit tests for the parent-span-context provider API - no connection, no native
+# OTel init, so this runs in its own class independent of server/mode.
+class TestOpenTelemetryProvider < Minitest::Test
+  include ValkeyTests::OpenTelemetryProvider
+end

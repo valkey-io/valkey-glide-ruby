@@ -23,6 +23,7 @@ module ValkeyTests
 
     def teardown
       cleanup_test_files
+      ::Valkey::OpenTelemetry.set_parent_span_context_provider(nil)
       super if defined?(super)
     end
 
@@ -121,6 +122,18 @@ module ValkeyTests
         counts[name] = span_names.count(name)
       end
       counts
+    end
+
+    # Read full span objects (not just names) from the exported file, so tests can
+    # assert on trace_id/parent_span_id to prove parent-context propagation.
+    def read_spans(file_path)
+      spans = []
+      File.readlines(file_path).each do |line|
+        spans << JSON.parse(line)
+      rescue JSON::ParserError
+        # Skip malformed lines
+      end
+      spans
     end
 
     # Test 1: Initialization with file exporter
@@ -319,6 +332,63 @@ module ValkeyTests
 
       # Just verify no errors occurred
       # Actual sampling verification would be non-deterministic
+    end
+
+    # Test 9: A registered parent_span_context_provider makes the command span a
+    # child of the given remote context (single-command / send_command path).
+    def test_command_span_is_child_of_parent_context_when_provider_registered
+      skip("OpenTelemetry tests only run on standalone mode") if cluster_mode?
+      assert ::Valkey::OpenTelemetry.initialized?
+
+      cleanup_test_files
+
+      trace_id = "4bf92f3577b34da6a3ce929d0e0e4736"
+      span_id = "00f067aa0ba902b7"
+
+      ::Valkey::OpenTelemetry.set_parent_span_context_provider do
+        { trace_id: trace_id, span_id: span_id, trace_flags: 1, tracestate: nil }
+      end
+
+      client = ::Valkey.new(host: "localhost", port: 6379)
+      client.set("otel_parent_ctx_key", "value")
+      client.close
+
+      wait_for_spans(TRACES_FILE, %w[SET], expected_counts: { "SET" => 1 }, timeout: 10.0)
+
+      span = read_spans(TRACES_FILE).find { |s| s["name"] == "SET" }
+      refute_nil span, "expected a SET span to be exported"
+      assert_equal trace_id, span["trace_id"]
+      assert_equal span_id, span["parent_span_id"]
+    end
+
+    # Test 10: Same as above, but for the non-transactional pipeline/batch path
+    # (send_batch_commands), which creates one Batch span for the whole pipeline.
+    def test_batch_span_is_child_of_parent_context_when_provider_registered
+      skip("OpenTelemetry tests only run on standalone mode") if cluster_mode?
+      assert ::Valkey::OpenTelemetry.initialized?
+
+      cleanup_test_files
+
+      trace_id = "5bf92f3577b34da6a3ce929d0e0e4737"
+      span_id = "11f067aa0ba902b8"
+
+      ::Valkey::OpenTelemetry.set_parent_span_context_provider do
+        { trace_id: trace_id, span_id: span_id, trace_flags: 1, tracestate: nil }
+      end
+
+      client = ::Valkey.new(host: "localhost", port: 6379)
+      client.pipelined do |pipeline|
+        pipeline.set("otel_parent_ctx_batch_1", "v1")
+        pipeline.get("otel_parent_ctx_batch_1")
+      end
+      client.close
+
+      wait_for_spans(TRACES_FILE, ["Batch"], expected_counts: { "Batch" => 1 }, timeout: 10.0)
+
+      span = read_spans(TRACES_FILE).find { |s| s["name"] == "Batch" }
+      refute_nil span, "expected a Batch span to be exported"
+      assert_equal trace_id, span["trace_id"]
+      assert_equal span_id, span["parent_span_id"]
     end
   end
 end

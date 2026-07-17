@@ -386,10 +386,12 @@ module Lint
       # Enable latency monitoring first
       r.config_set("latency-monitor-threshold", "100")
 
-      # LATENCY DOCTOR returns a human-readable string (or array with server info)
+      # LATENCY DOCTOR returns a human-readable string (or Hash in cluster mode)
       result = r.latency_doctor
-      # Server may return array with [server_info, string] or just string
-      if result.is_a?(Array)
+      if result.is_a?(Hash)
+        # In cluster mode, returns {"host:port" => "message", ...}
+        result.each_value { |v| assert_kind_of String, v }
+      elsif result.is_a?(Array)
         assert result.size >= 2, "Expected array with at least 2 elements"
         assert_kind_of String, result[1], "Expected second element to be a String"
         assert !result[1].empty?, "Expected latency_doctor string to be non-empty"
@@ -427,12 +429,19 @@ module Lint
 
       # LATENCY HISTOGRAM without arguments returns all histograms
       result = r.latency_histogram
-      assert_kind_of Array, result
-      # Result may be empty if no latency events recorded
+      if cluster_mode?
+        assert_kind_of Hash, result
+      else
+        assert_kind_of Array, result
+      end
 
       # LATENCY HISTOGRAM with specific commands
       result = r.latency_histogram("SET", "GET")
-      assert_kind_of Array, result
+      if cluster_mode?
+        assert_kind_of Hash, result
+      else
+        assert_kind_of Array, result
+      end
     rescue Valkey::CommandError => e
       # Skip if latency monitoring is not available
       if e.message.include?("LATENCY") || e.message.include?("unknown")
@@ -447,15 +456,15 @@ module Lint
 
       # LATENCY HISTORY requires an event name
       result = r.latency_history("command")
-      # Server may return string (server info) when no data, or array of entries
-      if result.is_a?(String)
+      if result.is_a?(Hash)
+        # In cluster mode, returns {"host:port" => [...], ...}
+        result.each_value { |v| assert_kind_of Array, v }
+      elsif result.is_a?(String)
         # No samples available - this is valid
         assert !result.empty?, "Expected non-empty string response"
       else
         assert_kind_of Array, result
-        # Server may include server info as first element, filter it out
         entries = result.reject { |e| e.is_a?(String) && e.include?(":") }
-        # If not empty, each entry should be [timestamp, latency]
         entries.each do |entry|
           next unless entry.is_a?(Array) && entry.size >= 2
 
@@ -478,16 +487,15 @@ module Lint
 
       # LATENCY LATEST returns latest latency events
       result = r.latency_latest
-      # Server may return string (server info) when no data, or array of entries
-      if result.is_a?(String)
+      if result.is_a?(Hash)
+        # In cluster mode, returns {"host:port" => [...], ...}
+        result.each_value { |v| assert_kind_of Array, v }
+      elsif result.is_a?(String)
         # No samples available - this is valid
         assert !result.empty?, "Expected non-empty string response"
       else
         assert_kind_of Array, result
-        # Server may include server info as first element, filter it out
         entries = result.reject { |e| e.is_a?(String) && e.include?(":") }
-        # Result may be empty if no latency events recorded
-        # If not empty, each entry should be [event_name, timestamp, latest_latency, max_latency]
         entries.each do |entry|
           next unless entry.is_a?(Array) && entry.size >= 4
 
@@ -528,11 +536,15 @@ module Lint
     end
 
     def test_memory_doctor
-      # MEMORY DOCTOR returns a human-readable string (or array in cluster mode)
+      # MEMORY DOCTOR returns a human-readable string (or Hash in cluster mode)
       result = r.memory_doctor
-      if result.is_a?(Array)
-        # In cluster mode, may return array with server info (IP:port) and messages
-        # Filter out server info strings (short strings matching IP:port pattern)
+      if result.is_a?(Hash)
+        # In cluster mode, returns {"host:port" => "message", ...}
+        result.each_value do |msg|
+          assert_kind_of String, msg
+          assert !msg.empty?, "Expected memory_doctor message to be non-empty"
+        end
+      elsif result.is_a?(Array)
         messages = result.reject { |e| e.is_a?(String) && e.match?(/^\d+\.\d+\.\d+\.\d+:\d+$/) }
         assert !messages.empty?, "Expected memory_doctor to return at least one message"
         messages.each do |msg|

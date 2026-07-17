@@ -66,4 +66,5 @@ Metrics/ModuleLength:
     - 'lib/valkey/utils.rb'
     - 'lib/valkey/commands/*.rb'
     - 'lib/valkey/bindings.rb'
+    - 'lib/valkey/opentelemetry.rb'
     - 'test/**/*.rb'

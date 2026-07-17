@@ -394,9 +394,10 @@ class Valkey
 
       # Return a random key from the keyspace.
       #
-      # @return [String]
-      def randomkey
-        send_command(RequestType::RANDOM_KEY)
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @return [String, nil]
+      def randomkey(route: nil)
+        send_command(RequestType::RANDOM_KEY, [], route: route)
       end
 
       # Rename a key. If the new key already exists it is overwritten.
@@ -552,11 +553,12 @@ class Valkey
       # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
       # @param [Hash] kwargs trailing command flags; truthy values emit the upcased flag name,
       #   non-boolean values also emit the stringified value; falsy/nil values are dropped
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
-      def call(*argv, **kwargs)
-        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv).concat(call_flags(kwargs)))
+      def call(*argv, route: nil, **kwargs)
+        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv).concat(call_flags(kwargs)), route: route)
       end
 
       # Send any command as a single Array of arguments and get the raw reply back.
@@ -568,11 +570,12 @@ class Valkey
       #   valkey.call_v(["MGET"] + keys)
       #
       # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
-      def call_v(argv)
-        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv))
+      def call_v(argv, route: nil)
+        send_command(RequestType::CUSTOM_COMMAND, flatten_call_args(argv), route: route)
       end
 
       private

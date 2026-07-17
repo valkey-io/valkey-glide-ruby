@@ -14,11 +14,12 @@ class Valkey
       #     # => "OK"
       #
       # @param [String] library_name the library name to delete
+      # @param route [Valkey::Route, nil] cluster routing.
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-delete/
-      def function_delete(library_name)
-        send_command(RequestType::FUNCTION_DELETE, [library_name])
+      def function_delete(library_name, route: nil)
+        send_command(RequestType::FUNCTION_DELETE, [library_name], route: route)
       end
 
       # Return the serialized payload of loaded libraries.
@@ -27,11 +28,12 @@ class Valkey
       #   valkey.function_dump
       #     # => <binary string>
       #
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String] the serialized payload
       #
       # @see https://valkey.io/commands/function-dump/
-      def function_dump
-        send_command(RequestType::FUNCTION_DUMP)
+      def function_dump(route: nil)
+        send_command(RequestType::FUNCTION_DUMP, [], route: route)
       end
 
       # Delete all libraries.
@@ -48,10 +50,11 @@ class Valkey
       #
       # @param [Boolean] async flush asynchronously
       # @param [Boolean] sync flush synchronously
+      # @param route [Valkey::Route, nil] cluster routing.
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-flush/
-      def function_flush(async: false, sync: false)
+      def function_flush(async: false, sync: false, route: nil)
         args = []
 
         if async
@@ -60,7 +63,7 @@ class Valkey
           args << "SYNC"
         end
 
-        send_command(RequestType::FUNCTION_FLUSH, args)
+        send_command(RequestType::FUNCTION_FLUSH, args, route: route)
       end
 
       # Kill a function that is currently executing.
@@ -69,11 +72,12 @@ class Valkey
       #   valkey.function_kill
       #     # => "OK"
       #
+      # @param route [Valkey::Route, nil] cluster routing.
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-kill/
-      def function_kill
-        send_command(RequestType::FUNCTION_KILL)
+      def function_kill(route: nil)
+        send_command(RequestType::FUNCTION_KILL, [], route: route)
       end
 
       # Return information about the functions and libraries.
@@ -90,10 +94,11 @@ class Valkey
       #
       # @param [String] library_name filter by library name pattern
       # @param [Boolean] with_code include the library code in the response
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of library information
       #
       # @see https://valkey.io/commands/function-list/
-      def function_list(library_name: nil, with_code: false)
+      def function_list(library_name: nil, with_code: false, route: nil)
         args = []
 
         if library_name
@@ -103,7 +108,7 @@ class Valkey
 
         args << "WITHCODE" if with_code
 
-        send_command(RequestType::FUNCTION_LIST, args)
+        send_command(RequestType::FUNCTION_LIST, args, route: route)
       end
 
       # Load a library to Valkey.
@@ -118,15 +123,16 @@ class Valkey
       #
       # @param [String] function_code the source code
       # @param [Boolean] replace replace the library if it exists
+      # @param route [Valkey::Route, nil] cluster routing.
       # @return [String] the library name that was loaded
       #
       # @see https://valkey.io/commands/function-load/
-      def function_load(function_code, replace: false)
+      def function_load(function_code, replace: false, route: nil)
         args = []
         args << "REPLACE" if replace
         args << function_code
 
-        send_command(RequestType::FUNCTION_LOAD, args)
+        send_command(RequestType::FUNCTION_LOAD, args, route: route)
       end
 
       # Restore libraries from a payload.
@@ -147,15 +153,16 @@ class Valkey
       #
       # @param [String] serialized_value the serialized payload from FUNCTION DUMP
       # @param [String] policy the restore policy: "FLUSH", "APPEND", or "REPLACE"
+      # @param route [Valkey::Route, nil] cluster routing.
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-restore/
-      def function_restore(serialized_value, policy: nil)
+      def function_restore(serialized_value, policy: nil, route: nil)
         args = [serialized_value]
 
         args << policy.to_s.upcase if policy
 
-        send_command(RequestType::FUNCTION_RESTORE, args)
+        send_command(RequestType::FUNCTION_RESTORE, args, route: route)
       end
 
       # Return information about the function that's currently running.
@@ -164,11 +171,12 @@ class Valkey
       #   valkey.function_stats
       #     # => {"running_script" => {...}, "engines" => {...}}
       #
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Hash] function execution statistics
       #
       # @see https://valkey.io/commands/function-stats/
-      def function_stats
-        send_command(RequestType::FUNCTION_STATS)
+      def function_stats(route: nil)
+        send_command(RequestType::FUNCTION_STATS, [], route: route)
       end
 
       # Invoke a function.
@@ -183,12 +191,13 @@ class Valkey
       # @param [String] function the function name
       # @param [Array<String>] keys the keys to pass to the function
       # @param [Array<String>] args the arguments to pass to the function
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall/
-      def fcall(function, keys: [], args: [])
+      def fcall(function, keys: [], args: [], route: nil)
         command_args = [function, keys.size] + keys + args
-        send_command(RequestType::FCALL, command_args)
+        send_command(RequestType::FCALL, command_args, route: route)
       end
 
       # Invoke a read-only function.
@@ -200,12 +209,13 @@ class Valkey
       # @param [String] function the function name
       # @param [Array<String>] keys the keys to pass to the function
       # @param [Array<String>] args the arguments to pass to the function
+      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall_ro/
-      def fcall_ro(function, keys: [], args: [])
+      def fcall_ro(function, keys: [], args: [], route: nil)
         command_args = [function, keys.size] + keys + args
-        send_command(RequestType::FCALL_READ_ONLY, command_args)
+        send_command(RequestType::FCALL_READ_ONLY, command_args, route: route)
       end
 
       # Control function registry (convenience method).

@@ -16,6 +16,7 @@ require "valkey/errors"
 require "valkey/pubsub_callback"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
+require "valkey/route"
 
 class Valkey
   include Utils
@@ -287,6 +288,9 @@ class Valkey
     @connection = res[:conn_ptr]
     Bindings.free_connection_response(response_ptr)
 
+    # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
+    @cluster_mode = options[:cluster_mode] ? true : false
+
     # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
@@ -357,7 +361,7 @@ class Valkey
   # `test/valkey/connection_lifecycle_test.rb`) call it directly with an
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
-  def send_command(command_type, command_args = [], &block)
+  def send_command(command_type, command_args = [], route: nil, &block)
     # Validate connection. A nil/null pointer means the client was closed (or
     # never established a usable connection); surface it as a typed error with
     # the same "the client is closed" wording the sibling GLIDE clients use
@@ -365,9 +369,6 @@ class Valkey
     raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
 
     channel = 0
-    route = ""
-
-    route_buf = FFI::MemoryPointer.from_string(route)
 
     # Handle empty command_args case
     if command_args.empty?
@@ -380,13 +381,20 @@ class Valkey
       arg_ptrs, arg_lens, _buffers = build_command_args(command_args)
     end
 
-    # Create OpenTelemetry span if sampling is enabled
-    # TODO: add parent span propagation via create_otel_span_with_parent
-    # to support distributed tracing context (see Go client base_client.go for reference)
+    # Create OpenTelemetry span if sampling is enabled, as a child of the app's current
+    # span context when a parent_span_context_provider is registered (see Valkey::OpenTelemetry).
     span_ptr = 0
     if OpenTelemetry.should_sample?
       begin
-        span_ptr = Bindings.create_otel_span(command_type)
+        parent_ctx = OpenTelemetry.parent_span_context
+        span_ptr = if parent_ctx
+                     Bindings.create_otel_span_with_trace_context(
+                       command_type, parent_ctx[:trace_id], parent_ctx[:span_id],
+                       parent_ctx[:trace_flags], parent_ctx[:tracestate]
+                     )
+                   else
+                     Bindings.create_otel_span(command_type)
+                   end
       rescue StandardError => e
         # Log error but continue execution - tracing is non-critical
         warn "Failed to create OpenTelemetry span: #{e.message}"
@@ -395,19 +403,39 @@ class Valkey
     end
 
     begin
-      res = Bindings.command(
-        @connection,
-        channel,
-        command_type,
-        command_args.size,
-        arg_ptrs,
-        arg_lens,
-        route_buf,
-        route.bytesize,
-        span_ptr
-      )
+      if route
+        # Use command_with_route_info when an explicit route is provided.
+        route_info, _pinned_bufs = route.to_ffi
+        res = Bindings.command_with_route_info(
+          @connection,
+          channel,
+          command_type,
+          command_args.size,
+          arg_ptrs,
+          arg_lens,
+          route_info.to_ptr,
+          FFI::Pointer::NULL, # response_buf (NULL = normal response path)
+          0,                  # response_buf_len
+          span_ptr
+        )
+      else
+        # Use legacy command() for unrouted calls to preserve existing behavior.
+        route_str = ""
+        route_buf = FFI::MemoryPointer.from_string(route_str)
+        res = Bindings.command(
+          @connection,
+          channel,
+          command_type,
+          command_args.size,
+          arg_ptrs,
+          arg_lens,
+          route_buf,
+          route_str.bytesize,
+          span_ptr
+        )
+      end
 
-      result = convert_response(res, &block)
+      result = convert_response(res, return_map_as_hash: @cluster_mode, &block)
     ensure
       # Free the native CommandResult (arena + response + error) to prevent memory leak
       Bindings.free_command_result(res) if res && !res.null?
@@ -492,13 +520,19 @@ class Valkey
     batch_options[:timeout] = 0 # No timeout
     batch_options[:route_info] = FFI::Pointer::NULL
 
-    # Create OpenTelemetry span for batch operation if sampling is enabled
-    # TODO: add parent span propagation via create_batch_otel_span_with_parent
-    # to support distributed tracing context (see Go client base_client.go for reference)
+    # Create OpenTelemetry span for batch operation if sampling is enabled, as a child of
+    # the app's current span context when a parent_span_context_provider is registered.
     span_ptr = 0
     if OpenTelemetry.should_sample?
       begin
-        span_ptr = Bindings.create_batch_otel_span
+        parent_ctx = OpenTelemetry.parent_span_context
+        span_ptr = if parent_ctx
+                     Bindings.create_batch_otel_span_with_trace_context(
+                       parent_ctx[:trace_id], parent_ctx[:span_id], parent_ctx[:trace_flags], parent_ctx[:tracestate]
+                     )
+                   else
+                     Bindings.create_batch_otel_span
+                   end
       rescue StandardError => e
         warn "Failed to create OpenTelemetry batch span: #{e.message}"
         span_ptr = 0
@@ -580,7 +614,7 @@ class Valkey
     [arg_ptrs, arg_lens, buffers]
   end
 
-  def convert_response(res, &block)
+  def convert_response(res, return_map_as_hash: false, &block)
     result = Bindings::CommandResult.new(res)
 
     if result[:response].null?
@@ -636,8 +670,8 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # technically it has to return a Hash, but as of now we return just one pair
-        map.to_a.flatten(1) # Flatten to get pairs
+        # Return as Hash in cluster mode, flatten to pairs in standalone mode.
+        return_map_as_hash ? map : map.to_a.flatten(1)
       when ResponseType::SETS
         ptr = response_item[:sets_value]
         count = response_item[:sets_value_len].to_i

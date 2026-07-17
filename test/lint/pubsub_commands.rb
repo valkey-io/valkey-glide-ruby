@@ -31,13 +31,21 @@ module Lint
     def test_pubsub_numsub
       # Get subscriber counts for channels
       result = r.pubsub_numsub("channel1", "channel2")
-      assert_kind_of Array, result
+      if cluster_mode?
+        assert_kind_of Hash, result
+      else
+        assert_kind_of Array, result
+      end
     end
 
     def test_pubsub_numsub_no_channels
       # Get subscriber counts with no channels specified
       result = r.pubsub_numsub
-      assert_kind_of Array, result
+      if cluster_mode?
+        assert_kind_of Hash, result
+      else
+        assert_kind_of Array, result
+      end
     end
 
     def test_pubsub_shardchannels
@@ -118,7 +126,11 @@ module Lint
 
     def test_pubsub_convenience_method_numsub
       result = r.pubsub(:numsub, "channel1", "channel2")
-      assert_kind_of Array, result
+      if cluster_mode?
+        assert_kind_of Hash, result
+      else
+        assert_kind_of Array, result
+      end
     end
 
     def test_pubsub_convenience_method_shardchannels
