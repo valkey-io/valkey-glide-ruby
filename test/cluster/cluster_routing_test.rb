@@ -166,8 +166,9 @@ class TestClusterRouting < Minitest::Test
     assert_kind_of Hash, result
     assert_operator result.size, :>=, 3
     # Each node's value should be a parsed Hash (not raw string)
-    result.each_value do |node_info|
-      assert_kind_of Hash, node_info
+    result.each_value do |v|
+      assert_kind_of Hash, v
+      assert v.key?("role")
     end
   end
 
@@ -245,6 +246,10 @@ class TestClusterRouting < Minitest::Test
     result = r.cluster_info(route: Valkey::Route.all_nodes)
 
     assert_kind_of Hash, result
+    result.each_value do |v|
+      assert_kind_of Hash, v
+      assert v.key?("cluster_state")
+    end
   end
 
   # --- cluster_nodes ---
