@@ -59,9 +59,11 @@ module ValkeyTests
     def test_command_no_memory_leak
       skip_unless_mem_test
 
-      # Warmup — let allocators stabilize
-      100.times { r.set("warmup", "x") }
-      100.times { r.get("warmup") }
+      # Warmup — let allocators and FFI internals stabilize
+      100.times do |i|
+        r.set("warmup_#{i}", "x")
+        r.get("warmup_#{i}")
+      end
 
       initial_rss = process_rss_kb
 
@@ -76,8 +78,8 @@ module ValkeyTests
     def test_script_load_no_memory_leak
       skip_unless_mem_test
 
-      # Warmup
-      10.times { r.script_load("return 1") }
+      # Warmup — let allocators and FFI internals stabilize
+      100.times { |i| r.script_load("return #{i}") }
 
       initial_rss = process_rss_kb
 
@@ -91,8 +93,8 @@ module ValkeyTests
     def test_eval_no_memory_leak
       skip_unless_mem_test
 
-      # Warmup
-      10.times { r.eval("return 1") }
+      # Warmup — let allocators and FFI internals stabilize
+      100.times { |i| r.eval("return #{i}") }
 
       initial_rss = process_rss_kb
 
