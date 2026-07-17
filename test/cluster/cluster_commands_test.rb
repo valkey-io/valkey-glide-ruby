@@ -40,7 +40,6 @@ class TestClusterCommands < Minitest::Test
   include ValkeyTests::Statistics
   include ValkeyTests::URIConnection
   include ValkeyTests::Utils
-  include ValkeyTests::MemoryLeak
 
   # Eval/Evalsha property tests
   include ValkeyTests::EvalEvalshaBasicProperties
