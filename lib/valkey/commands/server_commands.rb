@@ -138,21 +138,32 @@ class Valkey
       # @return [Hash]
       def info(cmd = nil, route: nil)
         send_command(RequestType::INFO, [cmd].compact, route: route) do |reply|
-          if reply.is_a?(String)
-            reply = Utils::HashifyInfo.call(reply)
-
-            if cmd && cmd.to_s == "commandstats"
-              # Extract nested hashes for INFO COMMANDSTATS
-              reply = reply.to_h do |k, v|
-                v = v.split(",").map { |e| e.split("=") }
-                [k[/^cmdstat_(.*)$/, 1], v.to_h]
-              end
-            end
+          if reply.is_a?(Hash)
+            reply.transform_values { |v| parse_info_reply(v, cmd) }
+          elsif reply.is_a?(String)
+            parse_info_reply(reply, cmd)
+          else
+            reply
           end
-
-          reply
         end
       end
+
+      private
+
+      def parse_info_reply(reply, cmd)
+        reply = Utils::HashifyInfo.call(reply)
+
+        if cmd && cmd.to_s == "commandstats"
+          reply = reply.to_h do |k, v|
+            v = v.split(",").map { |e| e.split("=") }
+            [k[/^cmdstat_(.*)$/, 1], v.to_h]
+          end
+        end
+
+        reply
+      end
+
+      public
 
       # Get the UNIX time stamp of the last successful save to disk.
       #

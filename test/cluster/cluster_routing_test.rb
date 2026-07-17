@@ -165,6 +165,10 @@ class TestClusterRouting < Minitest::Test
 
     assert_kind_of Hash, result
     assert_operator result.size, :>=, 3
+    # Each node's value should be a parsed Hash (not raw string)
+    result.each_value do |node_info|
+      assert_kind_of Hash, node_info
+    end
   end
 
   def test_info_without_route
