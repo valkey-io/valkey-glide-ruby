@@ -251,6 +251,15 @@ class TestClusterRouting < Minitest::Test
     refute_nil result
   end
 
+  def test_cluster_nodes_all_nodes_route
+    result = r.cluster_nodes(route: Valkey::Route.all_nodes)
+
+    assert_kind_of Hash, result
+    result.each_value do |v|
+      refute_nil v
+    end
+  end
+
   # --- cluster_myid ---
 
   def test_cluster_myid_all_primaries_route

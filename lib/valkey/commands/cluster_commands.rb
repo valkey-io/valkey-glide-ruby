@@ -183,7 +183,11 @@ class Valkey
       # @return [Array<Hash>] array of node information
       def cluster_nodes(route: nil)
         send_command(RequestType::CLUSTER_NODES, [], route: route) do |reply|
-          Utils::HashifyClusterNodes.call(reply)
+          if reply.is_a?(Hash)
+            reply.transform_values { |v| Utils::HashifyClusterNodes.call(v) }
+          else
+            Utils::HashifyClusterNodes.call(reply)
+          end
         end
       end
 
