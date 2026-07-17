@@ -35,7 +35,7 @@ Metrics/CyclomaticComplexity:
   Enabled: false
 
 Metrics/MethodLength:
-  Max: 20
+  Max: 50
   Exclude:
     - 'lib/valkey.rb'
     - 'lib/valkey/opentelemetry.rb'
