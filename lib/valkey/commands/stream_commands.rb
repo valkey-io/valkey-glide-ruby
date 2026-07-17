@@ -55,9 +55,7 @@ class Valkey
           args.concat(Array(entry).flatten)
         end
 
-        result = send_command(RequestType::X_ADD, args)
-        $stderr.puts "XADD DEBUG: key=#{args[0]} result=#{result.inspect}"
-        result
+        send_command(RequestType::X_ADD, args)
       end
 
       # Remove one or more entries from a stream.
@@ -119,7 +117,6 @@ class Valkey
         args.concat(Array(ids))
 
         send_command(RequestType::X_READ, args) do |reply|
-          $stderr.puts "XREAD DEBUG: reply.class=#{reply.class} reply.inspect=#{reply.inspect[0..500]}"
           # Backend returns Array format: [stream_name, entries, stream_name2, entries2, ...]
           # Convert to Hash format first
           if reply.nil?
@@ -160,7 +157,6 @@ class Valkey
         args.concat(Array(ids))
 
         send_command(RequestType::X_READ_GROUP, args) do |reply|
-          $stderr.puts "XREADGROUP DEBUG: reply.class=#{reply.class} reply.inspect=#{reply.inspect[0..500]}"
           # Backend returns Array format: [stream_name, entries, stream_name2, entries2, ...]
           # Convert to Hash format first
           if reply.nil?
@@ -193,7 +189,6 @@ class Valkey
         args = [key, start, end_id]
         args << "COUNT" << options[:count].to_s if options[:count]
         send_command(RequestType::X_RANGE, args) do |reply|
-          $stderr.puts "XRANGE DEBUG: reply.class=#{reply.class} reply.inspect=#{reply.inspect[0..500]}"
           Utils::HashifyStreamEntries.call(reply)
         end
       end
@@ -215,7 +210,6 @@ class Valkey
         args = [key, end_id, start]
         args << "COUNT" << count.to_s if count
         send_command(RequestType::X_REV_RANGE, args) do |reply|
-          $stderr.puts "XREVRANGE DEBUG: reply.class=#{reply.class} reply.inspect=#{reply.inspect[0..500]}"
           Utils::HashifyStreamEntries.call(reply)
         end
       end
@@ -476,7 +470,6 @@ class Valkey
         args << "JUSTID" if options[:justid]
 
         send_command(RequestType::X_CLAIM, args) do |reply|
-          $stderr.puts "XCLAIM DEBUG: reply.class=#{reply.class} reply.inspect=#{reply.inspect[0..500]}"
           if options[:justid]
             reply
           else
