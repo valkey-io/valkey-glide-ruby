@@ -365,6 +365,7 @@ jobs:
       - name: Run standalone tests
         env:
           TEST_INSTALLED_GEM: "true"
+          MEM_TEST: "1"
         run: |
           # Remove local lib to ensure we use the installed gem
           # The installed gem has the native library, local lib doesn't
@@ -470,6 +471,7 @@ jobs:
         shell: bash
         env:
           TEST_INSTALLED_GEM: "true"
+          MEM_TEST: "1"
         run: |
           rm -rf lib/
           rake test

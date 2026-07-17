@@ -239,6 +239,7 @@ jobs:
       - name: Run tests
         run: bundle exec rake test
         env:
+          MEM_TEST: "1"
           SKIP_TLS_TESTS: ${{ matrix.host.OS == 'macos' && 'true' || '' }}
 
       - name: Upload test artifacts
