@@ -186,6 +186,16 @@ class TestClusterRouting < Minitest::Test
     assert result.key?("maxmemory")
   end
 
+  def test_config_get_with_all_primaries_route
+    result = r.config_get("maxmemory", route: Valkey::Route.all_primaries)
+
+    assert_kind_of Hash, result
+    result.each_value do |v|
+      assert_kind_of Hash, v
+      assert v.key?("maxmemory")
+    end
+  end
+
   def test_config_resetstat_with_all_primaries_route
     result = r.config_resetstat(route: Valkey::Route.all_primaries)
 
