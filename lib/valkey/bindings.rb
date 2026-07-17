@@ -230,6 +230,19 @@ class Valkey
       :pointer # *mut CommandResult
     ], :void
 
+    attach_function :free_script_hash_buffer, [
+      :pointer # *mut ScriptHashBuffer
+    ], :void
+
+    attach_function :drop_script, [
+      :pointer, # *mut u8 (hash bytes)
+      :ulong    # usize (hash length)
+    ], :pointer # returns *mut c_char (null on success, error string on failure)
+
+    attach_function :free_drop_script_error, [
+      :pointer # *mut c_char (error from drop_script)
+    ], :void
+
     attach_function :close_client, [
       :pointer # client_adapter_ptr
     ], :void

@@ -108,8 +108,12 @@ class Valkey
 
         result = Bindings.store_script(buf, script.bytesize)
 
-        hash_buffer = Bindings::ScriptHashBuffer.new(result)
-        hash_buffer[:ptr].read_string(hash_buffer[:len])
+        begin
+          hash_buffer = Bindings::ScriptHashBuffer.new(result)
+          hash_buffer[:ptr].read_string(hash_buffer[:len])
+        ensure
+          Bindings.free_script_hash_buffer(result)
+        end
       end
 
       # Execute a Lua script on the server.
@@ -258,22 +262,26 @@ class Valkey
         # Use from_string to ensure proper null termination
         sha = FFI::MemoryPointer.from_string(script)
 
-        res = Bindings.invoke_script(
-          @connection,
-          0,
-          sha,
-          keys.size,
-          keys_ptrs,
-          keys_lens,
-          args.size,
-          arg_ptrs,
-          arg_lens,
-          route_buf,
-          route.bytesize,
-          0 # span_ptr for OpenTelemetry (0 = no span)
-        )
+        begin
+          res = Bindings.invoke_script(
+            @connection,
+            0,
+            sha,
+            keys.size,
+            keys_ptrs,
+            keys_lens,
+            args.size,
+            arg_ptrs,
+            arg_lens,
+            route_buf,
+            route.bytesize,
+            0 # span_ptr for OpenTelemetry (0 = no span)
+          )
 
-        convert_response(res)
+          convert_response(res)
+        ensure
+          Bindings.free_command_result(res)
+        end
       end
 
       private
