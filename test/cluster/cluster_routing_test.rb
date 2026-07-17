@@ -48,7 +48,7 @@ class TestClusterRouting < Minitest::Test
   def test_custom_command_config_get_random
     result = r.call("CONFIG", "GET", "*file", route: Valkey::Route.random)
 
-    refute_nil result
+    assert_kind_of Hash, result
   end
 
   def test_custom_command_config_get_all_primaries
@@ -182,14 +182,14 @@ class TestClusterRouting < Minitest::Test
   def test_config_get_with_random_route
     result = r.config_get("maxmemory", route: Valkey::Route.random)
 
-    refute_nil result
+    assert_kind_of Hash, result
+    assert result.key?("maxmemory")
   end
 
   def test_config_resetstat_with_all_primaries_route
     result = r.config_resetstat(route: Valkey::Route.all_primaries)
 
-    # Multi-node response for OK commands
-    refute_nil result
+    assert_equal "OK", result
   end
 
   # --- flushall ---
@@ -197,7 +197,7 @@ class TestClusterRouting < Minitest::Test
   def test_flushall_with_all_primaries_route
     result = r.flushall(nil, route: Valkey::Route.all_primaries)
 
-    refute_nil result
+    assert_equal "OK", result
   end
 
   # --- lolwut ---
@@ -257,7 +257,8 @@ class TestClusterRouting < Minitest::Test
   def test_cluster_nodes_random_route
     result = r.cluster_nodes(route: Valkey::Route.random)
 
-    refute_nil result
+    assert_kind_of Hash, result
+    assert_operator result.size, :>, 0
   end
 
   def test_cluster_nodes_all_nodes_route
