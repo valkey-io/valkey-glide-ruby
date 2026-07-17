@@ -107,10 +107,13 @@ module ValkeyTests
     def test_pipeline_no_memory_leak
       skip_unless_mem_test
 
-      # Warmup
-      5.times do
+      # Warmup — pipeline path has internal FFI batch buffers that
+      # grow during early calls. Run enough to reach steady state.
+      100.times do |i|
         r.pipelined do |pipe|
-          10.times { |i| pipe.set("warmup_#{i}", "v") }
+          pipe.set("warmup_#{i}", "v")
+          pipe.get("warmup_#{i}")
+          pipe.incr("warmup_counter")
         end
       end
 
