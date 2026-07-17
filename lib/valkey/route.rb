@@ -16,28 +16,25 @@ class Valkey
   #
   # @see https://valkey.io/topics/cluster-spec
   class Route
-    attr_reader :multi_node
-    alias multi_node? multi_node
-
     class << self
       # Route to all nodes (primaries + replicas).
       # @note Don't use with write commands — they could be routed to replicas and fail.
       # @return [Route]
       def all_nodes
-        new(:all_nodes, multi_node: true)
+        new(:all_nodes)
       end
 
       # Route to all primary nodes.
       # @return [Route]
       def all_primaries
-        new(:all_primaries, multi_node: true)
+        new(:all_primaries)
       end
 
       # Route to a random node.
       # @note Don't use with write commands — they could be randomly routed to a replica and fail.
       # @return [Route]
       def random
-        new(:random, multi_node: false)
+        new(:random)
       end
 
       # Route to a specific slot by ID.
@@ -45,7 +42,7 @@ class Valkey
       # @param slot_type [Symbol] :primary or :replica
       # @return [Route]
       def slot_id(slot_id, slot_type = :primary)
-        new(:slot_id, multi_node: false, slot_id: slot_id.to_i, slot_type: slot_type)
+        new(:slot_id, slot_id: slot_id.to_i, slot_type: slot_type)
       end
 
       # Route to the node owning a specific key's slot.
@@ -53,7 +50,7 @@ class Valkey
       # @param slot_type [Symbol] :primary or :replica
       # @return [Route]
       def slot_key(key, slot_type = :primary)
-        new(:slot_key, multi_node: false, slot_key: key.to_s, slot_type: slot_type)
+        new(:slot_key, slot_key: key.to_s, slot_type: slot_type)
       end
 
       # Route to a specific node by address.
@@ -61,7 +58,7 @@ class Valkey
       # @param port [Integer] port number
       # @return [Route]
       def by_address(host, port)
-        new(:by_address, multi_node: false, hostname: host.to_s, port: port.to_i)
+        new(:by_address, hostname: host.to_s, port: port.to_i)
       end
     end
 
@@ -97,9 +94,8 @@ class Valkey
       buf
     end
 
-    def initialize(route_type, multi_node:, slot_id: nil, slot_key: nil, slot_type: :primary, hostname: nil, port: nil)
+    def initialize(route_type, slot_id: nil, slot_key: nil, slot_type: :primary, hostname: nil, port: nil)
       @route_type = route_type
-      @multi_node = multi_node
       @slot_id = slot_id
       @slot_key = slot_key
       @slot_type = slot_type
