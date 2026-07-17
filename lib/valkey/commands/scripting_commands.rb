@@ -112,7 +112,7 @@ class Valkey
           hash_buffer = Bindings::ScriptHashBuffer.new(result)
           hash_buffer[:ptr].read_string(hash_buffer[:len])
         ensure
-          Bindings.free_script_hash_buffer(result)
+          Bindings.free_script_hash_buffer(result) if result && !result.null?
         end
       end
 
@@ -280,7 +280,7 @@ class Valkey
 
           convert_response(res)
         ensure
-          Bindings.free_command_result(res)
+          Bindings.free_command_result(res) if res && !res.null?
         end
       end
 
