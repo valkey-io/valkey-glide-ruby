@@ -291,6 +291,11 @@ class Valkey
     # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
     @cluster_mode = options[:cluster_mode] ? true : false
 
+    # Returns GLIDE Core map as a flattened-map array
+    # Ex: { "key1" => "value1", "key2" => "value2" } becomes ["key1", "value1", "key2", "value2"]
+    # Compatibility for redis-rb 4.x
+    @flatten_map = options[:flatten_map] ? true : false
+
     # Track transactional state for `MULTI` / `EXEC` / `DISCARD` helpers.
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
@@ -435,7 +440,7 @@ class Valkey
         )
       end
 
-      result = convert_response(res, return_map_as_hash: @cluster_mode, &block)
+      result = convert_response(res, &block)
     ensure
       # Free the native CommandResult (arena + response + error) to prevent memory leak
       Bindings.free_command_result(res) if res && !res.null?
@@ -614,7 +619,7 @@ class Valkey
     [arg_ptrs, arg_lens, buffers]
   end
 
-  def convert_response(res, return_map_as_hash: false, &block)
+  def convert_response(res, &block)
     result = Bindings::CommandResult.new(res)
 
     if result[:response].null?
@@ -670,8 +675,7 @@ class Valkey
           map[map_key] = map_value
         end
 
-        # Return as Hash in cluster mode, flatten to pairs in standalone mode.
-        return_map_as_hash ? map : map.to_a.flatten(1)
+        @flatten_map ? map.to_a.flatten(1) : map
       when ResponseType::SETS
         ptr = response_item[:sets_value]
         count = response_item[:sets_value_len].to_i
