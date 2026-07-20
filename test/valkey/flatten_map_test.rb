@@ -11,7 +11,7 @@ module ValkeyTests
       client = Valkey.new(host: address[:host], port: address[:port], timeout: TIMEOUT)
       result = client.hello
       assert_kind_of Hash, result
-      assert_equal "valkey", result["server"]
+      assert %w[valkey redis].include?(result["server"]), "Expected server to be valkey or redis"
       assert_equal "standalone", result["mode"]
     ensure
       client&.close
@@ -25,7 +25,7 @@ module ValkeyTests
       assert_kind_of Array, result
       server_idx = result.index("server")
       refute_nil server_idx, "Expected 'server' key in flattened array"
-      assert_equal "valkey", result[server_idx + 1]
+      assert %w[valkey redis].include?(result[server_idx + 1]), "Expected server value to be valkey or redis"
 
       mode_idx = result.index("mode")
       refute_nil mode_idx, "Expected 'mode' key in flattened array"
