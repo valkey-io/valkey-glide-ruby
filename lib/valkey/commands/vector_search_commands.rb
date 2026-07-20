@@ -181,7 +181,7 @@ class Valkey
       #     # => ["index_name", "myIndex", "fields", [...], ...]
       #
       # @param [String] index the index name
-      # @return [Array] index information as array of key-value pairs
+      # @return [Hash] index information as a hash of key-value pairs
       #
       # @see https://redis.io/commands/ft.info/
       def ft_info(index)
