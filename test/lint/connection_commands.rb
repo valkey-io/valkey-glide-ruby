@@ -152,35 +152,20 @@ module Lint
 
     def test_hello_default
       result = r.hello
-      if cluster_mode?
-        assert_kind_of Hash, result
-        assert result.key?("server"), "HELLO response should contain server info"
-      else
-        assert_kind_of Array, result
-        assert result.include?("server"), "HELLO response should contain server info"
-      end
+      assert_kind_of Hash, result
+      assert result.key?("server"), "HELLO response should contain server info"
     end
 
     def test_hello_with_version
       result = r.hello(3)
-      if cluster_mode?
-        assert_kind_of Hash, result
-        assert_equal 3, result["proto"]
-      else
-        assert_kind_of Array, result
-        proto_index = result.index("proto")
-        assert_equal 3, result[proto_index + 1] if proto_index
-      end
+      assert_kind_of Hash, result
+      assert_equal 3, result["proto"]
     end
 
     def test_hello_with_setname
       client_name = "hello_lint_test"
       result = r.hello(3, setname: client_name)
-      if cluster_mode?
-        assert_kind_of Hash, result
-      else
-        assert_kind_of Array, result
-      end
+      assert_kind_of Hash, result
       # In cluster mode, HELLO and CLIENT GETNAME might hit different nodes
       # so we can't reliably assert the name was set
       assert_equal client_name, r.client_get_name unless cluster_mode?

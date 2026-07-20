@@ -368,12 +368,8 @@ module Lint
 
       # Get basic stream info
       info = r.xinfo_stream("mystream")
-      if cluster_mode?
-        assert_kind_of Hash, info
-      else
-        assert_kind_of Array, info
-        assert_operator info.length, :>, 0
-      end
+      assert_kind_of Hash, info
+      assert_operator info.length, :>, 0
 
       r.del "mystream"
     end

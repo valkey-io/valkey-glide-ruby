@@ -23,6 +23,7 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::Statistics
   include ValkeyTests::URIConnection
   include ValkeyTests::Utils
+  include ValkeyTests::FlattenMap
 
   # Property-based test modules for eval/evalsha
   include ValkeyTests::EvalEvalshaBasicProperties
