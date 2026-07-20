@@ -132,13 +132,12 @@ module Lint
         r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
 
         # Get index info
-        # Note: FT.INFO returns a complex Map structure that may not be fully supported yet
+        # Note: FT.INFO returns a MAP structure from glide-core
         info = r.ft_info(TEST_INDEX)
-        assert_kind_of Array, info
+        assert_kind_of Hash, info
 
         # Info should contain index_name
-        assert info.include?("index_name") || info.any? { |item| item.is_a?(Array) && item.include?("index_name") },
-               "Info should contain index_name"
+        assert info.key?("index_name"), "Info should contain index_name"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
