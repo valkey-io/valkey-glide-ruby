@@ -254,11 +254,18 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      # Uses RubyGems OIDC trusted publishing (no long-lived API key stored as a
+      # GitHub secret). Requires a trusted publisher configured for this gem at
+      # https://rubygems.org/gems/<gem>/trusted_publishers and the workflow-level
+      # `id-token: write` permission (already declared above). The action exchanges
+      # the GitHub OIDC token for a short-lived RubyGems credential.
+      - name: Configure RubyGems credentials (OIDC trusted publishing)
+        if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
+        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
+
       - name: Publish to RubyGems
         id: publish
         if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
         run: |
           gem push ${{ steps.build-gem.outputs.GEM_FILE }}
           echo "published=true" >> $GITHUB_OUTPUT
