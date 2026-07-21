@@ -332,7 +332,7 @@ class Valkey
       #   - `:idx => true`: Return the positions of the LCS
       #   - `:min_match_len => Integer`: Minimum match length
       #   - `:with_match_len => true`: Include match length in results
-      # @return [String, Integer, Array] the LCS result based on options
+      # @return [String, Integer, Hash] the LCS result based on options (Hash when idx: true)
       def lcs(key1, key2, len: nil, idx: nil, min_match_len: nil, with_match_len: nil)
         args = [key1, key2]
         args << "LEN" if len
