@@ -22,6 +22,7 @@ concurrency:
 permissions:
   id-token: write
   contents: read
+  attestations: write # required to publish Sigstore build-provenance attestations
 
 jobs:
   load-platform-matrix:
@@ -245,6 +246,14 @@ jobs:
 
           echo "All platform libraries verified present"
           find gem-contents -name "libglide_ffi.*" -exec ls -lh {} \;
+
+      # Generate a Sigstore-backed SLSA build-provenance attestation for the gem.
+      # Uses OIDC + a short-lived Sigstore cert (no stored signing key). Consumers
+      # verify with: gh attestation verify <gem> --repo valkey-io/valkey-glide-ruby
+      - name: Attest gem build provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: ${{ steps.build-gem.outputs.GEM_FILE }}
 
       - name: Upload gem artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
