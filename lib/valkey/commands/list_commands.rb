@@ -209,7 +209,7 @@ class Valkey
       #  - when `"RIGHT"` - the elements popped are those from the right of the list
       # @params count [Integer] a number of elements to pop
       #
-      # @return [Array<String, Array<String, Float>>] list of popped elements or nil
+      # @return [Hash, nil] hash mapping key to popped elements, or nil on timeout
       def blmpop(timeout, *keys, modifier: "LEFT", count: nil)
         raise ArgumentError, "Pick either LEFT or RIGHT" unless %w[LEFT RIGHT].include?(modifier)
 
@@ -235,7 +235,7 @@ class Valkey
       #  - when `"RIGHT"` - the elements popped are those from the right of the list
       # @params count [Integer] a number of elements to pop
       #
-      # @return [Array<String, Array<String, Float>>] list of popped elements or nil
+      # @return [Hash, nil] hash mapping key to popped elements, or nil if no elements
       def lmpop(*keys, modifier: "LEFT", count: nil)
         raise ArgumentError, "Pick either LEFT or RIGHT" unless %w[LEFT RIGHT].include?(modifier)
 

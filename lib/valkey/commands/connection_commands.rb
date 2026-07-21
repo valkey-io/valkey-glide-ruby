@@ -70,7 +70,7 @@ class Valkey
       #
       # @param [Integer] protover Protocol version (2 or 3)
       # @param [Hash] options Optional parameters like AUTH, SETNAME
-      # @return [Array] Server information as flat array (TODO: should be Hash for RESP3)
+      # @return [Hash] Server information (server, version, proto, id, mode, role, modules)
       def hello(protover = 3, **options)
         args = [protover]
 

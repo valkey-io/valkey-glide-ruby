@@ -31,21 +31,13 @@ module Lint
     def test_pubsub_numsub
       # Get subscriber counts for channels
       result = r.pubsub_numsub("channel1", "channel2")
-      if cluster_mode?
-        assert_kind_of Hash, result
-      else
-        assert_kind_of Array, result
-      end
+      assert_kind_of Hash, result
     end
 
     def test_pubsub_numsub_no_channels
       # Get subscriber counts with no channels specified
       result = r.pubsub_numsub
-      if cluster_mode?
-        assert_kind_of Hash, result
-      else
-        assert_kind_of Array, result
-      end
+      assert_kind_of Hash, result
     end
 
     def test_pubsub_shardchannels
@@ -82,7 +74,7 @@ module Lint
       omit_version("7.0")
       # Get subscriber counts for shard channels
       result = r.pubsub_shardnumsub("shard1", "shard2")
-      assert_kind_of Array, result
+      assert_kind_of Hash, result
     rescue Valkey::TimeoutError
       skip("Shard channel command timed out - cluster may be initializing")
     rescue Valkey::CommandError => e
@@ -126,11 +118,7 @@ module Lint
 
     def test_pubsub_convenience_method_numsub
       result = r.pubsub(:numsub, "channel1", "channel2")
-      if cluster_mode?
-        assert_kind_of Hash, result
-      else
-        assert_kind_of Array, result
-      end
+      assert_kind_of Hash, result
     end
 
     def test_pubsub_convenience_method_shardchannels
@@ -151,7 +139,7 @@ module Lint
       # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
       result = r.pubsub(:shardnumsub, "shard1", "shard2")
-      assert_kind_of Array, result
+      assert_kind_of Hash, result
     rescue Valkey::TimeoutError
       skip("Shard channel command timed out - cluster may be initializing")
     rescue Valkey::CommandError => e

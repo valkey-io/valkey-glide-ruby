@@ -175,7 +175,7 @@ module Lint
     def test_function_stats
       target_version "7.0" do
         stats = r.function_stats
-        assert_kind_of Array, stats
+        assert_kind_of Hash, stats
       end
     end
 
