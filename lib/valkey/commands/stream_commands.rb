@@ -565,7 +565,7 @@ class Valkey
       # @param [Hash] options optional parameters
       #   - `:full => true`: return full information including entries
       #   - `:count => Integer`: limit number of entries (requires :full)
-      # @return [Array] stream information as flat array of key-value pairs
+      # @return [Hash] stream information as a hash of key-value pairs
       #
       # @example Get basic stream info
       #   valkey.xinfo_stream("mystream")

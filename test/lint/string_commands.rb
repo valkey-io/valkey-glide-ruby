@@ -337,32 +337,32 @@ module Lint
         r.mset('{1}key1', 'ohmytext', '{1}key2', 'mynewtext')
         assert_equal "mytext", r.lcs('{1}key1', '{1}key2')
 
-        assert_equal ["matches", [
-          [
-            [4, 7],
-            [5, 8]
-          ],
-          [
-            [2, 3],
-            [0, 1]
-          ]
-        ], "len", 6], r.lcs('{1}key1', '{1}key2', idx: true)
+        assert_equal({ "matches" => [
+                       [
+                         [4, 7],
+                         [5, 8]
+                       ],
+                       [
+                         [2, 3],
+                         [0, 1]
+                       ]
+                     ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true))
 
-        assert_equal ["matches", [
-          [
-            [4, 7],
-            [5, 8]
-          ]
-        ], "len", 6], r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4)
+        assert_equal({ "matches" => [
+                       [
+                         [4, 7],
+                         [5, 8]
+                       ]
+                     ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4))
       end
 
-      assert_equal ["matches", [
-        [
-          [4, 7],
-          [5, 8],
-          4
-        ]
-      ], "len", 6], r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4, with_match_len: true)
+      assert_equal({ "matches" => [
+                     [
+                       [4, 7],
+                       [5, 8],
+                       4
+                     ]
+                   ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4, with_match_len: true))
     end
   end
 end

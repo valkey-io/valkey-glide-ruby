@@ -168,7 +168,7 @@ class Valkey
       #     # => ["channel1", 5, "channel2", 3]
       #
       # @param [Array<String>] channels the channels to check
-      # @return [Array] channel names and subscriber counts
+      # @return [Hash] channel names mapped to subscriber counts
       #
       # @see https://valkey.io/commands/pubsub-numsub/
       def pubsub_numsub(*channels)
@@ -200,7 +200,7 @@ class Valkey
       #     # => ["shard1", 2, "shard2", 1]
       #
       # @param [Array<String>] channels the shard channels to check
-      # @return [Array] shard channel names and subscriber counts
+      # @return [Hash] shard channel names mapped to subscriber counts
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
       def pubsub_shardnumsub(*channels)
