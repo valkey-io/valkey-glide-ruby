@@ -39,7 +39,7 @@ For issues that affect the shared Rust core or other language clients, consider 
    ```
    Configure automatic signoff: `git config --global format.signOff true`
 
-5. Open a PR and respond to CI feedback (RuboCop + test matrix in `.github/workflows/CI.yml`).
+5. Open a PR and respond to CI feedback (RuboCop + test matrix in `.github/workflows/ci.yml`).
 
 GitHub guides: [fork a repo](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo), [create a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
 
