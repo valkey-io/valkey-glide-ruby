@@ -253,8 +253,8 @@ class Valkey
       end
 
       def invoke_script(script, args: [], keys: [])
-        arg_ptrs, arg_lens = build_command_args(args)
-        keys_ptrs, keys_lens = build_command_args(keys)
+        arg_ptrs, arg_lens, _arg_bufs = build_command_args(args)
+        keys_ptrs, keys_lens, _keys_bufs = build_command_args(keys)
 
         route = ""
         route_buf = FFI::MemoryPointer.from_string(route)

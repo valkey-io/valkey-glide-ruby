@@ -598,6 +598,9 @@ class Valkey
     { "manual_interval" => { "duration_in_sec" => duration_in_sec } }
   end
 
+  # Returns [ptrs, lens, buffers]. Callers must retain buffers until the FFI call returns.
+  # Otherwise, GC may free the buffers making the ptrs invalid.
+  # TODO: Refactor to return a struct (https://github.com/valkey-io/valkey-glide-ruby/issues/179)
   def build_command_args(command_args)
     # For empty arrays, pass NULL pointers as per Rust FFI contract
     # This matches Go's approach which successfully uses nil pointers
