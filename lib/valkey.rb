@@ -165,7 +165,7 @@ class Valkey
         root_certs << File.binread(ca_file)
       end
 
-      # cert - client certificate (file path or OpenSSL::X509::Certificate)
+      # cert - client certificate for mutual TLS (file path or OpenSSL::X509::Certificate)
       if options[:ssl_params][:cert]
         cert_data = if options[:ssl_params][:cert].is_a?(String)
                       cert_file = options[:ssl_params][:cert]
@@ -180,10 +180,10 @@ class Valkey
                     else
                       options[:ssl_params][:cert].to_s
                     end
-        root_certs << cert_data
+        json_options["client_cert"] = cert_data
       end
 
-      # key - client key (file path or OpenSSL::PKey)
+      # key - client private key for mutual TLS (file path or OpenSSL::PKey)
       if options[:ssl_params][:key]
         key_data = if options[:ssl_params][:key].is_a?(String)
                      key_file = options[:ssl_params][:key]
@@ -198,7 +198,7 @@ class Valkey
                    else
                      options[:ssl_params][:key].to_s
                    end
-        root_certs << key_data
+        json_options["client_key"] = key_data
       end
 
       # Additional root certificates from ca_path
