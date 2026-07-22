@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    # Wait 7 days before proposing updates to newly published versions —
+    # protects against malicious/unstable early releases (supply chain).
+    # See: https://semgrep.dev/r?q=dependabot-missing-cooldown
+    cooldown:
+      default-days: 7
+    groups:
+      patch-updates:
+        update-types:
+          - "patch"
+      minor-updates:
+        update-types:
+          - "minor"
+    labels:
+      - "dependencies"
+      - "github-actions"
