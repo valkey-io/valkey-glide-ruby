@@ -185,7 +185,7 @@ valkey-glide-ruby/
 ├── test/lint/            # shared lint
 ├── valkey.gemspec
 ├── Rakefile
-└── .github/workflows/CI.yml
+└── .github/workflows/ci.yml
 ```
 
 ## Quality Gates (Agent Checklist)
