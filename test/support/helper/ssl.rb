@@ -1,39 +1,27 @@
 # frozen_string_literal: true
 
 module SslHelper
-  # Path to SSL certificates directory.
-  # In CI, cluster_manager.py generates certs in valkey-glide/utils/tls_crts/.
-  # For local development, certs can be generated in test/fixtures/ssl/.
+  # Directory holding the TLS certificates for the test suite.
   def ssl_fixtures_path
-    if ENV["TLS_CERT_DIR"] && Dir.exist?(ENV["TLS_CERT_DIR"])
-      ENV["TLS_CERT_DIR"]
-    else
-      File.expand_path("../../fixtures/ssl", __dir__)
-    end
+    dir = ENV.fetch("TLS_CERT_DIR", nil)
+    return dir if dir && Dir.exist?(dir)
+
+    raise <<~MSG
+      TLS_CERT_DIR is not set to a valid directory. Start a TLS server
+      and set TLS_CERT_DIR to the directory with the certificates.
+    MSG
   end
 
-  # Path to CA certificate file
   def ssl_ca_cert_path
-    # cluster_manager.py uses ca.crt, local fixtures use ca-cert.pem
-    cm_path = File.join(ssl_fixtures_path, "ca.crt")
-    local_path = File.join(ssl_fixtures_path, "ca-cert.pem")
-    File.exist?(cm_path) ? cm_path : local_path
+    File.join(ssl_fixtures_path, "ca.crt")
   end
 
-  # Path to client/server certificate file
   def ssl_client_cert_path
-    # cluster_manager.py uses server.crt, local fixtures use client-cert.pem
-    cm_path = File.join(ssl_fixtures_path, "server.crt")
-    local_path = File.join(ssl_fixtures_path, "client-cert.pem")
-    File.exist?(cm_path) ? cm_path : local_path
+    File.join(ssl_fixtures_path, "server.crt")
   end
 
-  # Path to client/server key file
   def ssl_client_key_path
-    # cluster_manager.py uses server.key, local fixtures use client-key.pem
-    cm_path = File.join(ssl_fixtures_path, "server.key")
-    local_path = File.join(ssl_fixtures_path, "client-key.pem")
-    File.exist?(cm_path) ? cm_path : local_path
+    File.join(ssl_fixtures_path, "server.key")
   end
 
   # Load CA certificate as OpenSSL object
