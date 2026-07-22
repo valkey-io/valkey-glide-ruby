@@ -43,7 +43,7 @@ valkey-glide-ruby/
 │   ├── setup                     # bundle install
 │   └── console                   # IRB with gem loaded
 ├── .github/workflows/
-│   ├── CI.yml                    # RuboCop + test matrix
+│   ├── ci.yml                    # RuboCop + test matrix
 │   └── cd.yml                    # Build and publish gem
 ├── valkey.gemspec
 ├── Gemfile
@@ -270,7 +270,7 @@ VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
 bundle exec rubocop
 ```
 
-CI runs RuboCop on every push and pull request (see `.github/workflows/CI.yml`).
+CI runs RuboCop on every push and pull request (see `.github/workflows/ci.yml`).
 
 Auto-correct safe offenses:
 
@@ -350,7 +350,7 @@ bundle exec ruby test/valkey/test_opentelemetry.rb
 
 ## CI Overview
 
-GitHub Actions (`.github/workflows/CI.yml`):
+GitHub Actions (`.github/workflows/ci.yml`):
 
 | Job | Matrix |
 |-----|--------|
