@@ -156,50 +156,8 @@ class Valkey
     # TLS/SSL certificates
     root_certs = []
     if options[:ssl_params].is_a?(Hash)
-      # ca_file - read CA certificate file (PEM or DER format)
-      if options[:ssl_params][:ca_file]
-        ca_file = options[:ssl_params][:ca_file]
-        raise ArgumentError, "CA file does not exist: #{ca_file}" unless File.exist?(ca_file)
-        raise ArgumentError, "CA file is not readable: #{ca_file}" unless File.readable?(ca_file)
-
-        root_certs << File.binread(ca_file)
-      end
-
-      # cert - client certificate for mutual TLS (file path or OpenSSL::X509::Certificate)
-      if options[:ssl_params][:cert]
-        cert_data = if options[:ssl_params][:cert].is_a?(String)
-                      cert_file = options[:ssl_params][:cert]
-                      raise ArgumentError, "Cert file does not exist: #{cert_file}" unless File.exist?(cert_file)
-                      raise ArgumentError, "Cert file is not readable: #{cert_file}" unless File.readable?(cert_file)
-
-                      File.binread(cert_file)
-                    elsif options[:ssl_params][:cert].respond_to?(:to_pem)
-                      options[:ssl_params][:cert].to_pem
-                    elsif options[:ssl_params][:cert].respond_to?(:to_der)
-                      options[:ssl_params][:cert].to_der
-                    else
-                      options[:ssl_params][:cert].to_s
-                    end
-        json_options["client_cert"] = cert_data
-      end
-
-      # key - client private key for mutual TLS (file path or OpenSSL::PKey)
-      if options[:ssl_params][:key]
-        key_data = if options[:ssl_params][:key].is_a?(String)
-                     key_file = options[:ssl_params][:key]
-                     raise ArgumentError, "Key file does not exist: #{key_file}" unless File.exist?(key_file)
-                     raise ArgumentError, "Key file is not readable: #{key_file}" unless File.readable?(key_file)
-
-                     File.binread(key_file)
-                   elsif options[:ssl_params][:key].respond_to?(:to_pem)
-                     options[:ssl_params][:key].to_pem
-                   elsif options[:ssl_params][:key].respond_to?(:to_der)
-                     options[:ssl_params][:key].to_der
-                   else
-                     options[:ssl_params][:key].to_s
-                   end
-        json_options["client_key"] = key_data
-      end
+      # ca_file - CA certificate file path
+      root_certs << read_ssl_value(options[:ssl_params][:ca_file], "CA") if options[:ssl_params][:ca_file]
 
       # Additional root certificates from ca_path
       if options[:ssl_params][:ca_path]
@@ -213,6 +171,12 @@ class Valkey
           root_certs << File.binread(cert_file) if File.readable?(cert_file)
         end
       end
+
+      # cert - file path or OpenSSL::X509::Certificate
+      json_options["client_cert"] = read_ssl_value(options[:ssl_params][:cert], "Cert") if options[:ssl_params][:cert]
+
+      # key - file path or OpenSSL::PKey
+      json_options["client_key"] = read_ssl_value(options[:ssl_params][:key], "Key") if options[:ssl_params][:key]
 
       # Direct root_certs array support
       root_certs.concat(options[:ssl_params][:root_certs]) if options[:ssl_params][:root_certs].is_a?(Array)
@@ -469,6 +433,24 @@ class Valkey
   end
 
   private
+
+  # Read an SSL value
+  # Accepts a file path (String), an OpenSSL object (#to_pem / #to_der), or a fallback #to_s.
+  def read_ssl_value(value, label)
+    if value.is_a?(String)
+      raise ArgumentError, "#{label} file does not exist: #{value}" unless File.exist?(value)
+      raise ArgumentError, "#{label} file is not readable: #{value}" unless File.readable?(value)
+
+      File.binread(value)
+    # Duck-typing check
+    elsif value.respond_to?(:to_pem)
+      value.to_pem
+    elsif value.respond_to?(:to_der)
+      value.to_der
+    else
+      value.to_s
+    end
+  end
 
   def send_batch_commands(commands, exception: true)
     # WORKAROUND: The underlying Glide FFI backend has stability issues when
