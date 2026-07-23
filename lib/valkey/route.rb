@@ -67,6 +67,8 @@ class Valkey
     # Returns both the struct and any pinned memory buffers that must remain
     # alive until the FFI call completes.
     #
+    # TODO: Refactor to return a struct (https://github.com/valkey-io/valkey-glide-ruby/issues/179)
+    #
     # @return [Array(Bindings::RouteInfo, Array)] the struct and pinned buffers
     def to_ffi
       info = Bindings::RouteInfo.new
