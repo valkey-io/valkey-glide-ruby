@@ -69,3 +69,8 @@ Gemfile.lock
 
 # VSCode files
 .vscode
+
+# Ignore credentials
+*.pem
+*.crt
+*.key
