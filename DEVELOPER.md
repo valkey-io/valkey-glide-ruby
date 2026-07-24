@@ -226,13 +226,14 @@ CI=1 bundle exec rake test:standalone
 
 ### SSL Tests
 
-The preferred approach (matching CI and all other GLIDE clients) uses `cluster_manager.py`:
+TLS tests require a TLS server plus `TLS_CERT_DIR` pointing at its certs. Use
+`cluster_manager.py --tls` which will prepare a self-sign certs for use:
 
 ```bash
 # Start a TLS-only server on port 6380 (generates certs in valkey-glide/utils/tls_crts/)
 python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
 
-# Point tests at the generated certs
+# Point tests at the generated certs (required — the TLS tests raise if unset)
 export TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts
 
 # Run tests
@@ -242,12 +243,8 @@ bundle exec rake test:standalone
 python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone
 ```
 
-Alternatively, for local development without Python, generate certs and start manually:
-
-```bash
-ruby test/fixtures/ssl/generate_certs.rb
-# Then start a TLS Valkey server on port 6380 using those certs
-```
+If you don't want to run the TLS tests, set `SKIP_TLS_TESTS=true` and they are
+skipped gracefully (this is what macOS CI does).
 
 ### Module Tests (JSON, Bloom, Search)
 
@@ -443,7 +440,7 @@ ruby -e "require 'valkey'; c = Valkey.new; puts c.ping; c.close"
 | `LoadError` / FFI library not found | Confirm `lib/valkey/libglide_ffi.{so,dylib}` exists and matches your OS/arch. |
 | Wrong architecture after FFI rebuild | Rebuild `glide-ffi` on the target platform; do not copy Linux `.so` to macOS. |
 | Cluster tests flaky | Wait for `cluster_state:ok`; increase `TIMEOUT` env var. |
-| SSL test failures | Use `cluster_manager.py --tls` (see SSL Tests above), or regenerate local certs: `ruby test/fixtures/ssl/generate_certs.rb`. |
+| SSL test failures / `TLS_CERT_DIR is not set` | Start a TLS server via `cluster_manager.py --tls` and `export TLS_CERT_DIR=...` (see SSL Tests above), or set `SKIP_TLS_TESTS=true`. |
 | Pipeline / MULTI crashes | Transaction commands in `pipelined` use sequential fallback by design. |
 
 ## Recommended Editor Extensions
