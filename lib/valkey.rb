@@ -377,11 +377,9 @@ class Valkey
       arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
       arg_lens.put_ulong(0, 0)
       _buffers = [] # nothing to keep alive
+      flattened_args = command_args
     else
-      # Reassign command_args to the (possibly flattened) array build_command_args
-      # actually built arg_ptrs/arg_lens from - see that method for why using the
-      # original, pre-flatten array's size below would go out of sync with them.
-      arg_ptrs, arg_lens, _buffers, command_args = build_command_args(command_args)
+      arg_ptrs, arg_lens, _buffers, flattened_args = build_command_args(command_args)
     end
 
     # Create OpenTelemetry span if sampling is enabled, as a child of the app's current
@@ -413,7 +411,7 @@ class Valkey
           @connection,
           channel,
           command_type,
-          command_args.size,
+          flattened_args.size,
           arg_ptrs,
           arg_lens,
           route_info.to_ptr,
@@ -429,7 +427,7 @@ class Valkey
           @connection,
           channel,
           command_type,
-          command_args.size,
+          flattened_args.size,
           arg_ptrs,
           arg_lens,
           route_buf,
@@ -500,15 +498,12 @@ class Valkey
     buffers = [] # Keep references to prevent GC
 
     commands.each do |command_type, command_args, block|
-      # Reassign to the (possibly flattened) array build_command_args actually
-      # built arg_ptrs/arg_lens from - see that method for why the original,
-      # pre-flatten array's size would go out of sync with them below.
-      arg_ptrs, arg_lens, arg_bufs, command_args = build_command_args(command_args)
+      arg_ptrs, arg_lens, arg_bufs, flattened_args = build_command_args(command_args)
 
       cmd = Bindings::CmdInfo.new
       cmd[:request_type] = command_type
       cmd[:args] = arg_ptrs
-      cmd[:arg_count] = command_args.size
+      cmd[:arg_count] = flattened_args.size
       cmd[:args_len] = arg_lens
 
       cmds << cmd
@@ -607,25 +602,19 @@ class Valkey
     { "manual_interval" => { "duration_in_sec" => duration_in_sec } }
   end
 
+  # Builds the FFI arg_ptrs/arg_lens/buffers for command_args, flattening nested
+  # Array/Hash elements first (mirroring redis-client's CommandBuilder#generate)
+  # so callers like hset(key, [field, value]) serialize correctly instead of
+  # collapsing into one garbled Array#to_s/Hash#to_s string. Returns the
+  # flattened command_args too - callers must size arg_count off this returned
+  # array, not their original pre-flatten one, or arg_count goes out of sync
+  # with arg_ptrs/arg_lens.
   def build_command_args(command_args)
-    # Mirror redis-client's CommandBuilder#generate: flat_map every element,
-    # turning a Hash into alternating key/value pairs (same one-level
-    # auto-flatten redis-client gets from flat_map on a plain Array element
-    # too, as a side effect of flat_map's own semantics - not Hash-specific).
-    # Every existing caller in this codebase already pre-flattens its own
-    # arguments (see e.g. hset/mset/zadd/keys.flatten!), so this is a no-op
-    # for them - it only changes behavior for a caller that passes a raw,
-    # un-flattened Array/Hash straight through, which previously got
-    # silently mis-serialized via Array#to_s/Hash#to_s into one garbled
-    # string argument instead of several real ones.
+    # Flatten nested Arrays/Hashes to match redis-client's behavior.
     command_args = command_args.flat_map { |el| el.is_a?(Hash) ? el.flatten : el }
 
     # For empty arrays, pass NULL pointers as per Rust FFI contract
     # This matches Go's approach which successfully uses nil pointers
-    # Also returns the (possibly flattened) command_args - callers must use
-    # THIS array's size for the FFI arg_count, not their own original
-    # pre-flatten local variable, or arg_count and arg_ptrs/arg_lens go out
-    # of sync when flattening actually changed the element count.
     return [FFI::Pointer::NULL, FFI::Pointer::NULL, [], []] if command_args.empty?
 
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
