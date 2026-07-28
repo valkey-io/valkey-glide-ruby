@@ -40,8 +40,14 @@ module Lint
       assert_equal "s2", r.lpop("foo")
     end
 
-    def test_variadic_lpush
+    def test_array_lpush
       assert_equal 3, r.lpush("foo", %w[s1 s2 s3])
+      assert_equal 3, r.llen("foo")
+      assert_equal "s3", r.lpop("foo")
+    end
+
+    def test_splat_lpush
+      assert_equal 3, r.lpush("foo", "s1", "s2", "s3")
       assert_equal 3, r.llen("foo")
       assert_equal "s3", r.lpop("foo")
     end
@@ -55,6 +61,22 @@ module Lint
       assert_equal %w[s3 s2], r.lrange("foo", 0, -1)
     end
 
+    def test_array_lpushx
+      r.lpush "foo", "s1"
+      r.lpushx "foo", %w[s2 s3]
+
+      assert_equal 3, r.llen("foo")
+      assert_equal %w[s3 s2 s1], r.lrange("foo", 0, -1)
+    end
+
+    def test_splat_lpushx
+      r.lpush "foo", "s1"
+      r.lpushx "foo", "s2", "s3"
+
+      assert_equal 3, r.llen("foo")
+      assert_equal %w[s3 s2 s1], r.lrange("foo", 0, -1)
+    end
+
     def test_rpush
       r.rpush "foo", "s1"
       r.rpush "foo", "s2"
@@ -63,8 +85,14 @@ module Lint
       assert_equal "s2", r.rpop("foo")
     end
 
-    def test_variadic_rpush
+    def test_array_rpush
       assert_equal 3, r.rpush("foo", %w[s1 s2 s3])
+      assert_equal 3, r.llen("foo")
+      assert_equal "s3", r.rpop("foo")
+    end
+
+    def test_splat_rpush
+      assert_equal 3, r.rpush("foo", "s1", "s2", "s3")
       assert_equal 3, r.llen("foo")
       assert_equal "s3", r.rpop("foo")
     end
@@ -76,6 +104,22 @@ module Lint
 
       assert_equal 2, r.llen("foo")
       assert_equal %w[s2 s3], r.lrange("foo", 0, -1)
+    end
+
+    def test_array_rpushx
+      r.rpush "foo", "s1"
+      r.rpushx "foo", %w[s2 s3]
+
+      assert_equal 3, r.llen("foo")
+      assert_equal %w[s1 s2 s3], r.lrange("foo", 0, -1)
+    end
+
+    def test_splat_rpushx
+      r.rpush "foo", "s1"
+      r.rpushx "foo", "s2", "s3"
+
+      assert_equal 3, r.llen("foo")
+      assert_equal %w[s1 s2 s3], r.lrange("foo", 0, -1)
     end
 
     def test_llen

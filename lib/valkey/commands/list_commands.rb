@@ -63,44 +63,44 @@ class Valkey
         send_command(RequestType::BLMOVE, args)
       end
 
-      # Prepend one or more values to a list, creating the list if it doesn't exist
+      # Prepend one or more values to a list, creating the list if it doesn't exist.
       #
       # @param [String] key
-      # @param [String, Array<String>] value string value, or array of string values to push
+      # @param [String, Array<String>] value one or more values, or array of values
       # @return [Integer] the length of the list after the push operation
-      def lpush(key, value)
-        send_command(RequestType::LPUSH, [key, *value])
+      def lpush(key, *value)
+        value.flatten!(1)
+        send_command(RequestType::LPUSH, [key].concat(value))
       end
 
-      # Prepend a value to a list, only if the list exists.
+      # Prepend one or more values to a list, only if the list exists.
       #
       # @param [String] key
-      # @param [String] value
+      # @param [String, Array<String>] value one or more values, or array of values
       # @return [Integer] the length of the list after the push operation
-      def lpushx(key, value)
-        send_command(RequestType::LPUSHX, [key, value])
+      def lpushx(key, *value)
+        value.flatten!(1)
+        send_command(RequestType::LPUSHX, [key].concat(value))
       end
 
-      # Append one or more values to a list, creating the list if it doesn't exist
+      # Append one or more values to a list, creating the list if it doesn't exist.
       #
       # @param [String] key
-      # @param [String, Array<String>] value string value, or array of string values to push
+      # @param [String, Array<String>] value one or more values, or array of values
       # @return [Integer] the length of the list after the push operation
-      def rpush(key, value)
-        value = [value] unless value.is_a?(Array)
-
-        args = [key] + value
-
-        send_command(RequestType::RPUSH, args)
+      def rpush(key, *value)
+        value.flatten!(1)
+        send_command(RequestType::RPUSH, [key].concat(value))
       end
 
-      # Append a value to a list, only if the list exists.
+      # Append one or more values to a list, only if the list exists.
       #
       # @param [String] key
-      # @param [String] value
+      # @param [String, Array<String>] value one or more values, or array of values
       # @return [Integer] the length of the list after the push operation
-      def rpushx(key, value)
-        send_command(RequestType::RPUSHX, [key, value])
+      def rpushx(key, *value)
+        value.flatten!(1)
+        send_command(RequestType::RPUSHX, [key].concat(value))
       end
 
       # Remove and get the first elements in a list.
