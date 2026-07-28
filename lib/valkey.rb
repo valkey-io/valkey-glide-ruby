@@ -377,8 +377,9 @@ class Valkey
       arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
       arg_lens.put_ulong(0, 0)
       _buffers = [] # nothing to keep alive
+      flattened_args = command_args
     else
-      arg_ptrs, arg_lens, _buffers = build_command_args(command_args)
+      arg_ptrs, arg_lens, _buffers, flattened_args = build_command_args(command_args)
     end
 
     # Create OpenTelemetry span if sampling is enabled, as a child of the app's current
@@ -410,7 +411,7 @@ class Valkey
           @connection,
           channel,
           command_type,
-          command_args.size,
+          flattened_args.size,
           arg_ptrs,
           arg_lens,
           route_info.to_ptr,
@@ -426,7 +427,7 @@ class Valkey
           @connection,
           channel,
           command_type,
-          command_args.size,
+          flattened_args.size,
           arg_ptrs,
           arg_lens,
           route_buf,
@@ -497,12 +498,12 @@ class Valkey
     buffers = [] # Keep references to prevent GC
 
     commands.each do |command_type, command_args, block|
-      arg_ptrs, arg_lens, arg_bufs = build_command_args(command_args)
+      arg_ptrs, arg_lens, arg_bufs, flattened_args = build_command_args(command_args)
 
       cmd = Bindings::CmdInfo.new
       cmd[:request_type] = command_type
       cmd[:args] = arg_ptrs
-      cmd[:arg_count] = command_args.size
+      cmd[:arg_count] = flattened_args.size
       cmd[:args_len] = arg_lens
 
       cmds << cmd
@@ -601,25 +602,43 @@ class Valkey
     { "manual_interval" => { "duration_in_sec" => duration_in_sec } }
   end
 
+  # Builds the FFI arg_ptrs/arg_lens/buffers for command_args, flattening nested
+  # Array/Hash elements first (mirroring redis-client's CommandBuilder#generate)
+  # so callers like hset(key, [field, value]) serialize correctly instead of
+  # collapsing into one garbled Array#to_s/Hash#to_s string. Returns the
+  # flattened command_args too - callers must size arg_count off this returned
+  # array, not their original pre-flatten one, or arg_count goes out of sync
+  # with arg_ptrs/arg_lens. Each element's type is checked against the same
+  # allow-list redis-client's CommandBuilder#generate uses (String, Symbol,
+  # Integer, Float) - anything else, including nil, raises TypeError instead
+  # of being silently coerced via #to_s (e.g. nil.to_s => "").
   def build_command_args(command_args)
+    # Flatten nested Arrays/Hashes to match redis-client's behavior.
+    command_args = command_args.flat_map { |el| el.is_a?(Hash) ? el.flatten : el }
+
     # For empty arrays, pass NULL pointers as per Rust FFI contract
     # This matches Go's approach which successfully uses nil pointers
-    return [FFI::Pointer::NULL, FFI::Pointer::NULL, []] if command_args.empty?
+    return [FFI::Pointer::NULL, FFI::Pointer::NULL, [], []] if command_args.empty?
 
     arg_ptrs = FFI::MemoryPointer.new(:pointer, command_args.size)
     arg_lens = FFI::MemoryPointer.new(:ulong, command_args.size)
     buffers = []
 
     command_args.each_with_index do |arg, i|
-      arg = arg.to_s # Ensure we convert to string
+      arg = case arg
+            when String, Symbol, Integer, Float
+              arg.to_s
+            else
+              raise TypeError, "Unsupported command argument type: #{arg.class}"
+            end
 
-      buf = FFI::MemoryPointer.from_string(arg.to_s)
+      buf = FFI::MemoryPointer.from_string(arg)
       buffers << buf # prevent garbage collection
       arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
       arg_lens.put_ulong(i * 8, arg.bytesize)
     end
 
-    [arg_ptrs, arg_lens, buffers]
+    [arg_ptrs, arg_lens, buffers, command_args]
   end
 
   def convert_response(res, return_map_as_hash: false, &block)

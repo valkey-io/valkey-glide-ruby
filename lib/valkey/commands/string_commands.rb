@@ -85,7 +85,12 @@ class Valkey
       #   - `:get => true`: Return the old string stored at key, or nil if key did not exist.
       # @return [String, Boolean] `"OK"` or true, false if `:nx => true` or `:xx => true`
       def set(key, value, ex: nil, px: nil, exat: nil, pxat: nil, nx: nil, xx: nil, keepttl: nil, get: nil)
-        args = [key, value]
+        # value.to_s (matching redis-rb): a non-String value (e.g. an Array,
+        # in test_set_and_get_with_non_string_value) must become ONE opaque
+        # value here, not get flattened as if it were a multi-value list -
+        # see build_command_args's flat_map fix for why this must happen
+        # before command_args is built, not be left to that generic layer.
+        args = [key, value.to_s]
         args << "EX" << ex if ex
         args << "PX" << px if px
         args << "EXAT" << exat if exat
@@ -110,7 +115,7 @@ class Valkey
       # @param [String] value
       # @return [String] `"OK"`
       def setex(key, ttl, value)
-        send_command(RequestType::SET_EX, [key, ttl, value])
+        send_command(RequestType::SET_EX, [key, ttl, value.to_s])
       end
 
       # Set the time to live in milliseconds of a key.
@@ -120,7 +125,7 @@ class Valkey
       # @param [String] value
       # @return [String] `"OK"`
       def psetex(key, ttl, value)
-        send_command(RequestType::PSET_EX, [key, Integer(ttl), value])
+        send_command(RequestType::PSET_EX, [key, Integer(ttl), value.to_s])
       end
 
       # Set the value of a key, only if the key does not exist.
@@ -136,7 +141,7 @@ class Valkey
         # other GLIDE bindings' existing contracts expect to keep returning a
         # plain 0/1 integer. Doing the conversion here keeps it scoped to this
         # one Ruby-level method - see hexists/hsetnx for the same pattern.
-        send_command(RequestType::SET_NX, [key, value], &Utils::Boolify)
+        send_command(RequestType::SET_NX, [key, value.to_s], &Utils::Boolify)
       end
 
       # Set one or more values.
@@ -259,7 +264,7 @@ class Valkey
       # @param [String] value
       # @return [Integer] length of the string after it was modified
       def setrange(key, offset, value)
-        send_command(RequestType::SET_RANGE, [key, offset, value])
+        send_command(RequestType::SET_RANGE, [key, offset, value.to_s])
       end
 
       # Get a substring of the string stored at key.

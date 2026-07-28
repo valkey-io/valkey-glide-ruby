@@ -271,8 +271,13 @@ class Valkey
       end
 
       def invoke_script(script, args: [], keys: [])
-        arg_ptrs, arg_lens = build_command_args(args)
-        keys_ptrs, keys_lens = build_command_args(keys)
+        # Must hold onto the returned buffers (_arg_bufs/_keys_bufs) for the
+        # lifetime of this method - they back arg_ptrs/keys_ptrs, and letting
+        # them go out of scope (e.g. by only capturing the first 2 return
+        # values) makes them eligible for GC before the native call below
+        # reads through those pointers, corrupting ARGV/KEYS with freed memory.
+        arg_ptrs, arg_lens, _arg_bufs, flattened_args = build_command_args(args)
+        keys_ptrs, keys_lens, _keys_bufs, flattened_keys = build_command_args(keys)
 
         route = ""
         route_buf = FFI::MemoryPointer.from_string(route)
@@ -285,10 +290,10 @@ class Valkey
             @connection,
             0,
             sha,
-            keys.size,
+            flattened_keys.size,
             keys_ptrs,
             keys_lens,
-            args.size,
+            flattened_args.size,
             arg_ptrs,
             arg_lens,
             route_buf,
