@@ -45,10 +45,6 @@ class Valkey
     @initialized = false
     @config = nil
     @parent_span_context_provider = nil
-    # Retains the FFI config struct wrappers and endpoint buffers passed to the
-    # native init so their memory isn't GC'd while the native layer holds their
-    # raw addresses. See build_config / init.
-    @config_refs = nil
 
     class << self
       # Initialize OpenTelemetry in the Valkey GLIDE core.
@@ -101,21 +97,16 @@ class Valkey
           raise ArgumentError, "flush_interval_ms must be a positive integer, got: #{flush_interval_ms}"
         end
 
-        # Build the configuration.
-        #
-        # build_config returns the config struct plus a "keep_alive" set of the
-        # nested FFI struct wrappers and endpoint buffers. The config struct only
-        # stores their raw addresses, so those objects must stay referenced until
-        # after the native call finishes reading them — otherwise GC could free
-        # the endpoint buffers and leave config->traces/metrics->endpoint
-        # dangling (use-after-free). Mirrors the buffer pinning in
-        # build_command_args. Stashing them in @config_refs keeps them alive for
-        # the process lifetime (init is one-time), which covers the native call.
+        # Build the configuration. keep_alive pins the nested FFI structs and
+        # endpoint buffers that the config struct references only by raw address;
+        # they must stay alive across the native call below (see build_config).
         config, keep_alive = build_config(traces, metrics, flush_interval_ms)
-        @config_refs = keep_alive
 
-        # Call the FFI function
+        # Call the FFI function. init_open_telemetry copies the endpoint strings
+        # synchronously and retains no pointers, so once it returns the pinned
+        # buffers are no longer read by the native layer and can be released.
         error_ptr = Bindings.init_open_telemetry(config)
+        keep_alive.clear
 
         unless error_ptr.null?
           error_msg = error_ptr.read_string
@@ -211,7 +202,6 @@ class Valkey
         @initialized = false
         @config = nil
         @parent_span_context_provider = nil
-        @config_refs = nil
       end
 
       private
@@ -238,6 +228,19 @@ class Valkey
         raise ArgumentError, "tracestate must be a String or nil, got: #{tracestate.class}"
       end
 
+      # Builds the native OpenTelemetry config struct from the given options.
+      #
+      # @return [Array(FFI::Struct, Array)] a two-element tuple:
+      #   1. the +OpenTelemetryConfig+ struct to pass to +Bindings.init_open_telemetry+, and
+      #   2. a +keep_alive+ array of the objects it references only by raw address —
+      #      the nested traces/metrics struct wrappers and their endpoint
+      #      +MemoryPointer+ buffers.
+      #
+      #   The config struct stores only the addresses of those nested objects, so
+      #   the caller MUST keep +keep_alive+ referenced until after the native init
+      #   call returns; otherwise GC could free the endpoint buffers and leave
+      #   +config->traces/metrics->endpoint+ dangling (use-after-free). This is the
+      #   same buffer-pinning contract as +build_command_args+.
       def build_config(traces, metrics, flush_interval_ms)
         config_struct = Bindings::OpenTelemetryConfig.new
 
