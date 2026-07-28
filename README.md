@@ -1,6 +1,6 @@
 # Valkey GLIDE for Ruby
 
-Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) (Rust) and aims to be a **drop-in replacement for [redis-rb](https://github.com/redis/redis-rb)** while delivering GLIDE performance, reliability, and enterprise features.
+Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) (Rust) and aims to be a **drop-in replacement for [redis-rb](https://github.com/redis/redis-rb)** while delivering GLIDE performance, reliability, and enterprise features.
 
 ## Why Choose Valkey GLIDE?
 
@@ -58,13 +58,13 @@ Minimum Ruby version: **2.6.0** (see `valkey.gemspec`).
 Install from RubyGems:
 
 ```bash
-gem install valkey-rb
+gem install valkey-glide-rb
 ```
 
 Or add to your `Gemfile`:
 
 ```ruby
-gem "valkey-rb"
+gem "valkey-glide-rb"
 ```
 
 Verify installation:

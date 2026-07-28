@@ -1,10 +1,10 @@
 # AGENTS: Ruby Client Context for Agentic Tools
 
-This file provides AI agents and developers with the minimum but sufficient context to work productively with the Valkey GLIDE Ruby client (`valkey-rb`). It covers build commands, testing, contribution requirements, and essential guardrails specific to the Ruby implementation.
+This file provides AI agents and developers with the minimum but sufficient context to work productively with the Valkey GLIDE Ruby client (`valkey-glide-rb`). It covers build commands, testing, contribution requirements, and essential guardrails specific to the Ruby implementation.
 
 ## Repository Overview
 
-This is the **Ruby client** for Valkey GLIDE, published as the `valkey-rb` gem. It provides a synchronous, redis-rb-compatible API on top of the Rust GLIDE core via FFI.
+This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb` gem. It provides a synchronous, redis-rb-compatible API on top of the Rust GLIDE core via FFI.
 
 **Primary Languages:** Ruby, Rust (FFI native library, built separately from [valkey-glide](https://github.com/valkey-io/valkey-glide))
 
@@ -40,7 +40,7 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-rb` gem. 
 
 **Ruby Versions:** 2.6, 2.7, 3.0, 3.1, 3.2, 3.3, 3.4, JRuby (CI matrix)
 
-**Gem name:** `valkey-rb` on RubyGems
+**Gem name:** `valkey-glide-rb` on RubyGems
 
 ## Build and Test Rules (Agents)
 
@@ -219,7 +219,7 @@ valkey-glide-ruby/
 
 ## Quick Facts for Reasoners
 
-**Package:** `valkey-rb` on RubyGems  
+**Package:** `valkey-glide-rb` on RubyGems  
 **API Style:** Synchronous, redis-rb-compatible  
 **Client:** `Valkey.new` — standalone or `cluster_mode: true`  
 **Key Features:** Pipelining, OpenTelemetry (native), statistics, TLS, URL parsing, cluster routing  
