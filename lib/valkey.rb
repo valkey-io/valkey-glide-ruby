@@ -593,9 +593,14 @@ class Valkey
     buffers = []
 
     command_args.each_with_index do |arg, i|
-      arg = arg.to_s # Ensure we convert to string
+      arg = case arg
+            when String, Symbol, Integer, Float
+              arg.to_s
+            else
+              raise TypeError, "Unsupported command argument type: #{arg.class}"
+            end
 
-      buf = FFI::MemoryPointer.from_string(arg.to_s)
+      buf = FFI::MemoryPointer.from_string(arg)
       buffers << buf # prevent garbage collection
       arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
       arg_lens.put_ulong(i * 8, arg.bytesize)
