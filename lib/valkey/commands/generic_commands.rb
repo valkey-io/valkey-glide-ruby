@@ -581,7 +581,10 @@ class Valkey
       private
 
       # Flattens Arrays and Hashes (to alternating key/value) and stringifies
-      # Integers/Floats, matching `redis-client`'s documented `#call`/`#call_v` behavior.
+      # Integers/Floats/Symbols, matching `redis-client`'s documented
+      # `#call`/`#call_v` behavior - including its type check: any leaf that
+      # isn't a String/Symbol/Integer/Float (e.g. `nil`) raises `TypeError`
+      # instead of being silently coerced to `""` via `#to_s`.
       #
       # @example
       #   flatten_call_args(["CMD", [1, [2, 3]], { "a" => 1, "b" => [2, 3] }])
@@ -600,8 +603,10 @@ class Valkey
             stack.concat(arg.reverse)
           when Hash
             arg.to_a.reverse_each { |pair| stack.concat(pair.reverse) }
-          else
+          when String, Symbol, Integer, Float
             acc << arg.to_s
+          else
+            raise TypeError, "Unsupported command argument type: #{arg.class}"
           end
         end
 
