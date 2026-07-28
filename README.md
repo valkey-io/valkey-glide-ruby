@@ -191,11 +191,11 @@ built dynamically. Both return the raw reply with no type-casting based on the c
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
 | `reconnect_attempts`, `reconnect_delay`, `reconnect_delay_max` | Connection retry strategy |
-| `read_from` *(GLIDE-native)* | Read routing: the `Valkey::ReadFrom::*` constants: `PRIMARY`, `PREFER_REPLICA`, `AZ_AFFINITY`, `AZ_AFFINITY_REPLICAS_AND_PRIMARY`.`AZ_AFFINITY`/`AZ_AFFINITY_REPLICAS_AND_PRIMARY` require `client_az` to also be set. |
-| `client_az` *(GLIDE-native)* | Availability-zone identifier for `AZ_AFFINITY` / `AZ_AFFINITY_REPLICAS_AND_PRIMARY` routing (e.g. `"us-west-2a"`) |
-| `inflight_requests_limit` *(GLIDE-native)* | Maximum concurrent in-flight requests (non-negative integer) |
-| `lazy_connect` *(GLIDE-native)* | Delay the actual connection until the first command is sent |
-| `periodic_checks` *(GLIDE-native)* | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
+| `read_from` | Read routing: the `Valkey::ReadFrom::*` constants: `PRIMARY`, `PREFER_REPLICA`, `AZ_AFFINITY`, `AZ_AFFINITY_REPLICAS_AND_PRIMARY`.`AZ_AFFINITY`/`AZ_AFFINITY_REPLICAS_AND_PRIMARY` require `client_az` to also be set. |
+| `client_az` | Availability-zone identifier for `AZ_AFFINITY` / `AZ_AFFINITY_REPLICAS_AND_PRIMARY` routing (e.g. `"us-west-2a"`) |
+| `inflight_requests_limit`  | Maximum concurrent in-flight requests (non-negative integer) |
+| `lazy_connect` | Delay the actual connection until the first command is sent |
+| `periodic_checks` | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
 
 ```ruby
 client = Valkey.new(
