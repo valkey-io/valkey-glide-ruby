@@ -191,8 +191,8 @@ built dynamically. Both return the raw reply with no type-casting based on the c
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
 | `reconnect_attempts`, `reconnect_delay`, `reconnect_delay_max` | Connection retry strategy |
-| `read_from` *(GLIDE-native)* | Read routing: `:primary`, `:prefer_replica`, `:az_affinity`, `:az_affinity_replicas_and_primary` symbols, the exact-match GLIDE strings (e.g. `"PreferReplica"`), or the `Valkey::ReadFrom::*` constants (e.g. `Valkey::ReadFrom::PREFER_REPLICA`). `:az_affinity`/`:az_affinity_replicas_and_primary` require `client_az` to also be set. `LowestLatency` is a valid GLIDE value but not yet usable via the vendored native library. |
-| `client_az` *(GLIDE-native)* | Availability-zone identifier for `:az_affinity` / `:az_affinity_replicas_and_primary` routing (e.g. `"us-west-2a"`) |
+| `read_from` *(GLIDE-native)* | Read routing: the `Valkey::ReadFrom::*` constants (`PRIMARY`, `PREFER_REPLICA`, `AZ_AFFINITY`, `AZ_AFFINITY_REPLICAS_AND_PRIMARY`) or the identical exact-match GLIDE strings (e.g. `"PreferReplica"`). The value is forwarded to the GLIDE core unchanged. `AZ_AFFINITY`/`AZ_AFFINITY_REPLICAS_AND_PRIMARY` require `client_az` to also be set. `LowestLatency` is a valid GLIDE value but not yet usable via the vendored native library. |
+| `client_az` *(GLIDE-native)* | Availability-zone identifier for `AZ_AFFINITY` / `AZ_AFFINITY_REPLICAS_AND_PRIMARY` routing (e.g. `"us-west-2a"`) |
 | `inflight_requests_limit` *(GLIDE-native)* | Maximum concurrent in-flight requests (non-negative integer) |
 | `lazy_connect` *(GLIDE-native)* | Delay the actual connection until the first command is sent |
 | `periodic_checks` *(GLIDE-native)* | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
