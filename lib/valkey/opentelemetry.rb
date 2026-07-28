@@ -45,6 +45,10 @@ class Valkey
     @initialized = false
     @config = nil
     @parent_span_context_provider = nil
+    # Retains the FFI config struct wrappers and endpoint buffers passed to the
+    # native init so their memory isn't GC'd while the native layer holds their
+    # raw addresses. See build_config / init.
+    @config_refs = nil
 
     class << self
       # Initialize OpenTelemetry in the Valkey GLIDE core.
@@ -97,8 +101,18 @@ class Valkey
           raise ArgumentError, "flush_interval_ms must be a positive integer, got: #{flush_interval_ms}"
         end
 
-        # Build the configuration
-        config = build_config(traces, metrics, flush_interval_ms)
+        # Build the configuration.
+        #
+        # build_config returns the config struct plus a "keep_alive" set of the
+        # nested FFI struct wrappers and endpoint buffers. The config struct only
+        # stores their raw addresses, so those objects must stay referenced until
+        # after the native call finishes reading them — otherwise GC could free
+        # the endpoint buffers and leave config->traces/metrics->endpoint
+        # dangling (use-after-free). Mirrors the buffer pinning in
+        # build_command_args. Stashing them in @config_refs keeps them alive for
+        # the process lifetime (init is one-time), which covers the native call.
+        config, keep_alive = build_config(traces, metrics, flush_interval_ms)
+        @config_refs = keep_alive
 
         # Call the FFI function
         error_ptr = Bindings.init_open_telemetry(config)
@@ -197,6 +211,7 @@ class Valkey
         @initialized = false
         @config = nil
         @parent_span_context_provider = nil
+        @config_refs = nil
       end
 
       private
@@ -226,12 +241,18 @@ class Valkey
       def build_config(traces, metrics, flush_interval_ms)
         config_struct = Bindings::OpenTelemetryConfig.new
 
+        # Objects referenced only by raw address from config_struct. They must
+        # outlive the Bindings.init_open_telemetry call, so we collect and return
+        # them for the caller to pin (config_struct only stores their addresses).
+        keep_alive = [config_struct]
+
         # Configure traces if provided
         if traces
           validate_endpoint!(traces[:endpoint], "traces")
 
           traces_struct = Bindings::OpenTelemetryTracesConfig.new
-          traces_struct[:endpoint] = FFI::MemoryPointer.from_string(traces[:endpoint])
+          endpoint_ptr = FFI::MemoryPointer.from_string(traces[:endpoint])
+          traces_struct[:endpoint] = endpoint_ptr
 
           if traces[:sample_percentage]
             traces_struct[:has_sample_percentage] = true
@@ -242,6 +263,8 @@ class Valkey
           end
 
           config_struct[:traces] = traces_struct.pointer
+          # Pin the wrapper (owns the endpoint ref) and the endpoint buffer.
+          keep_alive.push(traces_struct, endpoint_ptr)
         else
           config_struct[:traces] = FFI::Pointer::NULL
         end
@@ -251,8 +274,10 @@ class Valkey
           validate_endpoint!(metrics[:endpoint], "metrics")
 
           metrics_struct = Bindings::OpenTelemetryMetricsConfig.new
-          metrics_struct[:endpoint] = FFI::MemoryPointer.from_string(metrics[:endpoint])
+          endpoint_ptr = FFI::MemoryPointer.from_string(metrics[:endpoint])
+          metrics_struct[:endpoint] = endpoint_ptr
           config_struct[:metrics] = metrics_struct.pointer
+          keep_alive.push(metrics_struct, endpoint_ptr)
         else
           config_struct[:metrics] = FFI::Pointer::NULL
         end
@@ -266,7 +291,7 @@ class Valkey
           config_struct[:flush_interval_ms] = 5000 # Default
         end
 
-        config_struct
+        [config_struct, keep_alive]
       end
 
       def validate_endpoint!(endpoint, type)
