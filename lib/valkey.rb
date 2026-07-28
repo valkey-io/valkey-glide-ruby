@@ -608,7 +608,10 @@ class Valkey
   # collapsing into one garbled Array#to_s/Hash#to_s string. Returns the
   # flattened command_args too - callers must size arg_count off this returned
   # array, not their original pre-flatten one, or arg_count goes out of sync
-  # with arg_ptrs/arg_lens.
+  # with arg_ptrs/arg_lens. Each element's type is checked against the same
+  # allow-list redis-client's CommandBuilder#generate uses (String, Symbol,
+  # Integer, Float) - anything else, including nil, raises TypeError instead
+  # of being silently coerced via #to_s (e.g. nil.to_s => "").
   def build_command_args(command_args)
     # Flatten nested Arrays/Hashes to match redis-client's behavior.
     command_args = command_args.flat_map { |el| el.is_a?(Hash) ? el.flatten : el }
@@ -622,9 +625,14 @@ class Valkey
     buffers = []
 
     command_args.each_with_index do |arg, i|
-      arg = arg.to_s # Ensure we convert to string
+      arg = case arg
+            when String, Symbol, Integer, Float
+              arg.to_s
+            else
+              raise TypeError, "Unsupported command argument type: #{arg.class}"
+            end
 
-      buf = FFI::MemoryPointer.from_string(arg.to_s)
+      buf = FFI::MemoryPointer.from_string(arg)
       buffers << buf # prevent garbage collection
       arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
       arg_lens.put_ulong(i * 8, arg.bytesize)
