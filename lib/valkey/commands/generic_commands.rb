@@ -580,15 +580,15 @@ class Valkey
 
       private
 
-      # Flattens Arrays and Hashes (to alternating key/value), matching
-      # `redis-client`'s documented `#call`/`#call_v` behavior. Leaf values are
-      # left as-is - `build_command_args` type-checks and stringifies them, so
-      # an unsupported leaf (e.g. `nil`) raises `TypeError` there instead of
-      # being silently coerced to `""` here.
+      # Flattens Arrays and Hashes (to alternating key/value) and stringifies
+      # Integers/Floats/Symbols, matching `redis-client`'s documented
+      # `#call`/`#call_v` behavior - including its type check: any leaf that
+      # isn't a String/Symbol/Integer/Float (e.g. `nil`) raises `TypeError`
+      # instead of being silently coerced to `""` via `#to_s`.
       #
       # @example
       #   flatten_call_args(["CMD", [1, [2, 3]], { "a" => 1, "b" => [2, 3] }])
-      #   # => ["CMD", 1, 2, 3, "a", 1, "b", 2, 3]
+      #   # => ["CMD", "1", "2", "3", "a", "1", "b", "2", "3"]
       def flatten_call_args(args)
         acc = []
         # Ruby doesn't have a built in queue, so we use a reversed stack instead
@@ -603,8 +603,10 @@ class Valkey
             stack.concat(arg.reverse)
           when Hash
             arg.to_a.reverse_each { |pair| stack.concat(pair.reverse) }
+          when String, Symbol, Integer, Float
+            acc << arg.to_s
           else
-            acc << arg
+            raise TypeError, "Unsupported command argument type: #{arg.class}"
           end
         end
 
