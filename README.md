@@ -1,6 +1,6 @@
 # Valkey GLIDE for Ruby
 
-Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) (Rust) and aims to be a **drop-in replacement for [redis-rb](https://github.com/redis/redis-rb)** while delivering GLIDE performance, reliability, and enterprise features.
+Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) with an interface similar to [redis-rb](https://github.com/redis/redis-rb)**, delivering GLIDE performance, reliability, and enterprise features.
 
 ## Why Choose Valkey GLIDE?
 
@@ -175,7 +175,7 @@ client.call("SET", "k", "v", nx: false, ex: nil)
 `call_v` takes the whole command as a single Array (no keyword flags) — useful when the command is
 built dynamically. Both return the raw reply with no type-casting based on the command name.
 
-### Connection Options (redis-rb compatible)
+### Connection Options
 
 | Option | Description |
 |--------|-------------|
@@ -191,7 +191,7 @@ built dynamically. Both return the raw reply with no type-casting based on the c
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
 | `reconnect_attempts`, `reconnect_delay`, `reconnect_delay_max` | Connection retry strategy |
-| `read_from` *(GLIDE-native)* | Read routing: the `Valkey::ReadFrom::*` constants (`PRIMARY`, `PREFER_REPLICA`, `AZ_AFFINITY`, `AZ_AFFINITY_REPLICAS_AND_PRIMARY`) or the identical exact-match GLIDE strings (e.g. `"PreferReplica"`). The value is forwarded to the GLIDE core unchanged. `AZ_AFFINITY`/`AZ_AFFINITY_REPLICAS_AND_PRIMARY` require `client_az` to also be set. `LowestLatency` is a valid GLIDE value but not yet usable via the vendored native library. |
+| `read_from` *(GLIDE-native)* | Read routing: the `Valkey::ReadFrom::*` constants: `PRIMARY`, `PREFER_REPLICA`, `AZ_AFFINITY`, `AZ_AFFINITY_REPLICAS_AND_PRIMARY`.`AZ_AFFINITY`/`AZ_AFFINITY_REPLICAS_AND_PRIMARY` require `client_az` to also be set. |
 | `client_az` *(GLIDE-native)* | Availability-zone identifier for `AZ_AFFINITY` / `AZ_AFFINITY_REPLICAS_AND_PRIMARY` routing (e.g. `"us-west-2a"`) |
 | `inflight_requests_limit` *(GLIDE-native)* | Maximum concurrent in-flight requests (non-negative integer) |
 | `lazy_connect` *(GLIDE-native)* | Delay the actual connection until the first command is sent |
