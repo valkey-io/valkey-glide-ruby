@@ -18,7 +18,7 @@ class Valkey
       # Add one or more members to a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one member, or array of members
+      # @param [String, Array<String>] member one or more members, or array of members
       # @return [Integer] The number of members that were successfully added
       def sadd(key, *members)
         members.flatten!(1)
@@ -28,7 +28,7 @@ class Valkey
       # Add one or more members to a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one member, or array of members
+      # @param [String, Array<String>] member one or more members, or array of members
       # @return [Boolean] Whether at least one member was successfully added.
       def sadd?(key, *members)
         members.flatten!(1)
@@ -38,7 +38,7 @@ class Valkey
       # Remove one or more members from a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one member, or array of members
+      # @param [String, Array<String>] member one or more members, or array of members
       # @return [Integer] The number of members that were successfully removed
       def srem(key, *members)
         members.flatten!(1)
@@ -48,7 +48,7 @@ class Valkey
       # Remove one or more members from a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one member, or array of members
+      # @param [String, Array<String>] member one or more members, or array of members
       # @return [Boolean] Whether at least one member was successfully removed.
       def srem?(key, *members)
         members.flatten!(1)

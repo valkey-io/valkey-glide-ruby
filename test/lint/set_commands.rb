@@ -10,6 +10,20 @@ module Lint
       assert_equal %w[s1 s2], r.smembers("foo").sort
     end
 
+    def test_array_sadd
+      assert_equal 2, r.sadd("foo", %w[s1 s2])
+      assert_equal 1, r.sadd("foo", %w[s1 s2 s3])
+
+      assert_equal %w[s1 s2 s3], r.smembers("foo").sort
+    end
+
+    def test_splat_sadd
+      assert_equal 2, r.sadd("foo", "s1", "s2")
+      assert_equal 1, r.sadd("foo", "s1", "s2", "s3")
+
+      assert_equal %w[s1 s2 s3], r.smembers("foo").sort
+    end
+
     def test_sadd?
       assert_equal true, r.sadd?("foo", "s1")
       assert_equal true, r.sadd?("foo", "s2")
@@ -18,17 +32,18 @@ module Lint
       assert_equal %w[s1 s2], r.smembers("foo").sort
     end
 
-    def test_variadic_sadd
-      assert_equal 2, r.sadd("foo", %w[s1 s2])
-      assert_equal 1, r.sadd("foo", %w[s1 s2 s3])
+    def test_array_sadd?
+      assert_equal true, r.sadd?("foo", %w[s1 s2])
+      assert_equal true, r.sadd?("foo", %w[s1 s2 s3])
+      assert_equal false, r.sadd?("foo", %w[s1 s2])
 
       assert_equal %w[s1 s2 s3], r.smembers("foo").sort
     end
 
-    def test_variadic_sadd?
-      assert_equal true, r.sadd?("foo", %w[s1 s2])
-      assert_equal true, r.sadd?("foo", %w[s1 s2 s3])
-      assert_equal false, r.sadd?("foo", %w[s1 s2])
+    def test_splat_sadd?
+      assert_equal true, r.sadd?("foo", "s1", "s2")
+      assert_equal true, r.sadd?("foo", "s1", "s2", "s3")
+      assert_equal false, r.sadd?("foo", "s1", "s2")
 
       assert_equal %w[s1 s2 s3], r.smembers("foo").sort
     end
@@ -43,17 +58,7 @@ module Lint
       assert_equal ["s2"], r.smembers("foo")
     end
 
-    def test_srem?
-      r.sadd("foo", "s1")
-      r.sadd("foo", "s2")
-
-      assert_equal true, r.srem?("foo", "s1")
-      assert_equal false, r.srem?("foo", "s3")
-
-      assert_equal ["s2"], r.smembers("foo")
-    end
-
-    def test_variadic_srem
+    def test_array_srem
       r.sadd("foo", "s1")
       r.sadd("foo", "s2")
       r.sadd("foo", "s3")
@@ -65,13 +70,47 @@ module Lint
       assert_equal ["s2"], r.smembers("foo")
     end
 
-    def test_variadic_srem?
+    def test_splat_srem
+      r.sadd("foo", "s1")
+      r.sadd("foo", "s2")
+      r.sadd("foo", "s3")
+
+      assert_equal 1, r.srem("foo", "s1", "aaa")
+      assert_equal 0, r.srem("foo", "bbb", "ccc", "ddd")
+      assert_equal 1, r.srem("foo", "eee", "s3")
+
+      assert_equal ["s2"], r.smembers("foo")
+    end
+
+    def test_srem?
+      r.sadd("foo", "s1")
+      r.sadd("foo", "s2")
+
+      assert_equal true, r.srem?("foo", "s1")
+      assert_equal false, r.srem?("foo", "s3")
+
+      assert_equal ["s2"], r.smembers("foo")
+    end
+
+    def test_array_srem?
       r.sadd("foo", "s1")
       r.sadd("foo", "s2")
       r.sadd("foo", "s3")
 
       assert_equal true, r.srem?("foo", %w[s1 aaa])
       assert_equal false, r.srem?("foo", %w[bbb ccc ddd])
+      assert_equal true, r.srem?("foo", %w[eee s3])
+
+      assert_equal ["s2"], r.smembers("foo")
+    end
+
+    def test_splat_srem?
+      r.sadd("foo", "s1")
+      r.sadd("foo", "s2")
+      r.sadd("foo", "s3")
+
+      assert_equal true, r.srem?("foo", "s1", "aaa")
+      assert_equal false, r.srem?("foo", "bbb", "ccc", "ddd")
       assert_equal true, r.srem?("foo", "eee", "s3")
 
       assert_equal ["s2"], r.smembers("foo")
