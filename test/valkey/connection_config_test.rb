@@ -18,7 +18,7 @@ module ValkeyTests
     #
     # Raises whatever `Valkey.new` raises (e.g. `ArgumentError`) if validation
     # fails before the FFI call is reached.
-    def captured_json_options(options = {})
+    def captured_client_args(options = {})
       captured = { uri: nil, json: nil }
 
       fake_response = Valkey::Bindings::ConnectionResponse.new
@@ -35,7 +35,16 @@ module ValkeyTests
         end
       end
 
-      captured[:json].nil? ? {} : JSON.parse(captured[:json])
+      captured
+    end
+
+    def captured_json_options(options = {})
+      json = captured_client_args(options)[:json]
+      json.nil? ? {} : JSON.parse(json)
+    end
+
+    def scheme_for(options)
+      captured_client_args(options)[:uri].start_with?("rediss://") ? "rediss" : "redis"
     end
 
     def test_read_from_accepts_canonical_strings
@@ -209,6 +218,50 @@ module ValkeyTests
         ::Valkey.new(host: "localhost", port: 6379, periodic_checks: { manual_interval: "30" })
       end
       assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
+    end
+
+    def test_ssl_boolean_true_enables_tls
+      assert_equal "rediss", scheme_for(ssl: true)
+    end
+
+    def test_ssl_string_true_enables_tls
+      assert_equal "rediss", scheme_for(ssl: "true")
+    end
+
+    def test_ssl_integer_one_enables_tls
+      assert_equal "rediss", scheme_for(ssl: 1)
+    end
+
+    def test_ssl_string_one_enables_tls
+      assert_equal "rediss", scheme_for(ssl: "1")
+    end
+
+    def test_ssl_uppercase_true_string_enables_tls
+      assert_equal "rediss", scheme_for(ssl: "TRUE")
+    end
+
+    def test_ssl_yes_string_enables_tls
+      assert_equal "rediss", scheme_for(ssl: "yes")
+    end
+
+    def test_ssl_truthy_symbol_enables_tls
+      assert_equal "rediss", scheme_for(ssl: :enabled)
+    end
+
+    def test_ssl_truthy_object_enables_tls
+      assert_equal "rediss", scheme_for(ssl: Object.new)
+    end
+
+    def test_ssl_boolean_false_selects_plaintext
+      assert_equal "redis", scheme_for(ssl: false)
+    end
+
+    def test_ssl_nil_selects_plaintext
+      assert_equal "redis", scheme_for(ssl: nil)
+    end
+
+    def test_ssl_absent_option_selects_plaintext
+      assert_equal "redis", scheme_for({})
     end
 
     def test_multiple_options_serialize_independently
