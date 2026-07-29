@@ -92,11 +92,74 @@ module ValkeyTests
     end
 
     def test_parse_redis_url_invalid_format
-      # Should handle gracefully or return nil
-      result = ::Valkey::Utils.parse_redis_url("not-a-url")
-      # The method should either return nil or raise an error
-      # Based on implementation, it might return nil or raise
-      assert(result.nil? || result.is_a?(Hash))
+      error = assert_raises(ArgumentError) { ::Valkey::Utils.parse_redis_url("not-a-url") }
+      assert_match(/not-a-url/, error.message)
+    end
+
+    def test_parse_redis_url_trailing_slash
+      result = ::Valkey::Utils.parse_redis_url("redis://myhost.example.com:6380/")
+      assert_equal "myhost.example.com", result[:host]
+      assert_equal 6380, result[:port]
+      assert_nil result[:db]
+      assert_equal false, result[:ssl]
+    end
+
+    def test_parse_redis_url_ipv6_host
+      result = ::Valkey::Utils.parse_redis_url("redis://[::1]:6379/0")
+      assert_equal "::1", result[:host]
+      assert_equal 6379, result[:port]
+      assert_equal 0, result[:db]
+    end
+
+    def test_parse_redis_url_valkey_scheme
+      result = ::Valkey::Utils.parse_redis_url("valkey://myhost.example.com:6380/0")
+      assert_equal "myhost.example.com", result[:host]
+      assert_equal 6380, result[:port]
+      assert_equal 0, result[:db]
+      assert_equal false, result[:ssl]
+    end
+
+    def test_parse_redis_url_valkeys_scheme_enables_tls
+      result = ::Valkey::Utils.parse_redis_url("valkeys://user:pass@myhost.example.com:6380/2")
+      assert_equal "myhost.example.com", result[:host]
+      assert_equal 6380, result[:port]
+      assert_equal "user", result[:username]
+      assert_equal "pass", result[:password]
+      assert_equal 2, result[:db]
+      assert_equal true, result[:ssl]
+    end
+
+    def test_parse_redis_url_unknown_scheme_raises
+      error = assert_raises(ArgumentError) { ::Valkey::Utils.parse_redis_url("http://localhost:6379") }
+      assert_match(/scheme must be one of/, error.message)
+    end
+
+    def test_parse_redis_url_missing_host_raises
+      error = assert_raises(ArgumentError) { ::Valkey::Utils.parse_redis_url("redis://") }
+      assert_match(/missing host/, error.message)
+    end
+
+    def test_parse_redis_url_non_integer_db_raises
+      error = assert_raises(ArgumentError) do
+        ::Valkey::Utils.parse_redis_url("redis://localhost:6379/not-a-number")
+      end
+      assert_match(/database must be a non-negative integer/, error.message)
+    end
+
+    def test_parse_redis_url_error_message_redacts_credentials
+      # Non-integer db (validated after URI parse)
+      error = assert_raises(ArgumentError) do
+        ::Valkey::Utils.parse_redis_url("redis://user:supersecret@localhost:6379/not-a-number")
+      end
+      refute_match(/supersecret/, error.message)
+      assert_match(/REDACTED/, error.message)
+
+      # URI.parse itself failing — must not leak the password from the underlying error
+      error = assert_raises(ArgumentError) do
+        ::Valkey::Utils.parse_redis_url("redis://user:supersecret@bad-host:notaport/x")
+      end
+      refute_match(/supersecret/, error.message)
+      assert_match(/REDACTED/, error.message)
     end
   end
 end
