@@ -141,7 +141,7 @@ class Valkey
         # other GLIDE bindings' existing contracts expect to keep returning a
         # plain 0/1 integer. Doing the conversion here keeps it scoped to this
         # one Ruby-level method - see hexists/hsetnx for the same pattern.
-        send_command(RequestType::SET_NX, [key, value], &Utils::Boolify)
+        send_command(RequestType::SET_NX, [key, value.to_s], &Utils::Boolify)
       end
 
       # Set one or more values.
