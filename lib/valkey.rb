@@ -67,8 +67,8 @@ class Valkey
     raise ArgumentError, "Port cannot be nil" if uri_port.nil?
     raise ArgumentError, "Port must be a number" unless uri_port.is_a?(Integer)
 
-    # Determine scheme based on TLS/SSL
-    scheme = [true, "true"].include?(options[:ssl]) ? "rediss" : "redis"
+    # Determine scheme based on truthy TLS/SSL.
+    scheme = options[:ssl] ? "rediss" : "redis"
 
     # Build URI with authentication if provided
     uri_parts = [scheme, "://"]
