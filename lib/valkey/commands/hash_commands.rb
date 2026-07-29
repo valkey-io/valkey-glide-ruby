@@ -14,7 +14,7 @@ class Valkey
       #     # => 2
       #
       # @param [String] key
-      # @param [String, Array<String>] field one field, or array of fields
+      # @param [String, Array<String>] field one or more fields, or array of fields
       # @return [Integer] the number of fields that were removed
       def hdel(key, *fields)
         fields.flatten!(1)
@@ -118,7 +118,7 @@ class Valkey
       #     # => ["value1", "value2"]
       #
       # @param [String] key
-      # @param [String, Array<String>] field one field, or array of fields
+      # @param [String, Array<String>] field one or more fields, or array of fields
       # @return [Array<String, nil>] an array of values for the specified fields
       #
       # @see #mapped_hmget
@@ -134,7 +134,7 @@ class Valkey
       #     # => {"field1" => "value1", "field2" => "value2"}
       #
       # @param [String] key
-      # @param [String, Array<String>] field one field, or array of fields
+      # @param [String, Array<String>] field one or more fields, or array of fields
       # @return [Hash] a hash mapping the specified fields to their values
       #
       # @see #hmget
@@ -349,7 +349,7 @@ class Valkey
       #     # => ["value1", "value2"]
       #
       # @param [String] key
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @param [Hash] options
       #   - `:ex => Integer`: Set the specified expire time, in seconds.
       #   - `:px => Integer`: Set the specified expire time, in milliseconds.
@@ -381,7 +381,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] seconds time to live in seconds
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @param [Hash] options
       #   - `:nx => true`: Set expiry only when the field has no expiry.
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
@@ -411,7 +411,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] unix_time expiry time specified as a UNIX timestamp in seconds
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @param [Hash] options
       #   - `:nx => true`: Set expiry only when the field has no expiry.
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
@@ -441,7 +441,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] milliseconds time to live in milliseconds
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @param [Hash] options
       #   - `:nx => true`: Set expiry only when the field has no expiry.
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
@@ -471,7 +471,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] unix_time_ms expiry time specified as a UNIX timestamp in milliseconds
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @param [Hash] options
       #   - `:nx => true`: Set expiry only when the field has no expiry.
       #   - `:xx => true`: Set expiry only when the field has an existing expiry.
@@ -500,7 +500,7 @@ class Valkey
       #     # => [1, 1]
       #
       # @param [String] key
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @return [Array<Integer>] Array of results for each field.
       #   - `1` if the expiration time was successfully removed from the field.
       #   - `-1` if the field exists but has no expiration time.
@@ -519,7 +519,7 @@ class Valkey
       #     # => [60, -1]
       #
       # @param [String] key
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @return [Array<Integer>] Array of TTLs in seconds for each field.
       #   - TTL in seconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
@@ -538,7 +538,7 @@ class Valkey
       #     # => [60000, -1]
       #
       # @param [String] key
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @return [Array<Integer>] Array of TTLs in milliseconds for each field.
       #   - TTL in milliseconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
@@ -557,7 +557,7 @@ class Valkey
       #     # => [1234567890, -1]
       #
       # @param [String] key
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @return [Array<Integer>] Array of expiration timestamps in seconds for each field.
       #   - Expiration Unix timestamp in seconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
@@ -576,7 +576,7 @@ class Valkey
       #     # => [1234567890000, -1]
       #
       # @param [String] key
-      # @param [String, Array<String>] fields one field, or array of fields
+      # @param [String, Array<String>] fields one or more fields, or array of fields
       # @return [Array<Integer>] Array of expiration timestamps in milliseconds for each field.
       #   - Expiration Unix timestamp in milliseconds if the field exists and has a timeout.
       #   - `-1` if the field exists but has no associated expire.
