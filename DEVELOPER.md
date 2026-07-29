@@ -1,6 +1,6 @@
 # Developer Guide
 
-This document describes how to set up your development environment to build and test the Valkey GLIDE Ruby client (`valkey-rb`).
+This document describes how to set up your development environment to build and test the Valkey GLIDE Ruby client (`valkey-glide-rb`).
 
 ## Development Overview
 
@@ -372,7 +372,7 @@ rake native:package
 gem build valkey.gemspec
 
 # 4. Install locally
-gem install ./valkey-rb-*.gem
+gem install ./valkey-glide-rb-*.gem
 ```
 
 ### What `rake native:package` Does
@@ -406,18 +406,18 @@ To build for a different platform, you must build on that platform (or use cross
 
 ```bash
 # Unpack and inspect
-gem unpack valkey-rb-*.gem --target=gem-contents
+gem unpack valkey-glide-rb-*.gem --target=gem-contents
 find gem-contents -name "libglide_ffi.*"
 
 # Or list files in the gem
-gem spec valkey-rb-*.gem files
+gem spec valkey-glide-rb-*.gem files
 ```
 
 ### Install and Test
 
 ```bash
 # Install the locally built gem
-gem install ./valkey-rb-*.gem
+gem install ./valkey-glide-rb-*.gem
 
 # Test it works (requires Valkey running)
 ruby -e "require 'valkey'; c = Valkey.new; puts c.ping; c.close"

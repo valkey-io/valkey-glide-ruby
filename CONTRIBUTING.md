@@ -1,6 +1,6 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to Valkey GLIDE for Ruby (`valkey-rb`). Whether it's a bug report, new feature, correction, or documentation, we value feedback from the community.
+Thank you for your interest in contributing to Valkey GLIDE for Ruby (`valkey-glide-rb`). Whether it's a bug report, new feature, correction, or documentation, we value feedback from the community.
 
 Please read this document before submitting issues or pull requests.
 
@@ -11,7 +11,7 @@ Use the [GitHub issue tracker](https://github.com/valkey-io/valkey-glide-ruby/is
 Before creating a new issue:
 
 1. Search [existing issues](https://github.com/valkey-io/valkey-glide-ruby/issues) to avoid duplicates.
-2. Include Ruby version, OS/architecture, `valkey-rb` version, and Valkey/Redis server version.
+2. Include Ruby version, OS/architecture, `valkey-glide-rb` version, and Valkey/Redis server version.
 3. For connection problems, note standalone vs cluster and whether TLS is enabled.
 4. Provide a minimal reproduction script when possible.
 

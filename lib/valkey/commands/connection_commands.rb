@@ -47,25 +47,6 @@ class Valkey
         send_command(RequestType::SELECT, [db])
       end
 
-      # Close the connection.
-      #
-      # @deprecated The QUIT command is deprecated since Redis 7.2.0 / Valkey 7.2+.
-      #   Clients should use the `close` method directly instead.
-      #   This avoids lingering TIME_WAIT sockets on the server side.
-      #
-      # @return [String] `OK` or nil if connection already closed
-      # @see https://redis.io/docs/latest/commands/quit/
-      def quit
-        # For compatibility, we still support QUIT but recommend using close() instead
-        send_command(RequestType::QUIT)
-      rescue ConnectionError
-        # Server closes connection immediately after QUIT
-        nil
-      ensure
-        # Clean up our side of the connection
-        close if respond_to?(:close)
-      end
-
       # Switch to a different protocol version and handshake with the server.
       #
       # @param [Integer] protover Protocol version (2 or 3)
@@ -217,25 +198,6 @@ class Valkey
       # @return [String] `OK`
       def client_unpause(route: nil)
         send_command(RequestType::CLIENT_UNPAUSE, [], route: route)
-      end
-
-      # Configure client reply mode.
-      #
-      # @param [String] mode Reply mode (ON, OFF, SKIP)
-      # @return [String] `OK`
-      def client_reply(mode)
-        send_command(RequestType::CLIENT_REPLY, [mode])
-      end
-
-      # Unblock a client blocked in a blocking operation.
-      #
-      # @param [Integer] client_id ID of the client to unblock
-      # @param [String] unblock_type Optional unblock type (TIMEOUT, ERROR)
-      # @return [Integer] 1 if client was unblocked, 0 otherwise
-      def client_unblock(client_id, unblock_type = nil)
-        args = [client_id]
-        args << unblock_type if unblock_type
-        send_command(RequestType::CLIENT_UNBLOCK, args)
       end
 
       # Set client connection information.
