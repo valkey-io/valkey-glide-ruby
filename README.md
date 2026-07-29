@@ -185,7 +185,8 @@ built dynamically. Both return the raw reply with no type-casting based on the c
 | `password`, `username` | Authentication |
 | `timeout` | Request timeout in seconds (default `5.0`) |
 | `connect_timeout` | Connection timeout in seconds |
-| `ssl`, `ssl_params` | TLS (`ca_file`, `cert`, `key`, `ca_path`, `root_certs`) |
+| `ssl`| Enable TLS if true |
+| `ssl_params` | TLS options {`ca_file`, `cert`, `key`, `ca_path`, `root_certs`} |
 | `cluster_mode` | Enable cluster client |
 | `nodes` | Array of `{ host:, port: }` hashes |
 | `protocol` | `:resp2` (default) or `:resp3` |
