@@ -2,14 +2,7 @@
 
 class Valkey
   #
-  # this module defines constants for the `read_from:` connection option.
-  # Each constant is the canonical GLIDE string for that read-routing strategy,
-  # matching the RequestType/ResponseType constant modules' convention in this
-  # gem. Ruby symbols (`:prefer_replica`) and the exact-match strings
-  # (`"PreferReplica"`) are still accepted directly by `Valkey.new` -- these
-  # constants are purely an additional, IDE-completion-friendly way to write
-  # the same values, not a new validation mechanism.
-  #
+  # This module defines constants for the `read_from:` connection option values.
   module ReadFrom
     PRIMARY = "Primary"
     PREFER_REPLICA = "PreferReplica"

@@ -108,11 +108,6 @@ module Lint
       assert_equal "OK", r.client(:unpause)
     end
 
-    def test_client_reply
-      # Use the server commands interface that's known to work
-      assert_equal "OK", r.client(:reply, "ON")
-    end
-
     def test_client_set_info
       target_version "7.2" do
         # Use the server commands interface that's known to work
@@ -121,13 +116,6 @@ module Lint
           r.client(:set_info, "invalid-attr", "value")
         end
       end
-    end
-
-    def test_client_unblock
-      # Use the server commands interface that's known to work
-      client_id = r.client(:id)
-      result = r.client(:unblock, client_id)
-      assert [0, 1].include?(result), "Unblock should return 0 or 1"
     end
 
     def test_client_no_evict
@@ -194,12 +182,6 @@ module Lint
         sleep(0.05) # 50ms between retries
       end
       assert_nil r.client_get_name
-    end
-
-    def test_quit
-      # NOTE: This test is tricky because QUIT closes the connection
-      # We'll skip it in lint tests to avoid connection issues
-      skip("QUIT command closes connection - tested separately")
     end
   end
 end

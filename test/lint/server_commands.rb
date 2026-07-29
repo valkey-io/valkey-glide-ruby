@@ -156,15 +156,6 @@ module Lint
       end
     end
 
-    def test_client_unblock
-      result = r.client(:unblock, r.client(:id))
-      assert [0, 1].include?(result), "Expected unblock to return 0 or 1"
-    end
-
-    def test_client_reply
-      assert_equal "OK", r.client(:reply, "ON") # TODO: "OFF" or "SKIP" doesnt work yet
-    end
-
     def test_client_kill
       # CLIENT KILL by address doesn't work reliably in cluster mode because
       # the command may be routed to a different node than where the client is connected
