@@ -249,7 +249,11 @@ class Valkey
     def self.parse_redis_url(url)
       return {} unless url.is_a?(String) && !url.empty?
 
-      redacted = url.sub(%r{://[^/@]*@}, '://[REDACTED]@').inspect
+      # Redact userinfo before it ends up in error messages, logs, or trackers.
+      # The regex greedily consumes up to the LAST `@` after `://`, so passwords
+      # containing `/` or `@` are still fully redacted (RFC 3986 allows both in
+      # percent-decoded form; either can appear raw in a user-supplied URL).
+      redacted = url.sub(%r{(\A[^:]+://).*@}, '\1[REDACTED]@').inspect
 
       uri = begin
         URI.parse(url)

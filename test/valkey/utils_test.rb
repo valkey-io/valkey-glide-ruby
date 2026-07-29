@@ -160,6 +160,20 @@ module ValkeyTests
       end
       refute_match(/supersecret/, error.message)
       assert_match(/REDACTED/, error.message)
+
+      # Password containing `/` — must still redact, not slip through userinfo
+      error = assert_raises(ArgumentError) do
+        ::Valkey::Utils.parse_redis_url("redis://user:sup/er/secret@bad-host:notaport/x")
+      end
+      refute_match(%r{sup/er/secret}, error.message)
+      assert_match(/REDACTED/, error.message)
+
+      # Password containing raw `@`
+      error = assert_raises(ArgumentError) do
+        ::Valkey::Utils.parse_redis_url("redis://user:p@ss@bad-host:notaport/x")
+      end
+      refute_match(/p@ss/, error.message)
+      assert_match(/REDACTED/, error.message)
     end
   end
 end
