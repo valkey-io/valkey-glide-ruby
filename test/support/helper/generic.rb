@@ -114,17 +114,17 @@ module Helper
       client&.close
     end
 
-    def with_default_user_password
+    def with_default_user_password(password: AUTH_TEST_PASSWORD)
       client = _new_client
-      client.acl("SETUSER", "default", ">#{AUTH_TEST_PASSWORD}")
-      yield("default", AUTH_TEST_PASSWORD)
+      client.acl("SETUSER", "default", ">#{password}")
+      yield("default", password)
     ensure
       client&.close
-      restore_default_user_nopass
+      restore_default_user_nopass(password)
     end
 
-    def restore_default_user_nopass
-      client = _new_client(password: AUTH_TEST_PASSWORD)
+    def restore_default_user_nopass(password = AUTH_TEST_PASSWORD)
+      client = _new_client(password: password)
       client.acl("SETUSER", "default", "nopass")
     rescue Valkey::BaseError => e
       warn "[auth-helper] could not reset `default` user to nopass: #{e.class}: #{e.message}"

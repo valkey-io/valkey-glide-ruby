@@ -52,6 +52,34 @@ module ValkeyTests
       assert_equal false, result[:ssl]
     end
 
+    # Regression tests for issue #184: userinfo containing percent-encoded
+    # reserved characters must decode when parsed out of a redis:// URL,
+    # otherwise the value flows through `Valkey#initialize`'s re-encoding step
+    # and reaches the server double-encoded.
+    def test_parse_redis_url_percent_encoded_password
+      result = ::Valkey::Utils.parse_redis_url("redis://:p%40ss@127.0.0.1:6379")
+      assert_equal "p@ss", result[:password]
+    end
+
+    def test_parse_redis_url_percent_encoded_username
+      result = ::Valkey::Utils.parse_redis_url("redis://us%3Aer:pw@127.0.0.1:6379")
+      assert_equal "us:er", result[:username]
+      assert_equal "pw", result[:password]
+    end
+
+    def test_parse_redis_url_percent_encoded_space_and_plus_in_password
+      # `%20` decodes to space; a literal `+` stays literal (RFC 3986 userinfo,
+      # NOT application/x-www-form-urlencoded).
+      result = ::Valkey::Utils.parse_redis_url("redis://:hello%20world+plus@127.0.0.1:6379")
+      assert_equal "hello world+plus", result[:password]
+    end
+
+    def test_parse_redis_url_non_ascii_password
+      # 'é' -> UTF-8 bytes 0xC3 0xA9 -> "%C3%A9"
+      result = ::Valkey::Utils.parse_redis_url("redis://:caf%C3%A9@127.0.0.1:6379")
+      assert_equal "café", result[:password]
+    end
+
     def test_parse_redis_url_ssl
       result = ::Valkey::Utils.parse_redis_url("rediss://127.0.0.1:6379")
       assert_equal "127.0.0.1", result[:host]
