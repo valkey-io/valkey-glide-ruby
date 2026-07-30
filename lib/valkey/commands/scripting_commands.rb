@@ -137,12 +137,21 @@ class Valkey
       # @example Execute script that returns different data types
       #   valkey.eval("return {1, 'hello', true, nil}")
       #     # => [1, "hello", true, nil]
+      # @example Positional form, matching redis-rb's eval(script, keys, argv)
+      #   valkey.eval("return KEYS[1] .. ARGV[1]", ["mykey"], ["myarg"])
+      #     # => "mykeynyarg"
       # Since the eval is not available in the rust backend
       # using the load and invoke script
-      def eval(script, keys: [], args: [])
+      def eval(script, *rest, keys: nil, args: nil)
         # Validate script parameter
         raise ArgumentError, "script must be a string" unless script.is_a?(String)
         raise ArgumentError, "script cannot be empty" if script.empty?
+
+        # Accept redis-rb's flexible positional form - eval(script, keys, argv)
+        # - in addition to the keyword form, mirroring the same treatment
+        # applied to evalsha (see that method for the full rationale).
+        keys ||= rest[0] || []
+        args ||= rest[1] || []
 
         # Validate and convert keys and args to strings
         begin
@@ -181,12 +190,21 @@ class Valkey
       #   rescue Valkey::CommandError => e
       #     puts "Script not found: #{e.message}"
       #   end
+      # @example Positional form, matching redis-rb's evalsha(sha, keys, argv)
+      #   valkey.evalsha(sha, ["user"], ["123"])
+      #     # => "user:123"
       # Since evalsha is not available in rust backend
       # using invoke script
-      def evalsha(sha, keys: [], args: [])
+      def evalsha(sha, *rest, keys: nil, args: nil)
         # Validate SHA1 hash parameter
         raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
         raise ArgumentError, "sha1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
+
+        # Accept redis-rb's flexible positional form - evalsha(sha, keys, argv)
+        # - in addition to the keyword form, so code written against redis-rb's
+        # API (e.g. redis_display_id) doesn't need to special-case this client.
+        keys ||= rest[0] || []
+        args ||= rest[1] || []
 
         # Validate and convert keys and args to strings
         begin
