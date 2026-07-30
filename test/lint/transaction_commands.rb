@@ -551,5 +551,96 @@ module Lint
 
       assert_equal [false, true], result
     end
+
+    def test_multi_with_block_returns_futures_that_resolve_after_the_block
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      future = nil
+      result = r.multi do |multi|
+        future = multi.set("foo", "s1")
+        multi.get("foo")
+      end
+
+      assert_instance_of Valkey::Future, future
+      assert_equal "OK", future.value
+      assert_equal %w[OK s1], result
+    end
+
+    def test_multi_future_value_raises_before_block_completes
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      captured = nil
+      r.multi do |multi|
+        captured = multi.set("foo", "s1")
+        assert_raises(Valkey::FutureNotReady) { captured.value }
+      end
+
+      assert_equal "OK", captured.value
+    end
+
+    def test_multi_future_is_aborted_when_block_raises
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      future = nil
+      assert_raises(RuntimeError) do
+        r.multi do |multi|
+          future = multi.set("bar", "s2")
+          raise "boom"
+        end
+      end
+
+      assert_raises(Valkey::FutureAborted) { future.value }
+    end
+
+    def test_multi_future_is_aborted_when_batch_raises_a_command_error
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      # multi's block form hardcodes exception: true, so a real per-command
+      # error (as opposed to the user's block raising Ruby-level) makes the
+      # whole batch call raise before resolve_futures! ever runs - same
+      # abort path as test_multi_future_is_aborted_when_block_raises, just
+      # triggered from send_batch_commands itself instead of user code.
+      r.set("foo", "not_a_list")
+
+      future = nil
+      assert_raises(Valkey::CommandError) do
+        r.multi do |multi|
+          future = multi.lpush("foo", "bar")
+          multi.get("foo")
+        end
+      end
+
+      assert_raises(Valkey::FutureAborted) { future.value }
+    end
+
+    def test_multi_future_reflects_boolean_coercion
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.set("foo", "bar")
+      r.del("someset")
+      r.set("existing", "value")
+      r.del("newkey")
+
+      persist_future = nil
+      pexpire_future = nil
+      sismember_future = nil
+      setnx_future = nil
+      hexists_future = nil
+
+      result = r.multi do |multi|
+        persist_future = multi.persist("foo")
+        pexpire_future = multi.pexpire("foo", 900_000)
+        sismember_future = multi.sismember("someset", "member")
+        setnx_future = multi.setnx("existing", "ignored")
+        hexists_future = multi.hexists("newkey", "field")
+      end
+
+      assert_equal [false, true, false, false, false], result
+      assert_equal false, persist_future.value
+      assert_equal true, pexpire_future.value
+      assert_equal false, sismember_future.value
+      assert_equal false, setnx_future.value
+      assert_equal false, hexists_future.value
+    end
   end
 end
