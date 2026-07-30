@@ -91,10 +91,10 @@ class Valkey
         # see build_command_args's flat_map fix for why this must happen
         # before command_args is built, not be left to that generic layer.
         args = [key, value.to_s]
-        args << "EX" << ex if ex
-        args << "PX" << px if px
-        args << "EXAT" << exat if exat
-        args << "PXAT" << pxat if pxat
+        args << "EX" << Integer(ex) if ex
+        args << "PX" << Integer(px) if px
+        args << "EXAT" << Integer(exat) if exat
+        args << "PXAT" << Integer(pxat) if pxat
         args << "NX" if nx
         args << "XX" if xx
         args << "KEEPTTL" if keepttl
@@ -115,7 +115,7 @@ class Valkey
       # @param [String] value
       # @return [String] `"OK"`
       def setex(key, ttl, value)
-        send_command(RequestType::SET_EX, [key, ttl, value.to_s])
+        send_command(RequestType::SET_EX, [key, Integer(ttl), value.to_s])
       end
 
       # Set the time to live in milliseconds of a key.
@@ -264,7 +264,7 @@ class Valkey
       # @param [String] value
       # @return [Integer] length of the string after it was modified
       def setrange(key, offset, value)
-        send_command(RequestType::SET_RANGE, [key, offset, value.to_s])
+        send_command(RequestType::SET_RANGE, [key, Integer(offset), value.to_s])
       end
 
       # Get a substring of the string stored at key.
