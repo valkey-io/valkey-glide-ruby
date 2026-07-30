@@ -20,7 +20,17 @@ class Valkey
       #   single atomic batch once the block returns - GLIDE wraps them in a real
       #   MULTI/EXEC transaction internally. If the block raises, nothing has been
       #   sent to the server yet, so the exception simply propagates - there is no
-      #   transaction to discard.
+      #   transaction to discard. Each in-block command call returns a
+      #   {Valkey::Future} immediately; capture it and call `#value` on it once
+      #   the block has returned to read that command's own reply:
+      #
+      #   @example Capturing a per-command reply
+      #     future = nil
+      #     valkey.multi do |multi|
+      #       future = multi.incr("counter")
+      #       multi.expire("counter", 60)
+      #     end
+      #     future.value # => 6
       # @yieldparam [Valkey::Pipeline] multi collects the block's commands
       #
       # @return [Array<...>]
@@ -31,11 +41,19 @@ class Valkey
       def multi
         if block_given?
           pipeline = Pipeline.new
-          yield pipeline
 
-          return [] if pipeline.commands.empty?
+          begin
+            yield pipeline
 
-          send_batch_commands(pipeline.commands, exception: true, is_atomic: true)
+            return [] if pipeline.commands.empty?
+
+            results = send_batch_commands(pipeline.commands, exception: true, is_atomic: true)
+            pipeline.resolve_futures!(results)
+            results
+          rescue StandardError
+            pipeline.abort_futures!
+            raise
+          end
         else
           start_multi
           self
