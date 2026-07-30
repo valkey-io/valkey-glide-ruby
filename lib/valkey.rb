@@ -85,7 +85,8 @@ class Valkey
       uri_parts << "@"
     end
 
-    uri_parts << uri_host
+    # Wrap IPv6 literals in brackets so the host/port separator is unambiguous.
+    uri_parts << (uri_host.include?(":") ? "[#{uri_host}]" : uri_host)
     uri_parts << ":"
     uri_parts << uri_port.to_s
 
