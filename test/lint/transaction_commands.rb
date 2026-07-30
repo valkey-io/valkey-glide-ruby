@@ -520,5 +520,36 @@ module Lint
       res = r.watch("foo")
       assert_equal "OK", res
     end
+
+    def test_multi_with_boolean_reply_commands
+      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
+      # and behave differently with connection routing
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.set("foo", "bar")
+      r.del("someset")
+
+      result = r.multi do |multi|
+        multi.persist("foo")
+        multi.pexpire("foo", 900_000)
+        multi.sismember("someset", "member")
+      end
+
+      assert_equal [false, true, false], result
+    end
+
+    def test_multi_with_setnx
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.set("foo", "existing")
+      r.del("bar")
+
+      result = r.multi do |multi|
+        multi.setnx("foo", "ignored")
+        multi.setnx("bar", "new")
+      end
+
+      assert_equal [false, true], result
+    end
   end
 end

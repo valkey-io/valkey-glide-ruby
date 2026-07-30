@@ -97,14 +97,12 @@ module Lint
     end
 
     def test_setex
-      skip "setex is deprecated in Redis 2.6.12"
       assert r.setex("foo", 1, "bar")
       assert_equal "bar", r.get("foo")
       assert [0, 1].include? r.ttl("foo")
     end
 
     def test_setex_with_non_string_value
-      skip "setex is deprecated in Redis 2.6.12"
       value = %w[b a r]
 
       assert r.setex("foo", 1, value)
@@ -113,14 +111,12 @@ module Lint
     end
 
     def test_psetex
-      skip "psetex is deprecated in Redis 2.6.12"
       assert r.psetex("foo", 1000, "bar")
       assert_equal "bar", r.get("foo")
       assert [0, 1].include? r.ttl("foo")
     end
 
     def test_psetex_with_non_string_value
-      skip "psetex is deprecated in Redis 2.6.12"
       value = %w[b a r]
 
       assert r.psetex("foo", 1000, value)
@@ -161,8 +157,6 @@ module Lint
     end
 
     def test_setnx
-      skip "setnx is deprecated in Redis 2.6.12"
-
       r.set("foo", "qux")
       assert !r.setnx("foo", "bar")
       assert_equal "qux", r.get("foo")
@@ -173,8 +167,6 @@ module Lint
     end
 
     def test_setnx_with_non_string_value
-      skip "setnx is deprecated in Redis 2.6.12"
-
       value = %w[b a r]
 
       r.set("foo", "qux")

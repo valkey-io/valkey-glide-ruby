@@ -427,7 +427,9 @@ class Valkey
         RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD,
         RequestType::WATCH, RequestType::UNWATCH
       ]
-      @queued_commands << [command_type, command_args.dup] if !tx_commands.include?(command_type) && result == "QUEUED"
+      if !tx_commands.include?(command_type) && result == "QUEUED"
+        @queued_commands << [command_type, command_args.dup, block]
+      end
     end
 
     result
@@ -453,23 +455,29 @@ class Valkey
     end
   end
 
-  def send_batch_commands(commands, exception: true)
+  def send_batch_commands(commands, exception: true, is_atomic: false)
     # WORKAROUND: The underlying Glide FFI backend has stability issues when
-    # batching transactional commands like MULTI / EXEC / DISCARD. To avoid
-    # native crashes we fall back to issuing those commands sequentially
-    # instead of via `Bindings.batch`.
-    tx_types = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD]
+    # batching LITERAL MULTI / EXEC / DISCARD commands (e.g. a `pipelined` block
+    # that manually calls `pipeline.multi`/`pipeline.exec`). To avoid native
+    # crashes we fall back to issuing those commands sequentially instead of via
+    # `Bindings.batch`. This never applies to a real `is_atomic: true` batch
+    # (see `multi`'s block form) - that path never contains literal MULTI/EXEC
+    # commands, since the server-side transaction wrapping is handled by GLIDE
+    # itself based on the `is_atomic` flag, not by commands in the list.
+    unless is_atomic
+      tx_types = [RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD]
 
-    if commands.any? { |(command_type, _args, _block)| tx_types.include?(command_type) }
-      results = []
+      if commands.any? { |(command_type, _args, _block)| tx_types.include?(command_type) }
+        results = []
 
-      commands.each do |command_type, command_args, block|
-        res = send_command(command_type, command_args)
-        res = block.call(res) if block
-        results << res
+        commands.each do |command_type, command_args, block|
+          res = send_command(command_type, command_args)
+          res = block.call(res) if block
+          results << res
+        end
+
+        return results
       end
-
-      return results
     end
 
     cmds = []
@@ -499,7 +507,7 @@ class Valkey
     batch_info = Bindings::BatchInfo.new
     batch_info[:cmd_count] = cmds.size
     batch_info[:cmds] = cmd_ptrs
-    batch_info[:is_atomic] = false
+    batch_info[:is_atomic] = is_atomic
 
     batch_options = Bindings::BatchOptionsInfo.new
     batch_options[:retry_server_error] = true
@@ -705,7 +713,10 @@ class Valkey
 
     response = convert_response.call(result)
 
-    if block_given?
+    # Don't run the caller's converter (e.g. Utils::Boolify) over the MULTI-queued
+    # "QUEUED" sentinel - send_command's own `result == "QUEUED"` check (used to
+    # track queued commands) needs to see the literal string, not e.g. `true`.
+    if block_given? && response != "QUEUED"
       block.call(response)
     else
       response
