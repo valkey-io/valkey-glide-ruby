@@ -286,6 +286,33 @@ module Lint
       assert_equal({ '{1}foo' => 's1', '{1}bar' => 's2' }, result[0])
     end
 
+    def test_pipelined_returns_futures_that_resolve_after_the_block
+      r.set('{1}foo', 's1')
+
+      future = nil
+      r.pipelined do |pipeline|
+        future = pipeline.get('{1}foo')
+        pipeline.del('{1}foo')
+      end
+
+      assert_equal 's1', future.value
+      assert_nil r.get('{1}foo')
+    end
+
+    def test_pipelined_future_raises_command_error_for_inline_error_slot
+      r.set('{1}foo', 'not_a_list')
+
+      future = nil
+      result = r.pipelined(exception: false) do |pipeline|
+        future = pipeline.lpush('{1}foo', 'bar')
+        pipeline.get('{1}foo')
+      end
+
+      assert_raises(Valkey::CommandError) { future.value }
+      assert_instance_of Valkey::CommandError, result[0]
+      assert_equal 'not_a_list', result[1]
+    end
+
     def test_mset
       r.mset('{1}foo', 's1', '{1}bar', 's2')
 

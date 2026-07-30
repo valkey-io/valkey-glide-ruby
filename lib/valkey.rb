@@ -13,6 +13,7 @@ require "valkey/bindings"
 require "valkey/utils"
 require "valkey/commands"
 require "valkey/errors"
+require "valkey/future"
 require "valkey/pubsub_callback"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
@@ -26,11 +27,18 @@ class Valkey
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
-    yield pipeline
+    begin
+      yield pipeline
 
-    return [] if pipeline.commands.empty?
+      return [] if pipeline.commands.empty?
 
-    send_batch_commands(pipeline.commands, exception: exception)
+      results = send_batch_commands(pipeline.commands, exception: exception)
+      pipeline.resolve_futures!(results)
+      results
+    rescue StandardError
+      pipeline.abort_futures!
+      raise
+    end
   end
 
   def initialize(options = {})
@@ -573,8 +581,12 @@ class Valkey
       end
     end
 
+    # An inline error slot (see the ResponseType::ERROR case in
+    # convert_response above) must be left alone here - e.g. Utils::Boolify
+    # would otherwise silently coerce a CommandError object to `true`
+    # (`value != 0` is true for any non-numeric object), hiding the error.
     blocks.each_with_index do |block, i|
-      results[i] = block.call(results[i]) if block
+      results[i] = block.call(results[i]) if block && !results[i].is_a?(CommandError)
     end
 
     results
