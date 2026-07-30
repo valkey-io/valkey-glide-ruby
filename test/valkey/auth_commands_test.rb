@@ -28,6 +28,45 @@ module ValkeyTests
       end
     end
 
+    # Regression tests for issue #184: passwords containing URI-reserved
+    # characters (`@`, `:`, `/`, `?`, `#`, `%`, `+`, space, non-ASCII) must
+    # reach the server as their raw bytes — previously they were sent
+    # percent-encoded (e.g. `p%40ss` instead of `p@ss`) and AUTH failed.
+    # Runs the keyword-arg path (options[:password]) and the URL path
+    # (options[:url] with pre-encoded userinfo) against a real server with
+    # `requirepass` set to a reserved-char password.
+    RESERVED_CHAR_PASSWORDS = {
+      # human-readable label => raw password
+      "at_sign" => "p@ss",
+      "colon" => "p:ss",
+      "plus" => "a+b",
+      "space" => "hello world",
+      "non_ascii" => "café"
+    }.freeze
+
+    RESERVED_CHAR_PASSWORDS.each do |label, raw_password|
+      define_method(:"test_connect_with_reserved_char_password_#{label}_via_keyword_arg") do
+        with_default_user_password(password: raw_password) do |_user, password|
+          client = _new_client(password: password)
+          assert_equal "PONG", client.ping
+          client.close
+        end
+      end
+    end
+
+    def test_connect_with_reserved_char_password_via_url
+      raw_password = "p@ss"
+      with_default_user_password(password: raw_password) do |_user, _password|
+        # `%40` is the percent-encoded form of `@`; the driver must decode it
+        # before AUTH is sent, otherwise the server sees the literal `p%40ss`.
+        # Using Valkey.new directly (not `_new_client`) because the helper
+        # overrides host/port from options, which would defeat the url: path.
+        client = Valkey.new(url: "redis://:p%40ss@127.0.0.1:#{PORT}", timeout: TIMEOUT)
+        assert_equal "PONG", client.ping
+        client.close
+      end
+    end
+
     # should refuse to connect when the default-user password is wrong
     def test_connect_with_wrong_password_raises
       skip(WRONG_CREDENTIALS_HANG_SKIP)

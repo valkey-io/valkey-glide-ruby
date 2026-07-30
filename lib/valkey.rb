@@ -2,7 +2,7 @@
 
 require "ffi"
 require "json"
-require "cgi"
+require "uri"
 
 require "valkey/version"
 require "valkey/request_type"
@@ -81,15 +81,20 @@ class Valkey
     # Build URI with authentication if provided
     uri_parts = [scheme, "://"]
 
-    # Add authentication to URI
+    # Add authentication to URI. Use RFC 3986 percent-encoding
+    # (`URI::RFC2396_PARSER.escape`) rather than form-encoding (`CGI.escape`)
+    # so a space in the password becomes `%20`, not `+`. The FFI layer decodes
+    # userinfo per RFC 3986 (`percent_encoding::percent_decode`), which does
+    # NOT treat `+` as a space — using CGI.escape would silently corrupt any
+    # password containing a literal space. See valkey-glide/issues/6659.
     if options[:username] && options[:password]
-      uri_parts << CGI.escape(options[:username])
+      uri_parts << URI::RFC2396_PARSER.escape(options[:username])
       uri_parts << ":"
-      uri_parts << CGI.escape(options[:password])
+      uri_parts << URI::RFC2396_PARSER.escape(options[:password])
       uri_parts << "@"
     elsif options[:password]
       uri_parts << ":"
-      uri_parts << CGI.escape(options[:password])
+      uri_parts << URI::RFC2396_PARSER.escape(options[:password])
       uri_parts << "@"
     end
 
