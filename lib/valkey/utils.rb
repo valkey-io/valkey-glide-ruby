@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 class Valkey
   # Valkey Utils module
   #
@@ -223,48 +225,68 @@ class Valkey
 
     Noop = ->(reply) { reply }
 
-    # Parse Redis URL format: redis://[:password@]host[:port][/db]
-    # Also supports: rediss:// (SSL)
+    # Parse a Valkey/Redis connection URL.
     #
-    # @param [String] url Redis URL to parse
-    # @return [Hash] Parsed connection options with keys: :host, :port, :password, :username, :db, :ssl
+    # Accepted schemes: redis, rediss, valkey, valkeys. TLS is enabled for the
+    # `rediss` and `valkeys` variants. Matches the URI format documented for
+    # valkey-cli (`valkey://user:password@host:port/dbnum`).
+    #
+    # @param [String] url Connection URL to parse
+    # @return [Hash] Parsed options with keys :host, :port, :ssl,
+    #   and optionally :username, :password, :db. Returns {} for nil / "".
+    # @raise [ArgumentError] if the URL is malformed, has an unsupported
+    #   scheme, is missing a host, or has a non-integer db path.
     # @example
     #   parse_redis_url('redis://:secret@localhost:6379/15')
     #   # => { host: 'localhost', port: 6379, password: 'secret', db: 15, ssl: false }
     #
-    #   parse_redis_url('rediss://user:secret@localhost:6380/0')
+    #   parse_redis_url('valkeys://user:secret@localhost:6380/0')
     #   # => { host: 'localhost', port: 6380, username: 'user', password: 'secret', db: 0, ssl: true }
+    ALLOWED_URL_SCHEMES = %w[redis rediss valkey valkeys].freeze
+    TLS_URL_SCHEMES = %w[rediss valkeys].freeze
+    private_constant :ALLOWED_URL_SCHEMES, :TLS_URL_SCHEMES
+
     def self.parse_redis_url(url)
       return {} unless url.is_a?(String) && !url.empty?
 
-      # Match redis:// or rediss:// URLs
-      # Format: redis[s]://[username:password@]host[:port][/db][?param=value]
-      # Supports: redis://host, redis://user:pass@host, redis://:pass@host
-      # The regex handles:
-      # - No auth: redis://host...
-      # - Username and password: redis://user:pass@host...
-      # - Password only: redis://:pass@host...
-      match = url.match(%r{\A(redis|rediss)://(?:([^:@]*):([^@]+)@)?([^:/]+)(?::(\d+))?(?:/(\d+))?(?:\?.*)?\z})
+      # Redact userinfo before it ends up in error messages, logs, or trackers.
+      # The regex greedily consumes up to the LAST `@` after `://`, so passwords
+      # containing `/` or `@` are still fully redacted (RFC 3986 allows both in
+      # percent-decoded form; either can appear raw in a user-supplied URL).
+      redacted = url.sub(%r{(\A[^:]+://).*@}, '\1[REDACTED]@').inspect
 
-      return {} unless match
+      uri = begin
+        URI.parse(url)
+      rescue URI::InvalidURIError
+        raise ArgumentError, "Invalid Valkey URL #{redacted}: URI could not be parsed"
+      end
 
-      scheme = match[1]
-      username = match[2]
-      password = match[3]
-      host = match[4]
-      port = match[5]&.to_i
-      db = match[6]&.to_i
-      ssl = scheme == "rediss"
+      unless ALLOWED_URL_SCHEMES.include?(uri.scheme)
+        raise ArgumentError,
+              "Invalid Valkey URL #{redacted}: scheme must be one of " \
+              "#{ALLOWED_URL_SCHEMES.join(', ')}, got #{uri.scheme.inspect}"
+      end
+
+      host = uri.hostname
+      raise ArgumentError, "Invalid Valkey URL #{redacted}: missing host" if host.to_s.empty?
 
       result = {
         host: host,
-        port: port || 6379,
-        ssl: ssl
+        port: uri.port || 6379,
+        ssl: TLS_URL_SCHEMES.include?(uri.scheme)
       }
 
-      result[:username] = username if username && !username.empty?
-      result[:password] = password if password && !password.empty?
-      result[:db] = db if db
+      db_segment = uri.path.to_s.delete_prefix('/')
+      unless db_segment.empty?
+        unless db_segment.match?(/\A\d+\z/)
+          raise ArgumentError, "Invalid Valkey URL #{redacted}: database must be a non-negative integer"
+        end
+
+        result[:db] = db_segment.to_i
+      end
+
+      result[:username] = uri.user if uri.user && !uri.user.empty?
+      result[:password] = uri.password if uri.password && !uri.password.empty?
 
       result
     end
