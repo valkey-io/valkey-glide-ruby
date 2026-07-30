@@ -39,6 +39,10 @@ module ValkeyTests
       # human-readable label => raw password
       "at_sign" => "p@ss",
       "colon" => "p:ss",
+      "slash" => "a/b",
+      "question" => "a?b",
+      "hash" => "a#b",
+      "percent" => "a%b",
       "plus" => "a+b",
       "space" => "hello world",
       "non_ascii" => "café"

@@ -81,20 +81,28 @@ class Valkey
     # Build URI with authentication if provided
     uri_parts = [scheme, "://"]
 
-    # Add authentication to URI. Use RFC 3986 percent-encoding
-    # (`URI::RFC2396_PARSER.escape`) rather than form-encoding (`CGI.escape`)
-    # so a space in the password becomes `%20`, not `+`. The FFI layer decodes
-    # userinfo per RFC 3986 (`percent_encoding::percent_decode`), which does
-    # NOT treat `+` as a space — using CGI.escape would silently corrupt any
-    # password containing a literal space. See valkey-glide/issues/6659.
+    # Add authentication to URI. Use RFC 3986 percent-encoding rather than
+    # form-encoding (`CGI.escape`) so a space in the password becomes `%20`,
+    # not `+`. The FFI layer decodes userinfo per RFC 3986
+    # (`percent_encoding::percent_decode`), which does NOT treat `+` as a
+    # space — using CGI.escape would silently corrupt any password containing
+    # a literal space. See valkey-glide/issues/6659.
+    #
+    # We pass an explicit `unsafe` regex — anything outside RFC 3986 §2.3
+    # "unreserved" (`ALPHA / DIGIT / - . _ ~`) plus the RFC 2396 "mark" chars
+    # (`! ~ * ' ( )`) — because `URI::RFC2396_PARSER.escape`'s default set
+    # leaves `/` and `?` raw in userinfo, which the Rust `url` crate on the
+    # FFI side then rejects with "Invalid connection URI". Encoding more is
+    # always safe because the FFI decodes uniformly.
+    userinfo_unsafe = /[^\-_.!~*'()a-zA-Z0-9]/
     if options[:username] && options[:password]
-      uri_parts << URI::RFC2396_PARSER.escape(options[:username])
+      uri_parts << URI::RFC2396_PARSER.escape(options[:username], userinfo_unsafe)
       uri_parts << ":"
-      uri_parts << URI::RFC2396_PARSER.escape(options[:password])
+      uri_parts << URI::RFC2396_PARSER.escape(options[:password], userinfo_unsafe)
       uri_parts << "@"
     elsif options[:password]
       uri_parts << ":"
-      uri_parts << URI::RFC2396_PARSER.escape(options[:password])
+      uri_parts << URI::RFC2396_PARSER.escape(options[:password], userinfo_unsafe)
       uri_parts << "@"
     end
 
