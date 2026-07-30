@@ -95,13 +95,22 @@ client.close
 
 ### Standalone with URL (redis-rb compatible)
 
+Accepted URL schemes: `redis://`, `rediss://` (TLS), `valkey://`, `valkeys://` (TLS).
+
 ```ruby
 client = Valkey.new(url: "redis://localhost:6379/0")
-# TLS: rediss://user:password@localhost:6380/0
+# Valkey-native scheme (matches valkey-cli -u):
+#   valkey://localhost:6379/0
+# TLS variants:
+#   rediss://user:password@localhost:6380/0
+#   valkeys://user:password@localhost:6380/0
 
 client.ping
 # => "PONG"
 ```
+
+Unparseable URLs, unsupported schemes, and URLs without a host raise
+`ArgumentError` — they no longer fall back to `127.0.0.1:6379` silently.
 
 ### Cluster Mode
 
@@ -180,7 +189,7 @@ built dynamically. Both return the raw reply with no type-casting based on the c
 | Option | Description |
 |--------|-------------|
 | `host`, `port` | Server address (default `127.0.0.1:6379`) |
-| `url` | `redis://` or `rediss://` URI (merged with explicit options) |
+| `url` | `redis://`, `rediss://`, `valkey://`, or `valkeys://` URI (merged with explicit options) |
 | `db` | Database index (standalone only) |
 | `password`, `username` | Authentication |
 | `timeout` | Request timeout in seconds (default `5.0`) |

@@ -878,12 +878,12 @@ module ValkeyTests
 
     def test_url_with_invalid_scheme
       skip("URI connection tests only run on standalone mode") if cluster_mode?
-      # redis-rb's parse_redis_url should handle this
-      # but we should not crash
 
-      ::Valkey.new(url: "http://localhost:6379", connect_timeout: 1.0)
-    rescue ArgumentError, ::Valkey::CannotConnectError
-      # Expected - invalid scheme
+      # The specific error wording lives in Utils.parse_redis_url; at this
+      # layer we only care that Valkey.new no longer silently connects.
+      assert_raises(ArgumentError) do
+        ::Valkey.new(url: "http://localhost:6379", connect_timeout: 1.0)
+      end
     end
 
     def test_url_overridden_by_explicit_invalid_values
@@ -895,6 +895,32 @@ module ValkeyTests
         )
       end
       assert_match(/Database ID must be non-negative/, error.message)
+    end
+
+    # Regression test for GH #185: unparseable URLs used to silently connect
+    # to 127.0.0.1:6379. They must now raise ArgumentError instead.
+    def test_unparseable_url_raises_instead_of_falling_back
+      skip("URI connection tests only run on standalone mode") if cluster_mode?
+
+      assert_raises(ArgumentError) do
+        ::Valkey.new(url: "not-a-url", connect_timeout: 1.0)
+      end
+    end
+
+    def test_url_with_trailing_slash_parses
+      skip("URI connection tests only run on standalone mode") if cluster_mode?
+
+      client = ::Valkey.new(url: "redis://localhost:6379/")
+      assert_equal "PONG", client.ping
+      client.close
+    end
+
+    def test_valkey_scheme_url_parses
+      skip("URI connection tests only run on standalone mode") if cluster_mode?
+
+      client = ::Valkey.new(url: "valkey://localhost:6379/0")
+      assert_equal "PONG", client.ping
+      client.close
     end
   end
 end
