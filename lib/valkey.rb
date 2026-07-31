@@ -705,7 +705,7 @@ class Valkey
 
       case error[:command_error_type]
       when RequestErrorType::EXECABORT, RequestErrorType::UNSPECIFIED
-        raise CommandError, error[:command_error_message]
+        raise command_error_class_for(error[:command_error_message]), error[:command_error_message]
       when RequestErrorType::TIMEOUT
         raise TimeoutError, error[:command_error_message]
       when RequestErrorType::DISCONNECT
@@ -775,7 +775,7 @@ class Valkey
                     else
                       response_item[:string_value].read_string(response_item[:string_value_len])
                     end
-        CommandError.new(error_msg)
+        command_error_class_for(error_msg).new(error_msg)
       else
         raise "Unsupported response type: #{response_item[:response_type]}"
       end
@@ -790,6 +790,22 @@ class Valkey
       block.call(response)
     else
       response
+    end
+  end
+
+  # Maps a server-error message to the most specific Valkey::CommandError
+  # subclass based on the RESP error prefix (case-sensitive per RESP spec).
+  # Falls back to Valkey::CommandError for any unmapped prefix. All returned
+  # classes inherit from CommandError, so existing `rescue CommandError`
+  # blocks continue to catch every mapped error.
+  def command_error_class_for(message)
+    return CommandError if message.nil?
+
+    case message
+    when /\AWRONGTYPE\b/
+      WrongTypeError
+    else
+      CommandError
     end
   end
 end
