@@ -41,6 +41,9 @@ class Valkey
     end
   end
 
+  # @note Forking servers: create the client AFTER fork(), not before.
+  #   Inherited clients raise Valkey::InheritedError on first use. See README
+  #   "Forking servers" for Puma/Unicorn/Sidekiq examples. Threads are fine.
   def initialize(options = {})
     # Parse URL if provided
     if options[:url]
@@ -244,6 +247,15 @@ class Valkey
               "Reconnect attempts must be non-negative, got: #{number_of_retries}"
       end
 
+      # TODO: remove once https://github.com/valkey-io/valkey-glide/issues/6379 is fixed.
+      # Setting number_of_retries to 0 triggers an integer underflow in glide-core's
+      # retry_strategies.rs and hangs the process below the FFI boundary.
+      if number_of_retries.zero?
+        raise ArgumentError,
+              "reconnect_attempts: 0 is not supported due to an upstream bug that hangs the process " \
+              "(see https://github.com/valkey-io/valkey-glide/issues/6379). Use 1 or higher."
+      end
+
       raise ArgumentError, "Reconnect delay must be a number, got: #{base_delay.class}" unless base_delay.is_a?(Numeric)
       raise ArgumentError, "Reconnect delay must be positive, got: #{base_delay}" unless base_delay.positive?
 
@@ -294,6 +306,7 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
+    @created_pid = Process.pid
     Bindings.free_connection_response(response_ptr)
 
     # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
@@ -370,6 +383,18 @@ class Valkey
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
   def send_command(command_type, command_args = [], route: nil, &block)
+    # TODO: remove once glide-core exposes glide_client_reset_after_fork() —
+    # see https://github.com/valkey-io/valkey-glide/issues/6672.
+    # Currently, using an inherited client would abort the child below the Ruby VM
+    # (SIGTRAP) because glide-core's tokio runtime is not fork-safe.
+    if @created_pid && Process.pid != @created_pid
+      raise InheritedError,
+            "Valkey client used across fork() — create a new client in the child. " \
+            "See README 'Forking servers'. Tracking: " \
+            "https://github.com/valkey-io/valkey-glide/issues/6672 and " \
+            "https://github.com/valkey-io/valkey-glide-ruby/issues/210"
+    end
+
     # Validate connection. A nil/null pointer means the client was closed (or
     # never established a usable connection); surface it as a typed error with
     # the same "the client is closed" wording the sibling GLIDE clients use

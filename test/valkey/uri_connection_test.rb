@@ -267,14 +267,19 @@ module ValkeyTests
 
     def test_zero_reconnect_attempts
       skip("URI connection tests only run on standalone mode") if cluster_mode?
-      # Zero retries should be valid (no retries)
-      client = ::Valkey.new(
-        host: "localhost",
-        port: 6379,
-        reconnect_attempts: 0
-      )
-      assert_equal "PONG", client.ping
-      client.close
+      # reconnect_attempts: 0 is rejected on the Ruby side because it triggers
+      # an integer underflow in glide-core's retry_strategies.rs that hangs
+      # the process below the FFI boundary. See
+      # https://github.com/valkey-io/valkey-glide/issues/6379.
+      # Once the upstream fix ships, this test should assert PONG again.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(
+          host: "localhost",
+          port: 6379,
+          reconnect_attempts: 0
+        )
+      end
+      assert_match(/6379/, error.message)
     end
 
     # ====================

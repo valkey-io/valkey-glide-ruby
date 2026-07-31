@@ -208,6 +208,38 @@ client = Valkey.new(
 )
 ```
 
+## Forking servers (Puma clustered, Unicorn, Sidekiq, Resque)
+
+A `Valkey` client must be created **after** `fork()`, not inherited from the
+parent. glide-core embeds an async runtime with background threads whose I/O
+resources do not survive fork. Using an inherited client raises
+`Valkey::InheritedError`; without the guard it would abort the child process
+(SIGTRAP) below the Ruby VM.
+
+### Puma (clustered mode)
+
+```ruby
+on_worker_boot { $valkey = Valkey.new(url: ENV['VALKEY_URL']) }
+```
+
+### Unicorn
+
+```ruby
+after_fork { |_, _| $valkey = Valkey.new(url: ENV['VALKEY_URL']) }
+```
+
+### Sidekiq
+
+```ruby
+Sidekiq.configure_server do |c|
+  c.on(:startup) { $valkey = Valkey.new(url: ENV['VALKEY_URL']) }
+end
+```
+
+Threads are safe — share one `Valkey` instance across threads.
+
+Tracking upstream fix: [valkey-io/valkey-glide#6672](https://github.com/valkey-io/valkey-glide/issues/6672)
+
 ## OpenTelemetry
 
 Valkey GLIDE Ruby configures OpenTelemetry in the **native Rust core** (not via the Ruby `opentelemetry-sdk` gem). Initialize once per process before creating clients:
