@@ -59,7 +59,7 @@ class Valkey
       def blmove(source, destination, where_source, where_destination, timeout: 0)
         where_source, where_destination = _normalize_move_wheres(where_source, where_destination)
 
-        args = [:blmove, source, destination, where_source, where_destination, timeout]
+        args = [source, destination, where_source, where_destination, timeout]
         send_command(RequestType::BLMOVE, args)
       end
 
@@ -156,7 +156,7 @@ class Valkey
       #   - `nil` when the operation timed out
       #   - tuple of the list that was popped from and element was popped otherwise
       def blpop(*args)
-        _bpop(:blpop, args)
+        _bpop(RequestType::BLPOP, args)
       end
 
       # Remove and get the last element in a list, or block until one is available.
@@ -173,22 +173,6 @@ class Valkey
       # @see #blpop
       def brpop(*args)
         _bpop(RequestType::BRPOP, args.flatten)
-      end
-
-      # Pop a value from a list, push it to another list and return it; or block
-      # until one is available.
-      #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @param [Hash] options
-      #   - `:timeout => [Float, Integer]`: timeout in seconds, defaults to no timeout
-      #
-      # @return [nil, String]
-      #   - `nil` when the operation timed out
-      #   - the element was popped and pushed otherwise
-      def brpoplpush(source, destination, timeout: 0)
-        args = [:brpoplpush, source, destination, timeout]
-        send_blocking_command(RequestType::BRPOPLPUSH, args, timeout)
       end
 
       # Pops one or more elements from the first non-empty list key from the list
@@ -326,7 +310,7 @@ class Valkey
 
         args.flatten!(1)
         args << timeout
-        send_blocking_command(cmd, args, &blk)
+        send_command(cmd, args, &blk)
       end
 
       def _normalize_move_wheres(where_source, where_destination)
