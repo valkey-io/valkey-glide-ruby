@@ -24,6 +24,25 @@ class Valkey
   include Commands
   include PubSubCallback
 
+  # Map a connection-time error message from glide-core to the appropriate
+  # Ruby error class.
+  #
+  # Wrong password / bad ACL credentials surface as a message containing
+  # "Password authentication failed- AuthenticationFailed" (see
+  # test/valkey/auth_commands_test.rb). Raising CannotConnectError for those
+  # masks auth failures as network errors — callers rescuing CommandError
+  # cannot catch them and retry loops on CannotConnectError will spin
+  # forever on bad credentials. Return PermissionError (a CommandError
+  # subclass) for auth failures so users can rescue via PermissionError,
+  # CommandError, or BaseError. All other messages remain CannotConnectError.
+  def self.classify_connection_error(message)
+    if message.is_a?(String) && message.match?(/authentication\s*failed/i)
+      PermissionError
+    else
+      CannotConnectError
+    end
+  end
+
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
@@ -302,7 +321,7 @@ class Valkey
     if res[:conn_ptr].null?
       error_message = res[:connection_error_message]
       Bindings.free_connection_response(response_ptr)
-      raise CannotConnectError, error_message
+      raise Valkey.classify_connection_error(error_message), error_message
     end
 
     @connection = res[:conn_ptr]
