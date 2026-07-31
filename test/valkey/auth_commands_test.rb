@@ -33,7 +33,7 @@ module ValkeyTests
       skip(WRONG_CREDENTIALS_HANG_SKIP)
       with_default_user_password do |_user, _password|
         error = assert_raises(::Valkey::CannotConnectError) do
-          _new_client(password: "wrongpass", connect_timeout: 1.0, reconnect_attempts: 0)
+          _new_client(password: "wrongpass", connect_timeout: 1.0, reconnect_attempts: 1)
         end
         # glide-core surfaces a wrong password at connect-time as
         # "Password authentication failed- AuthenticationFailed" (not the raw
@@ -46,7 +46,7 @@ module ValkeyTests
     def test_connect_without_password_raises
       with_default_user_password do |_user, _password|
         error = assert_raises(::Valkey::CannotConnectError) do
-          _new_client(connect_timeout: 1.0, reconnect_attempts: 0)
+          _new_client(connect_timeout: 1.0, reconnect_attempts: 1)
         end
         assert_includes error.message, "NOAUTH"
       end
@@ -56,7 +56,7 @@ module ValkeyTests
     def test_connect_with_empty_password_against_auth_server_raises
       with_default_user_password do |_user, _password|
         error = assert_raises(::Valkey::CannotConnectError) do
-          _new_client(password: "", connect_timeout: 1.0, reconnect_attempts: 0)
+          _new_client(password: "", connect_timeout: 1.0, reconnect_attempts: 1)
         end
         # An empty password is currently treated as "no credentials", so the
         # server returns NOAUTH (same as the missing-password case). This
@@ -87,7 +87,7 @@ module ValkeyTests
       with_acl do |username, _password|
         error = assert_raises(::Valkey::CannotConnectError) do
           _new_client(username: username, password: "wrong",
-                      connect_timeout: 1.0, reconnect_attempts: 0)
+                      connect_timeout: 1.0, reconnect_attempts: 1)
         end
         assert_includes error.message, "AuthenticationFailed"
       end
@@ -100,7 +100,7 @@ module ValkeyTests
       with_acl do |_username, password|
         error = assert_raises(::Valkey::CannotConnectError) do
           _new_client(username: "nobody", password: password,
-                      connect_timeout: 1.0, reconnect_attempts: 0)
+                      connect_timeout: 1.0, reconnect_attempts: 1)
         end
         # An unknown username surfaces the same connect-time auth failure as a
         # wrong password (the server does not distinguish the two to clients).
