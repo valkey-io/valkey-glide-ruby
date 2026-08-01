@@ -14,7 +14,9 @@ class Valkey
       @in_multi = false
     end
 
-    def send_command(command_type, command_args = [], &block)
+    # `route:` is accepted and ignored. Routing is not supported for Pipeline yet.
+    def send_command(command_type, command_args = [], route: nil, &block)
+      # rubocop:enable Lint/UnusedMethodArgument
       @commands << [command_type, command_args, block]
       future = Future.new(command_type, command_args)
       @futures << future
