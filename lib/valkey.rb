@@ -292,11 +292,25 @@ class Valkey
     @in_multi_block = false
   end
 
+  # Closes the client and frees the native connection. Idempotent: the handle is
+  # cleared before it is freed, so a second `close` sees nil and does nothing
+  # rather than freeing the same pointer twice.
+  #
+  # Deliberately not synchronized. A Mutex here would break the common
+  # `Signal.trap("TERM") { client.close }` shutdown idiom, because Ruby forbids
+  # locking from a trap context (ThreadError) - and it would leave the handle
+  # leaked when it raised.
+  #
+  # In-flight commands are safe without a lock: every glide-ffi command entry
+  # point does `Arc::increment_strong_count` on the handle before using it, and
+  # `close_client` only decrements, so the native ClientAdapter outlives any
+  # request still executing and is dropped once the last one finishes. Verified
+  # with 12 concurrent blocking calls held open across a `close`. See issue #212.
   def close
-    return if @connection.nil? || @connection.null?
-
-    Bindings.close_client(@connection)
+    conn = @connection
     @connection = nil
+
+    Bindings.close_client(conn) unless conn.nil? || conn.null?
   end
 
   alias disconnect! close
@@ -353,11 +367,7 @@ class Valkey
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
   def send_command(command_type, command_args = [], route: nil, &block)
-    # Validate connection. A nil/null pointer means the client was closed (or
-    # never established a usable connection); surface it as a typed error with
-    # the same "the client is closed" wording the sibling GLIDE clients use
-    # (Go ClosingError, Node/Java ClosingException).
-    raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
+    conn = connection!
 
     channel = 0
 
@@ -399,7 +409,7 @@ class Valkey
         # Use command_with_route_info when an explicit route is provided.
         route_info, _pinned_bufs = route.to_ffi
         res = Bindings.command_with_route_info(
-          @connection,
+          conn,
           channel,
           command_type,
           flattened_args.size,
@@ -415,7 +425,7 @@ class Valkey
         route_str = ""
         route_buf = FFI::MemoryPointer.from_string(route_str)
         res = Bindings.command(
-          @connection,
+          conn,
           channel,
           command_type,
           flattened_args.size,
@@ -459,6 +469,29 @@ class Valkey
 
   private
 
+  # Returns the live native client handle, raising if the client has been
+  # closed. Every call into the native layer that takes the client handle must
+  # go through this method: `close` frees the handle and sets `@connection` to
+  # nil, and passing that nil on to the FFI layer makes the core dereference a
+  # NULL pointer, which segfaults the whole VM instead of raising something
+  # Ruby code can rescue. See issue #212.
+  #
+  # The message matches the sibling GLIDE clients (Go ClosingError,
+  # Node/Java ClosingException).
+  #
+  # `nil?` is tested first because `@connection` is nil if `initialize` raised
+  # before connecting, and `nil.null?` would raise NoMethodError.
+  #
+  # The handle is returned rather than read from the ivar at the call site so
+  # callers pass a local, which keeps a concurrent `close` from nulling the
+  # reference between this check and the native call.
+  def connection!
+    conn = @connection
+    raise ConnectionError, "the client is closed" if conn.nil? || conn.null?
+
+    conn
+  end
+
   # Read an SSL value
   # Accepts a file path (String), an OpenSSL object (#to_pem / #to_der), or a fallback #to_s.
   def read_ssl_value(value, label)
@@ -501,6 +534,9 @@ class Valkey
         return results
       end
     end
+
+    # Checked before allocating any FFI memory below, so a closed client fails fast.
+    conn = connection!
 
     cmds = []
     blocks = []
@@ -559,7 +595,7 @@ class Valkey
 
     begin
       res = Bindings.batch(
-        @connection,
+        conn,
         0,
         batch_info,
         exception,

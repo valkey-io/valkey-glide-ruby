@@ -271,6 +271,9 @@ class Valkey
       end
 
       def invoke_script(script, args: [], keys: [])
+        # Checked before allocating any FFI memory below, so a closed client fails fast.
+        conn = connection!
+
         # Must hold onto the returned buffers (_arg_bufs/_keys_bufs) for the
         # lifetime of this method - they back arg_ptrs/keys_ptrs, and letting
         # them go out of scope (e.g. by only capturing the first 2 return
@@ -287,7 +290,7 @@ class Valkey
 
         begin
           res = Bindings.invoke_script(
-            @connection,
+            conn,
             0,
             sha,
             flattened_keys.size,
