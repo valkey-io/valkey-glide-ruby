@@ -375,19 +375,76 @@ module Lint
       # and behave differently with connection routing
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
+      # A second connection is required to observe isolation: on the connection
+      # that issued MULTI the server replies QUEUED to every command, so that
+      # connection cannot read the pre-transaction value. `_new_client` does not
+      # run `init`, so it must be pointed at the test database explicitly.
+      observer = _new_client(db: 15)
+
       r.set("shared", "initial")
 
       # Start transaction but don't execute yet
       r.multi
       r.set("shared", "transaction_value")
 
-      # Value should still be initial since transaction not executed
-      assert_equal "initial", r.get("shared")
+      # Same connection: commands are queued, not executed
+      assert_equal "QUEUED", r.get("shared")
 
-      # Execute transaction
+      # Another connection still sees the pre-transaction value until EXEC
+      assert_equal "initial", observer.get("shared")
+
+      # Execute transaction: two queued commands produce two replies
       result = r.exec
-      assert_equal ["OK"], result
+      assert_equal %w[OK transaction_value], result
       assert_equal "transaction_value", r.get("shared")
+      assert_equal "transaction_value", observer.get("shared")
+    ensure
+      observer&.close
+    end
+
+    def test_watch_with_a_modified_key_named_shared
+      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
+      # and behave differently with connection routing
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      # Regression guard: `get` must not special-case any key name. A GET issued
+      # between MULTI and EXEC must stay queued and must never discard WATCH,
+      # otherwise a concurrent write to the watched key is silently lost.
+      writer = _new_client(db: 15)
+
+      r.set("shared", "initial")
+      r.watch("shared")
+      r.multi
+      r.set("shared", "my_update")
+
+      assert_equal "QUEUED", r.get("shared")
+
+      # Concurrent write to the watched key, after the WATCH
+      writer.set("shared", "concurrent_writer")
+
+      # WATCH is still in force, so the transaction must abort
+      assert_nil r.exec
+      assert_equal "concurrent_writer", r.get("shared")
+    ensure
+      writer&.close
+    end
+
+    def test_exec_returns_a_reply_per_queued_command_with_a_key_named_shared
+      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
+      # and behave differently with connection routing
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      # Regression guard for the arity half of the bug, which needs no
+      # concurrency to observe: a GET queued *second* used to be executed
+      # outside the transaction, so EXEC returned one reply too few even when
+      # further commands were queued after it.
+      r.multi
+      r.set("shared", "v1")
+      assert_equal "QUEUED", r.get("shared")
+      r.set("shared", "v2")
+
+      assert_equal %w[OK v1 OK], r.exec
+      assert_equal "v2", r.get("shared")
     end
 
     def test_complex_transaction_scenario
