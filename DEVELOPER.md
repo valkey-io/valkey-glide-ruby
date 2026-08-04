@@ -1,6 +1,6 @@
 # Developer Guide
 
-This document describes how to set up your development environment to build and test the Valkey GLIDE Ruby client (`valkey-rb`).
+This document describes how to set up your development environment to build and test the Valkey GLIDE Ruby client (`valkey-glide-rb`).
 
 ## Development Overview
 
