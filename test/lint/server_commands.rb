@@ -64,6 +64,79 @@ module Lint
       assert_equal "OK", response
     end
 
+    def test_slowlog_len
+      skip("SLOWLOG is a per-node command and returns a multi-node response in cluster mode") if cluster_mode?
+
+      assert_kind_of Integer, r.slowlog(:len)
+    end
+
+    def test_slowlog_get
+      skip("SLOWLOG is a per-node command and returns a multi-node response in cluster mode") if cluster_mode?
+
+      assert_kind_of Array, r.slowlog(:get)
+    end
+
+    def test_slowlog_get_with_length
+      skip("SLOWLOG is a per-node command and returns a multi-node response in cluster mode") if cluster_mode?
+
+      assert_kind_of Array, r.slowlog(:get, 2)
+    end
+
+    def test_slowlog_reset
+      skip("SLOWLOG is a per-node command and returns a multi-node response in cluster mode") if cluster_mode?
+
+      assert_equal "OK", r.slowlog(:reset)
+    end
+
+    # Both spellings must dispatch. Asserted against invariant results rather than
+    # by comparing two LEN calls, whose values can legitimately differ if the
+    # slowlog threshold is low enough for the first call to log itself.
+    def test_slowlog_accepts_string_and_symbol_subcommands
+      skip("SLOWLOG is a per-node command and returns a multi-node response in cluster mode") if cluster_mode?
+
+      assert_equal "OK", r.slowlog(:reset)
+      assert_equal "OK", r.slowlog("RESET")
+      assert_kind_of Integer, r.slowlog(:len)
+      assert_kind_of Integer, r.slowlog("LEN")
+    end
+
+    # Exercises the full round trip: that GET actually returns logged entries and
+    # that `length` is passed through as a command argument rather than dropped.
+    def test_slowlog_get_returns_entries_and_honours_length
+      skip("SLOWLOG is a per-node command and returns a multi-node response in cluster mode") if cluster_mode?
+
+      # Fall back to the server default rather than skipping the restore, so a
+      # surprising CONFIG GET shape can never leave this shared server logging
+      # every command for the remainder of the run.
+      original = r.config_get("slowlog-log-slower-than")["slowlog-log-slower-than"] || "10000"
+      mutated = true
+      r.config_set("slowlog-log-slower-than", "0") # log every command
+      r.slowlog(:reset)
+      r.ping
+
+      entries = r.slowlog(:get)
+      refute_empty entries
+      assert_kind_of Array, entries.first
+      assert_equal 1, r.slowlog(:get, 1).length
+    ensure
+      if mutated
+        r.config_set("slowlog-log-slower-than", original)
+        r.slowlog(:reset)
+      end
+    end
+
+    def test_slowlog_unknown_subcommand_raises_argument_error
+      error = assert_raises(ArgumentError) { r.slowlog(:nope) }
+      assert_match(/Unknown SLOWLOG subcommand/, error.message)
+    end
+
+    # SLOWLOG HELP has no RequestType constant, so it is rejected explicitly
+    # rather than surfacing as a confusing TypeError. Use `call("SLOWLOG", "HELP")`
+    # if the raw help text is needed.
+    def test_slowlog_help_raises_argument_error
+      assert_raises(ArgumentError) { r.slowlog(:help) }
+    end
+
     def test_sync
       skip("SYNC command not implemented in backend yet")
 
