@@ -375,7 +375,7 @@ rake native:package
 gem build valkey.gemspec
 
 # 4. Install locally
-gem install ./valkey-rb-*.gem
+gem install ./valkey-glide-rb-*.gem
 ```
 
 ### What `rake native:package` Does
@@ -388,8 +388,10 @@ lib/valkey/native/
 │   └── libglide_ffi.so
 ├── aarch64-unknown-linux-gnu/
 │   └── libglide_ffi.so
-├── x86_64-apple-darwin/
-│   └── libglide_ffi.dylib
+├── x86_64-unknown-linux-musl/
+│   └── libglide_ffi.so
+├── aarch64-unknown-linux-musl/
+│   └── libglide_ffi.so
 └── aarch64-apple-darwin/
     └── libglide_ffi.dylib
 ```
@@ -398,29 +400,73 @@ The gem automatically detects your platform at runtime and loads the appropriate
 
 ### Building for Multiple Platforms
 
-For distribution, you need native libraries for each target platform. The CD workflow builds these using GitHub Actions runners:
+For distribution, you need native libraries for each target platform. The CD workflow (`.github/workflows/cd.yml`) builds these using GitHub Actions runners:
 
-- **x86_64-unknown-linux-gnu** — Ubuntu x64 runner
-- **aarch64-unknown-linux-gnu** — Ubuntu ARM64 runner
+| Target | Runner | Build command |
+|--------|--------|---------------|
+| **x86_64-unknown-linux-gnu** | `ubuntu-24.04` | `cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.17` |
+| **aarch64-unknown-linux-gnu** | `ubuntu-24.04-arm` | `cargo zigbuild --release --target aarch64-unknown-linux-gnu.2.17` |
+| **x86_64-unknown-linux-musl** | `ubuntu-24.04` | `cargo build --release --target x86_64-unknown-linux-musl` |
+| **aarch64-unknown-linux-musl** | `ubuntu-24.04-arm` | `cargo build --release --target aarch64-unknown-linux-musl` |
+| **aarch64-apple-darwin** | `macos-latest` | `cargo build --release` |
 
-To build for a different platform, you must build on that platform (or use cross-compilation tools).
+#### glibc floor (2.17)
+
+The `*-unknown-linux-gnu` targets are cross-compiled with
+[`cargo-zigbuild`](https://github.com/rust-cross/cargo-zigbuild) and an explicit
+`.2.17` suffix on the target triple. This pins the **glibc floor to 2.17**, which
+matches the Java client and lets the gem load on older distributions
+(Ubuntu 18.04+, Debian 11+, Amazon Linux 2, RHEL/CentOS 7+).
+
+Without the pin, a plain `cargo build --release` on the glibc-2.39 GitHub runners
+bakes `GLIBC_2.38`/`GLIBC_2.39` symbol requirements into `libglide_ffi.so` and the
+gem fails at load time with `version 'GLIBC_2.38' not found` (issue
+[#223](https://github.com/valkey-io/valkey-glide-ruby/issues/223)).
+
+Two details matter when working on these steps:
+
+- The `.2.17` suffix is consumed by `cargo-zigbuild` only. The `cargo build` it
+  invokes receives the **plain** triple, so build output lands in
+  `target/<plain-triple>/release/` — *not* `target/<triple>.2.17/release/`. The
+  artifact upload and `lib/valkey/native/<TARGET>/` fan-in steps use the plain
+  triple.
+- musl targets are unaffected (musl is statically linked) and macOS builds
+  natively, so both stay on `cargo build`.
+
+To reproduce a downlevelled build locally on Linux:
+
+```bash
+# Install zig + cargo-zigbuild (versions pinned to match CI/CD)
+pip3 install ziglang==0.13.0
+cargo install --locked cargo-zigbuild --version 0.20.1
+rustup target add x86_64-unknown-linux-gnu
+
+cd valkey-glide/ffi
+cargo zigbuild --release --target x86_64-unknown-linux-gnu.2.17
+
+# Confirm the glibc floor — the highest GLIBC_* version should be 2.17
+objdump -T target/x86_64-unknown-linux-gnu/release/libglide_ffi.so \
+  | grep -o 'GLIBC_[0-9.]*' | sort -uV
+```
+
+To build for a platform not listed above, you must build on that platform (or use cross-compilation tools).
 
 ### Verify the Gem Contents
 
 ```bash
 # Unpack and inspect
-gem unpack valkey-rb-*.gem --target=gem-contents
+gem unpack valkey-glide-rb-*.gem --target=gem-contents
 find gem-contents -name "libglide_ffi.*"
 
 # Or list files in the gem
-gem spec valkey-rb-*.gem files
+gem spec valkey-glide-rb-*.gem files
 ```
 
 ### Install and Test
 
 ```bash
 # Install the locally built gem
-gem install ./valkey-rb-*.gem
+gem install ./valkey-glide-rb-*.gem
 
 # Test it works (requires Valkey running)
 ruby -e "require 'valkey'; c = Valkey.new; puts c.ping; c.close"

@@ -165,18 +165,46 @@ jobs:
           restore-keys: |
             ${{ matrix.host.TARGET }}-cargo-
 
+      # Mirrors the CD build (see .github/workflows/cd.yml) so that a
+      # cargo-zigbuild or glibc-floor regression is caught on PRs instead of at
+      # release time. Versions are pinned to match CD exactly.
+      - name: Install zig and cargo-zigbuild (linux-gnu)
+        if: contains(matrix.host.TARGET, 'linux-gnu')
+        env:
+          ZIG_VERSION: "0.13.0"
+          CARGO_ZIGBUILD_VERSION: "0.20.1"
+        run: |
+          set -euo pipefail
+          ARCH="$(uname -m)"
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ARCH}-${ZIG_VERSION}.tar.xz" \
+            | sudo tar -xJ -C /usr/local
+          sudo ln -sf "/usr/local/zig-linux-${ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
+          curl -fsSL "https://github.com/rust-cross/cargo-zigbuild/releases/download/v${CARGO_ZIGBUILD_VERSION}/cargo-zigbuild-v${CARGO_ZIGBUILD_VERSION}.${ARCH}-unknown-linux-musl.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin
+          zig version
+          cargo zigbuild --version
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         env:
           GLIDE_NAME: GlideRuby
           GLIDE_VERSION: ${{ github.ref_name }}
-        run: cargo build --release
+        run: |
+          if [[ "${{ matrix.host.TARGET }}" == *"linux-gnu"* ]]; then
+            # `.2.17` pins the glibc floor for zigbuild; cargo itself still gets
+            # the plain triple, so output is under target/<triple>/release/.
+            cargo zigbuild --release --target ${{ matrix.host.TARGET }}.2.17
+          else
+            cargo build --release
+          fi
 
+      # linux-gnu builds use an explicit --target and so land in
+      # target/<triple>/release/; macOS still writes to target/release/.
       - name: Upload native library
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
-          path: valkey-glide/ffi/target/release/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
+          path: valkey-glide/ffi/target/${{ contains(matrix.host.TARGET, 'linux-gnu') && format('{0}/release', matrix.host.TARGET) || 'release' }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   test-ruby:

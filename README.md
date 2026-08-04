@@ -32,16 +32,28 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 
 The release of Valkey GLIDE Ruby was tested on the following platforms:
 
-**Linux:**
+**Linux (glibc):**
 
-- Ubuntu 20+ (x86_64/amd64 and arm64/aarch64)
-- Amazon Linux 2 (AL2) and 2023 (AL2023) (x86_64)
+The prebuilt `libglide_ffi.so` for the `*-unknown-linux-gnu` targets is
+cross-compiled against **glibc 2.17**, so it loads on any distribution with
+glibc 2.17 or newer (x86_64/amd64 and arm64/aarch64). That includes:
+
+- Ubuntu 18.04+ (including 20.04, 22.04, 24.04)
+- Debian 11+
+- Amazon Linux 2 (AL2) and 2023 (AL2023)
+- RHEL 7+ / CentOS 7+
+
+**Linux (musl):**
+
 - Alpine Linux 3.18+ (x86_64 and arm64/aarch64) — musl libc
 
 **macOS:**
 
 - macOS 14.7+ (Apple silicon / aarch64)
-- macOS 13.7+ (x86_64 / amd64)
+
+Only `aarch64-apple-darwin` is built and shipped; there is no prebuilt
+x86_64 (Intel) macOS library. Intel macOS users must
+[build from source](./DEVELOPER.md).
 
 ### Ruby Supported Versions
 
@@ -58,13 +70,13 @@ Minimum Ruby version: **2.6.0** (see `valkey.gemspec`).
 Install from RubyGems:
 
 ```bash
-gem install valkey-rb
+gem install valkey-glide-rb
 ```
 
 Or add to your `Gemfile`:
 
 ```ruby
-gem "valkey-rb"
+gem "valkey-glide-rb"
 ```
 
 Verify installation:

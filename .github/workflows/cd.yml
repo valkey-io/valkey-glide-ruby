@@ -133,6 +133,34 @@ jobs:
           linker = "musl-gcc-wrapper"
           EOF
 
+      # linux-gnu targets are cross-compiled with cargo-zigbuild against glibc
+      # 2.17 so the published gem loads on older distros (Debian 11, Ubuntu
+      # 20.04, Amazon Linux 2). The GitHub runners ship glibc 2.39, so a plain
+      # `cargo build` bakes GLIBC_2.38/GLIBC_2.39 symbol requirements into
+      # libglide_ffi.so and the gem fails to load there (issue #223).
+      #
+      # Versions are pinned rather than reusing the upstream install-zig
+      # composite action: that action does an unpinned `pip3 install ziglang`
+      # (which fails on ubuntu-24.04 under PEP 668) plus an unpinned
+      # `cargo install cargo-zigbuild`, and it exports CARGO_ZIGBUILD_TARGET set
+      # to the *plain* triple, which risks silently dropping the glibc pin.
+      - name: Install zig and cargo-zigbuild (linux-gnu)
+        if: contains(matrix.host.TARGET, 'linux-gnu')
+        env:
+          ZIG_VERSION: "0.13.0"
+          CARGO_ZIGBUILD_VERSION: "0.20.1"
+        run: |
+          set -euo pipefail
+          ARCH="$(uname -m)"
+          curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ARCH}-${ZIG_VERSION}.tar.xz" \
+            | sudo tar -xJ -C /usr/local
+          sudo ln -sf "/usr/local/zig-linux-${ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
+          curl -fsSL "https://github.com/rust-cross/cargo-zigbuild/releases/download/v${CARGO_ZIGBUILD_VERSION}/cargo-zigbuild-v${CARGO_ZIGBUILD_VERSION}.${ARCH}-unknown-linux-musl.tar.gz" \
+            | sudo tar -xz -C /usr/local/bin
+          rustup target add "${{ matrix.host.TARGET }}"
+          zig version
+          cargo zigbuild --version
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         env:
@@ -142,15 +170,23 @@ jobs:
         run: |
           if [[ "${{ matrix.host.TARGET }}" == *"musl"* ]]; then
             cargo build --release --target ${{ matrix.host.TARGET }}
+          elif [[ "${{ matrix.host.TARGET }}" == *"linux-gnu"* ]]; then
+            # The `.2.17` suffix sets the glibc floor and is consumed by
+            # cargo-zigbuild; the underlying `cargo build` still receives the
+            # plain triple, so output lands in target/<triple>/release/.
+            cargo zigbuild --release --target ${{ matrix.host.TARGET }}.2.17
           else
             cargo build --release
           fi
 
+      # Both musl and linux-gnu now build with an explicit --target, so their
+      # output is under target/<triple>/release/. Only macOS (plain
+      # `cargo build --release`) writes to target/release/.
       - name: Upload native library artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-lib-${{ matrix.host.TARGET }}
-          path: valkey-glide/ffi/target/${{ contains(matrix.host.TARGET, 'musl') && format('{0}/release', matrix.host.TARGET) || 'release' }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
+          path: valkey-glide/ffi/target/${{ matrix.host.OS == 'macos' && 'release' || format('{0}/release', matrix.host.TARGET) }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   build-and-publish-gem:

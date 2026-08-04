@@ -34,13 +34,15 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-rb` gem. 
 
 **Supported Platforms:**
 
-- Linux: Ubuntu 20+, Amazon Linux 2/2023 (x86_64, aarch64)
+- Linux (glibc): glibc **2.17+** (x86_64, aarch64) — the `*-unknown-linux-gnu`
+  libraries are cross-compiled with `cargo zigbuild --target <triple>.2.17`, so
+  Ubuntu 18.04+, Debian 11+, Amazon Linux 2/2023, and RHEL/CentOS 7+ all work
 - Alpine Linux 3.18+ (x86_64, aarch64) — musl libc
-- macOS: 13.7+ (x86_64), 14.7+ (aarch64)
+- macOS: 14.7+ (aarch64 only — no prebuilt x86_64/Intel library is shipped)
 
 **Ruby Versions:** 2.6, 2.7, 3.0, 3.1, 3.2, 3.3, 3.4, JRuby (CI matrix)
 
-**Gem name:** `valkey-rb` on RubyGems
+**Gem name:** `valkey-glide-rb` on RubyGems
 
 ## Build and Test Rules (Agents)
 
@@ -203,7 +205,7 @@ valkey-glide-ruby/
 
 ## Quick Facts for Reasoners
 
-**Package:** `valkey-rb` on RubyGems  
+**Package:** `valkey-glide-rb` on RubyGems  
 **API Style:** Synchronous, redis-rb-compatible  
 **Client:** `Valkey.new` — standalone or `cluster_mode: true`  
 **Key Features:** Pipelining, OpenTelemetry (native), statistics, TLS, URL parsing, cluster routing  
