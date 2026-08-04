@@ -15,13 +15,14 @@ class Valkey
     end
 
     # `route:` is accepted and ignored. Routing is not supported for Pipeline yet.
+    # rubocop:disable Lint/UnusedMethodArgument
     def send_command(command_type, command_args = [], route: nil, &block)
-      # rubocop:enable Lint/UnusedMethodArgument
       @commands << [command_type, command_args, block]
       future = Future.new(command_type, command_args)
       @futures << future
       future
     end
+    # rubocop:enable Lint/UnusedMethodArgument
 
     # @api private - called by Valkey#pipelined / the block form of #multi
     # once send_batch_commands' final results are available. Purely
