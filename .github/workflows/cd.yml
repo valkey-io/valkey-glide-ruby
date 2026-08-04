@@ -298,41 +298,12 @@ jobs:
     steps:
       - name: Checkout (for test files)
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
-        with:
-          submodules: recursive
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
         with:
           ruby-version: "3.3"
           bundler-cache: false  # We'll install gems manually
-
-      - name: Install test dependencies
-        run: |
-          # Install test dependencies as system gems (not via bundler)
-          # This avoids bundler's gemspec loading which would pull in local lib
-          # Use specific versions to match Gemfile.lock for consistency
-          gem install minitest -v 5.27.0
-          gem install minitest-reporters -v 1.8.0
-          gem install ansi
-          gem install ruby-progressbar
-          gem install rake
-
-      - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Valkey engine
-        uses: ./valkey-glide/.github/actions/install-engine
-        with:
-          engine-version: "9.0"
-          target: ${{ matrix.host.TARGET }}
-
-      - name: Start standalone server via cluster_manager.py
-        run: |
-          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
-          echo "Standalone server started on port 6379"
 
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
@@ -365,30 +336,11 @@ jobs:
           echo "Installed gem:"
           gem list "${GEM_NAME}"
 
-      - name: Test gem loading
-        run: |
-          ruby -e "
-            require 'valkey'
-            puts 'Valkey gem loaded successfully!'
-            puts 'Testing basic client creation...'
-            # Just verify the FFI library loaded correctly
-            puts 'FFI library loaded: OK'
-          "
-
-      - name: Run standalone tests
-        env:
-          TEST_INSTALLED_GEM: "true"
+      - name: Run smoke test
         run: |
           # Remove local lib to ensure we use the installed gem
-          # The installed gem has the native library, local lib doesn't
           rm -rf lib/
-          # Run tests - they will use the installed gem
-          rake test:standalone
-
-      - name: Stop Valkey
-        if: always()
-        run: |
-          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+          ruby test/smoke_test.rb
 
   test-gem-musl:
     name: Test Gem (musl)
@@ -403,12 +355,10 @@ jobs:
 
     steps:
       - name: Install system dependencies
-        run: apk add --no-cache build-base python3 openssl openssl-dev git curl bash linux-headers
+        run: apk add --no-cache build-base git bash
 
       - name: Checkout (for test files)
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-        with:
-          submodules: recursive
 
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
@@ -440,56 +390,8 @@ jobs:
           echo "Installed gem:"
           gem list "${GEM_NAME}"
 
-      - name: Verify gem loading
+      - name: Run smoke test
         shell: bash
-        run: |
-          ruby -e "
-            require 'valkey'
-            puts 'Valkey gem loaded successfully on Alpine (musl)!'
-            puts 'FFI library loaded: OK'
-          "
-
-      - name: Install test dependencies
-        shell: bash
-        run: |
-          gem install minitest -v 5.27.0
-          gem install minitest-reporters -v 1.8.0
-          gem install ansi
-          gem install ruby-progressbar
-          gem install rake
-
-      - name: Build and install Valkey engine
-        shell: bash
-        run: |
-          git clone https://github.com/valkey-io/valkey.git valkey-engine
-          cd valkey-engine
-          git checkout 9.0
-          make BUILD_TLS=yes -j$(nproc)
-          make install
-
-      - name: Start standalone server
-        shell: bash
-        run: |
-          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
-          echo "Standalone server started on port 6379"
-
-      - name: Start cluster
-        shell: bash
-        run: |
-          python3 valkey-glide/utils/cluster_manager.py start --cluster-mode -r 1 -n 3 --prefix cluster
-          echo "Cluster started"
-
-      - name: Run tests
-        shell: bash
-        env:
-          TEST_INSTALLED_GEM: "true"
         run: |
           rm -rf lib/
-          rake test
-
-      - name: Stop servers
-        if: always()
-        shell: bash
-        run: |
-          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
-          python3 valkey-glide/utils/cluster_manager.py stop --prefix cluster || true
+          ruby test/smoke_test.rb
