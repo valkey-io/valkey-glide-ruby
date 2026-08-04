@@ -175,14 +175,18 @@ module Lint
     # eval_ro tests
 
     def test_eval_ro_basic
-      result = r.eval_ro("return 42")
-      assert_equal 42, result
+      target_version "7.0" do
+        result = r.eval_ro("return 42")
+        assert_equal 42, result
+      end
     end
 
     def test_eval_ro_with_keys_and_args
-      r.set("mykey", "hello")
-      result = r.eval_ro("return redis.call('get', KEYS[1])", keys: ["mykey"])
-      assert_equal "hello", result
+      target_version "7.0" do
+        r.set("mykey", "hello")
+        result = r.eval_ro("return redis.call('get', KEYS[1])", keys: ["mykey"])
+        assert_equal "hello", result
+      end
     end
 
     def test_eval_ro_empty_script
@@ -191,27 +195,33 @@ module Lint
     end
 
     def test_eval_ro_consistency_with_eval
-      script = "return 42"
-      eval_result = r.eval(script)
-      eval_ro_result = r.eval_ro(script)
-      assert_equal eval_result, eval_ro_result
+      target_version "7.0" do
+        script = "return 42"
+        eval_result = r.eval(script)
+        eval_ro_result = r.eval_ro(script)
+        assert_equal eval_result, eval_ro_result
+      end
     end
 
     # evalsha_ro tests
 
     def test_evalsha_ro_basic
-      script = "return 42"
-      sha = r.script_load(script)
-      result = r.evalsha_ro(sha)
-      assert_equal 42, result
+      target_version "7.0" do
+        script = "return 42"
+        sha = r.script_load(script)
+        result = r.evalsha_ro(sha)
+        assert_equal 42, result
+      end
     end
 
     def test_evalsha_ro_with_keys
-      r.set("mykey", "world")
-      script = "return redis.call('get', KEYS[1])"
-      sha = r.script_load(script)
-      result = r.evalsha_ro(sha, keys: ["mykey"])
-      assert_equal "world", result
+      target_version "7.0" do
+        r.set("mykey", "world")
+        script = "return redis.call('get', KEYS[1])"
+        sha = r.script_load(script)
+        result = r.evalsha_ro(sha, keys: ["mykey"])
+        assert_equal "world", result
+      end
     end
 
     def test_evalsha_ro_invalid_sha
@@ -225,11 +235,13 @@ module Lint
     end
 
     def test_evalsha_ro_consistency_with_evalsha
-      script = "return 'hello'"
-      sha = r.script_load(script)
-      evalsha_result = r.evalsha(sha)
-      evalsha_ro_result = r.evalsha_ro(sha)
-      assert_equal evalsha_result, evalsha_ro_result
+      target_version "7.0" do
+        script = "return 'hello'"
+        sha = r.script_load(script)
+        evalsha_result = r.evalsha(sha)
+        evalsha_ro_result = r.evalsha_ro(sha)
+        assert_equal evalsha_result, evalsha_ro_result
+      end
     end
 
     # script_debug tests
@@ -263,9 +275,11 @@ module Lint
       assert_equal ["a1"], r.eval("return {ARGV[1]}", 0, "a1")
     end
 
+    # Both keys must live in one slot: in cluster mode EVAL routes by its keys
+    # and a multi-key script spanning slots is rejected with CROSSSLOT.
     def test_eval_with_integer_numkeys_multiple_keys_and_args
-      assert_equal %w[k1 k2 a1],
-                   r.eval("return {KEYS[1], KEYS[2], ARGV[1]}", 2, "k1", "k2", "a1")
+      assert_equal %w[{1}k1 {1}k2 a1],
+                   r.eval("return {KEYS[1], KEYS[2], ARGV[1]}", 2, "{1}k1", "{1}k2", "a1")
     end
 
     def test_eval_with_numkeys_exceeding_args_raises
@@ -334,14 +348,18 @@ module Lint
     end
 
     def test_eval_ro_with_integer_numkeys
-      assert_equal %w[mykey myarg],
-                   r.eval_ro("return {KEYS[1], ARGV[1]}", 1, "mykey", "myarg")
+      target_version "7.0" do
+        assert_equal %w[mykey myarg],
+                     r.eval_ro("return {KEYS[1], ARGV[1]}", 1, "mykey", "myarg")
+      end
     end
 
     def test_evalsha_ro_with_integer_numkeys
-      sha = r.script_load("return {KEYS[1], ARGV[1]}")
+      target_version "7.0" do
+        sha = r.script_load("return {KEYS[1], ARGV[1]}")
 
-      assert_equal %w[mykey myarg], r.evalsha_ro(sha, 1, "mykey", "myarg")
+        assert_equal %w[mykey myarg], r.evalsha_ro(sha, 1, "mykey", "myarg")
+      end
     end
 
     # the previously-supported forms must keep working unchanged
@@ -397,12 +415,22 @@ module Lint
       results = r.pipelined do |pipeline|
         pipeline.script_load("return 'from-pipeline'")
         pipeline.eval("return {KEYS[1], ARGV[1]}", 1, "pk", "pa")
-        pipeline.eval_ro("return 'ro'", 0)
       end
 
       assert_equal 40, results[0].length
       assert_equal %w[pk pa], results[1]
-      assert_equal "ro", results[2]
+    end
+
+    # split from the test above so the `route:` regression stays covered on
+    # servers predating EVAL_RO (added in 7.0)
+    def test_read_only_scripting_commands_work_inside_a_pipeline
+      target_version "7.0" do
+        results = r.pipelined do |pipeline|
+          pipeline.eval_ro("return 'ro'", 0)
+        end
+
+        assert_equal ["ro"], results
+      end
     end
 
     def test_eval_works_inside_a_transaction
