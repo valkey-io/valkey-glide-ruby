@@ -247,5 +247,203 @@ module Lint
       assert_equal "OK", r.script(:debug, "YES")
       assert_equal "OK", r.script(:debug, "NO")
     end
+
+    # integer key-count form - eval(script, numkeys, *keys, *args)
+    #
+    # This is the form used by the Valkey documentation and valkey-cli. It used
+    # to be misparsed: the count became KEYS[1], the real key shifted into
+    # ARGV[1], and any remaining arguments were dropped, all without raising.
+
+    def test_eval_with_integer_numkeys
+      assert_equal %w[mykey myarg],
+                   r.eval("return {KEYS[1], ARGV[1]}", 1, "mykey", "myarg")
+    end
+
+    def test_eval_with_integer_numkeys_zero
+      assert_equal ["a1"], r.eval("return {ARGV[1]}", 0, "a1")
+    end
+
+    def test_eval_with_integer_numkeys_multiple_keys_and_args
+      assert_equal %w[k1 k2 a1],
+                   r.eval("return {KEYS[1], KEYS[2], ARGV[1]}", 2, "k1", "k2", "a1")
+    end
+
+    def test_eval_with_numkeys_exceeding_args_raises
+      assert_raises(ArgumentError) { r.eval("return 1", 5, "only-one") }
+    end
+
+    def test_eval_with_negative_numkeys_raises
+      assert_raises(ArgumentError) { r.eval("return 1", -1) }
+    end
+
+    # A numeric-but-not-Integer key count used to fall through to the
+    # two-array branch, where the count itself became KEYS[1] and every
+    # remaining argument was silently dropped - the same silent misassignment
+    # the Integer form was fixed for. It must fail loudly instead.
+    def test_eval_with_non_integer_numeric_numkeys_raises
+      assert_raises(ArgumentError) { r.eval("return 1", 2.0, "k1", "k2") }
+      assert_raises(ArgumentError) { r.eval("return 1", Rational(2, 1), "k1", "k2") }
+    end
+
+    # More than (keys, argv) positionally is not a supported form; the extras
+    # used to be dropped without a word.
+    def test_eval_with_too_many_positional_arrays_raises
+      assert_raises(ArgumentError) do
+        r.eval("return 1", ["k1"], ["a1"], ["extra"])
+      end
+    end
+
+    def test_eval_integer_numkeys_mixed_with_keywords_raises
+      assert_raises(ArgumentError) do
+        r.eval("return 1", 1, "mykey", keys: ["other"])
+      end
+    end
+
+    def test_eval_integer_numkeys_writes_to_the_named_key
+      r.eval("redis.call('SET', KEYS[1], ARGV[1])", 1, "realkey", "realval")
+
+      assert_equal "realval", r.get("realkey")
+      assert_nil r.get("1")
+    end
+
+    def test_eval_integer_numkeys_releases_a_redlock_style_lock
+      r.set("lock:job", "token-abc")
+      unlock = "if redis.call('GET', KEYS[1]) == ARGV[1] then " \
+               "return redis.call('DEL', KEYS[1]) else return 0 end"
+
+      assert_equal 1, r.eval(unlock, 1, "lock:job", "token-abc")
+      assert_nil r.get("lock:job")
+    end
+
+    def test_evalsha_with_integer_numkeys
+      sha = r.script_load("return {KEYS[1], ARGV[1]}")
+
+      assert_equal %w[mykey myarg], r.evalsha(sha, 1, "mykey", "myarg")
+    end
+
+    def test_evalsha_with_integer_numkeys_zero
+      sha = r.script_load("return {ARGV[1]}")
+
+      assert_equal ["a1"], r.evalsha(sha, 0, "a1")
+    end
+
+    def test_evalsha_with_numkeys_exceeding_args_raises
+      sha = r.script_load("return 1")
+
+      assert_raises(ArgumentError) { r.evalsha(sha, 5, "only-one") }
+    end
+
+    def test_eval_ro_with_integer_numkeys
+      assert_equal %w[mykey myarg],
+                   r.eval_ro("return {KEYS[1], ARGV[1]}", 1, "mykey", "myarg")
+    end
+
+    def test_evalsha_ro_with_integer_numkeys
+      sha = r.script_load("return {KEYS[1], ARGV[1]}")
+
+      assert_equal %w[mykey myarg], r.evalsha_ro(sha, 1, "mykey", "myarg")
+    end
+
+    # the previously-supported forms must keep working unchanged
+
+    def test_eval_two_array_positional_form_still_works
+      assert_equal %w[mykey myarg],
+                   r.eval("return {KEYS[1], ARGV[1]}", ["mykey"], ["myarg"])
+    end
+
+    def test_eval_keyword_form_still_works
+      assert_equal %w[mykey myarg],
+                   r.eval("return {KEYS[1], ARGV[1]}", keys: ["mykey"], args: ["myarg"])
+    end
+
+    def test_evalsha_two_array_positional_form_still_works
+      sha = r.script_load("return {KEYS[1], ARGV[1]}")
+
+      assert_equal %w[mykey myarg], r.evalsha(sha, ["mykey"], ["myarg"])
+    end
+
+    # script cache lifecycle - script_load must reach the server
+
+    def test_script_load_makes_the_script_available_on_the_server
+      sha = r.script_load("return 'loaded-on-server'")
+
+      assert_equal true, r.script_exists(sha)
+      # no prior eval of this script - it is only usable if SCRIPT LOAD really
+      # reached the server
+      assert_equal "loaded-on-server", r.evalsha(sha)
+    end
+
+    def test_script_load_returns_the_server_computed_sha
+      script = "return 'sha-check'"
+      sha = r.script_load(script)
+
+      assert_equal 40, sha.length
+      assert_equal sha, r.script_load(script)
+    end
+
+    # script_load reaches the wire now, so a non-String would otherwise flatten
+    # into extra SCRIPT LOAD arguments and fail as a server arity error.
+    def test_script_load_rejects_a_non_string_script
+      assert_raises(ArgumentError) { r.script_load(42) }
+      assert_raises(ArgumentError) { r.script_load(nil) }
+      assert_raises(ArgumentError) { r.script_load("") }
+      assert_raises(ArgumentError) { r.script_load([]) }
+    end
+
+    # Every scripting command routes through #call, which forwards a `route:`
+    # keyword that Pipeline#send_command did not accept - queuing any of them
+    # raised ArgumentError instead of batching.
+    def test_scripting_commands_work_inside_a_pipeline
+      results = r.pipelined do |pipeline|
+        pipeline.script_load("return 'from-pipeline'")
+        pipeline.eval("return {KEYS[1], ARGV[1]}", 1, "pk", "pa")
+        pipeline.eval_ro("return 'ro'", 0)
+      end
+
+      assert_equal 40, results[0].length
+      assert_equal %w[pk pa], results[1]
+      assert_equal "ro", results[2]
+    end
+
+    def test_eval_works_inside_a_transaction
+      results = r.multi do |tx|
+        tx.eval("return {KEYS[1], ARGV[1]}", 1, "tk", "ta")
+      end
+
+      assert_equal [%w[tk ta]], results
+    end
+
+    def test_script_flush_really_invalidates_the_script
+      sha = r.script_load("return 'flushme'")
+      assert_equal "flushme", r.evalsha(sha)
+
+      assert_equal "OK", r.script_flush
+
+      assert_equal false, r.script_exists(sha)
+      # must not silently re-upload from a stale client-side container
+      assert_raises(Valkey::CommandError) { r.evalsha(sha) }
+      assert_equal false, r.script_exists(sha)
+    end
+
+    def test_evalsha_raises_for_a_never_loaded_sha
+      r.script_flush
+      never_loaded = "a" * 40
+
+      assert_raises(Valkey::CommandError) { r.evalsha(never_loaded) }
+    end
+
+    def test_script_loaded_by_one_client_is_usable_by_another
+      sha = r.script_load("return 'cross-client'")
+
+      # Deliberately NOT init()'d - init flushes the shared test database and
+      # would destroy the surrounding tests' keyspace. The script cache is
+      # server-wide, so a bare connection is all this needs.
+      other = _new_client
+      begin
+        assert_equal "cross-client", other.evalsha(sha)
+      ensure
+        other.close
+      end
+    end
   end
 end

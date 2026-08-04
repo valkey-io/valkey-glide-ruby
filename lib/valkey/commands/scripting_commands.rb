@@ -4,6 +4,18 @@ class Valkey
   module Commands
     # this module contains commands related to list data type.
     #
+    # EVAL / EVALSHA / SCRIPT LOAD are dispatched as custom commands via #call
+    # rather than through typed `send_command(RequestType::EVAL, ...)`. This is
+    # not a style choice: glide-core defines those enum values but has no
+    # `get_command()` arm for them, so typed dispatch fails outright with
+    # "Couldn't fetch command type - ClientError". Cluster routing is unaffected
+    # (redis-rs derives it from the wire command name, so EVAL still routes by
+    # ThirdArgAfterKeyCount and SCRIPT LOAD still broadcasts to all nodes), but
+    # OpenTelemetry spans are named "CustomCommand" instead of the command.
+    # Once glide-core gains those arms, these can revert to typed dispatch -
+    # EVAL_RO / EVALSHA_RO already have arms and could use it today; they go
+    # through #call only to keep the family's behavior uniform.
+    #
     # @see https://valkey.io/commands/#scripting
     #
     module ScriptingCommands
@@ -100,20 +112,31 @@ class Valkey
         send_command(RequestType::SCRIPT_DEBUG, [mode.to_s.upcase])
       end
 
+      # Load a Lua script into the server's script cache without executing it.
+      #
+      # Sends a real `SCRIPT LOAD` to the server, so the returned SHA1 is
+      # immediately usable by `evalsha` - including from a different client,
+      # process, or worker. In cluster mode `SCRIPT LOAD` is routed to all
+      # nodes, so the script is available whichever node a later `EVALSHA`
+      # lands on.
+      #
+      # @param [String] script the Lua script to load
+      # @return [String] the SHA1 hash of the script, as computed by the server
+      #
+      # @example
+      #   sha = valkey.script_load("return 1")
+      #   valkey.script_exists(sha)   # => true
+      #
+      # @see https://valkey.io/commands/script-load/
       def script_load(script)
         script = script.first if script.is_a?(Array)
 
-        buf = FFI::MemoryPointer.new(:char, script.bytesize)
-        buf.put_bytes(0, script)
+        # Validate here rather than letting a non-String flatten into extra
+        # SCRIPT LOAD wire arguments and fail as a server-side arity error.
+        raise ArgumentError, "script must be a string" unless script.is_a?(String)
+        raise ArgumentError, "script cannot be empty" if script.empty?
 
-        result = Bindings.store_script(buf, script.bytesize)
-
-        begin
-          hash_buffer = Bindings::ScriptHashBuffer.new(result)
-          hash_buffer[:ptr].read_string(hash_buffer[:len])
-        ensure
-          Bindings.free_script_hash_buffer(result) if result && !result.null?
-        end
+        call("SCRIPT", "LOAD", script)
       end
 
       # Execute a Lua script on the server.
@@ -140,30 +163,17 @@ class Valkey
       # @example Positional form, matching redis-rb's eval(script, keys, argv)
       #   valkey.eval("return KEYS[1] .. ARGV[1]", ["mykey"], ["myarg"])
       #     # => "mykeynyarg"
-      # Since the eval is not available in the rust backend
-      # using the load and invoke script
+      # @example Integer key-count form, matching valkey-cli and the Valkey docs
+      #   valkey.eval("return {KEYS[1], ARGV[1]}", 1, "mykey", "myarg")
+      #     # => ["mykey", "myarg"]
       def eval(script, *rest, keys: nil, args: nil)
         # Validate script parameter
         raise ArgumentError, "script must be a string" unless script.is_a?(String)
         raise ArgumentError, "script cannot be empty" if script.empty?
 
-        # Accept redis-rb's flexible positional form - eval(script, keys, argv)
-        # - in addition to the keyword form, mirroring the same treatment
-        # applied to evalsha (see that method for the full rationale).
-        keys ||= rest[0] || []
-        args ||= rest[1] || []
+        keys, args = split_keys_and_args(rest, keys, args)
 
-        # Validate and convert keys and args to strings
-        begin
-          keys = Array(keys).map(&:to_s)
-          args = Array(args).map(&:to_s)
-        rescue StandardError => e
-          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
-        end
-
-        # Load script to get SHA1 hash, then execute via invoke_script
-        sha = script_load(script)
-        invoke_script(sha, keys: keys, args: args)
+        call("EVAL", script, keys.size, *keys, *args)
       end
 
       # Execute a cached Lua script by its SHA1 hash.
@@ -193,29 +203,17 @@ class Valkey
       # @example Positional form, matching redis-rb's evalsha(sha, keys, argv)
       #   valkey.evalsha(sha, ["user"], ["123"])
       #     # => "user:123"
-      # Since evalsha is not available in rust backend
-      # using invoke script
+      # @example Integer key-count form, matching valkey-cli and the Valkey docs
+      #   valkey.evalsha(sha, 1, "user", "123")
+      #     # => "user:123"
       def evalsha(sha, *rest, keys: nil, args: nil)
         # Validate SHA1 hash parameter
         raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
         raise ArgumentError, "sha1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
 
-        # Accept redis-rb's flexible positional form - evalsha(sha, keys, argv)
-        # - in addition to the keyword form, so code written against redis-rb's
-        # API (e.g. redis_display_id) doesn't need to special-case this client.
-        keys ||= rest[0] || []
-        args ||= rest[1] || []
+        keys, args = split_keys_and_args(rest, keys, args)
 
-        # Validate and convert keys and args to strings
-        begin
-          keys = Array(keys).map(&:to_s)
-          args = Array(args).map(&:to_s)
-        rescue StandardError => e
-          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
-        end
-
-        # Execute cached script via invoke_script
-        invoke_script(sha, keys: keys, args: args)
+        call("EVALSHA", sha, keys.size, *keys, *args)
       end
 
       # Execute a read-only Lua script on the server.
@@ -231,17 +229,18 @@ class Valkey
       # @example Execute a read-only script
       #   valkey.eval_ro("return redis.call('get', KEYS[1])", keys: ["mykey"])
       #     # => "myvalue"
+      # @example Integer key-count form
+      #   valkey.eval_ro("return redis.call('get', KEYS[1])", 1, "mykey")
+      #     # => "myvalue"
       #
       # @see https://valkey.io/commands/eval_ro/
-      def eval_ro(script, keys: [], args: [])
+      def eval_ro(script, *rest, keys: nil, args: nil)
         raise ArgumentError, "script must be a string" unless script.is_a?(String)
         raise ArgumentError, "script cannot be empty" if script.empty?
 
-        keys = Array(keys).map(&:to_s)
-        args = Array(args).map(&:to_s)
+        keys, args = split_keys_and_args(rest, keys, args)
 
-        sha = script_load(script)
-        invoke_script(sha, keys: keys, args: args)
+        call("EVAL_RO", script, keys.size, *keys, *args)
       end
 
       # Execute a cached read-only Lua script by its SHA1 hash.
@@ -258,18 +257,29 @@ class Valkey
       #   sha = valkey.script_load("return redis.call('get', KEYS[1])")
       #   valkey.evalsha_ro(sha, keys: ["mykey"])
       #     # => "myvalue"
+      # @example Integer key-count form
+      #   valkey.evalsha_ro(sha, 1, "mykey")
+      #     # => "myvalue"
       #
       # @see https://valkey.io/commands/evalsha_ro/
-      def evalsha_ro(sha, keys: [], args: [])
+      def evalsha_ro(sha, *rest, keys: nil, args: nil)
         raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
         raise ArgumentError, "sha1 hash must be a 40-character hexadecimal string" unless valid_sha1?(sha)
 
-        keys = Array(keys).map(&:to_s)
-        args = Array(args).map(&:to_s)
+        keys, args = split_keys_and_args(rest, keys, args)
 
-        invoke_script(sha, keys: keys, args: args)
+        call("EVALSHA_RO", sha, keys.size, *keys, *args)
       end
 
+      # Execute a cached script via the glide-ffi `invoke_script` entry point.
+      #
+      # No longer used by eval/evalsha - they dispatch real wire commands now.
+      # Retained as the FFI seam for the `Script` object proposed in #206, and
+      # still exercised by the scripting tests. Note that its glide-core
+      # NOSCRIPT self-heal relies on the client-side script container that
+      # `script_load` no longer populates, so a SHA this client never stored
+      # will surface a NOSCRIPT CommandError rather than being re-uploaded.
+      # Emits no OpenTelemetry span (span_ptr is hardcoded to 0 below).
       def invoke_script(script, args: [], keys: [])
         # Must hold onto the returned buffers (_arg_bufs/_keys_bufs) for the
         # lifetime of this method - they back arg_ptrs/keys_ptrs, and letting
@@ -308,6 +318,69 @@ class Valkey
       end
 
       private
+
+      # Resolve the KEYS/ARGV split from the three call shapes the scripting
+      # commands accept, and normalize both to Arrays of Strings.
+      #
+      # 1. Integer key-count form, as used by the Valkey docs and valkey-cli:
+      #      eval(script, 1, "mykey", "myarg")
+      # 2. redis-rb's two-array positional form:
+      #      eval(script, ["mykey"], ["myarg"])
+      # 3. Keyword form:
+      #      eval(script, keys: ["mykey"], args: ["myarg"])
+      #
+      # Integer and Array are disjoint in the first positional slot, so
+      # recognizing the integer form is a strict superset - it cannot change
+      # the meaning of any call that already worked. Anything the caller
+      # plainly meant as a key count but that isn't an Integer, and any extra
+      # positional beyond (keys, argv), raises instead of being reinterpreted:
+      # silently proceeding with a different meaning is the defect this fixes.
+      #
+      # @return [Array(Array<String>, Array<String>)] the keys and args
+      def split_keys_and_args(rest, keys, args)
+        if rest.first.is_a?(Integer)
+          if keys || args
+            raise ArgumentError,
+                  "cannot mix the integer key-count form with the keys:/args: keywords"
+          end
+
+          numkeys, *positional = rest
+
+          raise ArgumentError, "numkeys must be non-negative" if numkeys.negative?
+
+          if numkeys > positional.size
+            raise ArgumentError,
+                  "numkeys (#{numkeys}) exceeds the number of arguments given (#{positional.size})"
+          end
+
+          # shift consumes the keys; whatever remains is ARGV
+          keys = positional.shift(numkeys)
+          args = positional
+        else
+          if rest.first.is_a?(Numeric)
+            raise ArgumentError,
+                  "numkeys must be an Integer, got #{rest.first.class} (#{rest.first.inspect})"
+          end
+
+          if rest.size > 2
+            raise ArgumentError,
+                  "wrong number of positional arguments (given #{rest.size}, expected at most 2: keys, argv). " \
+                  "To pass a key count, make it an Integer: eval(script, #{rest.size - 1}, ...)"
+          end
+
+          keys ||= rest[0] || []
+          args ||= rest[1] || []
+        end
+
+        # Stringify before handing off to #call, whose flattening raises
+        # TypeError on non-String/Symbol/Integer/Float leaves. Converting here
+        # preserves the lenient #to_s coercion these commands have always had.
+        begin
+          [Array(keys).map(&:to_s), Array(args).map(&:to_s)]
+        rescue StandardError => e
+          raise ArgumentError, "failed to convert keys or args to strings: #{e.message}"
+        end
+      end
 
       # Validate SHA1 hash format (40-character hexadecimal string)
       def valid_sha1?(sha)
