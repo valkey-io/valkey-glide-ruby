@@ -51,16 +51,63 @@ class Valkey
       #     e.g. 'LEFT' - from head, 'RIGHT' - from tail
       # @param [String, Symbol] where_destination where to push the element to the source list
       #     e.g. 'LEFT' - to head, 'RIGHT' - to tail
-      # @param [Hash] options
-      #   - `:timeout => [Float, Integer]`: timeout in seconds, defaults to no timeout
+      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
       #
       # @return [nil, String] the element, or nil when the source key does not exist or the timeout expired
       #
+      # @note This command comes in place of the now deprecated BRPOPLPUSH.
+      #     Doing BLMOVE RIGHT LEFT is equivalent.
       def blmove(source, destination, where_source, where_destination, timeout: 0)
         where_source, where_destination = _normalize_move_wheres(where_source, where_destination)
+        timeout = _validate_blocking_timeout(timeout)
 
-        args = [:blmove, source, destination, where_source, where_destination, timeout]
+        args = [source, destination, where_source, where_destination, timeout]
         send_command(RequestType::BLMOVE, args)
+      end
+
+      # Remove the last element in a list, prepend it to another list and return it.
+      #
+      # Deprecated in Redis 6.2 in favour of `LMOVE` so implemented as facade over {#lmove}
+      # as `LMOVE src dst RIGHT LEFT``. Note that glide-core has no command mapping for
+      # `RequestType::RPopLPush`, so dispatching it directly is not an option.
+      #
+      # @example
+      #   valkey.rpush("src", "a", "b")
+      #   valkey.rpoplpush("src", "dst") # => "b"
+      #
+      # @param [String] source source key
+      # @param [String] destination destination key
+      #
+      # @return [nil, String] the element, or nil when the source key does not exist
+      #
+      # @see #lmove
+      def rpoplpush(source, destination)
+        lmove(source, destination, "RIGHT", "LEFT")
+      end
+
+      # Remove the last element in a list, prepend it to another list and return it,
+      # or block until one is available.
+      #
+      # Deprecated in Redis 6.2 in favour of `BLMOVE` so implemented as facade over {#blmove}
+      # as `BLMOVE src dst RIGHT LEFT`. Note that glide-core has no command mapping for
+      # `RequestType::BRPopLPush`, so dispatching it directly is not an option.
+      #
+      # @example With timeout
+      #   valkey.brpoplpush("src", "dst", timeout: 5)
+      #     # => nil on timeout
+      #     # => "element" on success
+      #
+      # @param [String] source source key
+      # @param [String] destination destination key
+      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
+      #
+      # @return [nil, String]
+      #   - `nil` when the operation timed out
+      #   - the element that was popped and pushed otherwise
+      #
+      # @see #blmove
+      def brpoplpush(source, destination, timeout: 0)
+        blmove(source, destination, "RIGHT", "LEFT", timeout: timeout)
       end
 
       # Prepend one or more values to a list, creating the list if it doesn't exist.
@@ -125,70 +172,50 @@ class Valkey
         send_command(RequestType::RPOP, args)
       end
 
-      # Remove the last element in a list, append it to another list and return it.
-      #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @return [nil, String] the element, or nil when the source key does not exist
-      def rpoplpush(source, destination)
-        send_command(RequestType::RPOPLPUSH, [source, destination])
-      end
-
       # Remove and get the first element in a list, or block until one is available.
       #
       # @example With timeout
-      #   list, element = valkey.blpop("list", :timeout => 5)
+      #   list, element = valkey.blpop("list", timeout: 5)
       #     # => nil on timeout
       #     # => ["list", "element"] on success
       # @example Without timeout
       #   list, element = valkey.blpop("list")
       #     # => ["list", "element"]
       # @example Blocking pop on multiple lists
-      #   list, element = valkey.blpop(["list", "another_list"])
-      #     # => ["list", "element"]
+      #   list, element = valkey.blpop("list", "another_list", timeout: 5)
+      #   list, element = valkey.blpop(["list", "another_list"], timeout: 5)
       #
-      # @param [String, Array<String>] keys one or more keys to perform the
-      #   blocking pop on
-      # @param [Hash] options
-      #   - `:timeout => [Float, Integer]`: timeout in seconds, defaults to no timeout
+      # @param [String, Array<String>] keys one or more keys, checked in the given
+      #   order; in cluster mode all keys must map to the same hash slot
+      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
       #
       # @return [nil, [String, String]]
       #   - `nil` when the operation timed out
       #   - tuple of the list that was popped from and element was popped otherwise
-      def blpop(*args)
-        _bpop(:blpop, args)
+      def blpop(*keys, timeout: 0)
+        _bpop(keys, is_left: true, timeout: timeout)
       end
 
       # Remove and get the last element in a list, or block until one is available.
       #
-      # @param [String, Array<String>] keys one or more keys to perform the
-      #   blocking pop on
-      # @param [Hash] options
-      #   - `:timeout => [Float, Integer]`: timeout in seconds, defaults to no timeout
+      # @param [String, Array<String>] keys one or more keys, checked in the given
+      #   order; in cluster mode all keys must map to the same hash slot
+      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
       #
       # @return [nil, [String, String]]
       #   - `nil` when the operation timed out
       #   - tuple of the list that was popped from and element was popped otherwise
       #
+      # @example With timeout
+      #   list, element = valkey.brpop("list", timeout: 5)
+      #     # => nil on timeout
+      #     # => ["list", "element"] on success
+      # @example Blocking pop on multiple lists
+      #   list, element = valkey.brpop("list", "another_list", timeout: 5)
+      #
       # @see #blpop
-      def brpop(*args)
-        _bpop(RequestType::BRPOP, args.flatten)
-      end
-
-      # Pop a value from a list, push it to another list and return it; or block
-      # until one is available.
-      #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @param [Hash] options
-      #   - `:timeout => [Float, Integer]`: timeout in seconds, defaults to no timeout
-      #
-      # @return [nil, String]
-      #   - `nil` when the operation timed out
-      #   - the element was popped and pushed otherwise
-      def brpoplpush(source, destination, timeout: 0)
-        args = [:brpoplpush, source, destination, timeout]
-        send_blocking_command(RequestType::BRPOPLPUSH, args, timeout)
+      def brpop(*keys, timeout: 0)
+        _bpop(keys, is_left: false, timeout: timeout)
       end
 
       # Pops one or more elements from the first non-empty list key from the list
@@ -313,20 +340,23 @@ class Valkey
 
       private
 
-      def _bpop(cmd, args, &blk)
-        timeout = if args.last.is_a?(Hash)
-                    options = args.pop
-                    options[:timeout]
-                  end
+      # Shared implementation for BLPOP and BRPOP.
+      def _bpop(keys, is_left: false, timeout: 0)
+        request_type = is_left ? RequestType::BLPOP : RequestType::BRPOP
+        args = keys.flatten(1)
+        args << _validate_blocking_timeout(timeout)
 
+        send_command(request_type, args)
+      end
+
+      # @return [Integer, Float] a validated blocking timeout in seconds
+      def _validate_blocking_timeout(timeout)
         timeout ||= 0
         unless timeout.is_a?(Integer) || timeout.is_a?(Float)
           raise ArgumentError, "timeout must be an Integer or Float, got: #{timeout.class}"
         end
 
-        args.flatten!(1)
-        args << timeout
-        send_blocking_command(cmd, args, &blk)
+        timeout
       end
 
       def _normalize_move_wheres(where_source, where_destination)
