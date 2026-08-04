@@ -29,5 +29,7 @@ Gem::Specification.new do |spec|
   end + Dir.glob("lib/valkey/native/**/*").reject { |f| File.directory?(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "ffi", "~> 1.17.0"
+  # ffi 1.17 dropped Ruby 2.7 (its required_ruby_version is >= 3.0), so 2.7
+  # installs resolve to ffi 1.16.x while 3.x installs pick up 1.17+ automatically.
+  spec.add_dependency "ffi", "~> 1.16"
 end
