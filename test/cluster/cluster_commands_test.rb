@@ -55,26 +55,29 @@ class TestClusterGeoCommands < Minitest::Test
   include Lint::GeoCommands
 end
 
-class TestClusterJsonCommands < Minitest::Test
-  include Helper::Cluster
-  include Lint::JsonCommands
-end
-
-class TestClusterModuleCommands < Minitest::Test
-  include Helper::Cluster
-  include Lint::ModuleCommands
-end
-
-class TestClusterVectorSearchCommands < Minitest::Test
-  include Helper::Cluster
-  include Lint::VectorSearchCommands
-end
-
 # ValkeyTests modules with setup/teardown
 class TestClusterFunctionCommands < Minitest::Test
   include Helper::Cluster
   include ValkeyTests::FunctionCommands
 end
 
-# NOTE: Module tests (JsonCommands, ModuleCommands, VectorSearchCommands)
-# require modules loaded on all cluster nodes
+# Server-modules support is not yet added. Re-enable when implemented.
+#
+# The lint files are still required by test_helper, so they stay syntax-checked
+# and ready to re-enable alongside the lib includes. Note these also require the
+# modules to be loaded on all cluster nodes:
+#
+#   class TestClusterJsonCommands < Minitest::Test
+#     include Helper::Cluster
+#     include Lint::JsonCommands
+#   end
+#
+#   class TestClusterModuleCommands < Minitest::Test
+#     include Helper::Cluster
+#     include Lint::ModuleCommands
+#   end
+#
+#   class TestClusterVectorSearchCommands < Minitest::Test
+#     include Helper::Cluster
+#     include Lint::VectorSearchCommands
+#   end

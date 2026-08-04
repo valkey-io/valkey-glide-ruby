@@ -36,17 +36,22 @@ class TestStandaloneGeoCommands < Minitest::Test
   include Lint::GeoCommands
 end
 
-class TestStandaloneJsonCommands < Minitest::Test
-  include Helper::Client
-  include Lint::JsonCommands
-end
-
-class TestStandaloneModuleCommands < Minitest::Test
-  include Helper::Client
-  include Lint::ModuleCommands
-end
-
-class TestStandaloneVectorSearchCommands < Minitest::Test
-  include Helper::Client
-  include Lint::VectorSearchCommands
-end
+# Server-modules support is not yet added. Re-enable when implemented.
+#
+# The lint files are still required by test_helper, so they stay syntax-checked
+# and ready to re-enable alongside the lib includes:
+#
+#   class TestStandaloneJsonCommands < Minitest::Test
+#     include Helper::Client
+#     include Lint::JsonCommands
+#   end
+#
+#   class TestStandaloneModuleCommands < Minitest::Test
+#     include Helper::Client
+#     include Lint::ModuleCommands
+#   end
+#
+#   class TestStandaloneVectorSearchCommands < Minitest::Test
+#     include Helper::Client
+#     include Lint::VectorSearchCommands
+#   end
