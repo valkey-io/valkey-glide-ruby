@@ -220,19 +220,25 @@ class Valkey
       # @param [Integer] maxlen maximum length of the stream
       # @param [Hash] options trimming options
       #   - `:strategy => String`: trimming strategy (default: "MAXLEN")
-      #   - `:approximate => true`: use approximate trimming (default: true)
+      #   - `:approximate => Boolean`: use approximate trimming (default: false)
+      #   - `:limit => Integer`: cap trim work per call; only valid with `approximate: true`
       # @return [Integer] number of entries removed
       #
-      # @example Trim to maximum length
+      # @example Trim to maximum length (exact)
       #   valkey.xtrim("mystream", 1000)
-      # @example Trim with exact count
-      #   valkey.xtrim("mystream", 1000, approximate: false)
+      # @example Approximate trimming
+      #   valkey.xtrim("mystream", 1000, approximate: true)
+      # @example Approximate trimming with LIMIT
+      #   valkey.xtrim("mystream", 1000, approximate: true, limit: 100)
       #
       # @see https://valkey.io/commands/xtrim/
-      def xtrim(key, maxlen, strategy: "MAXLEN", approximate: true)
+      def xtrim(key, maxlen, strategy: "MAXLEN", approximate: false, limit: nil)
+        raise ArgumentError, "limit: requires approximate: true" if limit && !approximate
+
         args = [key, strategy]
         args << "~" if approximate
         args << maxlen.to_s
+        args << "LIMIT" << limit.to_s if limit
         send_command(RequestType::X_TRIM, args)
       end
 
