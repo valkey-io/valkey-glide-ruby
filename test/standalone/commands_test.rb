@@ -37,6 +37,8 @@ class TestStandaloneGeoCommands < Minitest::Test
 end
 
 # Server-modules support is not yet added. Re-enable when implemented.
+# TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/233
+#       https://github.com/valkey-io/valkey-glide-ruby/issues/234
 #
 # The lint files are still required by test_helper, so they stay syntax-checked
 # and ready to re-enable alongside the lib includes:
