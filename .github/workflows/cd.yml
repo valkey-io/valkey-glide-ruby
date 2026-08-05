@@ -152,6 +152,7 @@ jobs:
           elif [[ "${{ matrix.host.TARGET }}" == *"linux-gnu"* ]]; then
             cargo zigbuild --release --target ${{ matrix.host.TARGET }}.2.17
           else
+            # macOS, pins to target MacOS 11+
             cargo build --release
           fi
 

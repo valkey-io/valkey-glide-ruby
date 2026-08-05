@@ -36,15 +36,16 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 
 #### Supported OS
 
-The following platforms are have been tested:
+The following platforms have been tested:
 - Ubuntu 24
 - Alpine Linux 3
-- macOS 14+ ARM
+- macOS 14 (Apple silicon / ARM)
 
 **Notes:**
 * Other Linux distributions not mentioned here should work as long as they
 meet the glibc 2.17+ / musl 1.2.3+ requirement above.
-* Intel macOS users must build locally. See [build from source](./DEVELOPER.md).
+* Only Apple silicon (ARM) macOS is shipped, with a minimum of macOS 11. 
+Intel macOS users must build locally — see [build from source](./DEVELOPER.md).
 
 ### Ruby Supported Versions
 
