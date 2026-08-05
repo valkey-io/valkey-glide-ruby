@@ -89,11 +89,11 @@ jobs:
           submodules: recursive
 
       - name: Install Rust toolchain
-        if: matrix.host.TARGET != 'x86_64-unknown-linux-gnu'
+        if: ${{ !endsWith(matrix.host.TARGET, '-unknown-linux-gnu') }}
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
 
       - name: Install protoc (protobuf)
-        if: matrix.host.TARGET != 'x86_64-unknown-linux-gnu'
+        if: ${{ !endsWith(matrix.host.TARGET, '-unknown-linux-gnu') }}
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "29.1"
@@ -136,7 +136,7 @@ jobs:
           EOF
 
       - name: Build native library
-        if: matrix.host.TARGET != 'x86_64-unknown-linux-gnu'
+        if: ${{ !endsWith(matrix.host.TARGET, '-unknown-linux-gnu') }}
         working-directory: valkey-glide/ffi
         env:
           GLIDE_NAME: GlideRuby
@@ -149,16 +149,40 @@ jobs:
             cargo build --release
           fi
 
-      # x86_64-unknown-linux-gnu is built inside manylinux2014 (glibc 2.17)
-      # instead of directly on the ubuntu-24.04 runner (glibc 2.39), so the
-      # resulting .so loads on older glibc hosts (Amazon Linux 1/2, Debian 11,
-      # Ubuntu 20.04) as well as anything newer. See docker/manylinux2014/.
+      # *-unknown-linux-gnu targets are built inside manylinux2014 (glibc
+      # 2.17) instead of directly on the ubuntu-24.04(-arm) runner (glibc
+      # 2.39), so the resulting .so loads on older glibc hosts (Amazon Linux
+      # 1/2, Debian 11, Ubuntu 20.04) as well as anything newer. Runs natively
+      # on each runner's own architecture — ubuntu-24.04-arm pulls/builds the
+      # aarch64 manylinux2014 image directly, no QEMU involved. See
+      # docker/manylinux2014/.
       - name: Build native library (manylinux2014, glibc 2.17 floor)
-        if: matrix.host.TARGET == 'x86_64-unknown-linux-gnu'
+        if: ${{ endsWith(matrix.host.TARGET, '-unknown-linux-gnu') }}
         env:
           GLIDE_VERSION: ${{ env.RELEASE_VERSION }}
+          TARGET: ${{ matrix.host.TARGET }}
         run: |
-          docker build -t valkey-glide-manylinux2014 -f docker/manylinux2014/Dockerfile .
+          case "$TARGET" in
+            x86_64-unknown-linux-gnu)
+              BASE_IMAGE=quay.io/pypa/manylinux2014_x86_64
+              PROTOC_ARCH=x86_64
+              ;;
+            aarch64-unknown-linux-gnu)
+              BASE_IMAGE=quay.io/pypa/manylinux2014_aarch64
+              PROTOC_ARCH=aarch_64
+              ;;
+            *)
+              echo "No manylinux2014 image mapping for target: $TARGET"
+              exit 1
+              ;;
+          esac
+
+          docker build \
+            --build-arg BASE_IMAGE="$BASE_IMAGE" \
+            --build-arg PROTOC_ARCH="$PROTOC_ARCH" \
+            -t valkey-glide-manylinux2014 \
+            -f docker/manylinux2014/Dockerfile .
+
           docker run --rm \
             -v "${{ github.workspace }}":/workspace \
             -w /workspace/valkey-glide/ffi \
@@ -506,8 +530,6 @@ jobs:
     name: Smoke Test (Amazon Linux 1 / 2018.03)
     needs: [set-release-version, build-and-publish-gem]
     runs-on: ubuntu-24.04
-    container:
-      image: amazonlinux:2018.03
     timeout-minutes: 15
     env:
       RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
@@ -517,6 +539,15 @@ jobs:
     # itself loads under AL1's glibc 2.17, which is what the manylinux2014
     # build step exists to guarantee. A .gem file is a plain POSIX tar
     # container, so it can be unpacked with `tar` alone, no Ruby needed.
+    #
+    # Deliberately no job-level `container:` here. GitHub's own actions (like
+    # download-artifact) are Node-based and GitHub injects its Node runtime
+    # into whatever container a job uses — that Node build needs a newer
+    # glibc than AL1's 2.17, so running the whole job inside amazonlinux:2018.03
+    # breaks those steps well before the .so is even involved. Instead we stay
+    # on the normal runner (modern glibc, modern tar, actions work normally)
+    # and only drop into amazonlinux:2018.03 via `docker run` for the one
+    # step that actually needs to execute under its old glibc.
     steps:
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
@@ -536,19 +567,78 @@ jobs:
       - name: Extract native library from gem
         shell: bash
         run: |
-          yum install -y tar gzip binutils glibc-common
           GEM_FILE=$(ls *.gem | head -1)
-          mkdir gem-extract && cd gem-extract
-          tar -xf "../${GEM_FILE}"
-          tar -xzf data.tar.gz lib/valkey/native/x86_64-unknown-linux-gnu/libglide_ffi.so
+          echo "Gem file: ${GEM_FILE}"
+          mkdir -p gem-extract
+          tar -xf "${GEM_FILE}" -C gem-extract
+          tar -xzf gem-extract/data.tar.gz -C gem-extract lib/valkey/native/x86_64-unknown-linux-gnu/libglide_ffi.so
 
-      - name: Verify libglide_ffi.so loads under glibc 2.17
+      - name: Verify libglide_ffi.so loads under glibc 2.17 (amazonlinux:2018.03)
         shell: bash
         run: |
-          SO=gem-extract/lib/valkey/native/x86_64-unknown-linux-gnu/libglide_ffi.so
-          echo "Host glibc:"
-          ldd --version | head -1
-          echo "GLIBC symbol versions referenced by the library:"
-          objdump -T "$SO" | grep -o 'GLIBC_[0-9.]*' | sort -Vu
-          echo "Dynamic linker resolution (fails with 'version GLIBC_x.y not found' if incompatible):"
-          ldd "$SO"
+          docker run --rm -v "${{ github.workspace }}":/workspace -w /workspace amazonlinux:2018.03 bash -c '
+            set -e
+            yum install -y binutils >/dev/null
+            SO=gem-extract/lib/valkey/native/x86_64-unknown-linux-gnu/libglide_ffi.so
+            echo "Container glibc:"
+            ldd --version | head -1
+            echo "GLIBC symbol versions referenced by the library:"
+            objdump -T "$SO" | grep -o "GLIBC_[0-9.]*" | sort -Vu
+            echo "Dynamic linker resolution (fails with a GLIBC version error if incompatible):"
+            ldd "$SO"
+          '
+
+  test-gem-al2-arm64-smoke:
+    name: Smoke Test (Amazon Linux 2, arm64)
+    needs: [set-release-version, build-and-publish-gem]
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    env:
+      RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+
+    # Amazon Linux 1 was never published for arm64 (it predates Graviton),
+    # so amazonlinux:2 (glibc 2.26) is the oldest arm64 target we actually
+    # have to test against — same no-container-at-job-level pattern as
+    # test-gem-al1-smoke, for the same reason (GitHub's Node-based actions
+    # need a newer glibc than very old containers provide). ubuntu-24.04-arm
+    # is a native arm64 runner, so `docker run amazonlinux:2` here pulls the
+    # arm64 image directly, no QEMU involved.
+    steps:
+      - name: Download gem artifact (unpublished)
+        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ruby-gem
+          path: .
+
+      - name: Download gem from RubyGems (published)
+        if: ${{ needs.build-and-publish-gem.outputs.published == 'true' }}
+        shell: bash
+        run: |
+          sleep 30
+          curl -sSL -o valkey-glide-rb.gem \
+            "https://rubygems.org/downloads/valkey-glide-rb-${RELEASE_VERSION}.gem"
+
+      - name: Extract native library from gem
+        shell: bash
+        run: |
+          GEM_FILE=$(ls *.gem | head -1)
+          echo "Gem file: ${GEM_FILE}"
+          mkdir -p gem-extract
+          tar -xf "${GEM_FILE}" -C gem-extract
+          tar -xzf gem-extract/data.tar.gz -C gem-extract lib/valkey/native/aarch64-unknown-linux-gnu/libglide_ffi.so
+
+      - name: Verify libglide_ffi.so loads under glibc 2.26 (amazonlinux:2, arm64)
+        shell: bash
+        run: |
+          docker run --rm -v "${{ github.workspace }}":/workspace -w /workspace amazonlinux:2 bash -c '
+            set -e
+            yum install -y binutils >/dev/null
+            SO=gem-extract/lib/valkey/native/aarch64-unknown-linux-gnu/libglide_ffi.so
+            echo "Container glibc:"
+            ldd --version | head -1
+            echo "GLIBC symbol versions referenced by the library:"
+            objdump -T "$SO" | grep -o "GLIBC_[0-9.]*" | sort -Vu
+            echo "Dynamic linker resolution (fails with a GLIBC version error if incompatible):"
+            ldd "$SO"
+          '
