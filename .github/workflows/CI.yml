@@ -182,7 +182,9 @@ jobs:
           curl -fsSL "https://github.com/rust-cross/cargo-zigbuild/releases/download/v${CARGO_ZIGBUILD_VERSION}/cargo-zigbuild-v${CARGO_ZIGBUILD_VERSION}.${ARCH}-unknown-linux-musl.tar.gz" \
             | sudo tar -xz -C /usr/local/bin
           zig version
-          cargo zigbuild --version
+          # `cargo zigbuild` dispatches to `cargo-zigbuild zigbuild`, whose
+          # subcommand has no --version flag; query the binary directly.
+          cargo-zigbuild --version
 
       - name: Build native library
         working-directory: valkey-glide/ffi

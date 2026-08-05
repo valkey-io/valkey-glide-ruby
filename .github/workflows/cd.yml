@@ -159,7 +159,9 @@ jobs:
             | sudo tar -xz -C /usr/local/bin
           rustup target add "${{ matrix.host.TARGET }}"
           zig version
-          cargo zigbuild --version
+          # `cargo zigbuild` dispatches to `cargo-zigbuild zigbuild`, whose
+          # subcommand has no --version flag; query the binary directly.
+          cargo-zigbuild --version
 
       - name: Build native library
         working-directory: valkey-glide/ffi
