@@ -32,7 +32,7 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 ### System Requirements
 
 - glibc 2.17+ or musl 1.2.3+
-- Ruby 2.6+
+- Ruby 3.0+
 
 #### Supported OS
 
@@ -46,16 +46,6 @@ The following platforms have been tested:
 meet the glibc 2.17+ / musl 1.2.3+ requirement above.
 * Only Apple silicon (ARM) macOS is shipped, with a minimum of macOS 11. 
 Intel macOS users must build locally — see [build from source](./DEVELOPER.md).
-
-### Ruby Supported Versions
-
-| Ruby Version | MRI | JRuby |
-|--------------|-----|-------|
-| 2.6          | ✓   | -     |
-| 2.7          | ✓   | -     |
-| 3.0 – 3.4    | ✓   | ✓     |
-
-Minimum Ruby version: **2.6.0** (see `valkey.gemspec`).
 
 ### Installation and Setup
 
