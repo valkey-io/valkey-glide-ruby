@@ -47,12 +47,9 @@ class Valkey
     include SetCommands
     include ScriptingCommands
     include FunctionCommands
-    include ModuleCommands
     include PubSubCommands
-    include JsonCommands
     include ClusterCommands
     include TransactionCommands
-    include VectorSearchCommands
     include StreamCommands
     include HashCommands
 
