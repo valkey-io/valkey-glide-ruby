@@ -1,6 +1,7 @@
+
 # Valkey GLIDE for Ruby
 
-Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) with an interface similar to [redis-rb](https://github.com/redis/redis-rb)**, delivering GLIDE performance, reliability, and enterprise features.
+Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) with an interface similar to [redis-rb](https://github.com/redis/redis-rb), delivering GLIDE performance, reliability, and enterprise features.
 
 ## Why Choose Valkey GLIDE?
 
@@ -30,18 +31,20 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 
 ### System Requirements
 
-The release of Valkey GLIDE Ruby was tested on the following platforms:
+- glibc 2.17+ or musl 1.2.3+
+- Ruby 2.6+
 
-**Linux:**
+#### Supported OS
 
-- Ubuntu 20+ (x86_64/amd64 and arm64/aarch64)
-- Amazon Linux 2 (AL2) and 2023 (AL2023) (x86_64)
-- Alpine Linux 3.18+ (x86_64 and arm64/aarch64) — musl libc
+The following platforms are have been tested:
+- Ubuntu 24
+- Alpine Linux 3
+- macOS 14+ ARM
 
-**macOS:**
-
-- macOS 14.7+ (Apple silicon / aarch64)
-- macOS 13.7+ (x86_64 / amd64)
+**Notes:**
+* Other Linux distributions not mentioned here should work as long as they
+meet the glibc 2.17+ / musl 1.2.3+ requirement above.
+* Intel macOS users must build locally. See [build from source](./DEVELOPER.md).
 
 ### Ruby Supported Versions
 

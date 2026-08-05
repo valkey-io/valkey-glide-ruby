@@ -1,0 +1,38 @@
+name: Install zig and cargo-zigbuild
+description: >
+  Install pinned zig + cargo-zigbuild for cross-compiling the linux-gnu native
+  libraries against an glibc 2.17.
+
+  Assumes a Linux x86_64/aarch64 runner.
+
+inputs:
+  rust-target:
+    description: >
+      Optional Rust target triple to `rustup target add`.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install zig and cargo-zigbuild
+      shell: bash
+      env:
+        ZIG_VERSION: "0.13.0"
+        CARGO_ZIGBUILD_VERSION: "0.20.1"
+        RUST_TARGET: ${{ inputs.rust-target }}
+      run: |
+        set -euo pipefail
+        ARCH="$(uname -m)"
+        curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ARCH}-${ZIG_VERSION}.tar.xz" \
+          | sudo tar -xJ -C /usr/local
+        sudo ln -sf "/usr/local/zig-linux-${ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
+        curl -fsSL "https://github.com/rust-cross/cargo-zigbuild/releases/download/v${CARGO_ZIGBUILD_VERSION}/cargo-zigbuild-v${CARGO_ZIGBUILD_VERSION}.${ARCH}-unknown-linux-musl.tar.gz" \
+          | sudo tar -xz -C /usr/local/bin
+        if [[ -n "${RUST_TARGET}" ]]; then
+          rustup target add "${RUST_TARGET}"
+        fi
+        zig version
+        # `cargo zigbuild` dispatches to `cargo-zigbuild zigbuild`, whose
+        # subcommand has no --version flag; query the binary directly.
+        cargo-zigbuild --version

@@ -165,18 +165,27 @@ jobs:
           restore-keys: |
             ${{ matrix.host.TARGET }}-cargo-
 
+      - name: Install zig and cargo-zigbuild (linux-gnu)
+        if: contains(matrix.host.TARGET, 'linux-gnu')
+        uses: ./.github/actions/install-zigbuild
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         env:
           GLIDE_NAME: GlideRuby
           GLIDE_VERSION: ${{ github.ref_name }}
-        run: cargo build --release
+        run: |
+          if [[ "${{ matrix.host.TARGET }}" == *"linux-gnu"* ]]; then
+            cargo zigbuild --release --target ${{ matrix.host.TARGET }}.2.17
+          else
+            cargo build --release
+          fi
 
       - name: Upload native library
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-lib-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
-          path: valkey-glide/ffi/target/release/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
+          path: valkey-glide/ffi/target/${{ contains(matrix.host.TARGET, 'linux-gnu') && format('{0}/release', matrix.host.TARGET) || 'release' }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   test-ruby:
