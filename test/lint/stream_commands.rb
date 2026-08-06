@@ -135,6 +135,36 @@ module Lint
       r.del "mystream"
     end
 
+    def test_xtrim_default_trims_small_streams
+      r.del "mystream"
+      10.times { |i| r.xadd("mystream", { "n" => i.to_s }) }
+
+      # Default form must actually trim on small streams — approximate should
+      # default to false so `MAXLEN ~ N` is not silently a no-op below the
+      # server's radix-tree node boundary.
+      removed = r.xtrim("mystream", 3)
+      assert_operator removed, :>=, 1
+      assert_equal 3, r.xlen("mystream")
+
+      r.del "mystream"
+    end
+
+    def test_xtrim_limit_requires_approximate
+      assert_raises(ArgumentError) { r.xtrim("mystream", 3, limit: 10) }
+    end
+
+    def test_xtrim_with_limit
+      r.del "mystream"
+      30.times { |i| r.xadd("mystream", { "n" => i.to_s }) }
+
+      # Should run without raising; exact removed count is server-dependent
+      # under `~` semantics, so only assert on the return type.
+      removed = r.xtrim("mystream", 5, approximate: true, limit: 100)
+      assert_kind_of Integer, removed
+
+      r.del "mystream"
+    end
+
     def test_xread
       # Clean up any existing stream first
       r.del "mystream"
