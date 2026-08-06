@@ -4,13 +4,12 @@ class Valkey
   module Commands
     # This module contains commands related to Valkey Pub/Sub.
     # Pub/Sub is not yet supported and is partially implemented.
-    # Use at your own risks.
+    # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/135
     #
     # @api experimental
-    # @note EXPERIMENTAL: the entire Pub/Sub surface is subject to change and
-    #   is not covered by semantic versioning.
+    # @note EXPERIMENTAL: the entire Pub/Sub surface is subject to change
     #
-    # @see https://valkey.io/commands/#pubsub
+    #
     #
     module PubSubCommands
       # Subscribe to one or more channels.
@@ -71,10 +70,6 @@ class Valkey
 
       # Publish a message to a channel.
       #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
-      #
       # @example Publish a message
       #   valkey.publish("channel1", "Hello, World!")
       #     # => 2
@@ -118,10 +113,6 @@ class Valkey
 
       # Publish a message to a shard channel.
       #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
-      #
       # @example Publish a message to a shard channel
       #   valkey.spublish("shard1", "Hello, Shard!")
       #     # => 1
@@ -136,10 +127,6 @@ class Valkey
       end
 
       # List active channels.
-      #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example List all active channels
       #   valkey.pubsub_channels
@@ -159,10 +146,6 @@ class Valkey
 
       # Get the number of unique patterns subscribed to.
       #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
-      #
       # @example Get pattern count
       #   valkey.pubsub_numpat
       #     # => 3
@@ -175,10 +158,6 @@ class Valkey
       end
 
       # Get the number of subscribers for channels.
-      #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example Get subscriber counts
       #   valkey.pubsub_numsub("channel1", "channel2")
@@ -193,10 +172,6 @@ class Valkey
       end
 
       # List active shard channels.
-      #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example List all active shard channels
       #   valkey.pubsub_shardchannels
@@ -216,10 +191,6 @@ class Valkey
 
       # Get the number of subscribers for shard channels.
       #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
-      #
       # @example Get shard subscriber counts
       #   valkey.pubsub_shardnumsub("shard1", "shard2")
       #     # => ["shard1", 2, "shard2", 1]
@@ -233,10 +204,6 @@ class Valkey
       end
 
       # Control pub/sub operations (convenience method).
-      #
-      # @api experimental
-      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
-      #   not covered by semantic versioning; may change in a future minor.
       #   Only the introspection subcommands are reachable - `channels`,
       #   `numpat`, `numsub`, `shardchannels`, `shardnumsub`.
       #
