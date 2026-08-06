@@ -321,8 +321,8 @@ Available keys: `:total_connections`, `:total_clients`, `:total_values_compresse
 
 ## Pub/Sub
 
-Pub/Sub uses a native callback registered at connection time. Configure subscriptions via command modules (`subscribe`, `psubscribe`, etc.). See [DEVELOPER.md](./DEVELOPER.md) and integration tests in `test/valkey/pubsub_commands_test.rb` for details.
-
+Pub/Sub is currently not supported and is not ready for use and is planned for future release.
+See https://github.com/valkey-io/valkey-glide-ruby/issues/135
 ## Layout of Ruby Code
 
 | Path | Purpose |
