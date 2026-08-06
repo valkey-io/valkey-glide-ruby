@@ -82,6 +82,7 @@ class Valkey
       #
       # @see #lmove
       def rpoplpush(source, destination)
+        # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/242
         lmove(source, destination, "RIGHT", "LEFT")
       end
 
@@ -107,6 +108,7 @@ class Valkey
       #
       # @see #blmove
       def brpoplpush(source, destination, timeout: 0)
+        # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/242
         blmove(source, destination, "RIGHT", "LEFT", timeout: timeout)
       end
 
