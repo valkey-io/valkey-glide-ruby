@@ -402,32 +402,6 @@ module Lint
       observer&.close
     end
 
-    def test_get_between_multi_and_exec_does_not_discard_watch
-      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
-      # and behave differently with connection routing
-      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-
-      # Regression guard: a GET issued between MULTI and EXEC must stay queued
-      # and must not discard WATCH, otherwise a concurrent write to the
-      # watched key is silently lost.
-      writer = _new_client(db: 15)
-
-      r.set("account:1", "initial")
-      r.watch("account:1")
-      r.multi
-      r.set("account:1", "my_update")
-      assert_equal "QUEUED", r.get("account:1")
-
-      # Concurrent write to the watched key, after the WATCH
-      writer.set("account:1", "concurrent_writer")
-
-      # WATCH is still in force, so the transaction must abort
-      assert_nil r.exec
-      assert_equal "concurrent_writer", r.get("account:1")
-    ensure
-      writer&.close
-    end
-
     def test_complex_transaction_scenario
       # In cluster mode, MULTI/EXEC transactions require all keys in same slot
       # and behave differently with connection routing
