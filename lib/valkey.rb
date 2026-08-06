@@ -272,6 +272,12 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
+    # Serializes `close` so two threads cannot both capture the handle and
+    # double-decrement its Arc refcount (issue #212). We use `Mutex#try_lock`
+    # in `close`, not `#synchronize`, so trap-context callers still work:
+    # only `#lock`/`#synchronize` raise ThreadError from a trap, `#try_lock`
+    # returns false and moves on.
+    @close_lock = Mutex.new
     Bindings.free_connection_response(response_ptr)
 
     # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
@@ -292,25 +298,35 @@ class Valkey
     @in_multi_block = false
   end
 
-  # Closes the client and frees the native connection. Idempotent: the handle is
-  # cleared before it is freed, so a second `close` sees nil and does nothing
-  # rather than freeing the same pointer twice.
+  # Closes the client and frees the native connection. Idempotent and
+  # thread-safe: `@close_lock.try_lock` lets exactly one caller free the
+  # handle, while every other concurrent `close` (and every subsequent one)
+  # is a no-op. Without this, two threads could both read `@connection`
+  # before either nulled it, both call `close_client`, and double-decrement
+  # the Arc refcount - which is UB per Rust (issue #212).
   #
-  # Deliberately not synchronized. A Mutex here would break the common
-  # `Signal.trap("TERM") { client.close }` shutdown idiom, because Ruby forbids
-  # locking from a trap context (ThreadError) - and it would leave the handle
-  # leaked when it raised.
+  # `try_lock` (not `synchronize`) is deliberate: `Mutex#synchronize` /
+  # `#lock` raise ThreadError from a trap context, but `#try_lock` does not.
+  # That keeps the standard `Signal.trap("TERM") { client.close }` shutdown
+  # idiom working - the trap either wins the lock and closes, or another
+  # thread has already closed and it silently returns.
   #
-  # In-flight commands are safe without a lock: every glide-ffi command entry
-  # point does `Arc::increment_strong_count` on the handle before using it, and
+  # In-flight commands are safe: every glide-ffi command entry point does
+  # `Arc::increment_strong_count` on the handle before using it, and
   # `close_client` only decrements, so the native ClientAdapter outlives any
-  # request still executing and is dropped once the last one finishes. Verified
-  # with 12 concurrent blocking calls held open across a `close`. See issue #212.
+  # request still executing and is dropped once the last one finishes.
+  # Verified with 12 concurrent blocking calls held open across a `close`.
   def close
-    conn = @connection
-    @connection = nil
+    return unless @close_lock&.try_lock
 
-    Bindings.close_client(conn) unless conn.nil? || conn.null?
+    begin
+      conn = @connection
+      @connection = nil
+
+      Bindings.close_client(conn) unless conn.nil? || conn.null?
+    ensure
+      @close_lock.unlock
+    end
   end
 
   alias disconnect! close
@@ -470,21 +486,7 @@ class Valkey
   private
 
   # Returns the live native client handle, raising if the client has been
-  # closed. Every call into the native layer that takes the client handle must
-  # go through this method: `close` frees the handle and sets `@connection` to
-  # nil, and passing that nil on to the FFI layer makes the core dereference a
-  # NULL pointer, which segfaults the whole VM instead of raising something
-  # Ruby code can rescue. See issue #212.
-  #
-  # The message matches the sibling GLIDE clients (Go ClosingError,
-  # Node/Java ClosingException).
-  #
-  # `nil?` is tested first because `@connection` is nil if `initialize` raised
-  # before connecting, and `nil.null?` would raise NoMethodError.
-  #
-  # The handle is returned rather than read from the ivar at the call site so
-  # callers pass a local, which keeps a concurrent `close` from nulling the
-  # reference between this check and the native call.
+  # closed.
   def connection!
     conn = @connection
     raise ConnectionError, "the client is closed" if conn.nil? || conn.null?

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "timeout"
+
 # Connection-lifecycle tests: behavior on close and on connection timeout.
 #
 # Mirrors the sibling GLIDE clients:
@@ -113,15 +115,15 @@ module ValkeyTests
     end
 
     # closing from several threads at once must still free the handle exactly
-    # once. `close` clears @connection before freeing, so at most one thread can
-    # observe a non-nil handle and reach close_client (issue #212, R3-10).
+    # once. `close` uses `Mutex#try_lock` so exactly one caller reaches
+    # close_client while the rest short-circuit (issue #212, R3-10).
     def test_concurrent_close_frees_handle_once
       skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
 
       client = _new_client
 
       closed = []
-      mutex = Mutex.new # test-side only; `close` itself must stay lock-free
+      mutex = Mutex.new # test-side aggregation only
       Valkey::Bindings.stub(:close_client, ->(conn) { mutex.synchronize { closed << conn } }) do
         8.times.map { Thread.new { client.close } }.each(&:join)
       end
@@ -129,6 +131,69 @@ module ValkeyTests
       assert_equal 1, closed.size, "close_client should be invoked exactly once across concurrent close calls"
     ensure
       Valkey::Bindings.close_client(closed.first) if closed&.first
+    end
+
+    # Direct regression for the interleaving that motivated the try_lock:
+    # a TracePoint pauses the first thread's `close` between the ivar read
+    # and the ivar clear, lets a second thread run `close` to completion,
+    # then releases the first. Without the lock, both threads free the same
+    # handle; with `Mutex#try_lock` in `close`, only one thread does.
+    # Reproducer contributed by @nderraugh on PR #224.
+    def test_concurrent_close_releases_native_handle_once_traced
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = Valkey.allocate
+      pointer = FFI::Pointer.new(1)
+      client.instance_variable_set(:@connection, pointer)
+      client.instance_variable_set(:@close_lock, Mutex.new)
+
+      source_path, source_line = Valkey.instance_method(:close).source_location
+      # Line of `@connection = nil` inside the `begin` block. Locate it
+      # dynamically so a future refactor of `close` cannot silently
+      # invalidate the pause point.
+      lines = File.readlines(source_path)
+      pause_line = (source_line..(source_line + 30)).find do |ln|
+        lines[ln - 1]&.strip == "@connection = nil"
+      end
+      refute_nil pause_line, "could not locate `@connection = nil` inside close"
+
+      reached_pause = Queue.new
+      release_first_close = Queue.new
+      close_calls = []
+      first_close = nil
+
+      trace = TracePoint.new(:line) do |event|
+        next unless Thread.current[:first_close]
+        next unless event.path == source_path && event.lineno == pause_line
+
+        # A :line event fires before the line executes. At this point the
+        # first close has copied @connection into conn but has not cleared
+        # @connection.
+        reached_pause << true
+        release_first_close.pop
+      end
+
+      Valkey::Bindings.stub(:close_client, ->(conn) { close_calls << conn }) do
+        trace.enable
+        first_close = Thread.new do
+          Thread.current[:first_close] = true
+          client.close
+        end
+
+        Timeout.timeout(2) { reached_pause.pop }
+
+        # The second close attempts to capture and release the same pointer
+        # while the first close is paused. With try_lock, it short-circuits.
+        Thread.new { client.close }.join
+      ensure
+        release_first_close << true
+        first_close&.join
+        trace.disable
+      end
+
+      assert_equal 1, close_calls.size,
+                   "close_client should be invoked exactly once for one native ownership count"
+      assert_same pointer, close_calls.first
     end
 
     # a thread closing the client while another is mid-command must raise a
