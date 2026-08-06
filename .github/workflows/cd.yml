@@ -134,6 +134,12 @@ jobs:
           linker = "musl-gcc-wrapper"
           EOF
 
+      - name: Install zig and cargo-zigbuild (linux-gnu)
+        if: contains(matrix.host.TARGET, 'linux-gnu')
+        uses: ./.github/actions/install-zigbuild
+        with:
+          rust-target: ${{ matrix.host.TARGET }}
+
       - name: Build native library
         working-directory: valkey-glide/ffi
         env:
@@ -143,7 +149,10 @@ jobs:
         run: |
           if [[ "${{ matrix.host.TARGET }}" == *"musl"* ]]; then
             cargo build --release --target ${{ matrix.host.TARGET }}
+          elif [[ "${{ matrix.host.TARGET }}" == *"linux-gnu"* ]]; then
+            cargo zigbuild --release --target ${{ matrix.host.TARGET }}.2.17
           else
+            # macOS, pins to target MacOS 11+
             cargo build --release
           fi
 
@@ -151,7 +160,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: native-lib-${{ matrix.host.TARGET }}
-          path: valkey-glide/ffi/target/${{ contains(matrix.host.TARGET, 'musl') && format('{0}/release', matrix.host.TARGET) || 'release' }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
+          path: valkey-glide/ffi/target/${{ matrix.host.OS == 'macos' && 'release' || format('{0}/release', matrix.host.TARGET) }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
   build-and-publish-gem:
