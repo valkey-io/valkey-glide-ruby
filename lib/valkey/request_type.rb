@@ -162,7 +162,6 @@ class Valkey
     BLMPOP = 802
     BLPOP = 803
     BRPOP = 804
-    BRPOPLPUSH = 805 # deprecated in 6.2.0
     LINDEX = 806
     LINSERT = 807
     LLEN = 808
@@ -177,7 +176,6 @@ class Valkey
     LSET = 817
     LTRIM = 818
     RPOP = 819
-    RPOPLPUSH = 820 # deprecated in 6.2.0
     RPUSH = 821
     RPUSHX = 822
 
