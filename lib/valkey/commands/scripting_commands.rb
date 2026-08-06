@@ -4,18 +4,6 @@ class Valkey
   module Commands
     # this module contains commands related to list data type.
     #
-    # EVAL / EVALSHA / SCRIPT LOAD are dispatched as custom commands via #call
-    # rather than through typed `send_command(RequestType::EVAL, ...)`. This is
-    # not a style choice: glide-core defines those enum values but has no
-    # `get_command()` arm for them, so typed dispatch fails outright with
-    # "Couldn't fetch command type - ClientError". Cluster routing is unaffected
-    # (redis-rs derives it from the wire command name, so EVAL still routes by
-    # ThirdArgAfterKeyCount and SCRIPT LOAD still broadcasts to all nodes), but
-    # OpenTelemetry spans are named "CustomCommand" instead of the command.
-    # Once glide-core gains those arms, these can revert to typed dispatch -
-    # EVAL_RO / EVALSHA_RO already have arms and could use it today; they go
-    # through #call only to keep the family's behavior uniform.
-    #
     # @see https://valkey.io/commands/#scripting
     #
     module ScriptingCommands
@@ -271,15 +259,6 @@ class Valkey
         call("EVALSHA_RO", sha, keys.size, *keys, *args)
       end
 
-      # Execute a cached script via the glide-ffi `invoke_script` entry point.
-      #
-      # No longer used by eval/evalsha - they dispatch real wire commands now.
-      # Retained as the FFI seam for the `Script` object proposed in #206, and
-      # still exercised by the scripting tests. Note that its glide-core
-      # NOSCRIPT self-heal relies on the client-side script container that
-      # `script_load` no longer populates, so a SHA this client never stored
-      # will surface a NOSCRIPT CommandError rather than being re-uploaded.
-      # Emits no OpenTelemetry span (span_ptr is hardcoded to 0 below).
       def invoke_script(script, args: [], keys: [])
         # Must hold onto the returned buffers (_arg_bufs/_keys_bufs) for the
         # lifetime of this method - they back arg_ptrs/keys_ptrs, and letting

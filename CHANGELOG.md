@@ -9,7 +9,7 @@
 ### Changes
 
 * Ruby: fixed cd workflow to correctly build the ffi with **glibc 2.17** ([#223](https://github.com/valkey-io/valkey-glide-ruby/issues/223))
-* Ruby: **Breaking** — scripting commands now dispatch real `EVAL` / `EVALSHA` / `SCRIPT LOAD` to the server instead of a client-side script container ([#213](https://github.com/valkey-io/valkey-glide-ruby/issues/213)). Three consequences:
+* Ruby: scripting commands now dispatch real `EVAL` / `EVALSHA` / `SCRIPT LOAD` to the server instead of a client-side script container ([#213](https://github.com/valkey-io/valkey-glide-ruby/issues/213)). Three behavior changes:
   * `eval` / `evalsha` (and the `_ro` variants) now accept the standard integer key-count form used by `valkey-cli` and the Valkey docs — `eval(script, 1, "mykey", "myarg")`. It previously made the count `KEYS[1]`, shifted the real key into `ARGV[1]`, and dropped the remaining arguments without raising.
   * `script_load` now really sends `SCRIPT LOAD`, so the returned SHA1 is known to the server and usable by `evalsha` from any other client or process. `script_exists` previously reported `false` for a just-loaded script.
   * `evalsha` on a flushed or never-loaded SHA now raises `Valkey::CommandError` (NOSCRIPT) instead of silently re-uploading the script and succeeding, so `script_flush` is no longer quietly undone. Callers relying on the old auto-reload must load the script again after a flush, or use `eval`.
