@@ -98,6 +98,8 @@ module Lint
       assert_equal "OK", r.slowlog("RESET")
       assert_kind_of Integer, r.slowlog(:len)
       assert_kind_of Integer, r.slowlog("LEN")
+      assert_kind_of Array, r.slowlog(:get)
+      assert_kind_of Array, r.slowlog("GET")
     end
 
     # Exercises the full round trip: that GET actually returns logged entries and
