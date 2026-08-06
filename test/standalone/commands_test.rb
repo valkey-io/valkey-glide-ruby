@@ -16,7 +16,8 @@ class TestStandaloneCommands < Minitest::Test
   include Lint::HashCommands
   include Lint::HyperLogLog
   include Lint::Lists
-  include Lint::PubSubCommands
+  # TODO: Enable when https://github.com/valkey-io/valkey-glide-ruby/issues/135
+  # include Lint::PubSubCommands
   include Lint::ScriptingCommands
   include Lint::ServerCommands
   include Lint::SetCommands

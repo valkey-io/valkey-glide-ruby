@@ -3,6 +3,8 @@
 class Valkey
   module Commands
     # This module contains commands related to Valkey Pub/Sub.
+    # Pub/Sub is not yet supported and is partially implemented.
+    # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/135
     #
     # @see https://valkey.io/commands/#pubsub
     #
