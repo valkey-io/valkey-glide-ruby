@@ -6,11 +6,14 @@ class Valkey
     # Pub/Sub is not yet supported and is partially implemented.
     # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/135
     #
-    # @api experimental
-    # @note EXPERIMENTAL: the entire Pub/Sub surface is subject to change
+    # @see https://valkey.io/commands/#pubsub
     #
     module PubSubCommands
       # Subscribe to one or more channels.
+      #
+      # @example Subscribe to channels
+      #   valkey.subscribe("channel1", "channel2")
+      #     # => "OK"
       #
       # @param [Array<String>] channels the channels to subscribe to
       # @return [String] "OK"
@@ -22,6 +25,13 @@ class Valkey
 
       # Unsubscribe from one or more channels.
       #
+      # @example Unsubscribe from channels
+      #   valkey.unsubscribe("channel1", "channel2")
+      #     # => "OK"
+      # @example Unsubscribe from all channels
+      #   valkey.unsubscribe
+      #     # => "OK"
+      #
       # @param [Array<String>] channels the channels to unsubscribe from (empty for all)
       # @return [String] "OK"
       #
@@ -32,6 +42,10 @@ class Valkey
 
       # Subscribe to one or more patterns.
       #
+      # @example Subscribe to patterns
+      #   valkey.psubscribe("news.*", "events.*")
+      #     # => "OK"
+      #
       # @param [Array<String>] patterns the patterns to subscribe to
       # @return [String] "OK"
       #
@@ -41,6 +55,13 @@ class Valkey
       end
 
       # Unsubscribe from one or more patterns.
+      #
+      # @example Unsubscribe from patterns
+      #   valkey.punsubscribe("news.*", "events.*")
+      #     # => "OK"
+      # @example Unsubscribe from all patterns
+      #   valkey.punsubscribe
+      #     # => "OK"
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from (empty for all)
       # @return [String] "OK"
@@ -67,6 +88,10 @@ class Valkey
 
       # Subscribe to one or more shard channels.
       #
+      # @example Subscribe to shard channels
+      #   valkey.ssubscribe("shard1", "shard2")
+      #     # => "OK"
+      #
       # @param [Array<String>] channels the shard channels to subscribe to
       # @return [String] "OK"
       #
@@ -76,6 +101,13 @@ class Valkey
       end
 
       # Unsubscribe from one or more shard channels.
+      #
+      # @example Unsubscribe from shard channels
+      #   valkey.sunsubscribe("shard1", "shard2")
+      #     # => "OK"
+      # @example Unsubscribe from all shard channels
+      #   valkey.sunsubscribe
+      #     # => "OK"
       #
       # @param [Array<String>] channels the shard channels to unsubscribe from (empty for all)
       # @return [String] "OK"
@@ -178,8 +210,6 @@ class Valkey
       end
 
       # Control pub/sub operations (convenience method).
-      #   Only the introspection subcommands are reachable - `channels`,
-      #   `numpat`, `numsub`, `shardchannels`, `shardnumsub`.
       #
       # @example List active channels
       #   valkey.pubsub(:channels)
@@ -204,8 +234,6 @@ class Valkey
         subcommand = subcommand.to_s.downcase
         send("pubsub_#{subcommand}", *args)
       end
-
-      private :subscribe, :unsubscribe, :psubscribe, :punsubscribe, :ssubscribe, :sunsubscribe
     end
   end
 end
