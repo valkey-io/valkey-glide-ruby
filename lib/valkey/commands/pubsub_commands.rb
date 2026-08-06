@@ -3,15 +3,21 @@
 class Valkey
   module Commands
     # This module contains commands related to Valkey Pub/Sub.
+    # Pub/Sub is not yet supported and is partially implemented.
+    # Use at your own risks.
+    #
+    # @api experimental
+    # @note EXPERIMENTAL: the entire Pub/Sub surface is subject to change and
+    #   is not covered by semantic versioning.
     #
     # @see https://valkey.io/commands/#pubsub
     #
     module PubSubCommands
       # Subscribe to one or more channels.
       #
-      # @example Subscribe to channels
-      #   valkey.subscribe("channel1", "channel2")
-      #     # => "OK"
+      # @api experimental
+      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
+      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] channels the channels to subscribe to
       # @return [String] "OK"
@@ -23,12 +29,9 @@ class Valkey
 
       # Unsubscribe from one or more channels.
       #
-      # @example Unsubscribe from channels
-      #   valkey.unsubscribe("channel1", "channel2")
-      #     # => "OK"
-      # @example Unsubscribe from all channels
-      #   valkey.unsubscribe
-      #     # => "OK"
+      # @api experimental
+      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
+      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] channels the channels to unsubscribe from (empty for all)
       # @return [String] "OK"
@@ -40,9 +43,9 @@ class Valkey
 
       # Subscribe to one or more patterns.
       #
-      # @example Subscribe to patterns
-      #   valkey.psubscribe("news.*", "events.*")
-      #     # => "OK"
+      # @api experimental
+      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
+      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] patterns the patterns to subscribe to
       # @return [String] "OK"
@@ -54,12 +57,9 @@ class Valkey
 
       # Unsubscribe from one or more patterns.
       #
-      # @example Unsubscribe from patterns
-      #   valkey.punsubscribe("news.*", "events.*")
-      #     # => "OK"
-      # @example Unsubscribe from all patterns
-      #   valkey.punsubscribe
-      #     # => "OK"
+      # @api experimental
+      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
+      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from (empty for all)
       # @return [String] "OK"
@@ -70,6 +70,10 @@ class Valkey
       end
 
       # Publish a message to a channel.
+      #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example Publish a message
       #   valkey.publish("channel1", "Hello, World!")
@@ -86,9 +90,9 @@ class Valkey
 
       # Subscribe to one or more shard channels.
       #
-      # @example Subscribe to shard channels
-      #   valkey.ssubscribe("shard1", "shard2")
-      #     # => "OK"
+      # @api experimental
+      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
+      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] channels the shard channels to subscribe to
       # @return [String] "OK"
@@ -100,12 +104,9 @@ class Valkey
 
       # Unsubscribe from one or more shard channels.
       #
-      # @example Unsubscribe from shard channels
-      #   valkey.sunsubscribe("shard1", "shard2")
-      #     # => "OK"
-      # @example Unsubscribe from all shard channels
-      #   valkey.sunsubscribe
-      #     # => "OK"
+      # @api experimental
+      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
+      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] channels the shard channels to unsubscribe from (empty for all)
       # @return [String] "OK"
@@ -116,6 +117,10 @@ class Valkey
       end
 
       # Publish a message to a shard channel.
+      #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example Publish a message to a shard channel
       #   valkey.spublish("shard1", "Hello, Shard!")
@@ -131,6 +136,10 @@ class Valkey
       end
 
       # List active channels.
+      #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example List all active channels
       #   valkey.pubsub_channels
@@ -150,6 +159,10 @@ class Valkey
 
       # Get the number of unique patterns subscribed to.
       #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
+      #
       # @example Get pattern count
       #   valkey.pubsub_numpat
       #     # => 3
@@ -162,6 +175,10 @@ class Valkey
       end
 
       # Get the number of subscribers for channels.
+      #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example Get subscriber counts
       #   valkey.pubsub_numsub("channel1", "channel2")
@@ -176,6 +193,10 @@ class Valkey
       end
 
       # List active shard channels.
+      #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
       #
       # @example List all active shard channels
       #   valkey.pubsub_shardchannels
@@ -195,6 +216,10 @@ class Valkey
 
       # Get the number of subscribers for shard channels.
       #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
+      #
       # @example Get shard subscriber counts
       #   valkey.pubsub_shardnumsub("shard1", "shard2")
       #     # => ["shard1", 2, "shard2", 1]
@@ -208,6 +233,12 @@ class Valkey
       end
 
       # Control pub/sub operations (convenience method).
+      #
+      # @api experimental
+      # @note EXPERIMENTAL: usable today, but part of the Pub/Sub surface and
+      #   not covered by semantic versioning; may change in a future minor.
+      #   Only the introspection subcommands are reachable - `channels`,
+      #   `numpat`, `numsub`, `shardchannels`, `shardnumsub`.
       #
       # @example List active channels
       #   valkey.pubsub(:channels)
@@ -232,6 +263,8 @@ class Valkey
         subcommand = subcommand.to_s.downcase
         send("pubsub_#{subcommand}", *args)
       end
+
+      private :subscribe, :unsubscribe, :psubscribe, :punsubscribe, :ssubscribe, :sunsubscribe
     end
   end
 end
