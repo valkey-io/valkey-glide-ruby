@@ -9,14 +9,8 @@ class Valkey
     # @api experimental
     # @note EXPERIMENTAL: the entire Pub/Sub surface is subject to change
     #
-    #
-    #
     module PubSubCommands
       # Subscribe to one or more channels.
-      #
-      # @api experimental
-      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
-      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] channels the channels to subscribe to
       # @return [String] "OK"
@@ -28,10 +22,6 @@ class Valkey
 
       # Unsubscribe from one or more channels.
       #
-      # @api experimental
-      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
-      #   delivery path is incomplete. Calling this raises NoMethodError.
-      #
       # @param [Array<String>] channels the channels to unsubscribe from (empty for all)
       # @return [String] "OK"
       #
@@ -42,10 +32,6 @@ class Valkey
 
       # Subscribe to one or more patterns.
       #
-      # @api experimental
-      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
-      #   delivery path is incomplete. Calling this raises NoMethodError.
-      #
       # @param [Array<String>] patterns the patterns to subscribe to
       # @return [String] "OK"
       #
@@ -55,10 +41,6 @@ class Valkey
       end
 
       # Unsubscribe from one or more patterns.
-      #
-      # @api experimental
-      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
-      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from (empty for all)
       # @return [String] "OK"
@@ -85,10 +67,6 @@ class Valkey
 
       # Subscribe to one or more shard channels.
       #
-      # @api experimental
-      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
-      #   delivery path is incomplete. Calling this raises NoMethodError.
-      #
       # @param [Array<String>] channels the shard channels to subscribe to
       # @return [String] "OK"
       #
@@ -98,10 +76,6 @@ class Valkey
       end
 
       # Unsubscribe from one or more shard channels.
-      #
-      # @api experimental
-      # @note EXPERIMENTAL and withheld: private for 1.0.0 because the message
-      #   delivery path is incomplete. Calling this raises NoMethodError.
       #
       # @param [Array<String>] channels the shard channels to unsubscribe from (empty for all)
       # @return [String] "OK"
