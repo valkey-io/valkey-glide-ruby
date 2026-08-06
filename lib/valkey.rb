@@ -272,11 +272,7 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
-    # Serializes `close` so two threads cannot both capture the handle and
-    # double-decrement its Arc refcount (issue #212). We use `Mutex#try_lock`
-    # in `close`, not `#synchronize`, so trap-context callers still work:
-    # only `#lock`/`#synchronize` raise ThreadError from a trap, `#try_lock`
-    # returns false and moves on.
+    # Lock for serializing close() (issue #212).
     @close_lock = Mutex.new
     Bindings.free_connection_response(response_ptr)
 
@@ -298,24 +294,7 @@ class Valkey
     @in_multi_block = false
   end
 
-  # Closes the client and frees the native connection. Idempotent and
-  # thread-safe: `@close_lock.try_lock` lets exactly one caller free the
-  # handle, while every other concurrent `close` (and every subsequent one)
-  # is a no-op. Without this, two threads could both read `@connection`
-  # before either nulled it, both call `close_client`, and double-decrement
-  # the Arc refcount - which is UB per Rust (issue #212).
-  #
-  # `try_lock` (not `synchronize`) is deliberate: `Mutex#synchronize` /
-  # `#lock` raise ThreadError from a trap context, but `#try_lock` does not.
-  # That keeps the standard `Signal.trap("TERM") { client.close }` shutdown
-  # idiom working - the trap either wins the lock and closes, or another
-  # thread has already closed and it silently returns.
-  #
-  # In-flight commands are safe: every glide-ffi command entry point does
-  # `Arc::increment_strong_count` on the handle before using it, and
-  # `close_client` only decrements, so the native ClientAdapter outlives any
-  # request still executing and is dropped once the last one finishes.
-  # Verified with 12 concurrent blocking calls held open across a `close`.
+  # Closes the client and frees the native connection.
   def close
     return unless @close_lock&.try_lock
 
