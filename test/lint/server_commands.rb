@@ -147,14 +147,6 @@ module Lint
       assert response.nil? || response.is_a?(String), "Expected sync to return nil or a String"
     end
 
-    def test_debug
-      skip("DEBUG command not implemented in backend yet")
-
-      r.set("somekey", "somevalue") # Ensure key exists
-      response = r.debug("OBJECT", "somekey")
-      assert response.is_a?(String), "Expected debug to return a String response"
-    end
-
     def test_config_set
       response = r.config(:set, "maxmemory", "100mb")
       assert_equal "OK", response

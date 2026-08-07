@@ -173,40 +173,12 @@ class Valkey
         send_command(RequestType::LAST_SAVE, [], route: route)
       end
 
-      # Listen for all requests received by the server in real time.
-      #
-      # There is no way to interrupt this command.
-      #
-      # @yield a block to be called for every line of output
-      # @yieldparam [String] line timestamp and command that was executed
-      def monitor
-        synchronize do |client|
-          client = client.pubsub
-          client.call_v([:monitor])
-          loop do
-            yield client.next_event
-          end
-        end
-      end
-
       # Synchronously save the dataset to disk.
       #
       # @param route [Valkey::Route, nil] cluster routing.
       # @return [String]
       def save(route: nil)
         send_command(RequestType::SAVE, [], route: route)
-      end
-
-      # Synchronously save the dataset to disk and then shut down the server.
-      def shutdown
-        synchronize do |client|
-          client.disable_reconnection do
-            client.call_v([:shutdown])
-          rescue ConnectionError
-            # This means Redis has probably exited.
-            nil
-          end
-        end
       end
 
       # Make the server a slave of another instance, or promote it as master.
@@ -257,11 +229,6 @@ class Valkey
       #   microseconds in the current second
       def time(route: nil)
         send_command(RequestType::TIME, [], route: route)
-      end
-
-      # RequestType::DEBUG not exist
-      def debug(*args)
-        send_command(RequestType::DEBUG, args)
       end
 
       # ACL Commands - Access Control List management
