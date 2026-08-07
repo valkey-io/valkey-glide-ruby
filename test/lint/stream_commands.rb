@@ -77,11 +77,13 @@ module Lint
       r.xadd("mystream", { "field2" => "value2" }, id: "2000-0")
       r.xadd("mystream", { "field3" => "value3" }, id: "3000-0")
 
-      # Get all entries (redis-rb format: [id, [field, value, ...]])
+      # Get all entries (redis-rb format: [id, {field => value, ...}])
       entries = r.xrange("mystream", "-", "+")
       assert_equal 3, entries.length
       assert_equal id1, entries[0][0]
-      assert_kind_of Array, entries[0][1] # field-value array (redis-rb format)
+      assert_kind_of Hash, entries[0][1] # redis-rb format: field-value Hash
+      assert_equal "value1", entries[0][1]["field1"]
+      assert_equal "value2", entries[1][1]["field2"]
 
       # Get entries with count
       entries = r.xrange("mystream", "-", "+", count: 2)
@@ -102,11 +104,12 @@ module Lint
       r.xadd("mystream", { "field2" => "value2" }, id: "2000-0")
       id3 = r.xadd("mystream", { "field3" => "value3" }, id: "3000-0")
 
-      # Get all entries in reverse (redis-rb format: [id, [field, value, ...]])
+      # Get all entries in reverse (redis-rb format: [id, {field => value, ...}])
       entries = r.xrevrange("mystream")
       assert_equal 3, entries.length
       assert_equal id3, entries[0][0] # Last entry first
-      assert_kind_of Array, entries[0][1] # field-value array (redis-rb format)
+      assert_kind_of Hash, entries[0][1] # redis-rb format: field-value Hash
+      assert_equal "value3", entries[0][1]["field3"]
 
       # Get last entry
       entries = r.xrevrange("mystream", "+", "-", count: 1)
@@ -178,10 +181,11 @@ module Lint
       assert_kind_of Hash, result
       assert result.key?("mystream")
       assert_operator result["mystream"].length, :>=, 2
-      # Verify entries are in redis-rb format: [id, [field, value, ...]]
+      # Verify entries are in redis-rb format: [id, {field => value, ...}]
       assert_kind_of Array, result["mystream"][0]
       assert_equal 2, result["mystream"][0].length
-      assert_kind_of Array, result["mystream"][0][1]
+      assert_kind_of Hash, result["mystream"][0][1]
+      assert_equal "value1", result["mystream"][0][1]["field1"]
 
       # Read with count
       result = r.xread(["mystream"], ["0"], count: 1)
@@ -208,10 +212,11 @@ module Lint
       assert result.key?("mystream")
       # Entries are converted to [id, hash] format
       assert_operator result["mystream"].length, :>=, 2
-      # Verify entries are in redis-rb format: [id, [field, value, ...]]
+      # Verify entries are in redis-rb format: [id, {field => value, ...}]
       assert_kind_of Array, result["mystream"][0]
       assert_equal 2, result["mystream"][0].length
-      assert_kind_of Array, result["mystream"][0][1]
+      assert_kind_of Hash, result["mystream"][0][1]
+      assert_equal "value1", result["mystream"][0][1]["field1"]
 
       r.del "mystream"
     end
@@ -344,16 +349,17 @@ module Lint
       # Wait a bit for idle time
       sleep(0.1)
 
-      # Claim message for consumer2 (redis-rb format: [id, [field, value, ...]])
+      # Claim message for consumer2 (redis-rb format: [id, {field => value, ...}])
       claimed = r.xclaim("mystream", "mygroup", "consumer2", 100, [id1])
       assert_kind_of Array, claimed
       assert_operator claimed.length, :>=, 1 # Should claim at least 1 message
-      # Each entry should be [id, [field, value, ...]] format (redis-rb)
+      # Each entry should be [id, {field => value, ...}] format (redis-rb)
       claimed.each do |entry|
         assert_kind_of Array, entry
         assert_equal 2, entry.length
         assert_kind_of String, entry[0] # ID
-        assert_kind_of Array, entry[1] # field-value array (redis-rb format)
+        assert_kind_of Hash, entry[1] # redis-rb format: field-value Hash
+        assert_equal "value1", entry[1]["field1"]
       end
 
       r.del "mystream"
@@ -378,12 +384,16 @@ module Lint
       assert result.key?("next")
       assert result.key?("entries")
       assert_kind_of Array, result["entries"]
-      # Verify entries are in redis-rb format: [id, [field, value, ...]]
+      # Guard against the silent-drop regression: server transferred ownership,
+      # entries must not be empty.
+      assert_operator result["entries"].length, :>=, 1
+      # Verify entries are in redis-rb format: [id, {field => value, ...}]
       result["entries"].each do |entry|
         assert_kind_of Array, entry
         assert_equal 2, entry.length
         assert_kind_of String, entry[0] # ID
-        assert_kind_of Array, entry[1] # field-value array (redis-rb format)
+        assert_kind_of Hash, entry[1] # redis-rb format: field-value Hash
+        assert_equal "value1", entry[1]["field1"]
       end
 
       r.del "mystream"
