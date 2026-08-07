@@ -7,6 +7,24 @@ class Valkey
     # @see https://valkey.io/commands/#cluster
     #
     module ClusterCommands
+      # Send a generic CLUSTER subcommand.
+      #
+      # @param [Symbol, String] subcommand The CLUSTER subcommand to run, e.g. :info, :nodes, :myid
+      # @param [Array] args Arguments for the subcommand
+      # @return [Object] Depends on subcommand
+      # @example
+      #   cluster(:info)   # => { ... }
+      #   cluster(:nodes)  # => [...]
+      #   cluster(:myid)   # => "..."
+      def cluster(subcommand, *args)
+        subcommand = subcommand.to_s.downcase
+        method_name = "cluster_#{subcommand}"
+
+        raise ArgumentError, "unknown CLUSTER subcommand: #{subcommand}" unless respond_to?(method_name, true)
+
+        public_send(method_name, *args)
+      end
+
       # Send ASKING command to the server.
       #
       # @return [String] `"OK"`

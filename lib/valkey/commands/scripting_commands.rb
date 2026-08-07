@@ -33,11 +33,14 @@ class Valkey
       # @see #evalsha
       def script(subcommand, args = nil, options: {})
         subcommand = subcommand.to_s.downcase
+        method_name = "script_#{subcommand}"
+
+        raise ArgumentError, "unknown SCRIPT subcommand: #{subcommand}" unless respond_to?(method_name, true)
 
         if args.nil?
-          send("script_#{subcommand}", **options)
+          send(method_name, **options)
         else
-          send("script_#{subcommand}", args)
+          send(method_name, args)
         end
 
         # if subcommand == "exists"

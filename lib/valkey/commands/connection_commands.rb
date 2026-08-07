@@ -82,7 +82,16 @@ class Valkey
       #   client(:set_name, "my_app")  # => "OK"
       #   client(:list)                # => [{"id" => "1", ...}, ...]
       def client(subcommand, *args)
-        public_send("client_#{subcommand.to_s.downcase}", *args)
+        subcommand = subcommand.to_s.downcase
+        method_name = case subcommand
+                      when "getname" then "client_get_name"
+                      when "setname" then "client_set_name"
+                      else "client_#{subcommand}"
+                      end
+
+        raise ArgumentError, "unknown CLIENT subcommand: #{subcommand}" unless respond_to?(method_name, true)
+
+        public_send(method_name, *args)
       end
 
       # Get the current client's ID.
