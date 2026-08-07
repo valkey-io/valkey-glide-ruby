@@ -203,5 +203,98 @@ module ValkeyTests
       refute_match(/p@ss/, error.message)
       assert_match(/REDACTED/, error.message)
     end
+
+    # --- HashifyStreamEntries -------------------------------------------------
+    # Stream replies arrive in several shapes depending on cluster mode, RESP
+    # protocol version, and where recursive Map-flattening lands. The lambda
+    # must always produce redis-rb's `[[id, {field => value, ...}], ...]`.
+
+    def test_hashify_stream_entries_nil_returns_empty
+      assert_equal [], ::Valkey::Utils::HashifyStreamEntries.call(nil)
+    end
+
+    def test_hashify_stream_entries_empty_array_returns_empty
+      assert_equal [], ::Valkey::Utils::HashifyStreamEntries.call([])
+    end
+
+    def test_hashify_stream_entries_non_stream_shape_returns_empty
+      assert_equal [], ::Valkey::Utils::HashifyStreamEntries.call("nope")
+      assert_equal [], ::Valkey::Utils::HashifyStreamEntries.call(42)
+    end
+
+    # Standalone default: MAP responses get recursively flattened at the FFI
+    # layer, so the entry values arrive as a flat `[k, v, k, v]` array.
+    def test_hashify_stream_entries_flat_pair_of_pairs
+      reply = [["0-1", %w[name alice age 30]], ["0-2", %w[name bob age 40]]]
+      result = ::Valkey::Utils::HashifyStreamEntries.call(reply)
+      assert_equal [["0-1", { "name" => "alice", "age" => "30" }],
+                    ["0-2", { "name" => "bob",   "age" => "40" }]], result
+    end
+
+    # Some responses arrive as fully-flat: [id, pairs, id, pairs, ...].
+    def test_hashify_stream_entries_fully_flat_array
+      reply = ["0-1", %w[name alice age 30], "0-2", %w[name bob age 40]]
+      result = ::Valkey::Utils::HashifyStreamEntries.call(reply)
+      assert_equal [["0-1", { "name" => "alice", "age" => "30" }],
+                    ["0-2", { "name" => "bob",   "age" => "40" }]], result
+    end
+
+    # Cluster mode / RESP3: the outer MAP stays a Hash, and glide-core's
+    # ArrayOfPairs is preserved as `[[k, v], [k, v]]`.
+    def test_hashify_stream_entries_hash_of_pair_of_pairs
+      reply = {
+        "0-1" => [%w[name alice], %w[age 30]],
+        "0-2" => [%w[name bob],   %w[age 40]]
+      }
+      result = ::Valkey::Utils::HashifyStreamEntries.call(reply)
+      # Hash key order is preserved in Ruby, so we can compare directly.
+      assert_equal [["0-1", { "name" => "alice", "age" => "30" }],
+                    ["0-2", { "name" => "bob",   "age" => "40" }]], result
+    end
+
+    # Array of `[id, [[k, v], [k, v]]]` — pair-of-pairs preserved by core.
+    def test_hashify_stream_entries_array_of_pair_of_pairs
+      reply = [["0-1", [%w[name alice], %w[age 30]]]]
+      result = ::Valkey::Utils::HashifyStreamEntries.call(reply)
+      assert_equal [["0-1", { "name" => "alice", "age" => "30" }]], result
+    end
+
+    # RESP3: the inner MAP is delivered as a Ruby Hash directly.
+    def test_hashify_stream_entries_hash_inner_value
+      reply = [["0-1", { "name" => "alice", "age" => "30" }]]
+      result = ::Valkey::Utils::HashifyStreamEntries.call(reply)
+      assert_equal [["0-1", { "name" => "alice", "age" => "30" }]], result
+    end
+
+    def test_hashify_stream_entries_nil_inner_value_yields_empty_hash
+      reply = [["0-1", nil]]
+      result = ::Valkey::Utils::HashifyStreamEntries.call(reply)
+      assert_equal [["0-1", {}]], result
+    end
+
+    # --- HashifyStreamAutoclaim -----------------------------------------------
+
+    def test_hashify_stream_autoclaim_array_entries
+      reply = ["1-1", [["0-1", %w[name alice]]], []]
+      result = ::Valkey::Utils::HashifyStreamAutoclaim.call(reply)
+      assert_equal "1-1", result["next"]
+      assert_equal [["0-1", { "name" => "alice" }]], result["entries"]
+    end
+
+    # Regression: cluster/RESP3 hands the entries slot as a Hash. The old
+    # `reply[1].is_a?(Array)` guard silently dropped every claimed entry.
+    def test_hashify_stream_autoclaim_hash_entries
+      reply = ["1-1", { "0-1" => [%w[name alice]] }, []]
+      result = ::Valkey::Utils::HashifyStreamAutoclaim.call(reply)
+      assert_equal "1-1", result["next"]
+      assert_equal [["0-1", { "name" => "alice" }]], result["entries"]
+    end
+
+    def test_hashify_stream_autoclaim_nil_entries
+      reply = ["0-0", nil, []]
+      result = ::Valkey::Utils::HashifyStreamAutoclaim.call(reply)
+      assert_equal "0-0", result["next"]
+      assert_equal [], result["entries"]
+    end
   end
 end
