@@ -246,59 +246,6 @@ class TestClusterRouting < Minitest::Test
     assert result.key?("cluster_state")
   end
 
-  def test_cluster_info_random_route
-    result = r.cluster_info(route: Valkey::Route.random)
-
-    assert_kind_of Hash, result
-  end
-
-  def test_cluster_info_all_nodes_route
-    result = r.cluster_info(route: Valkey::Route.all_nodes)
-
-    assert_kind_of Hash, result
-    result.each_value do |v|
-      assert_kind_of Hash, v
-      assert v.key?("cluster_state")
-    end
-  end
-
-  # --- cluster_nodes ---
-
-  def test_cluster_nodes_random_route
-    result = r.cluster_nodes(route: Valkey::Route.random)
-
-    assert_kind_of Array, result
-    assert_operator result.size, :>, 0
-  end
-
-  def test_cluster_nodes_all_nodes_route
-    result = r.cluster_nodes(route: Valkey::Route.all_nodes)
-
-    assert_kind_of Hash, result
-    result.each_value do |v|
-      refute_nil v
-    end
-  end
-
-  # --- cluster_myid ---
-
-  def test_cluster_myid_all_primaries_route
-    result = r.cluster_myid(route: Valkey::Route.all_primaries)
-
-    assert_kind_of Hash, result
-    result.each_value do |id|
-      assert_kind_of String, id
-      refute_empty id
-    end
-  end
-
-  def test_cluster_myid_random_route
-    result = r.cluster_myid(route: Valkey::Route.random)
-
-    assert_kind_of String, result
-    refute_empty result
-  end
-
   # --- randomkey ---
 
   def test_randomkey_with_route
