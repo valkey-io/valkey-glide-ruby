@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 class Valkey
+  # TODO: Pipeline/Multi routing is to be implemented.
+  # See https://github.com/valkey-io/valkey-glide-ruby/issues/137
   class Pipeline
     include Commands
 
@@ -48,5 +50,140 @@ class Valkey
     def abort_futures!
       @futures.each(&:_abort!)
     end
+
+    # ---------------------------------------------------------------------
+    # Signature overrides that strip the `route:` kwarg from methods that
+    # carry it in the shared Commands module. Individual pipelined commands
+    # cannot be routed.
+    #
+    # TODO: Pipeline level routing to be added in the future.
+    # See https://github.com/valkey-io/valkey-glide-ruby/issues/137
+    # ---------------------------------------------------------------------
+
+    # rubocop:disable Lint/UselessMethodDefinition
+    # server_commands
+    def bgrewriteaof
+      super
+    end
+
+    def bgsave
+      super
+    end
+
+    def config_get(*args)
+      super
+    end
+
+    def config_set(*args)
+      super
+    end
+
+    def config_resetstat
+      super
+    end
+
+    def config_rewrite
+      super
+    end
+
+    def dbsize
+      super
+    end
+
+    def flushall(options = nil)
+      super
+    end
+
+    def flushdb(options = nil)
+      super
+    end
+
+    def info(cmd = nil)
+      super
+    end
+
+    def lastsave
+      super
+    end
+
+    def save
+      super
+    end
+
+    def time
+      super
+    end
+
+    def lolwut(version = nil)
+      super
+    end
+
+    # function_commands
+    def function_delete(library_name)
+      super
+    end
+
+    def function_dump
+      super
+    end
+
+    def function_flush(async: false, sync: false)
+      super
+    end
+
+    def function_kill
+      super
+    end
+
+    def function_list(library_name: nil, with_code: false)
+      super
+    end
+
+    def function_load(function_code, replace: false)
+      super
+    end
+
+    def function_restore(serialized_value, policy: nil)
+      super
+    end
+
+    def function_stats
+      super
+    end
+
+    # connection_commands
+    def ping(message = nil)
+      super
+    end
+
+    def echo(value)
+      super
+    end
+
+    def client_id
+      super
+    end
+
+    def client_unpause
+      super
+    end
+
+    # generic_commands
+    def randomkey
+      super
+    end
+
+    def call(*argv, **kwargs)
+      if kwargs.key?(:route)
+        raise ArgumentError, "Not supported: :route is not supported for individual pipelined commands"
+      end
+
+      super
+    end
+
+    def call_v(argv)
+      super
+    end
+    # rubocop:enable Lint/UselessMethodDefinition
   end
 end
