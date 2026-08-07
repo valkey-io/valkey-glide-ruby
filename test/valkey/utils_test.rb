@@ -272,6 +272,22 @@ module ValkeyTests
       assert_equal [["0-1", {}]], result
     end
 
+    # Streams allow the same field name to repeat in one entry. redis-rb
+    # collapses to last-write-wins because it stores fields in a Hash; we do
+    # the same, and this test locks in the contract so nobody accidentally
+    # switches to a first-write-wins helper.
+    def test_hashify_stream_entries_duplicate_field_names_last_write_wins
+      # Flat inner (standalone-default shape)
+      flat = [["0-1", %w[name alice name bob]]]
+      assert_equal [["0-1", { "name" => "bob" }]],
+                   ::Valkey::Utils::HashifyStreamEntries.call(flat)
+
+      # Pair-of-pairs inner (cluster/RESP3 shape)
+      pairs = [["0-1", [%w[name alice], %w[name bob]]]]
+      assert_equal [["0-1", { "name" => "bob" }]],
+                   ::Valkey::Utils::HashifyStreamEntries.call(pairs)
+    end
+
     # --- HashifyStreamAutoclaim -----------------------------------------------
 
     def test_hashify_stream_autoclaim_array_entries
