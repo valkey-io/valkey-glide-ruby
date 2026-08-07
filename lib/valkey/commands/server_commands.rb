@@ -216,13 +216,30 @@ class Valkey
 
       # Interact with the slowlog (get, len, reset)
       #
-      # @param [String] subcommand e.g. `get`, `len`, `reset`
-      # @param [Integer] length maximum number of entries to return
-      # @return [Array<String>, Integer, String] depends on subcommand
+      # @example Get the number of entries in the slowlog
+      #   valkey.slowlog(:len) # => 0
+      # @example Get the most recent entries
+      #   valkey.slowlog(:get, 2)
+      #
+      # @param [String, Symbol] subcommand one of `get`, `len`, `reset`
+      # @param [Integer] length maximum number of entries to return (`get` only)
+      # @return [Array<Array>, Integer, String] depends on subcommand
+      # @raise [ArgumentError] if the subcommand is not one of `get`, `len`, `reset`
+      #
+      # @see https://valkey.io/commands/slowlog/
       def slowlog(subcommand, length = nil)
-        args = [:slowlog, subcommand]
-        args << Integer(length) if length
-        send_command(args)
+        case subcommand.to_s.downcase
+        when "get"
+          args = []
+          args << Integer(length) if length
+          send_command(RequestType::SLOWLOG_GET, args)
+        when "len"
+          send_command(RequestType::SLOWLOG_LEN)
+        when "reset"
+          send_command(RequestType::SLOWLOG_RESET)
+        else
+          raise ArgumentError, "Unknown SLOWLOG subcommand: #{subcommand}"
+        end
       end
 
       # Internal command used for replication.
