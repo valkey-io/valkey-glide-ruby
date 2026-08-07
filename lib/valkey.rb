@@ -138,6 +138,19 @@ class Valkey
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
+    # Library name and client info tag (CLIENT SETINFO LIB-NAME)
+    if options[:client_info_tag]
+      tag = options[:client_info_tag].to_s
+      if tag.match?(/\s/)
+        raise ArgumentError, "client_info_tag must not contain whitespace, got: #{tag.inspect}"
+      end
+
+      base = options[:lib_name] ? options[:lib_name].to_s : "GlideRuby"
+      json_options["lib_name"] = "#{base}(#{tag})"
+    elsif options[:lib_name]
+      json_options["lib_name"] = options[:lib_name].to_s
+    end
+
     # read_from parsing.
     json_options["read_from"] = options[:read_from] if options[:read_from]
 
