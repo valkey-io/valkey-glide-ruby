@@ -272,6 +272,8 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
+    # Lock for serializing close() (issue #212).
+    @close_lock = Mutex.new
     Bindings.free_connection_response(response_ptr)
 
     # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
@@ -291,11 +293,18 @@ class Valkey
     @queued_commands = []
   end
 
+  # Closes the client and frees the native connection.
   def close
-    return if @connection.nil? || @connection.null?
+    return unless @close_lock&.try_lock
 
-    Bindings.close_client(@connection)
-    @connection = nil
+    begin
+      conn = @connection
+      @connection = nil
+
+      Bindings.close_client(conn) unless conn.nil? || conn.null?
+    ensure
+      @close_lock.unlock
+    end
   end
 
   alias disconnect! close
@@ -352,11 +361,7 @@ class Valkey
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
   def send_command(command_type, command_args = [], route: nil, &block)
-    # Validate connection. A nil/null pointer means the client was closed (or
-    # never established a usable connection); surface it as a typed error with
-    # the same "the client is closed" wording the sibling GLIDE clients use
-    # (Go ClosingError, Node/Java ClosingException).
-    raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null? || @connection.address.zero?
+    conn = connection!
 
     channel = 0
 
@@ -398,7 +403,7 @@ class Valkey
         # Use command_with_route_info when an explicit route is provided.
         route_info, _pinned_bufs = route.to_ffi
         res = Bindings.command_with_route_info(
-          @connection,
+          conn,
           channel,
           command_type,
           flattened_args.size,
@@ -414,7 +419,7 @@ class Valkey
         route_str = ""
         route_buf = FFI::MemoryPointer.from_string(route_str)
         res = Bindings.command(
-          @connection,
+          conn,
           channel,
           command_type,
           flattened_args.size,
@@ -458,6 +463,15 @@ class Valkey
 
   private
 
+  # Returns the live native client handle, raising if the client has been
+  # closed.
+  def connection!
+    conn = @connection
+    raise ConnectionError, "the client is closed" if conn.nil? || conn.null?
+
+    conn
+  end
+
   # Read an SSL value
   # Accepts a file path (String), an OpenSSL object (#to_pem / #to_der), or a fallback #to_s.
   def read_ssl_value(value, label)
@@ -500,6 +514,9 @@ class Valkey
         return results
       end
     end
+
+    # Checked before allocating any FFI memory below, so a closed client fails fast.
+    conn = connection!
 
     cmds = []
     blocks = []
@@ -558,7 +575,7 @@ class Valkey
 
     begin
       res = Bindings.batch(
-        @connection,
+        conn,
         0,
         batch_info,
         exception,

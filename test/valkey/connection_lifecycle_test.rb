@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "timeout"
+
 # Connection-lifecycle tests: behavior on close and on connection timeout.
 #
 # Mirrors the sibling GLIDE clients:
@@ -25,6 +27,241 @@ module ValkeyTests
 
       error = assert_raises(Valkey::ConnectionError) { client.set("foo", "bar") }
       assert_match(/the client is closed/, error.message)
+    end
+
+    # should raise rather than segfault when a batch is issued after close.
+    # `pipelined` and `multi` reach Bindings.batch, which used to receive the
+    # nulled-out connection handle and crash the VM (issue #212).
+    def test_closed_client_raises_on_pipelined
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+      client.close
+
+      error = assert_raises(Valkey::ConnectionError) { client.pipelined { |p| p.get("foo") } }
+      assert_match(/the client is closed/, error.message)
+    end
+
+    # should raise rather than segfault when a transaction is issued after close
+    # (the is_atomic batch path, issue #212)
+    def test_closed_client_raises_on_multi
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+      client.close
+
+      error = assert_raises(Valkey::ConnectionError) { client.multi { |m| m.get("foo") } }
+      assert_match(/the client is closed/, error.message)
+    end
+
+    # should raise rather than segfault when a script is evaluated after close.
+    # `eval`/`evalsha` reach Bindings.invoke_script (issue #212).
+    def test_closed_client_raises_on_eval
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+      client.close
+
+      error = assert_raises(Valkey::ConnectionError) { client.eval("return 1") }
+      assert_match(/the client is closed/, error.message)
+    end
+
+    def test_closed_client_raises_on_evalsha
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+      sha = client.script_load("return 1")
+      client.close
+
+      error = assert_raises(Valkey::ConnectionError) { client.evalsha(sha) }
+      assert_match(/the client is closed/, error.message)
+    end
+
+    # invoke_script is public API, so it is worth covering directly rather than
+    # only through eval/evalsha.
+    def test_closed_client_raises_on_invoke_script
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+      sha = client.script_load("return 1")
+      client.close
+
+      error = assert_raises(Valkey::ConnectionError) { client.invoke_script(sha) }
+      assert_match(/the client is closed/, error.message)
+    end
+
+    # closing twice must free the native handle exactly once, not double-free,
+    # and must leave the client cleanly closed rather than half torn down
+    def test_close_is_idempotent
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+
+      closed = []
+      Valkey::Bindings.stub(:close_client, ->(conn) { closed << conn }) do
+        client.close
+        client.close
+        client.close
+      end
+
+      assert_equal 1, closed.size, "close_client should be invoked exactly once across repeated close calls"
+      refute_nil closed.first
+
+      error = assert_raises(Valkey::ConnectionError) { client.get("foo") }
+      assert_match(/the client is closed/, error.message)
+    ensure
+      # the stub intercepted the real free, so release the handle for real
+      Valkey::Bindings.close_client(closed.first) if closed&.first
+    end
+
+    # closing from several threads at once must still free the handle exactly
+    # once. `close` uses `Mutex#try_lock` so exactly one caller reaches
+    # close_client while the rest short-circuit (issue #212, R3-10).
+    def test_concurrent_close_frees_handle_once
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+
+      closed = []
+      mutex = Mutex.new # test-side aggregation only
+      Valkey::Bindings.stub(:close_client, ->(conn) { mutex.synchronize { closed << conn } }) do
+        8.times.map { Thread.new { client.close } }.each(&:join)
+      end
+
+      assert_equal 1, closed.size, "close_client should be invoked exactly once across concurrent close calls"
+    ensure
+      Valkey::Bindings.close_client(closed.first) if closed&.first
+    end
+
+    # Direct regression for the interleaving that motivated the try_lock:
+    # a TracePoint pauses the first thread's `close` between the ivar read
+    # and the ivar clear, lets a second thread run `close` to completion,
+    # then releases the first. Without the lock, both threads free the same
+    # handle; with `Mutex#try_lock` in `close`, only one thread does.
+    # Reproducer contributed by @nderraugh on PR #224.
+    def test_concurrent_close_releases_native_handle_once_traced
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = Valkey.allocate
+      pointer = FFI::Pointer.new(1)
+      client.instance_variable_set(:@connection, pointer)
+      client.instance_variable_set(:@close_lock, Mutex.new)
+
+      source_path, source_line = Valkey.instance_method(:close).source_location
+      # Line of `@connection = nil` inside the `begin` block. Locate it
+      # dynamically so a future refactor of `close` cannot silently
+      # invalidate the pause point.
+      lines = File.readlines(source_path)
+      pause_line = (source_line..(source_line + 30)).find do |ln|
+        lines[ln - 1]&.strip == "@connection = nil"
+      end
+      refute_nil pause_line, "could not locate `@connection = nil` inside close"
+
+      reached_pause = Queue.new
+      release_first_close = Queue.new
+      close_calls = []
+      first_close = nil
+
+      trace = TracePoint.new(:line) do |event|
+        next unless Thread.current[:first_close]
+        next unless event.path == source_path && event.lineno == pause_line
+
+        # A :line event fires before the line executes. At this point the
+        # first close has copied @connection into conn but has not cleared
+        # @connection.
+        reached_pause << true
+        release_first_close.pop
+      end
+
+      Valkey::Bindings.stub(:close_client, ->(conn) { close_calls << conn }) do
+        trace.enable
+        first_close = Thread.new do
+          Thread.current[:first_close] = true
+          client.close
+        end
+
+        Timeout.timeout(2) { reached_pause.pop }
+
+        # The second close attempts to capture and release the same pointer
+        # while the first close is paused. With try_lock, it short-circuits.
+        Thread.new { client.close }.join
+      ensure
+        release_first_close << true
+        first_close&.join
+        trace.disable
+      end
+
+      assert_equal 1, close_calls.size,
+                   "close_client should be invoked exactly once for one native ownership count"
+      assert_same pointer, close_calls.first
+    end
+
+    # a thread closing the client while another is mid-command must raise a
+    # catchable ConnectionError, never segfault the VM. This is the TOCTOU half
+    # of issue #212 (R3-10): the guard reads the handle into a local, so a
+    # concurrent `close` cannot null the reference between check and native call.
+    # Covers the batch path (`pipelined`) and the script path (`eval`), which
+    # both crashed the process before the fix.
+    def test_close_racing_in_flight_commands_does_not_crash
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      key = "lifecycle:race"
+
+      [
+        ->(c) { c.pipelined { |p| p.get(key) } },
+        ->(c) { c.eval("return 1") },
+        ->(c) { c.get(key) }
+      ].each do |operation|
+        client = _new_client
+        client.set(key, "v")
+
+        unexpected = nil
+        worker = Thread.new do
+          200.times { operation.call(client) }
+        rescue Valkey::BaseError
+          nil # expected once the client is closed mid-flight
+        rescue StandardError => e
+          unexpected = e
+        end
+
+        sleep 0.02
+        client.close
+        worker.join
+
+        # reaching here at all means the VM survived; the fix's real assertion
+        # is the absence of a segfault, which would take the whole suite down
+        assert_nil unexpected, "racing close raised an unexpected error: #{unexpected.inspect}"
+      end
+    end
+
+    # `close` must work from a signal-trap handler - `Signal.trap("TERM") { client.close }`
+    # is the standard graceful-shutdown idiom, and Ruby forbids taking a lock in
+    # trap context, so `close` must stay lock-free (issue #212).
+    def test_close_works_in_trap_context
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+
+      client = _new_client
+      outcome = nil
+
+      previous = Signal.trap("USR2") do
+        client.close
+        outcome = :closed
+      rescue StandardError => e
+        outcome = e
+      end
+
+      # signalling ourselves runs the handler before Process.kill returns
+      Process.kill("USR2", Process.pid)
+
+      assert_equal :closed, outcome, "close raised in trap context: #{outcome.inspect}"
+
+      # and the client is left properly closed, not half torn down
+      error = assert_raises(Valkey::ConnectionError) { client.get("foo") }
+      assert_match(/the client is closed/, error.message)
+    ensure
+      # minitest runs the whole suite in one process and USR2's default
+      # disposition terminates it, so the handler must not outlive this test
+      Signal.trap("USR2", previous) if previous
     end
 
     # should let a new client connect and round-trip set/get after a previous
