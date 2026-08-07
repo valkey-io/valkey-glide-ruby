@@ -102,7 +102,7 @@ class Valkey
       #
       # @example Read from a single stream
       #   valkey.xread(["mystream"], ["0"])
-      #     # => { "mystream" => [["1234567890-0", ["field1", "value1"]]] }
+      #     # => { "mystream" => [["1234567890-0", {"field1" => "value1"}]] }
       # @example Read with count and block
       #   valkey.xread(["mystream"], ["0"], count: 10, block: 1000)
       #
@@ -177,10 +177,11 @@ class Valkey
       # @param [String] end_id end ID ("-" for beginning, "+" for end)
       # @param [Hash] options optional parameters
       #   - `:count => Integer`: maximum number of entries to return
-      # @return [Array] array of [id, [field, value, ...]] entries
+      # @return [Array<Array>] array of `[id, {field => value, ...}]` entries
       #
       # @example Get all entries
       #   valkey.xrange("mystream", "-", "+")
+      #     # => [["1234567890-0", {"field1" => "value1", "field2" => "value2"}]]
       # @example Get entries with count limit
       #   valkey.xrange("mystream", "-", "+", count: 10)
       #
@@ -200,7 +201,7 @@ class Valkey
       # @param [String] start start ID ("-" for beginning, "+" for end) - lower bound
       # @param [Hash] options optional parameters
       #   - `:count => Integer`: maximum number of entries to return
-      # @return [Array] array of [id, [field, value, ...]] entries in reverse order
+      # @return [Array<Array>] array of `[id, {field => value, ...}]` entries in reverse order
       #
       # @example Get last 10 entries
       #   valkey.xrevrange("mystream", "+", "-", count: 10)
@@ -501,7 +502,7 @@ class Valkey
       #
       # @example Auto-claim pending messages
       #   valkey.xautoclaim("mystream", "mygroup", "consumer2", 3600000, "0-0")
-      #     # => { 'next' => "1234567890-5", 'entries' => [["1234567890-0", ["field1", "value1"]]] }
+      #     # => { 'next' => "1234567890-5", 'entries' => [["1234567890-0", {"field1" => "value1"}]] }
       #
       # @see https://valkey.io/commands/xautoclaim/
       def xautoclaim(key, group, consumer, min_idle_time, start, **options)
@@ -519,6 +520,9 @@ class Valkey
           if options[:justid]
             Utils::HashifyStreamAutoclaimJustId.call(reply)
           else
+            # HashifyStreamAutoclaim handles both Array- and Hash-shaped
+            # `entries` slots; the earlier `!reply.is_a?(Array)` guard only
+            # rejects malformed top-level shapes.
             Utils::HashifyStreamAutoclaim.call(reply)
           end
         end
