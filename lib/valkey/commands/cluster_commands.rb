@@ -124,10 +124,9 @@ class Valkey
 
       # Get information about the cluster.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Hash<String, String>] cluster information
-      def cluster_info(route: nil)
-        send_command(RequestType::CLUSTER_INFO, [], route: route) do |reply|
+      def cluster_info
+        send_command(RequestType::CLUSTER_INFO, []) do |reply|
           if reply.is_a?(Hash)
             reply.transform_values { |v| Utils::HashifyInfo.call(v) }
           else
@@ -146,10 +145,9 @@ class Valkey
 
       # Get information about cluster links.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of link information
-      def cluster_links(route: nil)
-        send_command(RequestType::CLUSTER_LINKS, [], route: route)
+      def cluster_links
+        send_command(RequestType::CLUSTER_LINKS, [])
       end
 
       # Meet another node in the cluster.
@@ -163,26 +161,23 @@ class Valkey
 
       # Get the ID of the current node.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String] node ID
-      def cluster_myid(route: nil)
-        send_command(RequestType::CLUSTER_MY_ID, [], route: route)
+      def cluster_myid
+        send_command(RequestType::CLUSTER_MY_ID, [])
       end
 
       # Get the shard ID of the current node.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [String] shard ID
-      def cluster_myshardid(route: nil)
-        send_command(RequestType::CLUSTER_MY_SHARD_ID, [], route: route)
+      def cluster_myshardid
+        send_command(RequestType::CLUSTER_MY_SHARD_ID, [])
       end
 
       # Get information about all nodes in the cluster.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of node information
-      def cluster_nodes(route: nil)
-        send_command(RequestType::CLUSTER_NODES, [], route: route) do |reply|
+      def cluster_nodes
+        send_command(RequestType::CLUSTER_NODES, []) do |reply|
           if reply.is_a?(Hash)
             reply.transform_values { |v| Utils::HashifyClusterNodes.call(v) }
           else
@@ -248,10 +243,9 @@ class Valkey
 
       # Get information about cluster shards.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
       # @return [Array<Hash>] array of shard information
-      def cluster_shards(route: nil)
-        send_command(RequestType::CLUSTER_SHARDS, [], route: route)
+      def cluster_shards
+        send_command(RequestType::CLUSTER_SHARDS, [])
       end
 
       # Get information about slave nodes (deprecated, use cluster_replicas).
