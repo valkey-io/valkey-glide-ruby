@@ -231,12 +231,6 @@ class Valkey
         send_command(RequestType::TIME, [], route: route)
       end
 
-      # Issue a DEBUG subcommand (e.g. DEBUG SLEEP 1, DEBUG OBJECT key).
-      # Sent via CUSTOM_COMMAND because there is no dedicated RequestType::DEBUG.
-      def debug(*args)
-        send_command(RequestType::CUSTOM_COMMAND, ["DEBUG", *args])
-      end
-
       # ACL Commands - Access Control List management
 
       # List the ACL categories or the commands inside a category.
