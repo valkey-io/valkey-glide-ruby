@@ -187,7 +187,7 @@ module Lint
         LUA
 
         r.function_load(code)
-        result = r.fcall("fcallfunc", keys: [], args: ["test"])
+        result = r.fcall("fcallfunc", keys: [], arguments: ["test"])
         assert_equal "test", result
       rescue Valkey::CommandError => e
         # In cluster mode, function may be loaded on different node than execution
@@ -207,7 +207,7 @@ module Lint
         LUA
 
         r.function_load(code)
-        result = r.fcall("keysfunc", keys: ["mykey"], args: [])
+        result = r.fcall("keysfunc", keys: ["mykey"], arguments: [])
         assert_equal "mykey", result
       rescue Valkey::CommandError => e
         # In cluster mode, function may be loaded on different node than execution
@@ -238,7 +238,7 @@ module Lint
         end
 
         r.function_load(code)
-        result = r.fcall_ro("rofunc", keys: [], args: ["readonly"])
+        result = r.fcall_ro("rofunc", keys: [], arguments: ["readonly"])
         assert_equal "readonly", result
       rescue Valkey::CommandError => e
         # In cluster mode, function may be loaded on different node than execution

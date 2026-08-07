@@ -182,40 +182,38 @@ class Valkey
       # Invoke a function.
       #
       # @example Call a function
-      #   valkey.fcall("myfunc", keys: ["key1"], args: ["arg1"])
+      #   valkey.fcall("myfunc", keys: ["key1"], arguments: ["arg1"])
       #     # => <function result>
       # @example Call a function without keys
-      #   valkey.fcall("myfunc", args: ["arg1", "arg2"])
+      #   valkey.fcall("myfunc", arguments: ["arg1", "arg2"])
       #     # => <function result>
       #
       # @param [String] function the function name
       # @param [Array<String>] keys the keys to pass to the function
-      # @param [Array<String>] args the arguments to pass to the function
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param [Array<String>] arguments the arguments to pass to the function
       # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall/
-      def fcall(function, keys: [], args: [], route: nil)
-        command_args = [function, keys.size] + keys + args
-        send_command(RequestType::FCALL, command_args, route: route)
+      def fcall(function, keys: [], arguments: [])
+        command_args = [function, keys.size] + keys + arguments
+        send_command(RequestType::FCALL, command_args)
       end
 
       # Invoke a read-only function.
       #
       # @example Call a read-only function
-      #   valkey.fcall_ro("myfunc", keys: ["key1"], args: ["arg1"])
+      #   valkey.fcall_ro("myfunc", keys: ["key1"], arguments: ["arg1"])
       #     # => <function result>
       #
       # @param [String] function the function name
       # @param [Array<String>] keys the keys to pass to the function
-      # @param [Array<String>] args the arguments to pass to the function
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param [Array<String>] arguments the arguments to pass to the function
       # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall_ro/
-      def fcall_ro(function, keys: [], args: [], route: nil)
-        command_args = [function, keys.size] + keys + args
-        send_command(RequestType::FCALL_READ_ONLY, command_args, route: route)
+      def fcall_ro(function, keys: [], arguments: [])
+        command_args = [function, keys.size] + keys + arguments
+        send_command(RequestType::FCALL_READ_ONLY, command_args)
       end
 
       # Control function registry (convenience method).
