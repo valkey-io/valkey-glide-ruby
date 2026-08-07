@@ -349,11 +349,14 @@ module Lint
     end
 
     def test_scan
-      # The set_some_keys method sets both tagged and untagged keys
-      # In cluster mode, scan only sees keys on the node being scanned
-      skip("SCAN with match pattern may not see all keys in cluster mode") if cluster_mode?
-
       set_some_keys
+
+      # scan is standalone only.
+      # For cluster support, see https://github.com/valkey-io/valkey-glide-ruby/issues/133
+      if cluster_mode?
+        assert_equal ["0", []], valkey.scan(0, match: '{key}*')
+        return
+      end
 
       cursor = 0
       all_keys = []
@@ -367,9 +370,14 @@ module Lint
     end
 
     def test_scan_each
-      skip("SCAN with match pattern may not see all keys in cluster mode") if cluster_mode?
-
       set_some_keys
+
+      # scan_each is standalone only.
+      # For cluster support, see https://github.com/valkey-io/valkey-glide-ruby/issues/133
+      if cluster_mode?
+        assert_empty valkey.scan_each(match: '{key}*').to_a
+        return
+      end
 
       all_keys = valkey.scan_each(match: '{key}*').to_a
 
