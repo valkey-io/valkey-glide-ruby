@@ -55,6 +55,9 @@ class Valkey
     database_id = options[:db] || 0
 
     # Validate database ID
+    unless database_id.is_a?(Integer)
+      raise ArgumentError, "Database ID must be a non-negative Integer, got: #{database_id.inspect}"
+    end
     raise ArgumentError, "Database ID must be non-negative, got: #{database_id}" if database_id.negative?
 
     nodes = options[:nodes] || [{ host: host, port: port }]
@@ -95,6 +98,9 @@ class Valkey
     # FFI side then rejects with "Invalid connection URI". Encoding more is
     # always safe because the FFI decodes uniformly.
     userinfo_unsafe = /[^\-_.!~*'()a-zA-Z0-9]/
+    raise ArgumentError, "Username must be a String" if options[:username] && !options[:username].is_a?(String)
+    raise ArgumentError, "Password must be a String" if options[:password] && !options[:password].is_a?(String)
+
     if options[:username] && options[:password]
       uri_parts << URI::RFC2396_PARSER.escape(options[:username], userinfo_unsafe)
       uri_parts << ":"
@@ -107,6 +113,8 @@ class Valkey
     end
 
     # Wrap IPv6 literals in brackets so the host/port separator is unambiguous.
+    raise ArgumentError, "Host must be a String" unless uri_host.is_a?(String)
+
     uri_parts << (uri_host.include?(":") ? "[#{uri_host}]" : uri_host)
     uri_parts << ":"
     uri_parts << uri_port.to_s

@@ -264,6 +264,56 @@ module ValkeyTests
       assert_equal "redis", scheme_for({})
     end
 
+    def test_db_non_integer_raises_argument_error
+      # BB-1-006: previously reached String#negative? and leaked NoMethodError.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, db: "5")
+      end
+      assert_match(/Database ID must be a non-negative Integer/, error.message)
+
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, db: :default)
+      end
+      assert_match(/Database ID must be a non-negative Integer/, error.message)
+    end
+
+    def test_db_negative_integer_still_raises
+      # Existing check must remain reachable for Integer inputs.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, db: -1)
+      end
+      assert_match(/Database ID must be non-negative/, error.message)
+    end
+
+    def test_host_non_string_raises_argument_error
+      # BB-1-007: previously reached Integer#include? and leaked NoMethodError.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: 123, port: 6379)
+      end
+      assert_match(/Host must be a String/, error.message)
+    end
+
+    def test_password_non_string_raises_argument_error
+      # BB-1-008: previously reached URI escape#gsub and leaked NoMethodError.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, password: 12_345)
+      end
+      assert_match(/Password must be a String/, error.message)
+
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, username: "u", password: { secret: "x" })
+      end
+      assert_match(/Password must be a String/, error.message)
+    end
+
+    def test_username_non_string_raises_argument_error
+      # BB-1-008: same class of leak via username + password path.
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, username: 123, password: "p")
+      end
+      assert_match(/Username must be a String/, error.message)
+    end
+
     def test_multiple_options_serialize_independently
       json_options = captured_json_options(
         read_from: Valkey::ReadFrom::AZ_AFFINITY,
