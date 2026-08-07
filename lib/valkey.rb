@@ -286,10 +286,9 @@ class Valkey
     # This avoids Ruby warnings about uninitialised instance variables and
     # gives us a single source of truth for whether we're inside a TX.
     @in_multi = false
-    # Track queued commands during MULTI for transaction isolation support
+    # Track queued commands during MULTI so `EXEC` can map each reply back to
+    # the command that produced it (see #reconvert_queued_replies).
     @queued_commands = []
-    # Track if we're inside a multi block (multi { ... }) vs direct multi calls
-    @in_multi_block = false
   end
 
   def close
