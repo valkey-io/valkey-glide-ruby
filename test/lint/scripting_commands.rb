@@ -473,5 +473,10 @@ module Lint
         other.close
       end
     end
+
+    def test_script_unknown_subcommand_raises_argument_error
+      error = assert_raises(ArgumentError) { r.script(:garbage) }
+      assert_match(/unknown SCRIPT subcommand/i, error.message)
+    end
   end
 end

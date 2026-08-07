@@ -386,5 +386,10 @@ module Lint
              e.message.include?("Unknown node") ||
              e.message.include?("ERR")
     end
+
+    def test_cluster_unknown_subcommand_raises_argument_error
+      error = assert_raises(ArgumentError) { r.cluster(:garbage) }
+      assert_match(/unknown CLUSTER subcommand/i, error.message)
+    end
   end
 end

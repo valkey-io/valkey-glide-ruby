@@ -48,6 +48,19 @@ module Lint
       assert_nil r.client(:get_name)
     end
 
+    def test_client_getname_setname_parity
+      # redis-rb-style :getname / :setname must resolve to the underscored
+      # methods (client_get_name / client_set_name).
+      r.client(:setname, "parity_test")
+      assert_equal "parity_test", r.client(:getname)
+      r.client(:setname, "")
+    end
+
+    def test_client_unknown_subcommand_raises_argument_error
+      error = assert_raises(ArgumentError) { r.client(:garbage) }
+      assert_match(/unknown CLIENT subcommand/i, error.message)
+    end
+
     def test_client_list
       # Use the server commands interface that's known to work
       list = r.client(:list)
