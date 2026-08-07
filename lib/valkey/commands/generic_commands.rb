@@ -9,10 +9,10 @@ class Valkey
     module GenericCommands
       # Scan the keyspace
       #
-      # @note Standalone mode only. glide-core has no defined default route for
-      #   SCAN in cluster mode, so each call may land on a different node with
-      #   no cursor continuity between them — results are undefined (missed or
-      #   duplicated keys) rather than merely partial.
+      # @note Standalone mode only. In cluster mode this returns `["0", []]`
+      #   (a finished cursor and no keys) rather than iterating a single shard
+      #   with an undefined route. A cluster-aware scan API is tracked in
+      #   TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/133
       #
       # @example Retrieve the first batch of keys
       #   valkey.scan(0)
@@ -33,13 +33,16 @@ class Valkey
       # @return [String, Array<String>] the next cursor and all found keys
       #
       def scan(cursor, **options)
+        return ["0", []] if @cluster_mode
+
         _scan(RequestType::SCAN, cursor, [], **options)
       end
 
       # Scan the keyspace
       #
-      # @note Standalone mode only. Built on {#scan}, which has undefined
-      #   routing behavior in cluster mode (see its note).
+      # @note Standalone mode only. In cluster mode this yields nothing and
+      #   returns immediately, matching {#scan}'s cluster behavior. See
+      #   TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/133
       #
       # @example Retrieve all of the keys (with possible duplicates)
       #   valkey.scan_each.to_a
@@ -62,6 +65,7 @@ class Valkey
       #
       def scan_each(**options, &block)
         return to_enum(:scan_each, **options) unless block_given?
+        return if @cluster_mode
 
         cursor = 0
         loop do
