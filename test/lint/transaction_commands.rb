@@ -375,19 +375,31 @@ module Lint
       # and behave differently with connection routing
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
+      # A second connection is required to observe isolation: on the connection
+      # that issued MULTI the server replies QUEUED to every command, so that
+      # connection cannot read the pre-transaction value. `_new_client` does not
+      # run `init`, so it must be pointed at the test database explicitly.
+      observer = _new_client(db: 15)
+
       r.set("shared", "initial")
 
       # Start transaction but don't execute yet
       r.multi
       r.set("shared", "transaction_value")
 
-      # Value should still be initial since transaction not executed
-      assert_equal "initial", r.get("shared")
+      # Same connection: commands are queued, not executed
+      assert_equal "QUEUED", r.get("shared")
 
-      # Execute transaction
+      # Another connection still sees the pre-transaction value until EXEC
+      assert_equal "initial", observer.get("shared")
+
+      # Execute transaction: two queued commands produce two replies
       result = r.exec
-      assert_equal ["OK"], result
+      assert_equal %w[OK transaction_value], result
       assert_equal "transaction_value", r.get("shared")
+      assert_equal "transaction_value", observer.get("shared")
+    ensure
+      observer&.close
     end
 
     def test_complex_transaction_scenario
