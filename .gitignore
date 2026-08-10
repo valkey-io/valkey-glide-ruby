@@ -69,3 +69,6 @@ Gemfile.lock
 
 # VSCode files
 .vscode
+
+# SDD docs
+sdd/
