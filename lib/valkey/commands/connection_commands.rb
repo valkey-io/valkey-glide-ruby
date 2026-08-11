@@ -161,26 +161,6 @@ class Valkey
         send_command(RequestType::CLIENT_KILL_SIMPLE, [addr])
       end
 
-      private
-
-      def build_client_kill_args(addr, options)
-        args = []
-        args << "ADDR" << addr if addr
-        options.each do |key, value|
-          case key
-          when :id then args << "ID" << value.to_s
-          when :type then args << "TYPE" << value.to_s
-          when :user then args << "USER" << value.to_s
-          when :addr then args << "ADDR" << value.to_s
-          when :laddr then args << "LADDR" << value.to_s
-          when :skipme then args << "SKIPME" << (value ? "yes" : "no")
-          end
-        end
-        args
-      end
-
-      public
-
       # Pause client processing.
       #
       # @param [Integer] timeout Pause duration in milliseconds
@@ -270,6 +250,22 @@ class Valkey
       private :client_tracking, :client_caching, :client_tracking_info, :client_getredir
 
       private
+
+      def build_client_kill_args(addr, options)
+        args = []
+        args << "ADDR" << addr if addr
+        options.each do |key, value|
+          case key
+          when :id then args << "ID" << value.to_s
+          when :type then args << "TYPE" << value.to_s
+          when :user then args << "USER" << value.to_s
+          when :addr then args << "ADDR" << value.to_s
+          when :laddr then args << "LADDR" << value.to_s
+          when :skipme then args << "SKIPME" << (value ? "yes" : "no")
+          end
+        end
+        args
+      end
 
       def build_client_tracking_args(options)
         args = []
