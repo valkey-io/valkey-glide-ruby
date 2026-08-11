@@ -169,10 +169,10 @@ class Valkey
       #
       # @example Get function stats
       #   valkey.function_stats
-      #     # => {"running_script" => {...}, "engines" => {...}}
+      #     # => {"127.0.0.1:6379" => {"running_script" => nil, "engines" => {...}}}
       #
       # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Hash] function execution statistics
+      # @return [Hash{String => Hash}] a Hash keyed by `"host:port"`.
       #
       # @see https://valkey.io/commands/function-stats/
       def function_stats(route: nil)
