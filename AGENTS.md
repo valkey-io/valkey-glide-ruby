@@ -4,7 +4,7 @@ This file provides AI agents and developers with the minimum but sufficient cont
 
 ## Repository Overview
 
-This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb` gem. It provides a synchronous, redis-rb-compatible API on top of the Rust GLIDE core via FFI.
+This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb` gem. It provides a synchronous API on top of the Rust GLIDE core via FFI.
 
 **Primary Languages:** Ruby, Rust (FFI native library, built separately from [valkey-glide](https://github.com/valkey-io/valkey-glide))
 
@@ -20,7 +20,7 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 - `lib/valkey/opentelemetry.rb` — Native OTel configuration
 - `test/valkey/` — Standalone integration tests
 - `test/cluster/` — Cluster integration tests
-- `test/lint/` — redis-rb compatibility lint suites
+- `test/lint/` — Lint suites
 
 ## Architecture Quick Facts
 
@@ -28,7 +28,7 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 
 **Client Types:** `Valkey` — standalone or cluster (`cluster_mode: true`)
 
-**API Style:** Synchronous, blocking calls (redis-rb style)
+**API Style:** Synchronous, blocking calls.
 
 **Communication:** Direct FFI (`Bindings.command`, `Bindings.batch`)
 
@@ -165,7 +165,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 - **Ruby 2.6+ Required:** Minimum per `valkey.gemspec`
 - **FFI dependency:** `ffi ~> 1.17.0` — do not break ABI without rebuilding native lib
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
-- **redis-rb compatibility:** Prefer matching redis-rb method signatures and return types when implementing commands
+- **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
 - **Command args:** All FFI args are strings; convert types in Ruby before `send_command`
 - **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback — do not remove without fixing FFI batch stability
 - **OpenTelemetry:** Init once per process via `Valkey::OpenTelemetry.init`; spans created in FFI layer
@@ -220,10 +220,10 @@ valkey-glide-ruby/
 ## Quick Facts for Reasoners
 
 **Package:** `valkey-glide-rb` on RubyGems  
-**API Style:** Synchronous, redis-rb-compatible  
+**API Style:** Synchronous. 
 **Client:** `Valkey.new` — standalone or `cluster_mode: true`  
 **Key Features:** Pipelining, OpenTelemetry (native), statistics, TLS, URL parsing, cluster routing  
-**Testing:** Minitest + rake tasks; lint suites for redis-rb parity  
+**Testing:** Minitest + rake tasks; lint suites.
 **Core repo:** [valkey-glide](https://github.com/valkey-io/valkey-glide) (`ffi/`, `glide-core/`)  
 **This repo:** [valkey-glide-ruby](https://github.com/valkey-io/valkey-glide-ruby)
 
