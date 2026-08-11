@@ -32,7 +32,7 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 ### System Requirements
 
 - glibc 2.17+ or musl 1.2.3+
-- Ruby 3.0+
+- Ruby 2.6+
 
 #### Supported OS
 
