@@ -37,8 +37,10 @@ class Valkey
       # Sends the CONFIG GET command with the given arguments.
       #
       # @param [Array<String>] args Configuration parameters to get
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Hash, String]
+      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => { parameter => value }`.
+      # @return [Hash] a flat `{ parameter => value }` Hash, or a per-node Hash under a
+      #   multi-node route.
       #
       # @example Get all configuration parameters
       #   config_get('*')
@@ -97,7 +99,8 @@ class Valkey
 
       # Return the number of keys in the selected database.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param route [Valkey::Route, nil] cluster routing. Multi-node routes return the
+      #   aggregated sum across nodes, not a per-node Hash.
       # @return [Integer]
       def dbsize(route: nil)
         send_command(RequestType::DB_SIZE, [], route: route)
@@ -134,8 +137,11 @@ class Valkey
       # Get information and statistics about the server.
       #
       # @param cmd [String, Symbol, nil] section name (e.g. "commandstats")
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Hash]
+      # @param route [Valkey::Route, nil] cluster routing. On cluster the default is all primaries,
+      #   so the reply is a per-node Hash even with no route. Standalone (or a single-node route)
+      #   returns a flat Hash.
+      # @return [Hash] a flat `{ field => value }` Hash, or a per-node
+      #   `{ "host:port" => { field => value } }` Hash under a multi-node route.
       def info(cmd = nil, route: nil)
         send_command(RequestType::INFO, [cmd].compact, route: route) do |reply|
           if reply.is_a?(Hash)
@@ -233,11 +239,14 @@ class Valkey
       # Return the server time.
       #
       # @example
-      #   r.time # => [ 1333093196, 606806 ]
+      #   r.time # => ["1333093196", "606806"]
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Array<Integer>] tuple of seconds since UNIX epoch and
-      #   microseconds in the current second
+      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => [seconds, microseconds]`.
+      # @return [Array<String>, Hash{String => Array<String>}] a two-element array of
+      #   seconds since UNIX epoch and microseconds in the current second (both as
+      #   strings), or a per-node Hash under a multi-node route. Call `.map(&:to_i)` on
+      #   the array elements for arithmetic.
       def time(route: nil)
         send_command(RequestType::TIME, [], route: route)
       end
