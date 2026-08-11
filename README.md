@@ -1,7 +1,7 @@
 
 # Valkey GLIDE for Ruby
 
-Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide) with an interface similar to [redis-rb](https://github.com/redis/redis-rb), delivering GLIDE performance, reliability, and enterprise features.
+Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide), delivering GLIDE performance, reliability, and enterprise features.
 
 ## Why Choose Valkey GLIDE?
 
@@ -10,7 +10,6 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 - **Performance**: Optimized for high performance and low latency via the Rust-based GLIDE core.
 - **High Availability**: Cluster-aware routing, reconnection, and fault tolerance.
 - **Cross-Language Consistency**: Same core driver as Python, Java, Node.js, and Go clients.
-- **Drop-in Replacement**: Familiar redis-rb-style API (`Valkey.new`, command methods, `pipelined`, URL parsing).
 - **Observability**: Native OpenTelemetry tracing and client statistics.
 
 ## Documentation
@@ -87,7 +86,7 @@ client.get("mykey")
 client.close
 ```
 
-### Standalone with URL (redis-rb compatible)
+### Standalone with URL
 
 Accepted URL schemes: `redis://`, `rediss://` (TLS), `valkey://`, `valkeys://` (TLS).
 
@@ -328,17 +327,17 @@ See https://github.com/valkey-io/valkey-glide-ruby/issues/135
 | `lib/valkey/pipeline.rb` | Pipeline command batching |
 | `test/valkey/` | Standalone integration tests |
 | `test/cluster/` | Cluster integration tests |
-| `test/lint/` | Shared lint tests (redis-rb compatibility patterns) |
+| `test/lint/` | Shared lint tests (redis-rb convention patterns) |
 
-## redis-rb Compatibility
+## API Conventions
 
-This client mirrors redis-rb conventions where possible:
+This client is **not** a drop-in replacement for redis-rb, but it follows familiar Ruby conventions to ease adoption:
 
 - `Valkey.new` with `url`, `host`, `port`, `db`, `ssl_params`
-- Command method names and argument ordering aligned with redis-rb
+- Conventional command method names and argument ordering
 - `pipelined`, `multi` / `exec`, `disconnect!` (alias of `close`)
 
-Not every redis-rb API is implemented yet. See the [command implementation wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands) for coverage.
+APIs and behavior may differ from redis-rb; verify against your usage. See the [command implementation wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands) for coverage.
 
 ## Building and Testing
 

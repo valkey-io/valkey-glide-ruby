@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Valkey GLIDE Ruby (`valkey-glide-rb`) is the official Ruby binding for Valkey and Redis OSS. It uses the shared Rust **glide-core** driver via the **glide-ffi** C library, with a redis-rb-compatible Ruby API. This repository is separate from the [valkey-glide](https://github.com/valkey-io/valkey-glide) mono-repo (Python, Java, Node, Go).
+Valkey GLIDE Ruby (`valkey-glide-rb`) is the official Ruby binding for Valkey and Redis OSS. It uses the shared Rust **glide-core** driver via the **glide-ffi** C library. This repository is separate from the [valkey-glide](https://github.com/valkey-io/valkey-glide) mono-repo (Python, Java, Node, Go).
 
 ## Hard Constraints (non-negotiable)
 
