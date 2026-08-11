@@ -175,31 +175,17 @@ class Valkey
         @queued_commands = []
       end
 
-      # Commands whose reply is boolean when run standalone (via native return-type
-      # coercion server-side), but arrives as a raw 0/1 integer inside an EXEC array,
-      # since that coercion is keyed by the single command actually being run - which,
-      # for a queued command, is EXEC itself, not the original command.
+      # Commands the server coerces to boolean by name, but which arrive as raw 0/1
+      # inside an EXEC array (glide-core keys coercion on the executed command - EXEC -
+      # not the queued ones). Listed here so #reconvert_queued_replies can restore it.
       #
-      # This list mirrors glide-core's own Boolean-coercion table in
-      # `value_conversion.rs::expected_type_for_cmd` (HEXISTS, HSETNX, EXPIRE, EXPIREAT,
-      # PEXPIRE, PEXPIREAT, SISMEMBER, PERSIST, SMOVE, PFADD, RENAMENX, MOVE, COPY,
-      # MSETNX, XGROUP DESTROY, XGROUP CREATECONSUMER) MINUS the commands whose Ruby
-      # method already passes its own explicit conversion block (`hexists`/`hsetnx`
-      # use `&Utils::Boolify`; `xgroup_destroy`/`xgroup_createconsumer` use a custom
-      # bool->int block). Those are already handled correctly by the `if block`
-      # branch below, before this list is even consulted - listing them here too
-      # would be redundant, not wrong. Every RequestType below calls `send_command`
-      # with NO block at all, so this static list is the only place their boolean-ness
-      # is recorded.
+      # This is glide-core's boolean table (`value_conversion.rs::expected_type_for_cmd`)
+      # minus commands whose Ruby method passes its own conversion block - those are
+      # handled by the `if block` branch below. Only block-less RequestTypes belong here.
       #
-      # NOTE: SETNX is deliberately NOT in glide-core's coercion table (and so isn't
-      # here as a "no block" entry either) - it's `redis-rb`-style boolean-ness only,
-      # not something the server/`glide-core` treats as boolean, since coercion there
-      # is keyed by command name alone and can't distinguish this dedicated RequestType
-      # from a raw `customCommand(["SETNX", ...])` call, which other bindings' existing
-      # contracts expect to keep returning a plain integer. `setnx`'s own Ruby method
-      # passes `&Utils::Boolify` directly instead - see string_commands.rb - so it's
-      # already covered by the `if block` branch, same as hexists/hsetnx.
+      # SETNX is absent by design: glide-core doesn't treat it as boolean (name-keyed
+      # coercion can't distinguish it from a raw `customCommand(["SETNX", ...])`), so
+      # `setnx` passes `&Utils::Boolify` itself (string_commands.rb) - covered by `if block`.
       BOOLEAN_REQUEST_TYPES = [
         RequestType::EXPIRE, RequestType::EXPIRE_AT, RequestType::PEXPIRE, RequestType::PEXPIRE_AT,
         RequestType::PERSIST, RequestType::SISMEMBER, RequestType::S_MOVE, RequestType::PFADD,
@@ -208,11 +194,10 @@ class Valkey
 
       private
 
-      # Re-applies each queued command's own reply conversion (e.g. `&Utils::Boolify`)
-      # to EXEC's raw array, since redis-rb's Future-based design does the equivalent
-      # (a Future remembers its conversion and re-applies it once EXEC resolves), but
-      # queued commands here go through the plain single-command path with no such
-      # memory - see BOOLEAN_REQUEST_TYPES above for the case with no explicit block.
+      # Re-applies each queued command's reply conversion to EXEC's raw array: its own
+      # block if it had one, else Boolify for a BOOLEAN_REQUEST_TYPES command. Mirrors
+      # what redis-rb's Futures do (each remembers its conversion and re-applies it once
+      # EXEC resolves); glide's queued commands have no such memory, so we restore it here.
       def reconvert_queued_replies(result, queued_commands)
         return result unless result.size == queued_commands.size
 

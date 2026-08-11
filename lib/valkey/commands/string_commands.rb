@@ -83,13 +83,11 @@ class Valkey
       #   - `:xx => true`: Only set the key if it already exist.
       #   - `:keepttl => true`: Retain the time to live associated with the key.
       #   - `:get => true`: Return the old string stored at key, or nil if key did not exist.
-      # @return [String, Boolean] `"OK"` or true, false if `:nx => true` or `:xx => true`
+      # @return [String, nil] `"OK"` on write; `nil` when `:nx` or `:xx` skipped the write.
       def set(key, value, ex: nil, px: nil, exat: nil, pxat: nil, nx: nil, xx: nil, keepttl: nil, get: nil)
-        # value.to_s (matching redis-rb): a non-String value (e.g. an Array,
-        # in test_set_and_get_with_non_string_value) must become ONE opaque
-        # value here, not get flattened as if it were a multi-value list -
-        # see build_command_args's flat_map fix for why this must happen
-        # before command_args is built, not be left to that generic layer.
+        # A non-String value (e.g. an Array) must become ONE opaque value here, not
+        # get flattened as if it were a multi-value list -- see build_command_args's
+        # flat_map fix for why this must happen before command_args is built.
         args = [key, value.to_s]
         args << "EX" << Integer(ex) if ex
         args << "PX" << Integer(px) if px
@@ -101,11 +99,6 @@ class Valkey
         args << "GET" if get
 
         send_command(RequestType::SET, args)
-        # if nx || xx
-        #   send_command(RequestType::SET, &Utils::BoolifySet))
-        # else
-        #   send_command(RequestType::SET, args)
-        # end
       end
 
       # Set the time to live in seconds of a key.

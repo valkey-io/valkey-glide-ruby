@@ -19,13 +19,13 @@ class Valkey
       # Ping the server.
       #
       # @param message [String, nil] optional message to echo back
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String]
+      # @param route [Valkey::Route, nil] cluster routing.
+      # @return [String] `"PONG"`, or the echoed `message` if given.
       #
       # @example
-      #   ping             #=> "PONG"
-      #   ping("hello")    #=> "hello"
-      #   ping(route: Valkey::Route.all_nodes)  #=> Hash (multi-node)
+      #   ping                                  #=> "PONG"
+      #   ping("hello")                         #=> "hello"
+      #   ping(route: Valkey::Route.all_nodes)  #=> "PONG"
       def ping(message = nil, route: nil)
         send_command(RequestType::PING, [message].compact, route: route)
       end
@@ -33,8 +33,9 @@ class Valkey
       # Echo the given string.
       #
       # @param value [String]
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String]
+      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => reply`.
+      # @return [String, Hash{String => String}]
       def echo(value, route: nil)
         send_command(RequestType::ECHO, [value], route: route)
       end
@@ -87,8 +88,9 @@ class Valkey
 
       # Get the current client's ID.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Integer]
+      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => Integer`.
+      # @return [Integer, Hash{String => Integer}]
       def client_id(route: nil)
         send_command(RequestType::CLIENT_ID, [], route: route)
       end
