@@ -33,11 +33,11 @@ CLUSTER_NODES = 6.times.map do |i|
   { host: "127.0.0.1", port: 7000 + i }
 end
 
-Dir[File.expand_path("lint/**/*.rb", __dir__)].sort.each do |f|
+Dir[File.expand_path("lint/**/*.rb", __dir__)].each do |f|
   require f
 end
 
 # Load valkey shared test modules
-Dir[File.expand_path("valkey/**/*.rb", __dir__)].sort.each do |f|
+Dir[File.expand_path("valkey/**/*.rb", __dir__)].each do |f|
   require f
 end

@@ -54,7 +54,7 @@ valkey-glide-ruby/
 
 ### Software Dependencies
 
-- **Ruby** 2.6+ (3.x recommended for development)
+- **Ruby** 3.0+
 - **Bundler**
 - **git**
 - **Valkey** or Redis OSS (for integration tests)
@@ -352,8 +352,8 @@ GitHub Actions (`.github/workflows/ci.yml`):
 | Job | Matrix |
 |-----|--------|
 | `lint` | Ruby 3.3, RuboCop |
-| `standalone` | Ruby 2.6–3.4 + JRuby; Valkey 7.2, 8, 8.1 |
-| `cluster` | Ruby 2.6–3.4; grokzen/redis-cluster |
+| `standalone` | Ruby 3.0–3.4 + JRuby; Valkey 7.2, 8, 8.1 |
+| `cluster` | Ruby 3.0–3.4; grokzen/redis-cluster |
 
 ## Building the Gem Locally
 

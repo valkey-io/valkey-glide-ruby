@@ -38,7 +38,7 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 - Alpine Linux 3.18+ (x86_64, aarch64) — musl libc
 - macOS: 13.7+ (x86_64), 14.7+ (aarch64)
 
-**Ruby Versions:** 2.6, 2.7, 3.0, 3.1, 3.2, 3.3, 3.4, JRuby (CI matrix)
+**Ruby Versions:** 3.0, 3.1, 3.2, 3.3, 3.4, JRuby (CI matrix)
 
 **Gem name:** `valkey-glide-rb` on RubyGems
 
@@ -162,7 +162,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 
 ### Ruby-Specific Rules
 
-- **Ruby 2.6+ Required:** Minimum per `valkey.gemspec`
+- **Ruby 3.0+ Required:** Minimum per `valkey.gemspec`
 - **FFI dependency:** `ffi ~> 1.17.0` — do not break ABI without rebuilding native lib
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
 - **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
