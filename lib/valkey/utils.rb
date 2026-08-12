@@ -255,11 +255,11 @@ class Valkey
 
       # `URI.parse` returns userinfo *percent-encoded* (RFC 3986 §3.2.1); we
       # want the raw credential value. Callers (`Valkey#initialize`) will
-      # re-encode with `URI::RFC2396_PARSER.escape` when composing the URI
+      # re-encode with `URI::DEFAULT_PARSER.escape` when composing the URI
       # they hand to the FFI, so leaving the encoded form here would
       # double-encode (`p%40ss` → `p%2540ss`). See valkey-glide/issues/6659.
-      result[:username] = URI::RFC2396_PARSER.unescape(uri.user) if uri.user && !uri.user.empty?
-      result[:password] = URI::RFC2396_PARSER.unescape(uri.password) if uri.password && !uri.password.empty?
+      result[:username] = URI::DEFAULT_PARSER.unescape(uri.user) if uri.user && !uri.user.empty?
+      result[:password] = URI::DEFAULT_PARSER.unescape(uri.password) if uri.password && !uri.password.empty?
 
       result
     end

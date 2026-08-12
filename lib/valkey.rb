@@ -90,19 +90,19 @@ class Valkey
     #
     # We pass an explicit `unsafe` regex — anything outside RFC 3986 §2.3
     # "unreserved" (`ALPHA / DIGIT / - . _ ~`) plus the RFC 2396 "mark" chars
-    # (`! ~ * ' ( )`) — because `URI::RFC2396_PARSER.escape`'s default set
+    # (`! ~ * ' ( )`) — because `URI::DEFAULT_PARSER.escape`'s default set
     # leaves `/` and `?` raw in userinfo, which the Rust `url` crate on the
     # FFI side then rejects with "Invalid connection URI". Encoding more is
     # always safe because the FFI decodes uniformly.
     userinfo_unsafe = /[^\-_.!~*'()a-zA-Z0-9]/
     if options[:username] && options[:password]
-      uri_parts << URI::RFC2396_PARSER.escape(options[:username], userinfo_unsafe)
+      uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe)
       uri_parts << ":"
-      uri_parts << URI::RFC2396_PARSER.escape(options[:password], userinfo_unsafe)
+      uri_parts << URI::DEFAULT_PARSER.escape(options[:password], userinfo_unsafe)
       uri_parts << "@"
     elsif options[:password]
       uri_parts << ":"
-      uri_parts << URI::RFC2396_PARSER.escape(options[:password], userinfo_unsafe)
+      uri_parts << URI::DEFAULT_PARSER.escape(options[:password], userinfo_unsafe)
       uri_parts << "@"
     end
 
