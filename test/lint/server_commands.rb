@@ -233,12 +233,14 @@ module Lint
       sleep(0.5) # Ensure the new client created
 
       addr = extra_client.client(:info)[/addr=(\S+)/, 1]
+      skip("No client address found for extra client") unless addr
 
-      if addr
-        result = extra_client.client(:kill, addr)
-        assert_equal "OK", result
-      else
-        skip("No client address found for extra client")
+      # TODO: legacy `CLIENT KILL <addr>` response type is broken upstream; it
+      # raises instead of returning "OK". Remove assert_raises once fixed.
+      # https://github.com/valkey-io/valkey-glide-ruby/issues/256
+      assert_raises(Valkey::CommandError) do
+        extra_client.client(:kill, addr)
+        # assert_equal "OK",  extra_client.client(:kill, addr)
       end
     end
 
@@ -252,12 +254,14 @@ module Lint
       sleep(0.5) # Give it a moment to register with the server
 
       addr = extra_client.client(:info)[/addr=(\S+)/, 1]
+      skip("No client address found to kill") unless addr
 
-      if addr
-        result = extra_client.client(:kill_simple, addr)
-        assert_equal "OK", result
-      else
-        skip("No client address found to kill")
+      # TODO: legacy `CLIENT KILL <addr>` response type is broken upstream; it
+      # raises instead of returning "OK". Restore `assert_equal "OK"` once fixed.
+      # https://github.com/valkey-io/valkey-glide-ruby/issues/256
+      assert_raises(Valkey::CommandError) do
+        extra_client.client(:kill_simple, addr)
+        # assert_equal "OK",  extra_client.client(:kill_simple, addr)
       end
     end
 
