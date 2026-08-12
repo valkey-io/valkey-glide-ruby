@@ -31,20 +31,17 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 ### System Requirements
 
 - glibc 2.17+ or musl 1.2.3+
-- Ruby 2.6+
+- Ruby 3.0+
 
 #### Supported OS
 
-The following platforms have been tested:
-- Ubuntu 24
-- Alpine Linux 3
-- macOS 14 (Apple silicon / ARM)
+The following platforms are tested in CI:
+- Ubuntu 24 (x86_64 and arm64)
+- Alpine Linux 3 (x86_64 and arm64, via musl targets)
+- macOS 14+ (Apple silicon / arm64)
 
-**Notes:**
-* Other Linux distributions not mentioned here should work as long as they
-meet the glibc 2.17+ / musl 1.2.3+ requirement above.
-* Only Apple silicon (ARM) macOS is shipped, with a minimum of macOS 11. 
-Intel macOS users must build locally — see [build from source](./DEVELOPER.md).
+**Notes:** valkey-glide-rb gem only support ARM MacOS. For Intel Mac users
+you will need to build the client locally.
 
 ### Installation and Setup
 
