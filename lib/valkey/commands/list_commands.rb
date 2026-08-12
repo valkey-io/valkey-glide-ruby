@@ -232,7 +232,8 @@ class Valkey
       #
       # @params timeout [Float] a float value specifying the maximum number of seconds to block) elapses.
       #   A timeout of zero can be used to block indefinitely.
-      # @params key [String, Array<String>] one or more keys with lists
+      # @params keys [String] one or more list keys, passed as separate arguments
+      #   (splat). To pass a pre-built array, splat it at the call site: `blmpop(1.0, *keys)`.
       # @params modifier [String]
       #  - when `"LEFT"` - the elements popped are those from the left of the list
       #  - when `"RIGHT"` - the elements popped are those from the right of the list
@@ -258,7 +259,8 @@ class Valkey
       #   valkey.lmpop('list', count: 2)
       #   #=> ['list', ['a', 'b']]
       #
-      # @params key [String, Array<String>] one or more keys with lists
+      # @params keys [String] one or more list keys, passed as separate arguments
+      #   (splat). To pass a pre-built array, splat it at the call site: `lmpop(*keys)`.
       # @params modifier [String]
       #  - when `"LEFT"` - the elements popped are those from the left of the list
       #  - when `"RIGHT"` - the elements popped are those from the right of the list
@@ -270,8 +272,6 @@ class Valkey
 
         args = [keys.size, *keys, modifier]
         args << "COUNT" << Integer(count) if count
-
-        # pp args
 
         send_command(RequestType::LMPOP, args)
       end

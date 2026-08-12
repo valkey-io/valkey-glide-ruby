@@ -38,7 +38,7 @@
     {
         "OS": "macos",
         "NAMED_OS": "darwin",
-        "RUNNER": "macos-latest",
+        "RUNNER": "macos-14",
         "ARCH": "arm64",
         "TARGET": "aarch64-apple-darwin",
         "languages": ["ruby"]
