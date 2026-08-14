@@ -260,42 +260,48 @@ class Valkey
       end
 
       def invoke_script(script, args: [], keys: [])
-        # Checked before allocating any FFI memory below, so a closed client fails fast.
-        conn = connection!
-
-        # Must hold onto the returned buffers (_arg_bufs/_keys_bufs) for the
-        # lifetime of this method - they back arg_ptrs/keys_ptrs, and letting
-        # them go out of scope (e.g. by only capturing the first 2 return
-        # values) makes them eligible for GC before the native call below
-        # reads through those pointers, corrupting ARGV/KEYS with freed memory.
-        arg_ptrs, arg_lens, _arg_bufs, flattened_args = build_command_args(args)
-        keys_ptrs, keys_lens, _keys_bufs, flattened_keys = build_command_args(keys)
-
-        route = ""
-        route_buf = FFI::MemoryPointer.from_string(route)
-
-        # Use from_string to ensure proper null termination
-        sha = FFI::MemoryPointer.from_string(script)
+        # Reserve a slot before allocating any FFI memory below. Paired with
+        # `release_connection_slot` in the outer `ensure` so `#close` can drain
+        # us safely before freeing the native handle (issue #212, race #2).
+        conn = acquire_connection_slot
 
         begin
-          res = Bindings.invoke_script(
-            conn,
-            0,
-            sha,
-            flattened_keys.size,
-            keys_ptrs,
-            keys_lens,
-            flattened_args.size,
-            arg_ptrs,
-            arg_lens,
-            route_buf,
-            route.bytesize,
-            0 # span_ptr for OpenTelemetry (0 = no span)
-          )
+          # Must hold onto the returned buffers (_arg_bufs/_keys_bufs) for the
+          # lifetime of this method - they back arg_ptrs/keys_ptrs, and letting
+          # them go out of scope (e.g. by only capturing the first 2 return
+          # values) makes them eligible for GC before the native call below
+          # reads through those pointers, corrupting ARGV/KEYS with freed memory.
+          arg_ptrs, arg_lens, _arg_bufs, flattened_args = build_command_args(args)
+          keys_ptrs, keys_lens, _keys_bufs, flattened_keys = build_command_args(keys)
 
-          convert_response(res)
+          route = ""
+          route_buf = FFI::MemoryPointer.from_string(route)
+
+          # Use from_string to ensure proper null termination
+          sha = FFI::MemoryPointer.from_string(script)
+
+          begin
+            res = Bindings.invoke_script(
+              conn,
+              0,
+              sha,
+              flattened_keys.size,
+              keys_ptrs,
+              keys_lens,
+              flattened_args.size,
+              arg_ptrs,
+              arg_lens,
+              route_buf,
+              route.bytesize,
+              0 # span_ptr for OpenTelemetry (0 = no span)
+            )
+
+            convert_response(res)
+          ensure
+            Bindings.free_command_result(res) if res && !res.null?
+          end
         ensure
-          Bindings.free_command_result(res) if res && !res.null?
+          release_connection_slot
         end
       end
 

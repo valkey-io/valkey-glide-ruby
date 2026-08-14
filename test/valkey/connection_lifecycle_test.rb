@@ -146,6 +146,11 @@ module ValkeyTests
       pointer = FFI::Pointer.new(1)
       client.instance_variable_set(:@connection, pointer)
       client.instance_variable_set(:@close_lock, Mutex.new)
+      # Also set the drain-tracking state introduced for issue #212 race #2:
+      # `close` now drains in-flight commands under @close_lock before freeing.
+      client.instance_variable_set(:@drain_cv, ConditionVariable.new)
+      client.instance_variable_set(:@inflight, 0)
+      client.instance_variable_set(:@closing, false)
 
       source_path, source_line = Valkey.instance_method(:close).source_location
       # Line of `@connection = nil` inside the `begin` block. Locate it
@@ -194,6 +199,65 @@ module ValkeyTests
       assert_equal 1, close_calls.size,
                    "close_client should be invoked exactly once for one native ownership count"
       assert_same pointer, close_calls.first
+    end
+
+    # Stronger version of the mid-flight-close test: many worker threads all
+    # issuing GVL-releasing FFI commands (`Bindings.command`, `Bindings.batch`,
+    # `Bindings.invoke_script`) simultaneously with `close`, which must drain
+    # them (issue #212, race #2). Without the drain, `close_client` runs on
+    # the same native handle a still-live `blocking: true` FFI call is holding
+    # and glibc aborts with `malloc(): unaligned tcache chunk detected`
+    # (exit 134) — the CI signature the existing single-thread test misses.
+    # Fast (<= a few seconds) so we run it in the default suite.
+    def test_close_drains_in_flight_commands_no_crash
+      skip("connection lifecycle tests only run on standalone mode") if cluster_mode?
+      skip("skipped on JRuby: FFI + blocking: true semantics differ") if RUBY_PLATFORM == "java"
+      key = "lifecycle:drain"
+      thread_count = 16
+      cmd_loops = 40
+
+      client = _new_client
+      client.set(key, "v" * 4096)
+
+      unexpected = Queue.new
+      workers = Array.new(thread_count) do
+        Thread.new do
+          Thread.current.report_on_exception = false
+          cmd_loops.times do
+            case rand(3)
+            when 0 then client.get(key)
+            when 1
+              client.pipelined do |p|
+                p.get(key)
+                p.get(key)
+              end
+            else client.eval("return 1")
+            end
+          end
+        rescue Valkey::BaseError
+          nil # expected once the client is closed
+        rescue StandardError => e
+          unexpected << e
+        end
+      end
+
+      # Let commands start dispatching before racing close.
+      sleep 0.005
+      client.close
+      workers.each(&:join)
+
+      # Reaching here at all means the VM survived. Any StandardError other
+      # than a Valkey::BaseError is a fix regression.
+      raise unexpected.pop unless unexpected.empty?
+
+      # And the client is left properly closed — new commands raise, not crash.
+      error = assert_raises(Valkey::ConnectionError) { client.get(key) }
+      assert_match(/the client is closed/, error.message)
+
+      # And the counter stayed balanced (every acquire paired with a release);
+      # otherwise a future `close` on a fresh client instance with same-slot
+      # state would deadlock in the drain wait.
+      assert_equal 0, client.instance_variable_get(:@inflight)
     end
 
     # a thread closing the client while another is mid-command must raise a
