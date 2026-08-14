@@ -272,8 +272,23 @@ class Valkey
     end
 
     @connection = res[:conn_ptr]
-    # Lock for serializing close() (issue #212).
+    # Concurrency primitives for close-vs-in-flight-command safety (issue #212, race #2).
+    #
+    # `@close_lock` guards `@closing`, `@inflight`, and `@connection` writes.
+    # `@drain_cv` signals when `@inflight` drops to zero so a pending `close`
+    # can free the handle without racing an in-flight `Bindings.command` /
+    # `Bindings.batch` / `Bindings.invoke_script` (all `blocking: true`, so
+    # they release the GVL and run in native code without holding this lock).
+    #
+    # The lock is held only around the counter bump / decrement — never across
+    # an FFI dispatch — so throughput is unaffected. `close` waits on
+    # `@drain_cv` until the last in-flight command releases its slot, then
+    # nulls the handle and calls `Bindings.close_client`. See `#close`,
+    # `#acquire_connection_slot`, `#release_connection_slot`.
     @close_lock = Mutex.new
+    @drain_cv = ConditionVariable.new
+    @inflight = 0
+    @closing = false
     Bindings.free_connection_response(response_ptr)
 
     # Store cluster mode flag for response handling (MAP returns Hash in cluster, Array in standalone)
@@ -294,16 +309,50 @@ class Valkey
   end
 
   # Closes the client and frees the native connection.
+  #
+  # Idempotent and safe to call from any thread. Blocks until every in-flight
+  # command has released its slot, so `Bindings.close_client` never runs
+  # concurrently with a still-live `Bindings.command` / `Bindings.batch` /
+  # `Bindings.invoke_script` on the same handle (issue #212, race #2 — those
+  # FFI calls declare `blocking: true` and release the GVL, but
+  # `close_client` does not, so two threads could otherwise be in Rust
+  # simultaneously and tear down the connection under a live dispatch — the
+  # `malloc(): unaligned tcache chunk detected` abort observed in CI).
+  #
+  # Safe to call from a signal-trap handler even though most `Mutex` methods
+  # raise `ThreadError` there: phase 1 uses only `try_lock`/`unlock`, and if
+  # phase 2's `synchronize` raises we fall back to a best-effort close (no
+  # drain). The common trap-shutdown case has no in-flight commands, so the
+  # fallback still frees the handle correctly.
   def close
     return unless @close_lock&.try_lock
 
     begin
+      return if @closing
+
+      @closing = true
+    ensure
+      @close_lock.unlock
+    end
+
+    # Phase 2: drain in-flight commands, then free the handle. `synchronize`
+    # + CV wait is not trap-safe; degrade to a lock-free close on ThreadError.
+    begin
+      @close_lock.synchronize do
+        @drain_cv.wait(@close_lock) while @inflight.positive?
+
+        conn = @connection
+        @connection = nil
+
+        Bindings.close_client(conn) unless conn.nil? || conn.null?
+      end
+    rescue ThreadError
+      # In trap context (or wherever synchronize can't run). @closing is
+      # already set so no new commands can start; free the handle directly.
       conn = @connection
       @connection = nil
 
       Bindings.close_client(conn) unless conn.nil? || conn.null?
-    ensure
-      @close_lock.unlock
     end
   end
 
@@ -361,115 +410,155 @@ class Valkey
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
   def send_command(command_type, command_args = [], route: nil, &block)
-    conn = connection!
-
-    channel = 0
-
-    # Handle empty command_args case
-    if command_args.empty?
-      arg_ptrs = FFI::MemoryPointer.new(:pointer, 1)
-      arg_lens = FFI::MemoryPointer.new(:ulong, 1)
-      arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
-      arg_lens.put_ulong(0, 0)
-      _buffers = [] # nothing to keep alive
-      flattened_args = command_args
-    else
-      arg_ptrs, arg_lens, _buffers, flattened_args = build_command_args(command_args)
-    end
-
-    # Create OpenTelemetry span if sampling is enabled, as a child of the app's current
-    # span context when a parent_span_context_provider is registered (see Valkey::OpenTelemetry).
-    span_ptr = 0
-    if OpenTelemetry.should_sample?
-      begin
-        parent_ctx = OpenTelemetry.parent_span_context
-        span_ptr = if parent_ctx
-                     Bindings.create_otel_span_with_trace_context(
-                       command_type, parent_ctx[:trace_id], parent_ctx[:span_id],
-                       parent_ctx[:trace_flags], parent_ctx[:tracestate]
-                     )
-                   else
-                     Bindings.create_otel_span(command_type)
-                   end
-      rescue StandardError => e
-        # Log error but continue execution - tracing is non-critical
-        warn "Failed to create OpenTelemetry span: #{e.message}"
-        span_ptr = 0
-      end
-    end
-
+    # Bracket the FFI dispatch with acquire_connection_slot / release_connection_slot
+    # so `close` can safely drain in-flight commands before freeing the native
+    # handle (issue #212, race #2). The lock is only held briefly around the
+    # counter bump / decrement — the FFI call itself runs without holding it
+    # so concurrent commands are not serialized (glide-core supports
+    # concurrent in-flight commands per client).
+    conn = acquire_connection_slot
     begin
-      if route
-        # Use command_with_route_info when an explicit route is provided.
-        route_info, _pinned_bufs = route.to_ffi
-        res = Bindings.command_with_route_info(
-          conn,
-          channel,
-          command_type,
-          flattened_args.size,
-          arg_ptrs,
-          arg_lens,
-          route_info.to_ptr,
-          FFI::Pointer::NULL, # response_buf (NULL = normal response path)
-          0,                  # response_buf_len
-          span_ptr
-        )
+      channel = 0
+
+      # Handle empty command_args case
+      if command_args.empty?
+        arg_ptrs = FFI::MemoryPointer.new(:pointer, 1)
+        arg_lens = FFI::MemoryPointer.new(:ulong, 1)
+        arg_ptrs.put_pointer(0, FFI::MemoryPointer.new(1))
+        arg_lens.put_ulong(0, 0)
+        _buffers = [] # nothing to keep alive
+        flattened_args = command_args
       else
-        # Use legacy command() for unrouted calls to preserve existing behavior.
-        route_str = ""
-        route_buf = FFI::MemoryPointer.from_string(route_str)
-        res = Bindings.command(
-          conn,
-          channel,
-          command_type,
-          flattened_args.size,
-          arg_ptrs,
-          arg_lens,
-          route_buf,
-          route_str.bytesize,
-          span_ptr
-        )
+        arg_ptrs, arg_lens, _buffers, flattened_args = build_command_args(command_args)
       end
 
-      result = convert_response(res, &block)
-    ensure
-      # Free the native CommandResult (arena + response + error) to prevent memory leak
-      Bindings.free_command_result(res) if res && !res.null?
-
-      # Always drop the span if one was created, even if command fails
-      if span_ptr != 0
+      # Create OpenTelemetry span if sampling is enabled, as a child of the app's current
+      # span context when a parent_span_context_provider is registered (see Valkey::OpenTelemetry).
+      span_ptr = 0
+      if OpenTelemetry.should_sample?
         begin
-          Bindings.drop_otel_span(span_ptr)
+          parent_ctx = OpenTelemetry.parent_span_context
+          span_ptr = if parent_ctx
+                       Bindings.create_otel_span_with_trace_context(
+                         command_type, parent_ctx[:trace_id], parent_ctx[:span_id],
+                         parent_ctx[:trace_flags], parent_ctx[:tracestate]
+                       )
+                     else
+                       Bindings.create_otel_span(command_type)
+                     end
         rescue StandardError => e
-          # Log but don't raise - span cleanup errors shouldn't break command execution
-          warn "Failed to drop OpenTelemetry span: #{e.message}"
+          # Log error but continue execution - tracing is non-critical
+          warn "Failed to create OpenTelemetry span: #{e.message}"
+          span_ptr = 0
         end
       end
-    end
 
-    # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
-    if @in_multi && !@queued_commands.nil?
-      tx_commands = [
-        RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD,
-        RequestType::WATCH, RequestType::UNWATCH
-      ]
-      if !tx_commands.include?(command_type) && result == "QUEUED"
-        @queued_commands << [command_type, command_args.dup, block]
+      begin
+        if route
+          # Use command_with_route_info when an explicit route is provided.
+          route_info, _pinned_bufs = route.to_ffi
+          res = Bindings.command_with_route_info(
+            conn,
+            channel,
+            command_type,
+            flattened_args.size,
+            arg_ptrs,
+            arg_lens,
+            route_info.to_ptr,
+            FFI::Pointer::NULL, # response_buf (NULL = normal response path)
+            0,                  # response_buf_len
+            span_ptr
+          )
+        else
+          # Use legacy command() for unrouted calls to preserve existing behavior.
+          route_str = ""
+          route_buf = FFI::MemoryPointer.from_string(route_str)
+          res = Bindings.command(
+            conn,
+            channel,
+            command_type,
+            flattened_args.size,
+            arg_ptrs,
+            arg_lens,
+            route_buf,
+            route_str.bytesize,
+            span_ptr
+          )
+        end
+
+        result = convert_response(res, &block)
+      ensure
+        # Free the native CommandResult (arena + response + error) to prevent memory leak
+        Bindings.free_command_result(res) if res && !res.null?
+
+        # Always drop the span if one was created, even if command fails
+        if span_ptr != 0
+          begin
+            Bindings.drop_otel_span(span_ptr)
+          rescue StandardError => e
+            # Log but don't raise - span cleanup errors shouldn't break command execution
+            warn "Failed to drop OpenTelemetry span: #{e.message}"
+          end
+        end
       end
-    end
 
-    result
+      # Track queued commands during MULTI (except for MULTI, EXEC, DISCARD, WATCH, UNWATCH)
+      if @in_multi && !@queued_commands.nil?
+        tx_commands = [
+          RequestType::MULTI, RequestType::EXEC, RequestType::DISCARD,
+          RequestType::WATCH, RequestType::UNWATCH
+        ]
+        if !tx_commands.include?(command_type) && result == "QUEUED"
+          @queued_commands << [command_type, command_args.dup, block]
+        end
+      end
+
+      result
+    ensure
+      release_connection_slot
+    end
   end
 
   private
 
   # Returns the live native client handle, raising if the client has been
-  # closed.
+  # closed. Kept for callers that only need a fast fail-fast check without
+  # participating in the close-drain protocol (e.g. the early-out branch in
+  # `send_batch_commands` before it delegates back to `#send_command`).
+  # New FFI dispatch sites should use `#acquire_connection_slot` +
+  # `#release_connection_slot` instead so `#close` can drain them safely.
   def connection!
     conn = @connection
     raise ConnectionError, "the client is closed" if conn.nil? || conn.null?
 
     conn
+  end
+
+  # Reserves a slot in the in-flight counter and returns the live native
+  # client handle. Every caller MUST pair this with a `#release_connection_slot`
+  # in an `ensure` block, or `#close` will block forever waiting for the
+  # counter to drain.
+  #
+  # Raises ConnectionError("the client is closed") if `#close` has already
+  # started, or if the handle is nil / null. Once `@closing` is set, no new
+  # slots are handed out — this is what makes the drain in `#close` finite.
+  def acquire_connection_slot
+    @close_lock.synchronize do
+      raise ConnectionError, "the client is closed" if @closing
+      raise ConnectionError, "the client is closed" if @connection.nil? || @connection.null?
+
+      @inflight += 1
+      @connection
+    end
+  end
+
+  # Releases a slot previously reserved by `#acquire_connection_slot`. Wakes
+  # a pending `#close` if this was the last in-flight command.
+  def release_connection_slot
+    @close_lock.synchronize do
+      @inflight -= 1
+      @drain_cv.broadcast if @inflight.zero?
+    end
   end
 
   # Read an SSL value
@@ -515,98 +604,104 @@ class Valkey
       end
     end
 
-    # Checked before allocating any FFI memory below, so a closed client fails fast.
-    conn = connection!
-
-    cmds = []
-    blocks = []
-    buffers = [] # Keep references to prevent GC
-
-    commands.each do |command_type, command_args, block|
-      arg_ptrs, arg_lens, arg_bufs, flattened_args = build_command_args(command_args)
-
-      cmd = Bindings::CmdInfo.new
-      cmd[:request_type] = command_type
-      cmd[:args] = arg_ptrs
-      cmd[:arg_count] = flattened_args.size
-      cmd[:args_len] = arg_lens
-
-      cmds << cmd
-      blocks << block
-      buffers << [arg_ptrs, arg_lens, arg_bufs] # Prevent GC
-    end
-
-    # Create array of pointers to CmdInfo structs
-    cmd_ptrs = FFI::MemoryPointer.new(:pointer, cmds.size)
-    cmds.each_with_index do |cmd, i|
-      cmd_ptrs[i].put_pointer(0, cmd.to_ptr)
-    end
-
-    batch_info = Bindings::BatchInfo.new
-    batch_info[:cmd_count] = cmds.size
-    batch_info[:cmds] = cmd_ptrs
-    batch_info[:is_atomic] = is_atomic
-
-    batch_options = Bindings::BatchOptionsInfo.new
-    batch_options[:retry_server_error] = true
-    batch_options[:retry_connection_error] = true
-    batch_options[:has_timeout] = false
-    batch_options[:timeout] = 0 # No timeout
-    batch_options[:route_info] = FFI::Pointer::NULL
-
-    # Create OpenTelemetry span for batch operation if sampling is enabled, as a child of
-    # the app's current span context when a parent_span_context_provider is registered.
-    span_ptr = 0
-    if OpenTelemetry.should_sample?
-      begin
-        parent_ctx = OpenTelemetry.parent_span_context
-        span_ptr = if parent_ctx
-                     Bindings.create_batch_otel_span_with_trace_context(
-                       parent_ctx[:trace_id], parent_ctx[:span_id], parent_ctx[:trace_flags], parent_ctx[:tracestate]
-                     )
-                   else
-                     Bindings.create_batch_otel_span
-                   end
-      rescue StandardError => e
-        warn "Failed to create OpenTelemetry batch span: #{e.message}"
-        span_ptr = 0
-      end
-    end
-
+    # Reserve a slot before allocating any FFI memory below, so a closed
+    # client fails fast — and so `#close` can safely drain us before freeing
+    # the native handle (issue #212, race #2). Paired with
+    # `release_connection_slot` in the outer `ensure`.
+    conn = acquire_connection_slot
     begin
-      res = Bindings.batch(
-        conn,
-        0,
-        batch_info,
-        exception,
-        batch_options.to_ptr,
-        span_ptr
-      )
+      cmds = []
+      blocks = []
+      buffers = [] # Keep references to prevent GC
 
-      results = convert_response(res)
-    ensure
-      # Free the native CommandResult (arena + response + error) to prevent memory leak
-      Bindings.free_command_result(res) if res && !res.null?
+      commands.each do |command_type, command_args, block|
+        arg_ptrs, arg_lens, arg_bufs, flattened_args = build_command_args(command_args)
 
-      # Always drop the span if one was created
-      if span_ptr != 0
+        cmd = Bindings::CmdInfo.new
+        cmd[:request_type] = command_type
+        cmd[:args] = arg_ptrs
+        cmd[:arg_count] = flattened_args.size
+        cmd[:args_len] = arg_lens
+
+        cmds << cmd
+        blocks << block
+        buffers << [arg_ptrs, arg_lens, arg_bufs] # Prevent GC
+      end
+
+      # Create array of pointers to CmdInfo structs
+      cmd_ptrs = FFI::MemoryPointer.new(:pointer, cmds.size)
+      cmds.each_with_index do |cmd, i|
+        cmd_ptrs[i].put_pointer(0, cmd.to_ptr)
+      end
+
+      batch_info = Bindings::BatchInfo.new
+      batch_info[:cmd_count] = cmds.size
+      batch_info[:cmds] = cmd_ptrs
+      batch_info[:is_atomic] = is_atomic
+
+      batch_options = Bindings::BatchOptionsInfo.new
+      batch_options[:retry_server_error] = true
+      batch_options[:retry_connection_error] = true
+      batch_options[:has_timeout] = false
+      batch_options[:timeout] = 0 # No timeout
+      batch_options[:route_info] = FFI::Pointer::NULL
+
+      # Create OpenTelemetry span for batch operation if sampling is enabled, as a child of
+      # the app's current span context when a parent_span_context_provider is registered.
+      span_ptr = 0
+      if OpenTelemetry.should_sample?
         begin
-          Bindings.drop_otel_span(span_ptr)
+          parent_ctx = OpenTelemetry.parent_span_context
+          span_ptr = if parent_ctx
+                       Bindings.create_batch_otel_span_with_trace_context(
+                         parent_ctx[:trace_id], parent_ctx[:span_id], parent_ctx[:trace_flags], parent_ctx[:tracestate]
+                       )
+                     else
+                       Bindings.create_batch_otel_span
+                     end
         rescue StandardError => e
-          warn "Failed to drop OpenTelemetry batch span: #{e.message}"
+          warn "Failed to create OpenTelemetry batch span: #{e.message}"
+          span_ptr = 0
         end
       end
-    end
 
-    # An inline error slot (see the ResponseType::ERROR case in
-    # convert_response above) must be left alone here - e.g. Utils::Boolify
-    # would otherwise silently coerce a CommandError object to `true`
-    # (`value != 0` is true for any non-numeric object), hiding the error.
-    blocks.each_with_index do |block, i|
-      results[i] = block.call(results[i]) if block && !results[i].is_a?(CommandError)
-    end
+      begin
+        res = Bindings.batch(
+          conn,
+          0,
+          batch_info,
+          exception,
+          batch_options.to_ptr,
+          span_ptr
+        )
 
-    results
+        results = convert_response(res)
+      ensure
+        # Free the native CommandResult (arena + response + error) to prevent memory leak
+        Bindings.free_command_result(res) if res && !res.null?
+
+        # Always drop the span if one was created
+        if span_ptr != 0
+          begin
+            Bindings.drop_otel_span(span_ptr)
+          rescue StandardError => e
+            warn "Failed to drop OpenTelemetry batch span: #{e.message}"
+          end
+        end
+      end
+
+      # An inline error slot (see the ResponseType::ERROR case in
+      # convert_response above) must be left alone here - e.g. Utils::Boolify
+      # would otherwise silently coerce a CommandError object to `true`
+      # (`value != 0` is true for any non-numeric object), hiding the error.
+      blocks.each_with_index do |block, i|
+        results[i] = block.call(results[i]) if block && !results[i].is_a?(CommandError)
+      end
+
+      results
+    ensure
+      release_connection_slot
+    end
   end
 
   # Builds the `periodic_checks` extra_options_json value. Accepts
