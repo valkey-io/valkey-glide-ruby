@@ -66,7 +66,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Set up Ruby
-        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
         with:
           ruby-version: "3.3"
           bundler-cache: true
@@ -241,7 +241,7 @@ jobs:
           echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> $GITHUB_ENV
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
         with:
           ruby-version: ${{ matrix.version }}
           bundler-cache: true
@@ -318,7 +318,7 @@ jobs:
           engine-version: "9.0"
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@8e41b362d2589a22a44c1cfa214b3c83052c195b # v1
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
         with:
           ruby-version: "3.4"
           bundler-cache: true
