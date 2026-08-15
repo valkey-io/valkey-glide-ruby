@@ -35,8 +35,11 @@ valkey-glide-ruby/
 ├── valkey-glide/                 # Git submodule (valkey-io/valkey-glide)
 │   └── ffi/                      # Rust FFI crate (build target)
 ├── test/
-│   ├── valkey/                   # Standalone server tests
-│   ├── cluster/                  # Cluster tests
+│   ├── unit/                     # Server-free unit tests
+│   ├── integration/
+│   │   ├── standalone/           # Standalone server tests
+│   │   ├── cluster/              # Cluster tests
+│   │   └── valkey/               # Shared valkey-glide-specific test modules
 │   ├── lint/                     # Shared lint suites
 │   └── support/helper/           # Test helpers (client, cluster, SSL)
 ├── bin/
@@ -47,7 +50,7 @@ valkey-glide-ruby/
 │   └── cd.yml                    # Build and publish gem
 ├── valkey.gemspec
 ├── Gemfile
-└── Rakefile                      # test:standalone, test:cluster, native:build
+└── Rakefile                      # test:unit, test:standalone, test:cluster, native:build
 ```
 
 ## Prerequisites
@@ -178,7 +181,7 @@ See [ffi/README.md](https://github.com/valkey-io/valkey-glide/blob/main/ffi/READ
 
 ## Running Tests
 
-Tests use **Minitest**. The suite is split into standalone (`test/valkey/`) and cluster (`test/cluster/`) groups.
+Tests use **Minitest**. The suite is split into unit (`test/unit/`, no server needed), standalone (`test/integration/standalone/` + `test/integration/valkey/`), and cluster (`test/integration/cluster/`) groups.
 
 ### Start Valkey (standalone)
 
@@ -212,9 +215,13 @@ python3 valkey-glide/utils/cluster_manager.py start --cluster-mode --prefix clus
 ### Run Tests
 
 ```bash
-# All default (standalone) tests
+# All groups (unit, standalone, cluster)
 bundle exec rake test
-# or
+
+# Unit tests only (no server needed)
+bundle exec rake test:unit
+
+# Standalone integration tests only
 bundle exec rake test:standalone
 
 # Cluster tests only
@@ -286,7 +293,7 @@ When adding a command, check whether it already exists in [glide-core](https://g
 1. **Add `RequestType` constant** in `lib/valkey/request_type.rb` if not present (must match glide-core enum).
 2. **Implement the command** in the appropriate file under `lib/valkey/commands/` (e.g. `string_commands.rb`, `hash_commands.rb`).
 3. **Use `send_command`** with the correct `RequestType` and argument list (all arguments converted to strings for FFI).
-4. **Add standalone tests** in `test/valkey/<group>_commands_test.rb`.
+4. **Add standalone tests** in `test/integration/valkey/<group>_commands_test.rb`.
 5. **Add lint tests** in `test/lint/<group>_commands.rb` when the command should match redis-rb behavior.
 6. **Update the wiki** [command implementation status](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands).
 
@@ -317,10 +324,10 @@ When adding a command, check whether it already exists in [glide-core](https://g
 
 ### Tests
 
-- **Unit-style command tests**: `test/valkey/*_test.rb` — require a running server.
+- **Unit-style command tests**: `test/integration/valkey/*_test.rb` — require a running server.
 - **Lint suites**: `test/lint/*.rb` — included from valkey and cluster tests for API parity checks.
-- **OpenTelemetry**: `test/valkey/test_opentelemetry.rb` — uses file exporter endpoints.
-- **Statistics**: `test/valkey/test_statistics.rb`.
+- **OpenTelemetry**: `test/integration/valkey/opentelemetry_test.rb` — uses file exporter endpoints.
+- **Statistics**: `test/integration/valkey/statistics_test.rb`.
 
 ### Documentation in code
 
@@ -342,7 +349,7 @@ Valkey::OpenTelemetry.init(
 Run OTel tests:
 
 ```bash
-bundle exec ruby test/valkey/test_opentelemetry.rb
+bundle exec ruby test/integration/valkey/opentelemetry_test.rb
 ```
 
 ## CI Overview
