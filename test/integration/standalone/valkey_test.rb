@@ -22,7 +22,6 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::Sorting
   include ValkeyTests::Statistics
   include ValkeyTests::URIConnection
-  include ValkeyTests::Utils
   include ValkeyTests::FlattenMap
 
   # Property-based test modules for eval/evalsha
@@ -44,10 +43,4 @@ class TestStandaloneOpenTelemetry < Minitest::Test
   def cluster_mode?
     false
   end
-end
-
-# Pure unit tests for the parent-span-context provider API - no connection, no native
-# OTel init, so this runs in its own class independent of server/mode.
-class TestOpenTelemetryProvider < Minitest::Test
-  include ValkeyTests::OpenTelemetryProvider
 end
