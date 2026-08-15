@@ -136,8 +136,11 @@ namespace :test do
                module_dirs.map { |d| Dir["test/#{d}/**/*_test.rb"] }.flatten -
                standalone_scripts
   abort "The following test files are in no group:\n#{lost_tests.join("\n")}" unless lost_tests.empty?
+
+  desc "Run integration tests (standalone + cluster)"
+  task integration: %w[standalone cluster]
 end
 
-task test: ["test:unit", "test:standalone", "test:cluster"]
+task test: ["test:unit", "test:integration"]
 
 task default: :test
