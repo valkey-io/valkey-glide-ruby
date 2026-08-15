@@ -111,29 +111,33 @@ task native: "native:build"
 # =============================================================================
 
 namespace :test do
-  groups = %i[standalone cluster]
-  groups.each do |group|
+  groups = {
+    unit: "unit",
+    standalone: "integration/standalone",
+    cluster: "integration/cluster"
+  }
+  groups.each do |group, dir|
     Rake::TestTask.new(group) do |t|
       t.libs << "test"
       # Only add local lib to load path when not testing installed gem
       t.libs << "lib" unless ENV["TEST_INSTALLED_GEM"]
-      t.test_files = FileList["test/#{group}/**/*_test.rb"]
+      t.test_files = FileList["test/#{dir}/**/*_test.rb"]
       t.options = '-v' if ENV['CI'] || ENV['VERBOSE']
     end
   end
 
-  # Exclude module directories (valkey/, lint/) from lost_tests check
+  # Exclude module directories (integration/valkey/, lint/) from lost_tests check
   # These contain reusable test modules, not standalone test files
-  module_dirs = %w[valkey lint]
+  module_dirs = %w[integration/valkey lint]
   # Standalone scripts run directly (not via a test group) — see cd.yml
   standalone_scripts = %w[test/smoke_test.rb]
   lost_tests = Dir["test/**/*_test.rb"] -
-               groups.map { |g| Dir["test/#{g}/**/*_test.rb"] }.flatten -
+               groups.values.map { |d| Dir["test/#{d}/**/*_test.rb"] }.flatten -
                module_dirs.map { |d| Dir["test/#{d}/**/*_test.rb"] }.flatten -
                standalone_scripts
   abort "The following test files are in no group:\n#{lost_tests.join("\n")}" unless lost_tests.empty?
 end
 
-task test: ["test:standalone", "test:cluster"]
+task test: ["test:unit", "test:standalone", "test:cluster"]
 
 task default: :test

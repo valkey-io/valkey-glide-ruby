@@ -38,6 +38,6 @@ Dir[File.expand_path("lint/**/*.rb", __dir__)].each do |f|
 end
 
 # Load valkey shared test modules
-Dir[File.expand_path("valkey/**/*.rb", __dir__)].each do |f|
+Dir[File.expand_path("integration/valkey/**/*.rb", __dir__)].each do |f|
   require f
 end
