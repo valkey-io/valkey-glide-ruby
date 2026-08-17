@@ -1,11 +1,11 @@
 
 # Valkey GLIDE for Ruby
 
-Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, proudly part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide), delivering GLIDE performance, reliability, and enterprise features.
+Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide), giving Ruby applications the performance and reliability of the GLIDE core.
 
-## Why Choose Valkey GLIDE?
+## Features
 
-- **Community and Open Source**: Join our vibrant community and contribute to the project.
+- **Community and Open Source**: Developed in the open under the Valkey organization; contributions welcome.
 - **Reliability**: Built with best practices learned from over a decade of operating Redis OSS-compatible services.
 - **Performance**: Optimized for high performance and low latency via the Rust-based GLIDE core.
 - **High Availability**: Cluster-aware routing, reconnection, and fault tolerance.
@@ -16,8 +16,7 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 
 - **Command coverage**: [Implementation status wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands)
 - **Valkey GLIDE overview**: [glide.valkey.io](https://glide.valkey.io/)
-- **Supported engine versions**: [valkey-glide README — Supported Engine Versions](https://github.com/valkey-io/valkey-glide/blob/main/README.md#supported-engine-versions)
-- **Local development**: [DEVELOPER.md](./DEVELOPER.md)
+- **Supported engine versions**: [valkey-glide README: Supported Engine Versions](https://github.com/valkey-io/valkey-glide/blob/main/README.md#supported-engine-versions)
 
 ## Supported Engine Versions
 
@@ -26,7 +25,7 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 | Valkey      | -   | -   | -   | ✓   | ✓   | ✓   | ✓   |
 | Redis OSS   | ✓   | ✓   | ✓   | ✓   | -   | -   | -   |
 
-## Getting Started — Ruby Wrapper
+## Getting Started (Ruby Wrapper)
 
 ### System Requirements
 
@@ -40,8 +39,8 @@ The following platforms are tested in CI:
 - Alpine Linux 3 (x86_64 and arm64, via musl targets)
 - macOS 14+ (Apple silicon / arm64)
 
-**Notes:** valkey-glide-rb gem only support ARM MacOS. For Intel Mac users
-you will need to build the client locally.
+**Notes:** valkey-glide-rb depends on the compiled Rust core. For unsupported OS like Intel Mac, you 
+will need to build Valkey GLIDE manually.
 
 ### Installation and Setup
 
@@ -63,8 +62,6 @@ Verify installation:
 ruby -e 'require "valkey"; puts Valkey::VERSION'
 ```
 
-The gem ships prebuilt native libraries (`libglide_ffi.so` on Linux, `libglide_ffi.dylib` on macOS) and depends on the [`ffi`](https://github.com/ffi/ffi) gem.
-
 ## Basic Examples
 
 ### Standalone Mode
@@ -83,25 +80,6 @@ client.get("mykey")
 client.close
 ```
 
-### Standalone with URL
-
-Accepted URL schemes: `redis://`, `rediss://` (TLS), `valkey://`, `valkeys://` (TLS).
-
-```ruby
-client = Valkey.new(url: "redis://localhost:6379/0")
-# Valkey-native scheme (matches valkey-cli -u):
-#   valkey://localhost:6379/0
-# TLS variants:
-#   rediss://user:password@localhost:6380/0
-#   valkeys://user:password@localhost:6380/0
-
-client.ping
-# => "PONG"
-```
-
-Unparseable URLs, unsupported schemes, and URLs without a host raise
-`ArgumentError` — they no longer fall back to `127.0.0.1:6379` silently.
-
 ### Cluster Mode
 
 ```ruby
@@ -119,60 +97,6 @@ client.set("foo", "bar")
 client.get("foo")
 # => "bar"
 ```
-
-### Pipelining
-
-Batch multiple commands in a single network round trip (non-atomic pipeline):
-
-```ruby
-results = client.pipelined do |pipe|
-  pipe.set("key1", "value1")
-  pipe.get("key1")
-  pipe.incr("counter")
-end
-# => ["OK", "value1", 1]
-```
-
-> **Note:** Transactional commands (`MULTI` / `EXEC` / `DISCARD`) in a pipeline are executed sequentially as a workaround for FFI batch stability. Prefer `multi` / `exec` on the main client for transactions.
-
-### Generic Command Dispatch (`call` / `call_v`)
-
-Not every command has a dedicated method yet. `call`/`call_v` are the escape hatch — send any
-command as plain arguments and get the raw reply back, matching `redis-client`'s `#call`/`#call_v`:
-
-```ruby
-client.call("SET", "mykey", "value")
-# => "OK"
-
-client.call_v(["MGET"] + keys)
-```
-
-`call`/`call_v` apply the same argument coercion as `redis-client`:
-
-```ruby
-# Integers/Floats auto-stringify
-client.call("SET", "mykey", 42)
-# equivalent to call("SET", "mykey", "42")
-
-# Arrays flatten (including nested arrays)
-client.call("LPUSH", "list", [1, 2, 3])
-# equivalent to call("LPUSH", "list", "1", "2", "3")
-
-# Hashes flatten to alternating key/value
-client.call("HMSET", "hash", { "foo" => "1" })
-# equivalent to call("HMSET", "hash", "foo", "1")
-
-# Keyword args become trailing command flags (call only, not call_v):
-# a truthy value emits the upcased flag name; a non-boolean value also emits
-# the stringified value. Falsy/nil values are dropped entirely, not stringified.
-client.call("SET", "k", "v", nx: true, ex: 60)
-# equivalent to call("SET", "k", "v", "NX", "EX", "60")
-client.call("SET", "k", "v", nx: false, ex: nil)
-# equivalent to call("SET", "k", "v")
-```
-
-`call_v` takes the whole command as a single Array (no keyword flags) — useful when the command is
-built dynamically. Both return the raw reply with no type-casting based on the command name.
 
 ### Connection Options
 
@@ -197,153 +121,13 @@ built dynamically. Both return the raw reply with no type-casting based on the c
 | `lazy_connect` | Delay the actual connection until the first command is sent |
 | `periodic_checks` | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
 
-```ruby
-client = Valkey.new(
-  host: "localhost",
-  port: 6379,
-  timeout: 2.0,
-  connect_timeout: 1.0,
-  client_name: "my-app",
-  protocol: :resp3
-)
-```
-
-## OpenTelemetry
-
-Valkey GLIDE Ruby configures OpenTelemetry in the **native Rust core** (not via the Ruby `opentelemetry-sdk` gem). Initialize once per process before creating clients:
-
-```ruby
-require "valkey"
-
-Valkey::OpenTelemetry.init(
-  traces: {
-    endpoint: "http://localhost:4318/v1/traces",
-    sample_percentage: 10
-  },
-  metrics: {
-    endpoint: "http://localhost:4318/v1/metrics"
-  },
-  flush_interval_ms: 5000
-)
-
-client = Valkey.new(host: "localhost", port: 6379)
-client.set("key", "value")  # traced when sampling applies
-```
-
-**Supported endpoint formats:**
-
-- HTTP/HTTPS: `http://localhost:4318/v1/traces`
-- gRPC: `grpc://localhost:4317`
-- File (testing): `file:///tmp/valkey_traces.json`
-
-OpenTelemetry can only be initialized **once per process**. Spans are created in the FFI layer when sampling is enabled.
-
-### Distributed tracing (parent context propagation)
-
-By default, every command span is an independent root span — it doesn't nest under your
-application's request trace. To fix that, register a `parent_span_context_provider`: a
-callable invoked before every command that returns the current W3C trace context (or `nil`
-when there isn't one). When it returns a valid context, the command/pipeline span is created
-as a **child** of it instead of an independent span.
-
-```ruby
-require "valkey"
-require "opentelemetry/sdk" # if your app uses the real opentelemetry-ruby gem
-
-Valkey::OpenTelemetry.init(
-  traces: { endpoint: "http://localhost:4318/v1/traces", sample_percentage: 10 }
-)
-
-Valkey::OpenTelemetry.set_parent_span_context_provider do
-  span = ::OpenTelemetry::Trace.current_span
-  next nil unless span.context.valid?
-
-  {
-    trace_id: span.context.hex_trace_id,
-    span_id: span.context.hex_span_id,
-    trace_flags: span.context.trace_flags.sampled? ? 1 : 0,
-    tracestate: span.context.tracestate.to_s
-  }
-end
-```
-
-The provider must return either `nil` or a Hash with `:trace_id` (32-char lowercase hex),
-`:span_id` (16-char lowercase hex), `:trace_flags` (Integer 0-255), and `:tracestate`
-(String or `nil`). Anything else is rejected with a warning and treated as `nil` — a broken
-provider degrades to independent root spans, it never raises into your command path.
-
-You can also pass `parent_span_context_provider:` directly to `init(...)` instead of calling
-`set_parent_span_context_provider` separately.
-
-**Note on the `OpenTelemetry` constant name:** `Valkey::OpenTelemetry` (this gem's module) and
-the real `opentelemetry-ruby` gem's top-level `::OpenTelemetry` module are unrelated constants
-and don't collide. But if you write a provider block from code that's lexically nested inside
-`Valkey` (uncommon for typical app-level code), a bare `OpenTelemetry::Trace` reference would
-resolve to `Valkey::OpenTelemetry::Trace` (undefined) instead of the real gem — always use the
-leading-`::` form, `::OpenTelemetry::Trace`, as in the example above.
-
-## Examples
-
-Runnable examples are in [examples/](./examples/):
-
-```bash
-bundle exec ruby examples/standalone.rb
-bundle exec ruby examples/pipelining.rb
-bundle exec ruby examples/opentelemetry.rb
-```
-
-See [examples/README.md](./examples/README.md) for cluster setup and environment variables.
-
-## Client Statistics
-
-Monitor global client metrics (shared across all clients in the process):
-
-```ruby
-stats = client.get_statistics
-# alias: client.statistics
-
-puts "Connections: #{stats[:total_connections]}"
-puts "Clients: #{stats[:total_clients]}"
-puts "Compressed values: #{stats[:total_values_compressed]}"
-```
-
-Available keys: `:total_connections`, `:total_clients`, `:total_values_compressed`, `:total_values_decompressed`, `:total_original_bytes`, `:total_bytes_compressed`, `:total_bytes_decompressed`, `:compression_skipped_count`.
-
-## Pub/Sub
-
-Pub/Sub is currently not supported and is not ready for use and is planned for future release.
-See https://github.com/valkey-io/valkey-glide-ruby/issues/135
-## Layout of Ruby Code
-
-| Path | Purpose |
-|------|---------|
-| `lib/valkey.rb` | Main client: connection, pipelining, response conversion |
-| `lib/valkey/bindings.rb` | FFI bindings to `libglide_ffi` |
-| `lib/valkey/commands/` | Command modules (strings, hashes, streams, cluster, JSON, vector search, …) |
-| `lib/valkey/opentelemetry.rb` | OpenTelemetry configuration |
-| `lib/valkey/pipeline.rb` | Pipeline command batching |
-| `test/unit/` | Server-free unit tests |
-| `test/integration/standalone/` | Standalone integration tests |
-| `test/integration/cluster/` | Cluster integration tests |
-| `test/lint/` | Shared lint tests (redis-rb convention patterns) |
-
-## API Conventions
-
-This client is **not** a drop-in replacement for redis-rb, but it follows familiar Ruby conventions to ease adoption:
-
-- `Valkey.new` with `url`, `host`, `port`, `db`, `ssl_params`
-- Conventional command method names and argument ordering
-- `pipelined`, `multi` / `exec`, `disconnect!` (alias of `close`)
-
-APIs and behavior may differ from redis-rb; verify against your usage. See the [command implementation wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands) for coverage.
-
 ## Building and Testing
-
-Instructions for building from source, updating the FFI library, running tests, and contributing are in [DEVELOPER.md](./DEVELOPER.md).
 
 For AI-assisted development, see [AGENTS.md](./AGENTS.md) and [CLAUDE.md](./CLAUDE.md).
 
 Contributing: [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+For setting up your local development, see [DEVELOPER.md](./DEVELOPER.md)
 
 ## Community and Feedback
 
@@ -353,4 +137,4 @@ Report issues: [valkey-glide-ruby issues](https://github.com/valkey-io/valkey-gl
 
 ## License
 
-Apache-2.0 — see [LICENSE](https://github.com/valkey-io/valkey-glide-ruby/blob/main/LICENSE) in the repository.
+Apache-2.0. See [LICENSE](https://github.com/valkey-io/valkey-glide-ruby/blob/main/LICENSE) in the repository.

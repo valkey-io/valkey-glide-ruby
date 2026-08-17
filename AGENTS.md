@@ -10,25 +10,23 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 
 **Build System:** Bundler, Rake, RubyGems
 
-**Architecture:** Ruby wrapper around `glide-ffi` (`libglide_ffi.so` / `.dylib`) — same FFI path as Go and Python sync clients
+**Architecture:** Ruby wrapper around `glide-ffi` (`libglide_ffi.so` / `.dylib`), the same FFI path as Go and Python sync clients
 
 **Key Components:**
 
-- `lib/valkey.rb` — Main client, pipelining, response conversion
-- `lib/valkey/bindings.rb` — FFI bindings
-- `lib/valkey/commands/` — Command modules
-- `lib/valkey/opentelemetry.rb` — Native OTel configuration
-- `test/unit/` — Server-free unit tests
-- `test/integration/standalone/` — Standalone integration tests
-- `test/integration/cluster/` — Cluster integration tests
-- `test/integration/valkey/` — Shared valkey-glide-specific test modules
-- `test/lint/` — Lint suites
+- `lib/valkey.rb`: Main client, pipelining, response conversion
+- `lib/valkey/bindings.rb`: FFI bindings
+- `lib/valkey/commands/`: Command modules
+- `lib/valkey/opentelemetry.rb`: Native OTel configuration
+- `test/valkey/`: Standalone integration tests
+- `test/cluster/`: Cluster integration tests
+- `test/lint/`: Lint suites
 
 ## Architecture Quick Facts
 
 **Core Implementation:** Ruby wrapper around glide-core via `glide-ffi` cdylib
 
-**Client Types:** `Valkey` — standalone or cluster (`cluster_mode: true`)
+**Client Types:** `Valkey`, standalone or cluster (`cluster_mode: true`)
 
 **API Style:** Synchronous, blocking calls.
 
@@ -37,12 +35,41 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 **Supported Platforms:**
 
 - Linux: Ubuntu 20+, Amazon Linux 2/2023 (x86_64, aarch64)
-- Alpine Linux 3.18+ (x86_64, aarch64) — musl libc
+- Alpine Linux 3.18+ (x86_64, aarch64), musl libc
 - macOS: 13.7+ (x86_64), 14.7+ (aarch64)
 
-**Ruby Versions:** 3.0, 3.1, 3.2, 3.3, 3.4, JRuby (CI matrix)
+**Ruby Versions:** 3.0, 3.1, 3.2, 3.3, 3.4 (CI matrix; `always-run` on 3.2 and 3.4). Minimum is 3.0 per `valkey.gemspec`.
 
 **Gem name:** `valkey-glide-rb` on RubyGems
+
+## Context Retrieval
+
+When working on a feature, read these paths first:
+
+| Topic | Read first |
+|-------|------------|
+| Connection / options | `lib/valkey.rb` (`#initialize`), `test/lint/connection_options.rb` |
+| New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/*.rb`, `test/lint/*` |
+| Pipelining / batch | `lib/valkey.rb` (`pipelined`, `send_batch_commands`), `lib/valkey/pipeline.rb` |
+| OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/valkey/test_opentelemetry.rb` |
+| FFI / errors | `lib/valkey/bindings.rb`, `lib/valkey/errors.rb` |
+| Cluster | `test/support/helper/cluster.rb`, `test/cluster/` |
+| Upstream semantics | [valkey-glide glide-core](https://github.com/valkey-io/valkey-glide/tree/main/glide-core), peer client in `go/` or `python/glide-sync/` |
+
+## Quality Gates (Agent Checklist)
+
+- [ ] Positive tests added.
+- [ ] Negative tests covered.
+- [ ] `bundle exec rubocop` passes
+- [ ] Test servers were started/stopped via `cluster_manager.py` (never hand-launched or ad-hoc `docker run`)
+- [ ] `bundle exec rake test:standalone` passes (with Valkey running)
+- [ ] `bundle exec rake test:cluster` passes (if cluster commands touched)
+- [ ] New commands have tests in `test/valkey/` and lint coverage where applicable
+- [ ] `RequestType` matches glide-core enum
+- [ ] No secrets or generated junk committed
+- [ ] DCO signoff: `git log --format="%B" -n 1 | grep "Signed-off-by"`
+- [ ] Conventional commit format used
+- [ ] Native lib rebuilt and copied if FFI/protobuf changed upstream
 
 ## Build and Test Rules (Agents)
 
@@ -71,7 +98,7 @@ bundle exec bin/console
 
 ```bash
 # Run a single test file
-bundle exec ruby -Itest -Ilib test/integration/standalone/commands_test.rb
+bundle exec ruby test/valkey/string_commands_test.rb
 
 # Run with custom port
 VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
@@ -85,12 +112,17 @@ RUBYOPT="-I$(pwd)/lib" ruby -r valkey -e 'p Valkey.new.ping'
 | Suite | Server requirement |
 |-------|-------------------|
 | `test:standalone` | Standalone Valkey/Redis on `localhost:6379` (DB 15) |
-| `test:cluster` | 6-node cluster on `127.0.0.1:7000`–`7005` (auto-started by the suite) |
+| `test:cluster` | 6-node cluster on `127.0.0.1:7000`-`7005` (auto-started by the suite) |
 | SSL tests | TLS Valkey on port `6380` + `export TLS_CERT_DIR=...` (or `SKIP_TLS_TESTS=true`) |
 | Module tests | JSON, Bloom, Search modules loaded (see CI workflow) |
 
-Start test servers with `cluster_manager.py` (matching CI). The cluster is
-auto-started by the suite; standalone and TLS are started manually:
+### Managing Test Servers
+
+**Prefer `cluster_manager.py` for all test servers.** Start and stop standalone,
+TLS, and cluster servers with `valkey-glide/utils/cluster_manager.py`. It's the
+same tool CI uses, so ports, the test DB, TLS cert layout, and cluster topology
+match CI. Use a manual `valkey-server`/`redis-server` launch or `docker run`
+**only** when a scenario cannot be produced with `cluster_manager.py`.
 
 ```bash
 # Standalone on :6379
@@ -107,11 +139,30 @@ python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone
 
 ### Rebuild Native FFI (when changing glide-core)
 
+Prefer the Rake tasks; they init the submodule and set `GLIDE_NAME=GlideRuby` /
+`GLIDE_VERSION` (from `lib/valkey/version.rb`) for `CLIENT SETINFO`:
+
+```bash
+rake native:build          # release build in valkey-glide/ffi/target/release/
+rake native:build_debug    # debug build
+rake native:package        # copy built lib to lib/valkey/native/{arch}-{os}/ for gem packaging
+rake native:clean          # cargo clean
+```
+
+The client (`lib/valkey/bindings.rb`) loads the native library from the first
+location that exists, in this order:
+
+1. `valkey-glide/ffi/target/release/libglide_ffi.{so,dylib}`
+2. `valkey-glide/ffi/target/debug/libglide_ffi.{so,dylib}`
+3. `lib/valkey/native/{arch}-{os}/libglide_ffi.{so,dylib}` (bundled in the gem)
+4. `lib/valkey/libglide_ffi.{so,dylib}` (dev fallback)
+
+Raw equivalent (only if not using Rake):
+
 ```bash
 cd /path/to/valkey-glide/ffi
 cargo build --release
-cp target/release/libglide_ffi.so /path/to/valkey-glide-ruby/lib/valkey/   # Linux
-# cp target/release/libglide_ffi.dylib ...                                   # macOS
+# release/debug builds under target/ are picked up automatically (order 1-2 above)
 ```
 
 ## Contribution Requirements
@@ -156,20 +207,21 @@ cargo fmt --manifest-path ./Cargo.toml --all
 
 ### Generated Outputs (Never Commit)
 
-- `*.gem` — built gem packages
-- `coverage/` — coverage reports
-- `tmp/`, `test/tmp/` — temporary test artifacts
-- SSL certs — never commit them; TLS tests read certs from `TLS_CERT_DIR` (generated by `cluster_manager.py --tls`)
-- Wrong-platform `libglide_ffi` binaries (build per OS/arch)
+- `*.gem`: built gem packages
+- `coverage/`: coverage reports
+- `tmp/`, `test/tmp/`: temporary test artifacts
+- SSL certs: never commit them; TLS tests read certs from `TLS_CERT_DIR` (generated by `cluster_manager.py --tls`)
+- Wrong-platform `libglide_ffi` binaries (built per OS/arch during CD into `lib/valkey/native/{arch}-{os}/`)
 
 ### Ruby-Specific Rules
 
 - **Ruby 3.0+ Required:** Minimum per `valkey.gemspec`
-- **FFI dependency:** `ffi ~> 1.17.0` — do not break ABI without rebuilding native lib
+- **FFI dependency:** `ffi ~> 1.17.0`; do not break ABI without rebuilding native lib
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
 - **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
 - **Command args:** All FFI args are strings; convert types in Ruby before `send_command`
-- **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback — do not remove without fixing FFI batch stability
+- **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback; do not remove without fixing FFI batch stability
+- **Pub/Sub:** The public API is currently disabled (`include PubSubCommands` is commented out in `lib/valkey/commands.rb`); Pub/Sub is only partially implemented (see issue #135). Do not re-enable without completing it.
 - **OpenTelemetry:** Init once per process via `Valkey::OpenTelemetry.init`; spans created in FFI layer
 
 ### Command Implementation Guidelines
@@ -177,13 +229,13 @@ cargo fmt --manifest-path ./Cargo.toml --all
 1. Check `RequestType` in `lib/valkey/request_type.rb` against glide-core `request_type.rs`
 2. Add method to appropriate `lib/valkey/commands/*.rb` module
 3. Use `send_command(RequestType::..., args)` 
-4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable
+4. Add tests: `test/valkey/` + `test/lint/` when applicable
 5. Document with YARD comments + Valkey command link
 
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (PubSub callback is intentional for now)
+- Debug `puts` in production code paths (the `PubSubCallback` `puts` in `lib/valkey/pubsub_callback.rb` is intentional while Pub/Sub is unfinished)
 
 ## Project Structure (Essential)
 
@@ -192,42 +244,27 @@ valkey-glide-ruby/
 ├── lib/valkey.rb
 ├── lib/valkey/
 │   ├── bindings.rb
-│   ├── libglide_ffi.{so,dylib}
-│   ├── commands/*.rb
+│   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
+│   ├── pubsub_callback.rb
+│   ├── commands.rb       # requires + includes all command modules
+│   ├── commands/*.rb     # 20 command-family modules
 │   ├── opentelemetry.rb
 │   ├── pipeline.rb
 │   ├── request_type.rb
 │   └── response_type.rb
-├── test/unit/            # server-free unit tests
-├── test/integration/
-│   ├── standalone/       # standalone tests
-│   ├── cluster/          # cluster tests
-│   └── valkey/           # shared valkey-glide-specific test modules
+├── test/valkey/          # standalone tests
+├── test/cluster/         # cluster tests
 ├── test/lint/            # shared lint
 ├── valkey.gemspec
 ├── Rakefile
 └── .github/workflows/ci.yml
 ```
 
-## Quality Gates (Agent Checklist)
-
-- [ ] `bundle exec rubocop` passes
-- [ ] `bundle exec rake test:unit` passes
-- [ ] `bundle exec rake test:standalone` passes (with Valkey running)
-- [ ] `bundle exec rake test:cluster` passes (if cluster commands touched)
-- [ ] New commands have tests in `test/integration/valkey/` and lint coverage where applicable
-- [ ] `RequestType` matches glide-core enum
-- [ ] No secrets or generated junk committed
-- [ ] DCO signoff: `git log --format="%B" -n 1 | grep "Signed-off-by"`
-- [ ] Conventional commit format used
-- [ ] README / DEVELOPER.md updated if public API or setup changed
-- [ ] Native lib rebuilt and copied if FFI/protobuf changed upstream
-
 ## Quick Facts for Reasoners
 
 **Package:** `valkey-glide-rb` on RubyGems  
 **API Style:** Synchronous. 
-**Client:** `Valkey.new` — standalone or `cluster_mode: true`  
+**Client:** `Valkey.new`, standalone or `cluster_mode: true`  
 **Key Features:** Pipelining, OpenTelemetry (native), statistics, TLS, URL parsing, cluster routing  
 **Testing:** Minitest + rake tasks; lint suites.
 **Core repo:** [valkey-glide](https://github.com/valkey-io/valkey-glide) (`ffi/`, `glide-core/`)  
@@ -238,9 +275,7 @@ valkey-glide-ruby/
 - **Getting Started:** [README.md](./README.md)
 - **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 - **Examples:** [examples/](./examples/)
-- **Development Setup:** [DEVELOPER.md](./DEVELOPER.md)
 - **Claude-specific rules:** [CLAUDE.md](./CLAUDE.md)
-- **Command coverage:** [Wiki — implementation status](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands)
+- **Command coverage:** [Wiki: implementation status](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands)
 - **GLIDE docs:** [glide.valkey.io](https://glide.valkey.io/)
 - **Upstream FFI:** [valkey-glide/ffi](https://github.com/valkey-io/valkey-glide/tree/main/ffi)
-- **Other language AGENTS.md:** [valkey-glide/python/AGENTS.md](https://github.com/valkey-io/valkey-glide/blob/main/python/AGENTS.md), [java/AGENTS.md](https://github.com/valkey-io/valkey-glide/blob/main/java/AGENTS.md)
