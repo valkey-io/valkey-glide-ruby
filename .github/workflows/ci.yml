@@ -1,4 +1,4 @@
-name: CI
+name: Ruby CI
 
 run-name: ${{ inputs.name || format('{0} @ {1} {2}', github.ref_name, github.sha, toJson(inputs)) }}
 
