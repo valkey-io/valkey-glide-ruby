@@ -69,6 +69,8 @@ When working on a feature, read these paths first:
 - [ ] No secrets or generated junk committed
 - [ ] DCO signoff: `git log --format="%B" -n 1 | grep "Signed-off-by"`
 - [ ] Conventional commit format used
+- [ ] `CHANGELOG.md` updated for user-facing changes
+- [ ] PR body follows `.github/pull_request_template.md` (all sections filled, checklist completed)
 - [ ] Native lib rebuilt and copied if FFI/protobuf changed upstream
 
 ## Build and Test Rules (Agents)
@@ -185,6 +187,36 @@ git config --global format.signOff true
 **Example:** `feat(ruby): implement CLUSTER SCAN with routing options`
 
 **Scopes:** `ruby`, or command family name when appropriate.
+
+### Pull Requests REQUIRED
+
+When opening a PR, you MUST follow `.github/pull_request_template.md`. Read that
+file first and fill in every section it defines (currently: Summary, Issue link,
+Features / Behaviour Changes, Implementation, Limitations, Testing) and complete
+its Checklist honestly. Do not substitute a free-form description; `gh pr create`
+with a custom `--body` bypasses the template, so reproduce the template structure
+in the body you pass.
+
+### Changelog REQUIRED
+
+Every user-facing change MUST add an entry to `CHANGELOG.md` under the top
+`## 1.x.x (Pending)` section, in the correct subsections.
+
+```markdown
+## 1.x.x (Pending)
+
+### Fixes
+
+* fix(ruby): <what changed and the user-visible effect> ([#123](https://github.com/valkey-io/valkey-glide-ruby/issues/123))
+
+### Changes
+
+* feat(ruby): <what changed and the user-visible effect> ([#124](https://github.com/valkey-io/valkey-glide-ruby/pull/124))
+```
+
+Each entry follows the same Conventional Commits format as commit messages
+(`<type>(<scope>): <description>`, scope `ruby`), states the behavior change,
+and links the related issue or PR.
 
 ### Code Quality Requirements
 
