@@ -38,7 +38,7 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 - Alpine Linux 3.18+ (x86_64, aarch64), musl libc
 - macOS: 13.7+ (x86_64), 14.7+ (aarch64)
 
-**Ruby Versions:** 3.0, 3.1, 3.2, 3.3, 3.4 (CI matrix; `always-run` on 3.2 and 3.4). Minimum is 3.0 per `valkey.gemspec`.
+**Ruby Versions:** 3.0, 3.1, 3.2, 3.3, 3.4. Minimum is 3.0 per `valkey.gemspec`.
 
 **Gem name:** `valkey-glide-rb` on RubyGems
 

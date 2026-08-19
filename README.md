@@ -25,7 +25,7 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 | Valkey      | -   | -   | -   | ✓   | ✓   | ✓   | ✓   |
 | Redis OSS   | ✓   | ✓   | ✓   | ✓   | -   | -   | -   |
 
-## Getting Started (Ruby Wrapper)
+## Getting Started
 
 ### System Requirements
 
