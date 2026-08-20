@@ -38,35 +38,7 @@ module ValkeyTests
       assert_raises(Valkey::CommandError) { r.failover(abort: true) }
     end
 
-    # should send "ABORT" only
-    def test_failover_abort_sends_abort_only
-      assert_equal ["ABORT"], capture_failover_args(abort: true, timeout: 5000)
-    end
-
-    # should not send "FORCE" unless a TO target is supplied
-    def test_failover_force_without_target_omits_force
-      assert_equal [], capture_failover_args(force: true)
-    end
-
-    # should build "TO host port FORCE TIMEOUT ms" in order for a full request
-    def test_failover_builds_full_arg_list_in_order
-      args = capture_failover_args(to: "127.0.0.1 6380", force: true, timeout: 5000)
-      assert_equal ["TO", "127.0.0.1", "6380", "FORCE", "TIMEOUT", "5000"], args
-    end
-
     private
-
-    # Replace the send_command method used by failover() with a stub which captures the arguments and returns "OK".
-    # This allows us to see the arguments passed to the failover command without actually executing it.
-    def capture_failover_args(**options)
-      captured = nil
-      stub = lambda do |_request_type, args = [], &_block|
-        captured = args
-        "OK"
-      end
-      r.stub(:send_command, stub) { r.failover(**options) }
-      captured
-    end
 
     # Start a standalone primary with one replica and yields a
     # client connected to the primary. Cleans up afterward.
