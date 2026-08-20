@@ -10,7 +10,7 @@ Gem::Specification.new do |spec|
   spec.summary = "A Ruby client library for Valkey"
   spec.description = "A Ruby client library for Valkey"
   spec.homepage = "https://github.com/valkey-io/valkey-glide-ruby"
-  spec.required_ruby_version = ">= 3.0.0"
+  spec.required_ruby_version = ">= 2.6.0"
 
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
@@ -29,5 +29,7 @@ Gem::Specification.new do |spec|
   end + Dir.glob("lib/valkey/native/**/*").reject { |f| File.directory?(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "ffi", "~> 1.17.0"
+  # ffi 1.17 dropped Ruby 2.7 (its required_ruby_version is >= 3.0), so 2.7
+  # installs resolve to ffi 1.16.x while 3.x installs pick up 1.17+ automatically.
+  spec.add_dependency "ffi", "~> 1.16"
 end

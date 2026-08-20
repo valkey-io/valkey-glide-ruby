@@ -68,3 +68,12 @@ Metrics/ModuleLength:
     - 'lib/valkey/bindings.rb'
     - 'lib/valkey/opentelemetry.rb'
     - 'test/**/*.rb'
+
+# This gem is backported to run on Ruby 2.7 (see required_ruby_version in
+# valkey.gemspec), while TargetRubyVersion stays at 3.0 for general style.
+# The two cops below assume the gem's minimum Ruby is 3.0, which isn't true here.
+Style/HashExcept:
+  Enabled: false   # Hash#except is Ruby 3.0+; we use Hash#reject to stay 2.7-compatible
+
+Gemspec/RequiredRubyVersion:
+  Enabled: false   # required_ruby_version (>= 2.6) is intentionally below TargetRubyVersion

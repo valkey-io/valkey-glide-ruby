@@ -45,8 +45,9 @@ class Valkey
     # Parse URL if provided
     if options[:url]
       url_options = Utils.parse_redis_url(options[:url])
-      # Merge URL options, but explicit options take precedence
-      options = url_options.merge(options.except(:url))
+      # Merge URL options, but explicit options take precedence.
+      # `reject` (not Hash#except, which is Ruby 3.0+) keeps this Ruby 2.7 compatible.
+      options = url_options.merge(options.reject { |k, _| k == :url })
     end
 
     # Extract connection parameters
