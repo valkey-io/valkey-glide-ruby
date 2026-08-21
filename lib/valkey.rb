@@ -357,7 +357,7 @@ class Valkey
   # a Ruby value. This is the primitive every command method in
   # `lib/valkey/commands/*.rb` is built on. Public (rather than private) because
   # some test helpers (e.g. `test/lint/vector_search_commands.rb`,
-  # `test/valkey/connection_lifecycle_test.rb`) call it directly with an
+  # `test/integration/valkey/connection_lifecycle_test.rb`) call it directly with an
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
   def send_command(command_type, command_args = [], route: nil, &block)

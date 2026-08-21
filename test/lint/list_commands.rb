@@ -556,7 +556,7 @@ module Lint
     # Invokes a blocking list command while intercepting send_command, and
     # returns the argv the client built -- without issuing a real blocking call.
     # Mirrors capture_cluster_failover_args in test/lint/cluster_commands.rb and
-    # capture_call_args in test/valkey/call_test.rb.
+    # capture_call_args in test/unit/commands/generic_commands_test.rb.
     def capture_blocking_argv(&invocation)
       captured = nil
       recorder = lambda do |_request_type, args = [], **_opts, &_block|

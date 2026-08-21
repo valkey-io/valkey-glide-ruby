@@ -678,7 +678,7 @@ module Lint
     def test_connection_with_unrecognized_read_from_string_raises_cannot_connect_error
       # Negative control against the real native core (not stubbed): Ruby forwards
       # an unrecognized read_from value as-is rather than rejecting it (see
-      # test/valkey/connection_config_test.rb's unit tests for that). This confirms
+      # test/unit/connection_config_test.rb's unit tests for that). This confirms
       # what actually happens when the bogus value reaches the core -- confirmed
       # directly against ffi/src/lib.rs's JSON parsing: it's rejected at JSON-parse
       # time with `Err(format!("Unknown read_from value: {}", read_from_str))`,

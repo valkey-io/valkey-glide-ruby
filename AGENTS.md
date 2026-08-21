@@ -71,7 +71,7 @@ bundle exec bin/console
 
 ```bash
 # Run a single test file
-bundle exec ruby test/integration/valkey/string_commands_test.rb
+bundle exec ruby -Itest -Ilib test/integration/standalone/commands_test.rb
 
 # Run with custom port
 VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
