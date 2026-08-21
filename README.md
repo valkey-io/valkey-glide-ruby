@@ -131,7 +131,7 @@ For setting up your local development, see [DEVELOPER.md](./DEVELOPER.md)
 
 ## Community and Feedback
 
-We encourage you to join our community to support, share feedback, and ask questions on Valkey Slack: [Join Valkey Slack](https://join.slack.com/t/valkey-oss-developer/shared_invite/zt-2nxs51chx-EB9hu9Qdch3GMfRcztTSkQ).
+Join the community on Valkey Slack to ask questions and share feedback: [Join Valkey Slack](https://join.slack.com/t/valkey-oss-developer/shared_invite/zt-2nxs51chx-EB9hu9Qdch3GMfRcztTSkQ).
 
 Report issues: [valkey-glide-ruby issues](https://github.com/valkey-io/valkey-glide-ruby/issues).
 
