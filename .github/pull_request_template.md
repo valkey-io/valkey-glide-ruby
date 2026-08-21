@@ -11,7 +11,8 @@ here](https://github.com/valkey-io/valkey-glide-ruby/blob/main/CONTRIBUTING.md)
 <!--
 A short and concise overview of the motivation and how this PR address it. High level only.
 Often this involves describing any user-facing behavior changes resulting from this PR.
-The related issue should describe in details on the design decisions and such.
+The related issue should describe in details on the design decisions and such, otherwise
+this PR should describe design taken as well.
 -->
 
 ### Issue link
