@@ -349,7 +349,7 @@ Valkey::OpenTelemetry.init(
 Run OTel tests:
 
 ```bash
-bundle exec ruby test/integration/valkey/opentelemetry_test.rb
+bundle exec ruby -Itest -Ilib test/integration/standalone/valkey_test.rb -n '/TestStandaloneOpenTelemetry/'
 ```
 
 ## CI Overview
