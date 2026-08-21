@@ -191,8 +191,7 @@ git config --global format.signOff true
 ### Pull Requests REQUIRED
 
 When opening a PR, you MUST follow `.github/pull_request_template.md`. Read that
-file first and fill in every section it defines (currently: Summary, Issue link,
-Features / Behaviour Changes, Implementation, Limitations, Testing) and complete
+file first and fill in every section it defines and complete
 its Checklist honestly. Do not substitute a free-form description; `gh pr create`
 with a custom `--body` bypasses the template, so reproduce the template structure
 in the body you pass.

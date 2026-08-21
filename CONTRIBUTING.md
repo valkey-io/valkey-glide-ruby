@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to Valkey GLIDE for Ruby. Whether it's a bug report, new feature, correction, or documentation, we value feedback from the community.
 
-This document will go over some of the important things to know before making a contribution. For our guidelines, please take a look at the Valkey GLIDE [CONTRIBUTING.md](./valkey-glide/CONTRIBUTING.md).
+This document will go over some of the important things to know before making a contribution. For our guidelines, please take a look at the Valkey GLIDE [CONTRIBUTING.md](https://github.com/valkey-io/valkey-glide/blob/main/CONTRIBUTING.md).
 
 ## Raising an Issue
 

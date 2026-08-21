@@ -16,10 +16,12 @@ The related issue should describe in details on the design decisions and such.
 
 ### Issue link
 
-<!-- Some examples notes -->
-Closes [<Issue Title>](<Issue URL>)
-Related [<Issue Title>](<Issue URL>)
-Sub task of [<Issue Title>](<Issue URL>)
+<!-- 
+Some examples:
+- Closes [<Issue Title>](<Issue URL>)
+- Related [<Issue Title>](<Issue URL>)
+- Sub task of [<Issue Title>](<Issue URL>)
+ -->
 ### Changes
 
 <!--
