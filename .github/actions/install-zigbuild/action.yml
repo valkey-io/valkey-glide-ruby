@@ -1,38 +1,28 @@
 name: Install zig and cargo-zigbuild
 description: >
-  Install pinned zig + cargo-zigbuild for cross-compiling the linux-gnu native
-  libraries against an glibc 2.17.
+  Install pinned zig + cargo-zigbuild via pip for cross-compiling the linux-gnu
+  native libraries. Versions are locked here; bump them in this file.
 
-  Assumes a Linux x86_64/aarch64 runner.
-
-inputs:
-  rust-target:
-    description: >
-      Optional Rust target triple to `rustup target add`.
-    required: false
-    default: ""
+  cargo-zigbuild's PyPI package depends on ziglang, and cargo-zigbuild locates
+  zig through `python3 -m ziglang`, so no zig binary needs to be on PATH. The
+  caller gates this to linux-gnu targets, so python3 + pip are always present
+  (Ubuntu runners).
 
 runs:
   using: composite
   steps:
-    - name: Install zig and cargo-zigbuild
+    - name: Install zig and cargo-zigbuild (pinned, pip)
       shell: bash
       env:
-        ZIG_VERSION: "0.13.0"
-        CARGO_ZIGBUILD_VERSION: "0.20.1"
-        RUST_TARGET: ${{ inputs.rust-target }}
+        CARGO_ZIGBUILD_VERSION: "0.23.1"
+        ZIGLANG_VERSION: "0.13.0"
       run: |
         set -euo pipefail
-        ARCH="$(uname -m)"
-        curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ARCH}-${ZIG_VERSION}.tar.xz" \
-          | sudo tar -xJ -C /usr/local
-        sudo ln -sf "/usr/local/zig-linux-${ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
-        curl -fsSL "https://github.com/rust-cross/cargo-zigbuild/releases/download/v${CARGO_ZIGBUILD_VERSION}/cargo-zigbuild-v${CARGO_ZIGBUILD_VERSION}.${ARCH}-unknown-linux-musl.tar.gz" \
-          | sudo tar -xz -C /usr/local/bin
-        if [[ -n "${RUST_TARGET}" ]]; then
-          rustup target add "${RUST_TARGET}"
-        fi
-        zig version
-        # `cargo zigbuild` dispatches to `cargo-zigbuild zigbuild`, whose
-        # subcommand has no --version flag; query the binary directly.
+        python3 -m pip install "cargo-zigbuild==${CARGO_ZIGBUILD_VERSION}" "ziglang==${ZIGLANG_VERSION}"
+        # cargo-zigbuild's console script lands in the pip user bin; put it on
+        # PATH so later steps (cargo zigbuild) can find it.
+        USER_BIN="$(python3 -m site --user-base)/bin"
+        echo "${USER_BIN}" >> "$GITHUB_PATH"
+        export PATH="${USER_BIN}:${PATH}"
         cargo-zigbuild --version
+        python3 -m ziglang version

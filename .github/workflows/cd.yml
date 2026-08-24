@@ -89,8 +89,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
+      - name: Install Rust (pinned)
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
+        with:
+          toolchain: "1.98.0"
+          targets: ${{ matrix.host.TARGET }}
 
       - name: Install protoc (protobuf)
         uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
@@ -137,8 +140,6 @@ jobs:
       - name: Install zig and cargo-zigbuild (linux-gnu)
         if: contains(matrix.host.TARGET, 'linux-gnu')
         uses: ./.github/actions/install-zigbuild
-        with:
-          rust-target: ${{ matrix.host.TARGET }}
 
       - name: Build native library
         working-directory: valkey-glide/ffi
