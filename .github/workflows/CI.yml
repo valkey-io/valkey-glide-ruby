@@ -12,6 +12,7 @@ on:
       - lib/**
       - test/**
       - valkey-glide/ffi/**
+      - .github/actions/**
       - .github/workflows/**
       - .github/json_matrices/**
       - Gemfile
@@ -140,13 +141,14 @@ jobs:
         with:
           submodules: recursive
 
-      # Composite actions from the valkey-glide submodule use relative paths
-      # (vs reusable workflows which use org/repo/path@ref syntax)
-      - name: Install Rust
-        uses: ./valkey-glide/.github/actions/install-rust
+      - name: Install Rust (pinned)
+        uses: dtolnay/rust-toolchain@e97e2d8cc328f1b50210efc529dca0028893a2d9 # v1
         with:
-          target: ${{ matrix.host.TARGET }}
+          toolchain: "1.98.0"
+          targets: ${{ matrix.host.TARGET }}
 
+      # Composite action from the valkey-glide submodule uses a relative path
+      # (vs reusable workflows which use org/repo/path@ref syntax)
       - name: Install protoc
         uses: ./valkey-glide/.github/actions/install-protoc
         with:
