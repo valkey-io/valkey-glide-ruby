@@ -75,7 +75,7 @@ By signing off, you agree to the [Developer Certificate of Origin](https://devel
 1. Confirm the command exists in [glide-core `request_type.rs`](https://github.com/valkey-io/valkey-glide/blob/main/glide-core/src/request_type.rs).
 2. Add or verify `RequestType` in `lib/valkey/request_type.rb`.
 3. Implement in the appropriate `lib/valkey/commands/*.rb` module.
-4. Add tests under `test/valkey/` and lint coverage in `test/lint/` when matching redis-rb behavior.
+4. Add tests under `test/integration/valkey/` and lint coverage in `test/lint/` when matching redis-rb behavior.
 5. Update the [command implementation wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands).
 
 See [DEVELOPER.md](./DEVELOPER.md) for full details.

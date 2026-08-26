@@ -322,8 +322,9 @@ See https://github.com/valkey-io/valkey-glide-ruby/issues/135
 | `lib/valkey/commands/` | Command modules (strings, hashes, streams, cluster, JSON, vector search, …) |
 | `lib/valkey/opentelemetry.rb` | OpenTelemetry configuration |
 | `lib/valkey/pipeline.rb` | Pipeline command batching |
-| `test/valkey/` | Standalone integration tests |
-| `test/cluster/` | Cluster integration tests |
+| `test/unit/` | Server-free unit tests |
+| `test/integration/standalone/` | Standalone integration tests |
+| `test/integration/cluster/` | Cluster integration tests |
 | `test/lint/` | Shared lint tests (redis-rb convention patterns) |
 
 ## API Conventions

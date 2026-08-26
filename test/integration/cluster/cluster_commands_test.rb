@@ -31,7 +31,6 @@ class TestClusterCommands < Minitest::Test
 
   # ValkeyTests modules without conflicting setup methods
   include ValkeyTests::Bitpos
-  include ValkeyTests::ConnectionConfig
   include ValkeyTests::Call
   include ValkeyTests::GenericCommands
   include ValkeyTests::Scanning
@@ -40,7 +39,6 @@ class TestClusterCommands < Minitest::Test
   include ValkeyTests::Sorting
   include ValkeyTests::Statistics
   include ValkeyTests::URIConnection
-  include ValkeyTests::Utils
 
   # Eval/Evalsha property tests
   include ValkeyTests::EvalEvalshaBasicProperties

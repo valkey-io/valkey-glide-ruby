@@ -326,7 +326,7 @@ jobs:
           bundler-cache: true
 
       - name: Run module tests
-        run: bundle exec ruby -Itest -Ilib test/standalone/commands_test.rb -n '/TestStandalone(Module|Json|VectorSearch)Commands/'
+        run: bundle exec ruby -Itest -Ilib test/integration/standalone/commands_test.rb -n '/TestStandalone(Module|Json|VectorSearch)Commands/'
         env:
           STANDALONE_ENDPOINTS: ${{ env.MODULES_STANDALONE_ENDPOINT }}
 

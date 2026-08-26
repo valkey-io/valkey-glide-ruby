@@ -18,8 +18,10 @@ This is the **Ruby client** for Valkey GLIDE, published as the `valkey-glide-rb`
 - `lib/valkey/bindings.rb` — FFI bindings
 - `lib/valkey/commands/` — Command modules
 - `lib/valkey/opentelemetry.rb` — Native OTel configuration
-- `test/valkey/` — Standalone integration tests
-- `test/cluster/` — Cluster integration tests
+- `test/unit/` — Server-free unit tests
+- `test/integration/standalone/` — Standalone integration tests
+- `test/integration/cluster/` — Cluster integration tests
+- `test/integration/valkey/` — Shared valkey-glide-specific test modules
 - `test/lint/` — Lint suites
 
 ## Architecture Quick Facts
@@ -69,7 +71,7 @@ bundle exec bin/console
 
 ```bash
 # Run a single test file
-bundle exec ruby test/valkey/string_commands_test.rb
+bundle exec ruby -Itest -Ilib test/integration/standalone/commands_test.rb
 
 # Run with custom port
 VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
@@ -175,7 +177,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 1. Check `RequestType` in `lib/valkey/request_type.rb` against glide-core `request_type.rs`
 2. Add method to appropriate `lib/valkey/commands/*.rb` module
 3. Use `send_command(RequestType::..., args)` 
-4. Add tests: `test/valkey/` + `test/lint/` when applicable
+4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable
 5. Document with YARD comments + Valkey command link
 
 ### Never Commit
@@ -196,8 +198,11 @@ valkey-glide-ruby/
 │   ├── pipeline.rb
 │   ├── request_type.rb
 │   └── response_type.rb
-├── test/valkey/          # standalone tests
-├── test/cluster/         # cluster tests
+├── test/unit/            # server-free unit tests
+├── test/integration/
+│   ├── standalone/       # standalone tests
+│   ├── cluster/          # cluster tests
+│   └── valkey/           # shared valkey-glide-specific test modules
 ├── test/lint/            # shared lint
 ├── valkey.gemspec
 ├── Rakefile
@@ -207,9 +212,10 @@ valkey-glide-ruby/
 ## Quality Gates (Agent Checklist)
 
 - [ ] `bundle exec rubocop` passes
+- [ ] `bundle exec rake test:unit` passes
 - [ ] `bundle exec rake test:standalone` passes (with Valkey running)
 - [ ] `bundle exec rake test:cluster` passes (if cluster commands touched)
-- [ ] New commands have tests in `test/valkey/` and lint coverage where applicable
+- [ ] New commands have tests in `test/integration/valkey/` and lint coverage where applicable
 - [ ] `RequestType` matches glide-core enum
 - [ ] No secrets or generated junk committed
 - [ ] DCO signoff: `git log --format="%B" -n 1 | grep "Signed-off-by"`

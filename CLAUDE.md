@@ -6,7 +6,7 @@ Valkey GLIDE Ruby (`valkey-glide-rb`) is the official Ruby binding for Valkey an
 
 - NO task completion without tests covering it and passing (when a Valkey server or cluster is available for integration tests)
 - NO PR creation without addressing review feedback on tests, docs, and RuboCop
-- NEVER assume — verify against `test/valkey/` and `test/lint/` suites
+- NEVER assume — verify against `test/integration/valkey/` and `test/lint/` suites
 - NEVER ignore bugs, even out of scope — open a GitHub issue on [valkey-glide-ruby](https://github.com/valkey-io/valkey-glide-ruby/issues)
 
 ## Rules
@@ -66,8 +66,11 @@ valkey-glide-ruby/
 │   ├── pipeline.rb            # Valkey::Pipeline
 │   ├── request_type.rb        # Maps to glide-core RequestType
 │   └── response_type.rb       # FFI response decoding
-├── test/valkey/                # Standalone integration tests
-├── test/cluster/               # Cluster tests
+├── test/unit/                  # Server-free unit tests
+├── test/integration/
+│   ├── standalone/             # Standalone integration tests
+│   ├── cluster/                # Cluster tests
+│   └── valkey/                 # Shared valkey-glide-specific test modules
 └── test/lint/                  # redis-rb parity lint
 ```
 
@@ -98,9 +101,9 @@ When working on a feature, read these paths first:
 | Connection / options | `lib/valkey.rb` (`#initialize`), `test/lint/connection_options.rb` |
 | New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/*.rb`, `test/lint/*` |
 | Pipelining / batch | `lib/valkey.rb` (`pipelined`, `send_batch_commands`), `lib/valkey/pipeline.rb` |
-| OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/valkey/test_opentelemetry.rb` |
+| OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/integration/valkey/opentelemetry_test.rb` |
 | FFI / errors | `lib/valkey/bindings.rb`, `lib/valkey/errors.rb` |
-| Cluster | `test/support/helper/cluster.rb`, `test/cluster/` |
+| Cluster | `test/support/helper/cluster.rb`, `test/integration/cluster/` |
 | Upstream semantics | [valkey-glide glide-core](https://github.com/valkey-io/valkey-glide/tree/main/glide-core), peer client in `go/` or `python/glide-sync/` |
 
 ## Build and Test (quick reference)
@@ -108,6 +111,7 @@ When working on a feature, read these paths first:
 ```bash
 bin/setup
 bundle exec rubocop
+bundle exec rake test:unit        # no server needed
 bundle exec rake test:standalone  # needs localhost:6379
 bundle exec rake test:cluster     # needs cluster 7000-7005
 ```
