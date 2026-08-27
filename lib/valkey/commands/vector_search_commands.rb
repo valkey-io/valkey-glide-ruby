@@ -26,7 +26,9 @@ class Valkey
       # Run a search query with aggregations.
       #
       # @example Perform an aggregation query
-      #   valkey.ft_aggregate("myIndex", "*", "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0", "AS", "count")
+      #   # Valkey-native FT.AGGREGATE rejects the "*" wildcard; use a filter expression.
+      #   valkey.ft_aggregate("myIndex", "@price:[0 +inf]",
+      #                       "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0", "AS", "count")
       #     # => [[1, ["category", "electronics", "count", "5"]]]
       #
       # @param [String] index the index name to search
@@ -99,23 +101,46 @@ class Valkey
 
       # Create a search index with the given schema.
       #
-      # @example Create a basic index
-      #   valkey.ft_create("myIndex", "SCHEMA", "title", "TEXT", "price", "NUMERIC")
-      #     # => "OK"
+      # Two calling styles are supported:
       #
-      # @example Create an index with vector field
-      #   valkey.ft_create("vecIndex", "ON", "HASH", "PREFIX", "1", "doc:",
-      #                    "SCHEMA", "embedding", "VECTOR", "HNSW", "6",
-      #                    "TYPE", "FLOAT32", "DIM", "128", "DISTANCE_METRIC", "COSINE")
-      #     # => "OK"
+      # 1. **Builder API** — pass an Array of {Valkey::Search::Field} objects and,
+      #    optionally, a {Valkey::Search::CreateOptions} (or the same index-level
+      #    options as keyword arguments):
       #
-      # @param [String] index the index name
-      # @param [Array<String>] args schema definition and options
+      #        valkey.ft_create("idx",
+      #          [Valkey::Search::TextField.new("title", sortable: true),
+      #           Valkey::Search::VectorField.hnsw("embedding", dim: 128, metric: :cosine)],
+      #          on: :hash, prefixes: ["doc:"])
+      #
+      # 2. **Raw args** (backward compatible) — pass the FT.CREATE tokens directly:
+      #
+      #        valkey.ft_create("idx", "SCHEMA", "title", "TEXT", "price", "NUMERIC")
+      #
+      #    Raw tokens must be splatted as individual arguments, not wrapped in an
+      #    Array — a single Array argument selects the builder path (and raises if
+      #    its elements are not {Valkey::Search::Field} objects).
+      #
+      # The builder path is selected as soon as the first argument after +index+
+      # is an Array; from there the arguments are validated and any problem
+      # raises ArgumentError rather than silently falling back to the raw path.
+      # Anything else is forwarded verbatim as raw FT.CREATE tokens.
+      #
+      # @param index [String] the index name
+      # @param args [Array] either `[fields]` / `[fields, create_options]` (builder)
+      #   or raw FT.CREATE tokens
+      # @param kwargs [Hash] index-level options for the builder path (forwarded to
+      #   {Valkey::Search::CreateOptions}); ignored on the raw-args path
       # @return [String] "OK" on success
+      # @raise [ArgumentError] on a malformed builder invocation
       #
       # @see https://redis.io/commands/ft.create/
-      def ft_create(index, *args)
-        command_args = [index] + args
+      def ft_create(index, *args, **kwargs)
+        command_args =
+          if args[0].is_a?(Array)
+            ft_create_builder_args(index, args, kwargs)
+          else
+            [index] + args
+          end
         send_command(RequestType::FT_CREATE, command_args)
       end
 
@@ -211,25 +236,14 @@ class Valkey
 
       # Search an index with a query.
       #
-      # @example Basic search
-      #   valkey.ft_search("myIndex", "hello world")
-      #     # => [1, "doc1", ["title", "hello world"]]
-      #
-      # @example Search with options
-      #   valkey.ft_search("myIndex", "@title:hello", "LIMIT", "0", "10", "RETURN", "2", "title", "price")
-      #     # => [total_results, doc_id, [field1, value1, field2, value2], ...]
-      #
-      # @example Vector similarity search
-      #   valkey.ft_search("vecIndex", "*=>[KNN 5 @embedding $vec]",
-      #                    "PARAMS", "2", "vec", vector_blob,
-      #                    "RETURN", "1", "__embedding_score",
-      #                    "DIALECT", "2")
-      #     # => [results_count, doc_id, ["__embedding_score", "0.95"], ...]
+      # @example Search an index
+      #   valkey.ft_search("myIndex", "@title:hello", "LIMIT", "0", "10")
+      #     # => [results]
       #
       # @param [String] index the index name
       # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments (LIMIT, RETURN, SORTBY, etc.)
-      # @return [Array] search results with total count and matching documents
+      # @param [Array<String>] args additional query arguments
+      # @return [Array] search results
       #
       # @see https://redis.io/commands/ft.search/
       def ft_search(index, query, *args)
@@ -258,13 +272,58 @@ class Valkey
       def ft(subcommand, *args, **options)
         subcommand = subcommand.to_s.downcase.gsub("-", "_")
 
+        # public_send so ft() cannot reach private helpers (SEC-001).
         if args.empty? && options.empty?
-          send("ft_#{subcommand}")
+          public_send("ft_#{subcommand}")
         elsif options.empty?
-          send("ft_#{subcommand}", *args)
+          public_send("ft_#{subcommand}", *args)
         else
-          send("ft_#{subcommand}", *args, **options)
+          public_send("ft_#{subcommand}", *args, **options)
         end
+      end
+
+      private
+
+      # the builder invocation up front (see F-DISPATCH findings). Any malformed
+      # input raises ArgumentError rather than silently degrading.
+      #
+      # @param index [String] index name
+      # @param args [Array] positional builder args: `[fields]` or `[fields, options]`
+      # @param kwargs [Hash] option keyword arguments (used only when no positional
+      #   options object is given)
+      # @return [Array] flat FT.CREATE token array
+      # @raise [ArgumentError] on too many positionals, an empty/invalid schema,
+      #   a non-CreateOptions options object, or options passed both ways
+      def ft_create_builder_args(index, args, kwargs)
+        if args.length > 2
+          raise ArgumentError,
+                "ft_create builder form takes the schema and an optional CreateOptions " \
+                "(got #{args.length} positional arguments)"
+        end
+
+        fields = args[0]
+        options = args[1]
+
+        raise ArgumentError, "schema must contain at least one field" if fields.empty?
+        unless fields.all?(Valkey::Search::Field)
+          raise ArgumentError, "every schema field must be a Valkey::Search::Field"
+        end
+        unless options.nil? || options.is_a?(Valkey::Search::CreateOptions)
+          raise ArgumentError,
+                "ft_create options must be a Valkey::Search::CreateOptions, got #{options.class}"
+        end
+        if options && !kwargs.empty?
+          raise ArgumentError,
+                "pass index options either as a CreateOptions object or as keyword arguments, not both"
+        end
+
+        options ||= Valkey::Search::CreateOptions.new(**kwargs) unless kwargs.empty?
+
+        command_args = [index]
+        command_args.concat(options.to_args) if options
+        command_args << "SCHEMA"
+        fields.each { |field| command_args.concat(field.to_args) }
+        command_args
       end
     end
   end

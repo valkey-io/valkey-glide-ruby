@@ -467,6 +467,96 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
+    # ------------------------------------------------------------------
+    # Builder-API integration coverage (TDD 1.1-1.5).
+    #
+    # These exercise the Valkey::Search::* builder path of ft_create against a
+    # live search module. Like the rest of this suite they are module-gated:
+    # they skip when the search module / native library is unavailable, so they
+    # remain pending-integration in environments without a live search module.
+    # ------------------------------------------------------------------
+
+    # TDD 1.1 — create index with text and numeric fields via the builder API.
+    def test_ft_create_builder_text_and_numeric
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             [Valkey::Search::TextField.new("title", sortable: true),
+                              Valkey::Search::NumericField.new("price", sortable: true)])
+        assert_equal "OK", result
+        assert_includes r.ft_list, TEST_INDEX, "Index should exist after builder create"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 1.2 — create index with an HNSW vector field via the builder API.
+    def test_ft_create_builder_vector_hnsw
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             [Valkey::Search::VectorField.hnsw("embedding", dim: 128, metric: :cosine,
+                                                                            m: 16, ef_construction: 200)],
+                             on: :hash, prefixes: ["doc:"])
+        assert_equal "OK", result
+        assert_includes r.ft_list, TEST_INDEX
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 1.3 — create index with a FLAT vector field via the builder API.
+    def test_ft_create_builder_vector_flat
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             [Valkey::Search::VectorField.flat("embedding", dim: 128, metric: :l2)],
+                             on: :hash, prefixes: ["doc:"])
+        assert_equal "OK", result
+        assert_includes r.ft_list, TEST_INDEX
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 1.4 — create index with a tag field via the builder API.
+    def test_ft_create_builder_tag
+      ensure_redisearch_loaded
+
+      with_db0 do
+        result = r.ft_create(TEST_INDEX,
+                             [Valkey::Search::TagField.new("category", separator: ",", case_sensitive: true)])
+        assert_equal "OK", result
+        assert_includes r.ft_list, TEST_INDEX
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 1.5 — HASH data type + key prefixes: only prefixed keys are indexed.
+    def test_ft_create_builder_prefix_only_indexes_matching_keys
+      ensure_redisearch_loaded
+
+      with_db0 do
+        opts = Valkey::Search::CreateOptions.new(on: :hash, prefixes: ["doc:"])
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")], opts)
+
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
+        r.send_command(Valkey::RequestType::HSET, ["other:1", "title", "hello world"])
+        sleep 0.1
+
+        results = r.ft_search(TEST_INDEX, "hello")
+        assert_kind_of Array, results
+        # Coerce: total count may come back as Integer (RESP3) or String (RESP2).
+        assert_equal 1, Integer(results[0]), "only the doc:-prefixed key should be indexed"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
     private
 
     # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB
