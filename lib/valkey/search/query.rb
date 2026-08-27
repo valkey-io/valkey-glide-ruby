@@ -11,19 +11,13 @@ class Valkey
     #
     # @see https://redis.io/commands/ft.search/
     class SearchOptions
-      SHARD_SCOPES = { all_shards: "ALLSHARDS", some_shards: "SOMESHARDS" }.freeze
-      CONSISTENCY  = { consistent: "CONSISTENT", inconsistent: "INCONSISTENT" }.freeze
-      SORT_ORDERS  = { asc: "ASC", desc: "DESC" }.freeze
-      # Valkey-native search supports only DIALECT 2.
-      DIALECTS = [2].freeze
-
       # @return [Boolean] NOCONTENT requested (the parser needs this)
       attr_reader :no_content
       # @return [Boolean] WITHSORTKEYS requested (the parser needs this)
       attr_reader :with_sort_keys
 
       # @param limit [Hash, Array, nil] { offset:, count: } or [offset, count]
-      # @param return_fields [Array, nil] field name String or { name:, as: } Hash
+      # @param return_fields [Array, nil] field name String/Symbol or { name:, as: } Hash
       # @param params [Hash, nil] query parameters (PARAMS)
       # @param sort_by [String, nil] field to sort by
       # @param sort_order [Symbol] :asc (default) or :desc
@@ -39,16 +33,16 @@ class Valkey
         @return_tokens = expand_return_fields(return_fields)
         @params = params
         @sort_by = sort_by
-        @sort_order = Search.lookup_token(SORT_ORDERS, sort_order, "sort order")
+        @sort_order = Search.lookup_token(Search::SORT_ORDERS, sort_order, "sort order")
         @with_sort_keys = with_sort_keys
         @no_content = no_content
         @verbatim = verbatim
         @in_order = in_order
         @slop = slop
-        @dialect = normalize_dialect(dialect)
+        @dialect = Search.normalize_dialect(dialect)
         @timeout = timeout
-        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(SHARD_SCOPES, shard_scope, "shard scope")
-        @consistency = consistency.nil? ? nil : Search.lookup_token(CONSISTENCY, consistency, "consistency")
+        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")
+        @consistency = consistency.nil? ? nil : Search.lookup_token(Search::CONSISTENCY, consistency, "consistency")
       end
 
       # @return [Array] FT.SEARCH option tokens (after `index query`), in wire order
@@ -62,18 +56,19 @@ class Valkey
         args.push("RETURN", @return_tokens.length, *@return_tokens) if @return_tokens && !@return_tokens.empty?
         append_sort_by(args)
         args << "WITHSORTKEYS" if @with_sort_keys
-        append_params(args)
+        args.concat(Search.params_tokens(@params))
         args.push("DIALECT", @dialect) unless @dialect.nil?
         args.push("TIMEOUT", @timeout) unless @timeout.nil?
-        args << @shard_scope unless @shard_scope.nil?
-        args << @consistency unless @consistency.nil?
+        Search.append_cluster_flags(args, @shard_scope, @consistency)
         args
       end
 
       private
 
       # RETURN count is the number of tokens that follow (identifier + optional
-      # `AS alias`), matching Java.
+      # `AS alias`), matching Java. Each entry is a field name (String or Symbol)
+      # or a Hash naming the field and an optional alias. The Hash accepts either
+      # Symbol keys (`{ name:, as: }`) or the String keys `"name"`/`"as"`.
       def expand_return_fields(return_fields)
         return nil if return_fields.nil?
 
@@ -82,10 +77,11 @@ class Valkey
           when String, Symbol
             [field.to_s]
           when Hash
-            name = field[:name] or raise ArgumentError, "return field Hash requires :name"
-            field[:as] ? [name, "AS", field[:as]] : [name]
+            name = field[:name] || field["name"] or raise ArgumentError, "return field Hash requires :name"
+            as = field[:as] || field["as"]
+            as ? [name, "AS", as] : [name]
           else
-            raise ArgumentError, "return field must be a String or { name:, as: } Hash, got #{field.class}"
+            raise ArgumentError, "return field must be a String, Symbol, or { name:, as: } Hash, got #{field.class}"
           end
         end
       end
@@ -94,13 +90,6 @@ class Valkey
         return if @sort_by.nil?
 
         args.push("SORTBY", @sort_by, @sort_order)
-      end
-
-      def append_params(args)
-        return if @params.nil? || @params.empty?
-
-        flat = @params.flat_map { |k, v| [k.to_s, v] }
-        args.push("PARAMS", flat.length, *flat)
       end
 
       def normalize_limit(limit)
@@ -113,13 +102,6 @@ class Valkey
         when Hash then [limit.fetch(:offset), limit.fetch(:count)]
         else raise ArgumentError, "limit must be a { offset:, count: } Hash or [offset, count] Array"
         end
-      end
-
-      def normalize_dialect(dialect)
-        return nil if dialect.nil?
-        return dialect if DIALECTS.include?(dialect)
-
-        raise ArgumentError, "unsupported dialect #{dialect.inspect}; Valkey-native search supports #{DIALECTS.inspect}"
       end
     end
 
@@ -159,17 +141,24 @@ class Valkey
         new(total, documents)
       end
 
-      # F-AP-4: coerce the count strictly so a malformed reply surfaces loudly
-      # instead of silently becoming "0 results".
+      # F-AP-4 / F-PARSE-2: coerce the count strictly so a malformed reply
+      # surfaces loudly instead of silently becoming "0 results". Only an Integer
+      # or an integer-valued String is accepted — a Float (e.g. 2.5) is rejected
+      # rather than silently truncated by Integer().
       def self.coerce_count(value)
+        unless value.is_a?(Integer) || value.is_a?(String)
+          raise TypeError, "FT.SEARCH reply had a non-integer count: #{value.inspect}"
+        end
+
         Integer(value)
       rescue ArgumentError, TypeError
         raise TypeError, "FT.SEARCH reply had a non-integer count: #{value.inspect}"
       end
 
       # GLIDE normalized map form: { key => value }. With content, value is the
-      # field map; under WITHSORTKEYS it is [sort_key, field_map]; under NOCONTENT
-      # it may be nil/empty.
+      # field map; under WITHSORTKEYS it is [sort_key, field_map]; under
+      # WITHSORTKEYS + NOCONTENT it is the bare sort key (no field map); under
+      # NOCONTENT alone it may be nil/empty.
       def self.parse_map(map, no_content:, with_sort_keys:)
         map.map do |key, value|
           sort_key = nil
@@ -177,6 +166,10 @@ class Valkey
           if with_sort_keys && value.is_a?(Array)
             sort_key = value[0]
             fields = value[1] if value[1].is_a?(Hash)
+          elsif with_sort_keys && no_content
+            # F-PARSE-3: WITHSORTKEYS + NOCONTENT — the value is the bare sort key,
+            # neither an Array nor a field Hash, so capture it directly.
+            sort_key = value
           elsif !no_content && value.is_a?(Hash)
             fields = value
           end
@@ -192,11 +185,18 @@ class Valkey
           i += 1
           sort_key = nil
           if with_sort_keys
+            # F-PARSE-1: bounds-check every read past the KEY so a truncated reply
+            # raises loudly (matching coerce_count) instead of emitting a phantom
+            # document with missing pieces.
+            raise TypeError, "FT.SEARCH reply truncated (missing sort key)" if i >= rest.length
+
             sort_key = rest[i]
             i += 1
           end
           fields = {}
           unless no_content
+            raise TypeError, "FT.SEARCH reply truncated (missing field payload)" if i >= rest.length
+
             pairs = rest[i]
             i += 1
             # F2: block-form to_h tolerates an odd-length array (dangling key => nil),

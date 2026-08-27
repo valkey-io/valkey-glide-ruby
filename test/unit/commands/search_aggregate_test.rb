@@ -184,6 +184,12 @@ class TestSearchAggregate < Minitest::Test
     assert_equal ["FILTER", "@x > 1", "ALLSHARDS", "CONSISTENT"], opts.to_args
   end
 
+  # SOMESHARDS/INCONSISTENT emission (the :all_shards path is covered above).
+  def test_aggregate_options_some_shards_flags
+    opts = S::AggregateOptions.new(shard_scope: :some_shards, consistency: :inconsistent)
+    assert_equal %w[SOMESHARDS INCONSISTENT], opts.to_args
+  end
+
   def test_aggregate_options_rejects_bad_dialect
     err = assert_raises(ArgumentError) { S::AggregateOptions.new(dialect: 3) }
     assert_match(/unsupported dialect/, err.message)

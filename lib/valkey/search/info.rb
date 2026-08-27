@@ -12,25 +12,22 @@ class Valkey
     #
     # @see https://redis.io/commands/ft.info/
     class InfoOptions
-      SCOPES       = { local: "LOCAL", primary: "PRIMARY", cluster: "CLUSTER" }.freeze
-      SHARD_SCOPES = SearchOptions::SHARD_SCOPES
-      CONSISTENCY  = SearchOptions::CONSISTENCY
+      SCOPES = { local: "LOCAL", primary: "PRIMARY", cluster: "CLUSTER" }.freeze
 
       # @param scope [Symbol, nil] :local, :primary, or :cluster
       # @param shard_scope [Symbol, nil] :all_shards or :some_shards
       # @param consistency [Symbol, nil] :consistent or :inconsistent
       def initialize(scope: nil, shard_scope: nil, consistency: nil)
         @scope = scope.nil? ? nil : Search.lookup_token(SCOPES, scope, "info scope")
-        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(SHARD_SCOPES, shard_scope, "shard scope")
-        @consistency = consistency.nil? ? nil : Search.lookup_token(CONSISTENCY, consistency, "consistency")
+        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")
+        @consistency = consistency.nil? ? nil : Search.lookup_token(Search::CONSISTENCY, consistency, "consistency")
       end
 
       # @return [Array] FT.INFO option tokens (after `index`), in wire order
       def to_args
         args = []
         args << @scope unless @scope.nil?
-        args << @shard_scope unless @shard_scope.nil?
-        args << @consistency unless @consistency.nil?
+        Search.append_cluster_flags(args, @shard_scope, @consistency)
         args
       end
     end

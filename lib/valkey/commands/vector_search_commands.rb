@@ -355,99 +355,69 @@ class Valkey
 
       private
 
-      # Resolve the {Valkey::Search::SearchOptions} for an ft_search builder call,
-      # or nil for the raw-args path. Validates the builder invocation up front
-      # (same philosophy as ft_create): a malformed call raises rather than
-      # silently degrading.
+      # Shared resolver for the builder-vs-raw dispatch used by ft_search,
+      # ft_aggregate, and ft_info. Returns an options instance (built from a lone
+      # positional options object, or from keyword args), or nil for the
+      # raw/plain path. Validates the invocation up front — a malformed call
+      # raises rather than silently degrading (F-DRY-1).
       #
-      # @param args [Array] positional args after query
+      # @param klass [Class] the options class (SearchOptions/AggregateOptions/InfoOptions)
+      # @param args [Array] positional args after the fixed leading arguments
       # @param kwargs [Hash] keyword options
-      # @return [Valkey::Search::SearchOptions, nil]
-      # @raise [ArgumentError] on a non-SearchOptions positional, options passed
-      #   both ways, or extra positionals alongside a SearchOptions
-      def ft_search_options(args, kwargs)
+      # @param label [String] command label for error messages (e.g. "ft_search")
+      # @param leading [String] what the options follow (e.g. "the query", "the index")
+      # @param allow_raw [Boolean] whether trailing raw positionals are permitted
+      #   (true → returns nil for the raw path; false → rejects extra positionals)
+      # @return [Object, nil] an instance of klass, or nil for the raw/plain path
+      # @raise [ArgumentError] on a malformed invocation
+      def resolve_search_options(klass, args, kwargs, label:, leading:, allow_raw:)
         first = args[0]
-        if first.is_a?(Valkey::Search::SearchOptions)
-          raise ArgumentError, "ft_search takes a single SearchOptions after the query" if args.length > 1
+        short = klass.name.split("::").last
+        if first.is_a?(klass)
+          raise ArgumentError, "#{label} takes a single #{short} after #{leading}" if args.length > 1
           unless kwargs.empty?
-            raise ArgumentError,
-                  "pass search options either as a SearchOptions object or as keyword arguments, not both"
+            raise ArgumentError, "pass options to #{label} either as a #{short} " \
+                                 "object or as keyword arguments, not both"
           end
 
           first
         elsif args.empty?
-          kwargs.empty? ? nil : Valkey::Search::SearchOptions.new(**kwargs)
-        else
+          kwargs.empty? ? nil : klass.new(**kwargs)
+        elsif allow_raw
           # Raw tokens present; kwargs would be silently dropped, so reject the mix.
           unless kwargs.empty?
-            raise ArgumentError,
-                  "cannot mix raw FT.SEARCH tokens with keyword search options; " \
-                  "use a SearchOptions object or pass all tokens raw"
+            raise ArgumentError, "cannot mix raw #{label} tokens with keyword options; " \
+                                 "use a #{short} object or pass all tokens raw"
           end
 
           nil
+        else
+          raise ArgumentError,
+                "#{label} takes an optional #{short} or keyword options, got #{args.inspect}"
         end
       end
 
-      # Resolve the {Valkey::Search::AggregateOptions} for an ft_aggregate builder
-      # call, or nil for the raw-args path. Same dispatch philosophy as ft_search:
-      # a malformed builder invocation raises rather than silently degrading.
-      #
-      # @param args [Array] positional args after query
-      # @param kwargs [Hash] keyword options
-      # @return [Valkey::Search::AggregateOptions, nil]
-      # @raise [ArgumentError] on a non-AggregateOptions positional, options passed
-      #   both ways, or extra positionals alongside an AggregateOptions
+      # @see #resolve_search_options
+      def ft_search_options(args, kwargs)
+        resolve_search_options(Valkey::Search::SearchOptions, args, kwargs,
+                               label: "ft_search", leading: "the query", allow_raw: true)
+      end
+
+      # @see #resolve_search_options
       def ft_aggregate_options(args, kwargs)
-        first = args[0]
-        if first.is_a?(Valkey::Search::AggregateOptions)
-          raise ArgumentError, "ft_aggregate takes a single AggregateOptions after the query" if args.length > 1
-          unless kwargs.empty?
-            raise ArgumentError,
-                  "pass aggregate options either as an AggregateOptions object or as keyword arguments, not both"
-          end
-
-          first
-        elsif args.empty?
-          kwargs.empty? ? nil : Valkey::Search::AggregateOptions.new(**kwargs)
-        else
-          unless kwargs.empty?
-            raise ArgumentError,
-                  "cannot mix raw FT.AGGREGATE tokens with keyword aggregate options; " \
-                  "use an AggregateOptions object or pass all tokens raw"
-          end
-
-          nil
-        end
+        resolve_search_options(Valkey::Search::AggregateOptions, args, kwargs,
+                               label: "ft_aggregate", leading: "the query", allow_raw: true)
       end
 
-      # Resolve the {Valkey::Search::InfoOptions} for an ft_info builder call, or
-      # nil for the plain `FT.INFO <index>` path.
-      #
-      # @param args [Array] positional args after index
-      # @param kwargs [Hash] keyword options
-      # @return [Valkey::Search::InfoOptions, nil]
-      # @raise [ArgumentError] on a non-InfoOptions positional, options passed both
-      #   ways, or extra positionals alongside an InfoOptions
+      # @see #resolve_search_options
       def ft_info_options(args, kwargs)
-        first = args[0]
-        if first.is_a?(Valkey::Search::InfoOptions)
-          raise ArgumentError, "ft_info takes a single InfoOptions after the index" if args.length > 1
-          unless kwargs.empty?
-            raise ArgumentError,
-                  "pass info options either as an InfoOptions object or as keyword arguments, not both"
-          end
-
-          first
-        elsif args.empty?
-          kwargs.empty? ? nil : Valkey::Search::InfoOptions.new(**kwargs)
-        else
-          raise ArgumentError, "ft_info takes an optional InfoOptions or keyword options, got #{args.inspect}"
-        end
+        resolve_search_options(Valkey::Search::InfoOptions, args, kwargs,
+                               label: "ft_info", leading: "the index", allow_raw: false)
       end
 
-      # the builder invocation up front (see F-DISPATCH findings). Any malformed
-      # input raises ArgumentError rather than silently degrading.
+      # Build the FT.CREATE token array from field builders + options, validating
+      # the builder invocation up front. Any malformed input raises ArgumentError
+      # rather than silently degrading.
       #
       # @param index [String] index name
       # @param args [Array] positional builder args: `[fields]` or `[fields, options]`
@@ -467,8 +437,17 @@ class Valkey
         options = args[1]
 
         raise ArgumentError, "schema must contain at least one field" if fields.empty?
+
         unless fields.all?(Valkey::Search::Field)
-          raise ArgumentError, "every schema field must be a Valkey::Search::Field"
+          # F-DISPATCH-1: a lone Array selects the builder path, so raw FT.CREATE
+          # tokens passed as one Array land here. Hint at the splat requirement.
+          hint =
+            if fields.all?(String)
+              " (did you mean to splat these as raw FT.CREATE tokens, e.g. ft_create(index, *tokens)?)"
+            else
+              ""
+            end
+          raise ArgumentError, "every schema field must be a Valkey::Search::Field#{hint}"
         end
         unless options.nil? || options.is_a?(Valkey::Search::CreateOptions)
           raise ArgumentError,
