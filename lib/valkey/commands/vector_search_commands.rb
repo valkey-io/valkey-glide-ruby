@@ -236,19 +236,49 @@ class Valkey
 
       # Search an index with a query.
       #
-      # @example Search an index
-      #   valkey.ft_search("myIndex", "@title:hello", "LIMIT", "0", "10")
-      #     # => [results]
+      # Two calling styles are supported:
       #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments
-      # @return [Array] search results
+      # 1. **Builder API** — pass a {Valkey::Search::SearchOptions} (or the same
+      #    options as keyword arguments). Returns a structured
+      #    {Valkey::Search::SearchResult}:
+      #
+      #        result = valkey.ft_search("idx", "@title:hello",
+      #          Valkey::Search::SearchOptions.new(limit: { offset: 0, count: 10 }, sort_by: "price"))
+      #        result.total_results  # => Integer
+      #        result.documents      # => [#<struct Document key=..., fields={...}>, ...]
+      #
+      #        valkey.ft_search("idx", "@title:hello", limit: { offset: 0, count: 10 })
+      #
+      # 2. **Raw args** (backward compatible) — pass FT.SEARCH tokens directly and
+      #    get the raw reply Array back:
+      #
+      #        valkey.ft_search("idx", "@title:hello", "LIMIT", "0", "10")
+      #
+      # The builder path is selected when the first argument after +query+ is a
+      # {Valkey::Search::SearchOptions}, or when only keyword options are given.
+      # Any other positional arguments are forwarded verbatim (raw path).
+      #
+      # @param index [String] the index name
+      # @param query [String] the search query
+      # @param args [Array] a lone SearchOptions (builder) or raw FT.SEARCH tokens
+      # @param kwargs [Hash] search options for the builder path (forwarded to
+      #   {Valkey::Search::SearchOptions}); ignored on the raw-args path
+      # @return [Valkey::Search::SearchResult, Array] structured result on the
+      #   builder path; the raw reply Array on the raw path
+      # @raise [ArgumentError] on a malformed builder invocation
       #
       # @see https://redis.io/commands/ft.search/
-      def ft_search(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_SEARCH, command_args)
+      def ft_search(index, query, *args, **kwargs)
+        options = ft_search_options(args, kwargs)
+        if options
+          command_args = [index, query] + options.to_args
+          raw = send_command(RequestType::FT_SEARCH, command_args)
+          Valkey::Search::SearchResult.from_raw(
+            raw, no_content: options.no_content, with_sort_keys: options.with_sort_keys
+          )
+        else
+          send_command(RequestType::FT_SEARCH, [index, query] + args)
+        end
       end
 
       # Convenience method for FT.* commands.
@@ -283,6 +313,40 @@ class Valkey
       end
 
       private
+
+      # Resolve the {Valkey::Search::SearchOptions} for an ft_search builder call,
+      # or nil for the raw-args path. Validates the builder invocation up front
+      # (same philosophy as ft_create): a malformed call raises rather than
+      # silently degrading.
+      #
+      # @param args [Array] positional args after query
+      # @param kwargs [Hash] keyword options
+      # @return [Valkey::Search::SearchOptions, nil]
+      # @raise [ArgumentError] on a non-SearchOptions positional, options passed
+      #   both ways, or extra positionals alongside a SearchOptions
+      def ft_search_options(args, kwargs)
+        first = args[0]
+        if first.is_a?(Valkey::Search::SearchOptions)
+          raise ArgumentError, "ft_search takes a single SearchOptions after the query" if args.length > 1
+          unless kwargs.empty?
+            raise ArgumentError,
+                  "pass search options either as a SearchOptions object or as keyword arguments, not both"
+          end
+
+          first
+        elsif args.empty?
+          kwargs.empty? ? nil : Valkey::Search::SearchOptions.new(**kwargs)
+        else
+          # Raw tokens present; kwargs would be silently dropped, so reject the mix.
+          unless kwargs.empty?
+            raise ArgumentError,
+                  "cannot mix raw FT.SEARCH tokens with keyword search options; " \
+                  "use a SearchOptions object or pass all tokens raw"
+          end
+
+          nil
+        end
+      end
 
       # the builder invocation up front (see F-DISPATCH findings). Any malformed
       # input raises ArgumentError rather than silently degrading.

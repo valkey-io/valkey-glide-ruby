@@ -557,6 +557,146 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
+    # ------------------------------------------------------------------
+    # Builder-API query integration coverage (TDD 2.1-2.7).
+    #
+    # Exercise the SearchOptions builder path of ft_search (returns a structured
+    # Valkey::Search::SearchResult). Module-gated like the rest of this suite.
+    # ------------------------------------------------------------------
+
+    # TDD 2.1 — basic text search returns fields + total via SearchResult.
+    def test_ft_search_builder_basic_text
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")], on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello", Valkey::Search::SearchOptions.new)
+        assert_instance_of Valkey::Search::SearchResult, result
+        assert_equal 1, result.total_results
+        assert_equal "hello world", result.documents.first.fields["title"]
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 2.2 — pagination via LIMIT returns only the requested page.
+    def test_ft_search_builder_limit
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")], on: :hash, prefixes: ["doc:"])
+        3.times { |i| r.send_command(Valkey::RequestType::HSET, ["doc:#{i}", "title", "hello"]) }
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello", limit: { offset: 0, count: 2 })
+        assert_operator result.documents.length, :<=, 2
+        assert_equal 3, result.total_results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 2.3 — field projection via RETURN limits returned fields.
+    def test_ft_search_builder_return_fields
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX,
+                    [Valkey::Search::TextField.new("title"), Valkey::Search::NumericField.new("price")],
+                    on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello", "price", "10"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello", return_fields: ["title"])
+        doc = result.documents.first
+        assert_equal "hello", doc.fields["title"]
+        refute doc.fields.key?("price"), "price should be projected out"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 2.4 — sorting by a sortable field returns results in order.
+    def test_ft_search_builder_sort_by
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX,
+                    [Valkey::Search::TextField.new("title"),
+                     Valkey::Search::NumericField.new("price", sortable: true)],
+                    on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello", "price", "20"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "hello", "price", "10"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello",
+                             sort_by: "price", sort_order: :asc, return_fields: ["price"])
+        prices = result.documents.map { |d| Integer(d.fields["price"]) }
+        assert_equal prices.sort, prices, "results should be ascending by price"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 2.5 — KNN vector similarity search returns nearest neighbors.
+    def test_ft_search_builder_vector_knn
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX,
+                    [Valkey::Search::VectorField.flat("embedding", dim: 4, metric: :l2)],
+                    on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "embedding", [1.0, 0.0, 0.0, 0.0].pack("f*")])
+        r.send_command(Valkey::RequestType::HSET, ["doc:2", "embedding", [0.0, 1.0, 0.0, 0.0].pack("f*")])
+        sleep 0.1
+
+        query_vec = [1.0, 0.0, 0.0, 0.0].pack("f*")
+        result = r.ft_search(TEST_INDEX, "*=>[KNN 2 @embedding $vec]",
+                             params: { vec: query_vec }, dialect: 2)
+        assert_instance_of Valkey::Search::SearchResult, result
+        assert_operator result.documents.length, :>=, 1
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 2.6 — NOCONTENT returns keys only (no field data).
+    def test_ft_search_builder_no_content
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")], on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello", no_content: true)
+        assert_equal "doc:1", result.documents.first.key
+        assert_empty result.documents.first.fields
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # TDD 2.7 — query dialect 2 is accepted.
+    def test_ft_search_builder_dialect
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")], on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello"])
+        sleep 0.1
+
+        result = r.ft_search(TEST_INDEX, "hello", dialect: 2)
+        assert_instance_of Valkey::Search::SearchResult, result
+        assert_equal 1, result.total_results
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
     private
 
     # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB
