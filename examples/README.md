@@ -27,7 +27,7 @@ RUBYOPT="-I$(pwd)/lib" ruby examples/standalone.rb
 | File | Description | Server |
 |------|-------------|--------|
 | [standalone.rb](./standalone.rb) | Basic connect, SET, GET | Standalone `:6379` |
-| [cluster.rb](./cluster.rb) | Cluster connect, SET, GET | Cluster `:7000`–`:7005` |
+| [cluster.rb](./cluster.rb) | Cluster connect, SET, GET | Cluster `:7000`-`:7005` |
 | [pipelining.rb](./pipelining.rb) | Non-atomic pipeline | Standalone `:6379` |
 | [opentelemetry.rb](./opentelemetry.rb) | OTel file exporter + traced commands | Standalone `:6379` |
 | [statistics.rb](./statistics.rb) | Client statistics | Standalone `:6379` |
