@@ -25,20 +25,46 @@ class Valkey
 
       # Run a search query with aggregations.
       #
-      # @example Perform an aggregation query
-      #   # Valkey-native FT.AGGREGATE rejects the "*" wildcard; use a filter expression.
-      #   valkey.ft_aggregate("myIndex", "@price:[0 +inf]",
-      #                       "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0", "AS", "count")
-      #     # => [[1, ["category", "electronics", "count", "5"]]]
+      # Two calling styles are supported:
       #
-      # @param [String] index the index name to search
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments (GROUPBY, REDUCE, etc.)
+      # 1. **Builder API** — pass a {Valkey::Search::AggregateOptions} (or the same
+      #    options as keyword arguments, including an ordered +clauses:+ array):
+      #
+      #        valkey.ft_aggregate("idx", "@price:[0 +inf]",
+      #          clauses: [
+      #            Valkey::Search::GroupBy.new(["@category"],
+      #              reducers: [Valkey::Search::Reducer.count(as: "count")]),
+      #            Valkey::Search::SortBy.new("@count", :desc),
+      #            Valkey::Search::Limit.new(0, 10),
+      #          ], dialect: 2)
+      #
+      # 2. **Raw args** (backward compatible) — pass FT.AGGREGATE tokens directly:
+      #
+      #        # Valkey-native FT.AGGREGATE rejects the "*" wildcard; use a filter.
+      #        valkey.ft_aggregate("idx", "@price:[0 +inf]",
+      #                            "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0", "AS", "count")
+      #
+      # The builder path is selected when the first argument after +query+ is an
+      # {Valkey::Search::AggregateOptions}, or when only keyword options are given.
+      # Any other positional arguments are forwarded verbatim (raw path).
+      #
+      # @param index [String] the index name to search
+      # @param query [String] the search/filter query
+      # @param args [Array] a lone AggregateOptions (builder) or raw tokens
+      # @param kwargs [Hash] aggregate options for the builder path (forwarded to
+      #   {Valkey::Search::AggregateOptions}); ignored on the raw-args path
       # @return [Array] aggregation results
+      # @raise [ArgumentError] on a malformed builder invocation
       #
       # @see https://redis.io/commands/ft.aggregate/
-      def ft_aggregate(index, query, *args)
-        command_args = [index, query] + args
+      def ft_aggregate(index, query, *args, **kwargs)
+        options = ft_aggregate_options(args, kwargs)
+        command_args =
+          if options
+            [index, query] + options.to_args
+          else
+            [index, query] + args
+          end
         send_command(RequestType::FT_AGGREGATE, command_args)
       end
 
@@ -342,6 +368,38 @@ class Valkey
             raise ArgumentError,
                   "cannot mix raw FT.SEARCH tokens with keyword search options; " \
                   "use a SearchOptions object or pass all tokens raw"
+          end
+
+          nil
+        end
+      end
+
+      # Resolve the {Valkey::Search::AggregateOptions} for an ft_aggregate builder
+      # call, or nil for the raw-args path. Same dispatch philosophy as ft_search:
+      # a malformed builder invocation raises rather than silently degrading.
+      #
+      # @param args [Array] positional args after query
+      # @param kwargs [Hash] keyword options
+      # @return [Valkey::Search::AggregateOptions, nil]
+      # @raise [ArgumentError] on a non-AggregateOptions positional, options passed
+      #   both ways, or extra positionals alongside an AggregateOptions
+      def ft_aggregate_options(args, kwargs)
+        first = args[0]
+        if first.is_a?(Valkey::Search::AggregateOptions)
+          raise ArgumentError, "ft_aggregate takes a single AggregateOptions after the query" if args.length > 1
+          unless kwargs.empty?
+            raise ArgumentError,
+                  "pass aggregate options either as an AggregateOptions object or as keyword arguments, not both"
+          end
+
+          first
+        elsif args.empty?
+          kwargs.empty? ? nil : Valkey::Search::AggregateOptions.new(**kwargs)
+        else
+          unless kwargs.empty?
+            raise ArgumentError,
+                  "cannot mix raw FT.AGGREGATE tokens with keyword aggregate options; " \
+                  "use an AggregateOptions object or pass all tokens raw"
           end
 
           nil
