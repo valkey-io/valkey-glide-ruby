@@ -48,6 +48,18 @@ class Valkey
       #   `exception:` only applies here - the imperative `multi` (no
       #   block) / `#exec` pair has no equivalent control and raises
       #   {ArgumentError} if passed one.
+      #
+      # @example Without a block
+      #   valkey.multi          # sends a real MULTI to the server now
+      #   valkey.set("key", "value")   # each command is queued server-side
+      #   valkey.exec            # => ["OK"]
+      #
+      #   This is a separate, older-style calling convention - not a
+      #   fallback or a lesser version of the block form. Each queued
+      #   command is its own round trip (the server replies `"QUEUED"`);
+      #   `#exec` sends the actual `EXEC`. Calling `multi` this way with no
+      #   pending commands to run afterward simply leaves the transaction
+      #   open until `#exec` or `#discard` closes it.
       # @yieldparam [Valkey::Pipeline] multi collects the block's commands
       # @param exception [Boolean] see above; a valkey-glide-ruby-specific
       #   extension - redis-rb's `multi` has no equivalent kwarg.
