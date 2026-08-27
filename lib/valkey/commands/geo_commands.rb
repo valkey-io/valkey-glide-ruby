@@ -47,9 +47,9 @@ class Valkey
       # @param [String] key
       # @param [Array<String>] members
       # @param ['m', 'km', 'mi', 'ft'] unit
-      # @return [String, nil] returns distance in specified unit if both members present, nil otherwise.
+      # @return [Float, nil] returns distance in specified unit if both members present, nil otherwise.
       def geodist(key, member1, member2, unit = 'm')
-        send_command(RequestType::GEO_DIST, [key, member1, member2, unit])
+        send_command(RequestType::GEO_DIST, [key, member1, member2, unit], &Utils::Floatify)
       end
 
       # Perform raw GEOSEARCH command with direct arguments like Redis

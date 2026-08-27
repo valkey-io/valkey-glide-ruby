@@ -7,6 +7,11 @@ class Valkey
     # @see https://valkey.io/commands/#transactions
     #
     module TransactionCommands
+      # Distinguishes "exception: not passed" from any real boolean, so the
+      # no-block branch of #multi can raise instead of silently ignoring it.
+      NO_EXCEPTION_KWARG = Object.new
+      private_constant :NO_EXCEPTION_KWARG
+
       # Mark the start of a transaction block.
       #
       # @example With a block
@@ -31,15 +36,30 @@ class Valkey
       #       multi.expire("counter", 60)
       #     end
       #     future.value # => 6
+      #
+      #   With `exception: true` (the default, matching redis-rb), a runtime
+      #   error from a queued command (e.g. WRONGTYPE) raises and the array
+      #   is discarded, even though the server already committed the other
+      #   commands. Pass `exception: false` to get the array back instead,
+      #   with the failing command's slot holding a {Valkey::CommandError}.
+      #   A queue-time abort (e.g. a syntax/arity error) still always raises
+      #   {Valkey::ExecAbortError}, since nothing ran in that case.
+      #
+      #   `exception:` only applies here - the imperative `multi` (no
+      #   block) / `#exec` pair has no equivalent control and raises
+      #   {ArgumentError} if passed one.
       # @yieldparam [Valkey::Pipeline] multi collects the block's commands
+      # @param exception [Boolean] see above; a valkey-glide-ruby-specific
+      #   extension - redis-rb's `multi` has no equivalent kwarg.
       #
       # @return [Array<...>]
       #   - an array with replies
       #
       # @see #watch
       # @see #unwatch
-      def multi
+      def multi(exception: NO_EXCEPTION_KWARG)
         if block_given?
+          exception = true if exception.equal?(NO_EXCEPTION_KWARG)
           pipeline = Pipeline.new
 
           begin
@@ -47,7 +67,7 @@ class Valkey
 
             return [] if pipeline.commands.empty?
 
-            results = send_batch_commands(pipeline.commands, exception: true, is_atomic: true)
+            results = send_batch_commands(pipeline.commands, exception: exception, is_atomic: true)
             pipeline.resolve_futures!(results)
             results
           rescue StandardError
@@ -55,6 +75,10 @@ class Valkey
             raise
           end
         else
+          unless exception.equal?(NO_EXCEPTION_KWARG)
+            raise ArgumentError, "exception: is only supported for multi's block form"
+          end
+
           start_multi
           self
         end
@@ -202,6 +226,11 @@ class Valkey
         return result unless result.size == queued_commands.size
 
         result.each_with_index.map do |value, i|
+          # Leave an inline error slot alone - Boolify would otherwise
+          # coerce it to `true` (mirrors the same guard in
+          # Valkey#send_batch_commands).
+          next value if value.is_a?(CommandError)
+
           command_type, _args, block = queued_commands[i]
           if block
             block.call(value)

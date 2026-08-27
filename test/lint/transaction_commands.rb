@@ -15,6 +15,17 @@ module Lint
       assert_nil r.get("foo")
     end
 
+    def test_multi_exception_kwarg_without_a_block_raises
+      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
+      # and behave differently with connection routing
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      # exception: only applies to the block form; imperative multi/#exec
+      # has no equivalent control.
+      assert_raises(ArgumentError) { r.multi(exception: false) }
+      assert_raises(ArgumentError) { r.multi(exception: true) }
+    end
+
     def test_discard
       # In cluster mode, MULTI/EXEC transactions require all keys in same slot
       # and behave differently with connection routing
@@ -125,6 +136,24 @@ module Lint
       result = r.exec
 
       assert_equal %w[OK bar], result
+    end
+
+    def test_exec_float_coercion_matches_direct_call
+      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
+      # and behave differently with connection routing
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.set("counter", "1")
+      r.geoadd("Sicily", 13.361389, 38.115556, "Palermo", 15.087269, 37.502669, "Catania")
+
+      r.multi
+      r.incrbyfloat("counter", 0.5)
+      r.geodist("Sicily", "Palermo", "Catania")
+      result = r.exec
+
+      assert_instance_of Float, result[0]
+      assert_in_delta 1.5, result[0]
+      assert_instance_of Float, result[1]
     end
 
     def test_exec_with_error
@@ -607,11 +636,9 @@ module Lint
     def test_multi_future_is_aborted_when_batch_raises_a_command_error
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
-      # multi's block form hardcodes exception: true, so a real per-command
-      # error (as opposed to the user's block raising Ruby-level) makes the
-      # whole batch call raise before resolve_futures! ever runs - same
-      # abort path as test_multi_future_is_aborted_when_block_raises, just
-      # triggered from send_batch_commands itself instead of user code.
+      # A real per-command error (unlike the user's block raising
+      # Ruby-level, see test_multi_future_is_aborted_when_block_raises)
+      # raises via multi's default exception: true.
       r.set("foo", "not_a_list")
 
       future = nil
@@ -623,6 +650,26 @@ module Lint
       end
 
       assert_raises(Valkey::FutureAborted) { future.value }
+    end
+
+    def test_multi_future_resolves_to_command_error_with_exception_false
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      # exception: false leaves the CommandError in place instead of
+      # raising - other queued commands' replies stay reachable.
+      r.set("foo", "not_a_list")
+
+      future = nil
+      get_future = nil
+      result = r.multi(exception: false) do |multi|
+        future = multi.lpush("foo", "bar")
+        get_future = multi.get("foo")
+      end
+
+      assert_instance_of Valkey::CommandError, result[0]
+      assert_equal "not_a_list", result[1]
+      assert_raises(Valkey::CommandError) { future.value }
+      assert_equal "not_a_list", get_future.value
     end
 
     def test_multi_future_reflects_boolean_coercion
@@ -653,6 +700,39 @@ module Lint
       assert_equal false, sismember_future.value
       assert_equal false, setnx_future.value
       assert_equal false, hexists_future.value
+    end
+
+    def test_multi_matches_pipelined_reproduce_from_gh_issue
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.set("notint", "hello")
+
+      result = r.multi(exception: false) do |multi|
+        multi.set("z", "1")
+        multi.incr("notint")
+        multi.get("z")
+      end
+
+      assert_equal "OK", result[0]
+      assert_instance_of Valkey::CommandError, result[1]
+      assert_equal "1", result[2]
+      assert_equal "1", r.get("z")
+    end
+
+    def test_multi_float_coercion_matches_direct_call
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.set("counter", "1")
+      r.geoadd("Sicily", 13.361389, 38.115556, "Palermo", 15.087269, 37.502669, "Catania")
+
+      result = r.multi do |multi|
+        multi.incrbyfloat("counter", 0.5)
+        multi.geodist("Sicily", "Palermo", "Catania")
+      end
+
+      assert_instance_of Float, result[0]
+      assert_in_delta 1.5, result[0]
+      assert_instance_of Float, result[1]
     end
   end
 end

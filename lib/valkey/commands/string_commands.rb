@@ -67,7 +67,7 @@ class Valkey
       # @param [Float] increment
       # @return [Float] value after incrementing it
       def incrbyfloat(key, increment)
-        send_command(RequestType::INCR_BY_FLOAT, [key, increment])
+        send_command(RequestType::INCR_BY_FLOAT, [key, increment], &Utils::Floatify)
       end
 
       # Set the string value of a key.
