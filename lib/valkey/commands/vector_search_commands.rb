@@ -227,16 +227,31 @@ class Valkey
 
       # Get information about an index.
       #
-      # @example Get index info
-      #   valkey.ft_info("myIndex")
-      #     # => ["index_name", "myIndex", "fields", [...], ...]
+      # Two calling styles are supported:
       #
-      # @param [String] index the index name
+      # 1. **Builder API** — pass a {Valkey::Search::InfoOptions} (or the same
+      #    options as keyword arguments) to add a scope / cluster flags:
+      #
+      #        valkey.ft_info("idx", scope: :cluster, consistency: :consistent)
+      #        valkey.ft_info("idx", Valkey::Search::InfoOptions.new(scope: :local))
+      #
+      # 2. **Plain** (backward compatible) — no options yields `FT.INFO <index>`:
+      #
+      #        valkey.ft_info("idx")
+      #
+      # @param index [String] the index name
+      # @param args [Array] a lone InfoOptions (builder) or nothing
+      # @param kwargs [Hash] info options for the builder path (forwarded to
+      #   {Valkey::Search::InfoOptions})
       # @return [Hash] index information as a hash of key-value pairs
+      # @raise [ArgumentError] on a malformed builder invocation
       #
       # @see https://redis.io/commands/ft.info/
-      def ft_info(index)
-        send_command(RequestType::FT_INFO, [index])
+      def ft_info(index, *args, **kwargs)
+        options = ft_info_options(args, kwargs)
+        command_args = [index]
+        command_args.concat(options.to_args) if options
+        send_command(RequestType::FT_INFO, command_args)
       end
 
       # Profile a search or aggregation query.
@@ -403,6 +418,31 @@ class Valkey
           end
 
           nil
+        end
+      end
+
+      # Resolve the {Valkey::Search::InfoOptions} for an ft_info builder call, or
+      # nil for the plain `FT.INFO <index>` path.
+      #
+      # @param args [Array] positional args after index
+      # @param kwargs [Hash] keyword options
+      # @return [Valkey::Search::InfoOptions, nil]
+      # @raise [ArgumentError] on a non-InfoOptions positional, options passed both
+      #   ways, or extra positionals alongside an InfoOptions
+      def ft_info_options(args, kwargs)
+        first = args[0]
+        if first.is_a?(Valkey::Search::InfoOptions)
+          raise ArgumentError, "ft_info takes a single InfoOptions after the index" if args.length > 1
+          unless kwargs.empty?
+            raise ArgumentError,
+                  "pass info options either as an InfoOptions object or as keyword arguments, not both"
+          end
+
+          first
+        elsif args.empty?
+          kwargs.empty? ? nil : Valkey::Search::InfoOptions.new(**kwargs)
+        else
+          raise ArgumentError, "ft_info takes an optional InfoOptions or keyword options, got #{args.inspect}"
         end
       end
 
