@@ -213,6 +213,16 @@ class TestSearchBuilder < Minitest::Test
     assert_match(/must be a Valkey::Search::Field/, error.message)
   end
 
+  # F-DISPATCH-1: raw FT.CREATE tokens passed as one Array hit the builder path;
+  # the error should hint at the splat requirement.
+  def test_ft_create_all_string_array_hints_splat
+    client = FakeClient.new
+    error = assert_raises(ArgumentError) do
+      client.ft_create("idx", %w[SCHEMA title TEXT])
+    end
+    assert_match(/splat/, error.message)
+  end
+
   def test_ft_create_raises_on_too_many_positionals
     client = FakeClient.new
     opts = Valkey::Search::CreateOptions.new(on: :hash)

@@ -19,9 +19,6 @@ class Valkey
     #   Valkey::Search::Reducer.count(as: "total")
     #   Valkey::Search::Reducer.sum("@price", as: "revenue")
     class Reducer
-      # Reducer function names that take no property argument.
-      NULLARY = %w[COUNT].freeze
-
       # @return [String] the reducer function (e.g. "COUNT", "SUM")
       attr_reader :function
       # @return [Array] the reducer argument tokens (properties/values)
@@ -125,8 +122,6 @@ class Valkey
     #   Valkey::Search::SortBy.new({ "@total" => :desc }, max: 10)
     #   Valkey::Search::SortBy.new("@total", :desc)
     class SortBy < AggregateClause
-      SORT_ORDERS = { asc: "ASC", desc: "DESC" }.freeze
-
       # Accepts either a single `(property, order)` pair or an ordered Hash /
       # Array-of-pairs of `property => order`.
       #
@@ -141,7 +136,7 @@ class Valkey
 
       def to_args
         flat = @pairs.flat_map do |property, ord|
-          [property, Search.lookup_token(SORT_ORDERS, ord, "sort order")]
+          [property, Search.lookup_token(Search::SORT_ORDERS, ord, "sort order")]
         end
         tokens = ["SORTBY", flat.length, *flat]
         tokens.push("MAX", @max) unless @max.nil?
@@ -226,6 +221,14 @@ class Valkey
     # pipeline clauses are emitted first (in supplied order), followed by the flat
     # top-level options, matching Java's builder assembly.
     #
+    # Options for FT.AGGREGATE, serialized after `index query`. The flat
+    # top-level options are emitted first, then the ordered pipeline clauses (in
+    # supplied order), then the trailing cluster flags.
+    #
+    # Note: Java emits DIALECT after the pipeline clauses; this builder emits it
+    # before them. The server is order-independent for these tokens, so the
+    # divergence is wire-benign — kept for a simpler assembly.
+    #
     # @example
     #   Valkey::Search::AggregateOptions.new(
     #     clauses: [
@@ -238,11 +241,6 @@ class Valkey
     #
     # @see https://redis.io/commands/ft.aggregate/
     class AggregateOptions
-      SHARD_SCOPES = SearchOptions::SHARD_SCOPES
-      CONSISTENCY  = SearchOptions::CONSISTENCY
-      # Valkey-native search supports only DIALECT 2.
-      DIALECTS = [2].freeze
-
       # @param clauses [Array<AggregateClause>] ordered pipeline clauses
       # @param load [Array<String>, :all, nil] LOAD fields, or :all for `LOAD *`
       # @param params [Hash, nil] query parameters (PARAMS)
@@ -266,10 +264,10 @@ class Valkey
         @verbatim = verbatim
         @in_order = in_order
         @slop = slop
-        @dialect = normalize_dialect(dialect)
+        @dialect = Search.normalize_dialect(dialect)
         @timeout = timeout
-        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(SHARD_SCOPES, shard_scope, "shard scope")
-        @consistency = consistency.nil? ? nil : Search.lookup_token(CONSISTENCY, consistency, "consistency")
+        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")
+        @consistency = consistency.nil? ? nil : Search.lookup_token(Search::CONSISTENCY, consistency, "consistency")
       end
 
       # @return [Array] FT.AGGREGATE option tokens (after `index query`), in wire order
@@ -280,11 +278,10 @@ class Valkey
         args.push("SLOP", @slop) unless @slop.nil?
         append_load(args)
         args.push("TIMEOUT", @timeout) unless @timeout.nil?
-        append_params(args)
+        args.concat(Search.params_tokens(@params))
         args.push("DIALECT", @dialect) unless @dialect.nil?
         @clauses.each { |clause| args.concat(clause.to_args) }
-        args << @shard_scope unless @shard_scope.nil?
-        args << @consistency unless @consistency.nil?
+        Search.append_cluster_flags(args, @shard_scope, @consistency)
         args
       end
 
@@ -298,20 +295,6 @@ class Valkey
           args.push("LOAD", @load.length, *@load) unless @load.empty?
         else raise ArgumentError, "load must be an Array of fields, :all, or nil"
         end
-      end
-
-      def append_params(args)
-        return if @params.nil? || @params.empty?
-
-        flat = @params.flat_map { |k, v| [k.to_s, v] }
-        args.push("PARAMS", flat.length, *flat)
-      end
-
-      def normalize_dialect(dialect)
-        return nil if dialect.nil?
-        return dialect if DIALECTS.include?(dialect)
-
-        raise ArgumentError, "unsupported dialect #{dialect.inspect}; Valkey-native search supports #{DIALECTS.inspect}"
       end
     end
   end

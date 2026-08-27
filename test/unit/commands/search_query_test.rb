@@ -276,4 +276,57 @@ class TestSearchQuery < Minitest::Test
     assert_equal "HASH", Valkey::Search.lookup_token({ hash: "HASH" }, "HASH", "data type")
     assert_raises(ArgumentError) { Valkey::Search.lookup_token({ hash: "HASH" }, :nope, "data type") }
   end
+
+  # ---- R4 regression coverage ----
+
+  # F-PARSE-2: an integer-valued String count is accepted (happy path)...
+  def test_coerce_count_accepts_integer_string
+    result = Valkey::Search::SearchResult.from_raw(["2", "doc:1", [], "doc:2", []])
+    assert_equal 2, result.total_results
+  end
+
+  # ...but a Float count is rejected rather than silently truncated (2.5 -> 2).
+  def test_coerce_count_rejects_float
+    assert_raises(TypeError) { Valkey::Search::SearchResult.from_raw([2.5, "doc:1", []]) }
+  end
+
+  # F-PARSE-1: a truncated flat reply raises instead of yielding a phantom doc.
+  def test_from_raw_flat_truncated_missing_payload_raises
+    assert_raises(TypeError) { Valkey::Search::SearchResult.from_raw([2, "doc:1", %w[f v], "doc:2"]) }
+  end
+
+  def test_from_raw_flat_truncated_missing_sort_key_raises
+    assert_raises(TypeError) do
+      Valkey::Search::SearchResult.from_raw([1, "doc:1"], with_sort_keys: true)
+    end
+  end
+
+  # F-PARSE-3: map form under WITHSORTKEYS + NOCONTENT — value is the bare sort
+  # key (no field map). The sort key must be preserved, not dropped.
+  def test_from_raw_map_with_sort_keys_no_content
+    raw = [1, { "doc:1" => "42" }]
+    result = Valkey::Search::SearchResult.from_raw(raw, with_sort_keys: true, no_content: true)
+    doc = result.documents[0]
+    assert_equal "doc:1", doc.key
+    assert_equal "42", doc.sort_key
+    assert_empty doc.fields
+  end
+
+  # F-DOM-1: a bare Symbol return field is accepted and stringified.
+  def test_return_fields_accepts_symbol
+    opts = Valkey::Search::SearchOptions.new(return_fields: %i[title price])
+    assert_equal ["RETURN", 2, "title", "price"], opts.to_args
+  end
+
+  # F-DOM-1: the { name:, as: } Hash accepts String keys too.
+  def test_return_fields_hash_string_keys
+    opts = Valkey::Search::SearchOptions.new(return_fields: [{ "name" => "loc", "as" => "location" }])
+    assert_equal ["RETURN", 3, "loc", "AS", "location"], opts.to_args
+  end
+
+  # SOMESHARDS emission (previously only :all_shards was exercised).
+  def test_some_shards_emission
+    opts = Valkey::Search::SearchOptions.new(shard_scope: :some_shards, consistency: :inconsistent)
+    assert_equal %w[SOMESHARDS INCONSISTENT], opts.to_args
+  end
 end
