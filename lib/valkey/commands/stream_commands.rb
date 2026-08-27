@@ -432,9 +432,11 @@ class Valkey
       #
       # @see https://valkey.io/commands/xpending/
       def xpending(key, group, *args, idle: nil)
+        raise ArgumentError, "idle: requires start, end, and count arguments" if idle && args.empty?
+
         cmd_args = [key, group]
-        cmd_args.concat(args)
         cmd_args << "IDLE" << idle.to_s if idle
+        cmd_args.concat(args)
 
         send_command(RequestType::X_PENDING, cmd_args) do |reply|
           # If args provided (start, end, count), return detailed format

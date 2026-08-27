@@ -336,6 +336,40 @@ module Lint
       r.del "mystream"
     end
 
+    def test_xpending_with_idle_filter
+      # Clean up any existing stream first
+      r.del "mystream"
+
+      r.xadd("mystream", { "field1" => "value1" }, id: "1-1")
+      r.xadd("mystream", { "field2" => "value2" }, id: "2-2")
+      r.xgroup_create("mystream", "mygroup", "0")
+      r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
+
+      sleep 0.2 # give both entries a non-zero idle time
+
+      # idle: 0 matches every pending entry, regardless of actual idle time
+      entries = r.xpending("mystream", "mygroup", "-", "+", 10, idle: 0)
+      assert_equal 2, entries.length
+
+      # a threshold far beyond the elapsed time filters everything out
+      entries = r.xpending("mystream", "mygroup", "-", "+", 10, idle: 60_000)
+      assert_empty entries
+
+      r.del "mystream"
+    end
+
+    def test_xpending_summary_with_idle_raises_argument_error
+      # Clean up any existing stream first
+      r.del "mystream"
+
+      r.xadd("mystream", { "field1" => "value1" })
+      r.xgroup_create("mystream", "mygroup", "0")
+
+      assert_raises(ArgumentError) { r.xpending("mystream", "mygroup", idle: 0) }
+
+      r.del "mystream"
+    end
+
     def test_xclaim
       # Clean up any existing stream first
       r.del "mystream"
