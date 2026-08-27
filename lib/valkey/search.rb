@@ -23,3 +23,4 @@ end
 require "valkey/search/fields"
 require "valkey/search/create_options"
 require "valkey/search/query"
+require "valkey/search/aggregate"
