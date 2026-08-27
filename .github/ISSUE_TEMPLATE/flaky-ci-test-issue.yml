@@ -22,7 +22,7 @@ body:
       attributes:
           label: Test Location
           description: File and line number or test suite
-          placeholder: e.g., test/valkey/test_strings.rb line 42
+          placeholder: e.g., test/integration/standalone/commands_test.rb line 42
 
     - type: input
       id: failure-permlink

@@ -36,7 +36,9 @@ bundle exec ruby -e 'require "valkey"; puts Valkey::VERSION'
 
 ## Running Tests
 
-Tests use **Minitest**, split into `rake test:standalone` and `rake test:cluster`.
+Tests use **Minitest**, split into `rake test:unit` (`test/unit/`, no server needed),
+`rake test:standalone` (`test/integration/standalone/` + `test/integration/valkey/`),
+and `rake test:cluster` (`test/integration/cluster/`).
 
 Start test servers with the submodule's `cluster_manager.py`. It's the same tool
 CI uses, so ports and topology match. Only fall back to a manual `valkey-server`
@@ -47,7 +49,9 @@ or `docker run` when a scenario can't be produced with `cluster_manager.py`.
 python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
 
 # Run the suites
-bundle exec rake test              # standalone + cluster
+bundle exec rake test              # unit + integration
+bundle exec rake test:unit         # unit only (no server needed)
+bundle exec rake test:integration  # standalone + cluster
 bundle exec rake test:standalone   # standalone only
 bundle exec rake test:cluster      # cluster only (nodes auto-started by the suite)
 
