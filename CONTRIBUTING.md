@@ -1,100 +1,33 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to Valkey GLIDE for Ruby (`valkey-glide-rb`). Whether it's a bug report, new feature, correction, or documentation, we value feedback from the community.
+Thank you for your interest in contributing to Valkey GLIDE for Ruby. Whether it's a bug report, new feature, correction, or documentation, we value feedback from the community.
 
-Please read this document before submitting issues or pull requests.
+This document will go over some of the important things to know before making a contribution. For our guidelines, please take a look at the Valkey GLIDE [CONTRIBUTING.md](https://github.com/valkey-io/valkey-glide/blob/main/CONTRIBUTING.md).
 
-## Reporting Bugs and Feature Requests
+## Raising an Issue
 
-Use the [GitHub issue tracker](https://github.com/valkey-io/valkey-glide-ruby/issues) for bugs, feature requests, and questions.
+When raising an issue, please make use of our issue templates and ensure that it is not a duplicate.
 
-Before creating a new issue:
+## Creating a Pull Request
 
-1. Search [existing issues](https://github.com/valkey-io/valkey-glide-ruby/issues) to avoid duplicates.
-2. Include Ruby version, OS/architecture, `valkey-glide-rb` version, and Valkey/Redis server version.
-3. For connection problems, note standalone vs cluster and whether TLS is enabled.
-4. Provide a minimal reproduction script when possible.
+External pull request is not allowed without first creating an issue. This is to allow for discussions on the issue without bombarding the repo with pull requests. 
 
-For issues that affect the shared Rust core or other language clients, consider opening an issue in [valkey-glide](https://github.com/valkey-io/valkey-glide/issues) as well.
+Exceptions are made for pull requests that are small in scope or contains simple changes, e.g fixing typos. However, any PR made without making an issue first risk 
+being rejected.
 
-## Contributing via Pull Requests
+Finally, keep your PR scope focused and small, preferably +-500 lines changes. This allow maintainers to review your PR in a timely manner. A large convoluted PR 
+will be rejected and asked for a resubmit.
 
-1. Work against the latest `main` branch.
-2. Check [open](https://github.com/valkey-io/valkey-glide-ruby/pulls) and recently merged PRs for duplicates.
-3. For large changes (new command families, FFI updates, API breaks), open an issue first to discuss scope.
+## Signed Commits and DCO
 
-### Pull request steps
-
-1. Fork [valkey-glide-ruby](https://github.com/valkey-io/valkey-glide-ruby).
-2. Make focused changes; avoid unrelated formatting drive-by edits.
-3. Run local checks (see [DEVELOPER.md](./DEVELOPER.md)):
-   ```bash
-   bundle exec rubocop
-   bundle exec rake test:standalone    # standalone — requires Valkey on :6379
-   bundle exec rake test:cluster   # if cluster-related — requires nodes :7000–:7005
-   ```
-4. Commit with **DCO sign-off** and **conventional commits**:
-   ```bash
-   git commit -s -m "feat(ruby): add EXAMPLE command"
-   ```
-   Configure automatic signoff: `git config --global format.signOff true`
-
-5. Open a PR and respond to CI feedback (RuboCop + test matrix in `.github/workflows/ci.yml`).
-
-GitHub guides: [fork a repo](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/fork-a-repo), [create a pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/creating-a-pull-request).
-
-### Commit message format
-
-```
-<type>(<scope>): <description>
-```
-
-| Type | Use for |
-|------|---------|
-| `feat` | New feature or command |
-| `fix` | Bug fix |
-| `docs` | Documentation only |
-| `test` | Tests only |
-| `refactor` | Code change without behavior change |
-| `chore` | Tooling, CI, deps |
-
-**Scope:** `ruby` or a command area (e.g. `ruby-pubsub`).
-
-### Developer Certificate of Origin (DCO)
-
-All commits must include:
-
-```
-Signed-off-by: Your Name <your.email@example.com>
-```
-
-By signing off, you agree to the [Developer Certificate of Origin](https://developercertificate.org/).
-
-## Adding or Updating Commands
-
-1. Confirm the command exists in [glide-core `request_type.rs`](https://github.com/valkey-io/valkey-glide/blob/main/glide-core/src/request_type.rs).
-2. Add or verify `RequestType` in `lib/valkey/request_type.rb`.
-3. Implement in the appropriate `lib/valkey/commands/*.rb` module.
-4. Add tests under `test/integration/valkey/` and lint coverage in `test/lint/` when matching redis-rb behavior.
-5. Update the [command implementation wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands).
-
-See [DEVELOPER.md](./DEVELOPER.md) for full details.
-
-## Updating the Native FFI Library
-
-Changes that require a new `libglide_ffi` build:
-
-1. Build from [valkey-glide/ffi](https://github.com/valkey-io/valkey-glide/tree/main/ffi) at a compatible release tag.
-2. Copy `libglide_ffi.so` or `libglide_ffi.dylib` into `lib/valkey/`.
-3. Document the valkey-glide version in the PR description.
-4. Test on the target platform (Linux x86_64/aarch64, macOS Intel/Apple Silicon).
+All commits require a DCO signoff and are cryptographically signed: `git commit -S -s -m "message"`. You should follow the Conventional Commits format: <type>(<scope>): <description>.
 
 ## AI-Assisted Development
 
-If you use Cursor, Claude Code, or similar tools, read:
+If you use Cursor, Claude Code, or similar tools, agent context files are available:
 
-- [AGENTS.md](./AGENTS.md) — build, test, and quality checklist
-- [CLAUDE.md](./CLAUDE.md) — workflow constraints for this repository
+- [AGENTS.md](./AGENTS.md)
+- [CLAUDE.md](./CLAUDE.md)
 
 ## Code of Conduct
 
@@ -107,9 +40,3 @@ See [SECURITY.md](https://github.com/valkey-io/.github/blob/main/SECURITY.md).
 ## Licensing
 
 Contributions are licensed under the same terms as the project. See [LICENSE](./LICENSE). You will be asked to confirm licensing in your PR.
-
-## Community
-
-Join Valkey Slack: [Join Valkey Slack](https://join.slack.com/t/valkey-oss-developer/shared_invite/zt-2nxs51chx-EB9hu9Qdch3GMfRcztTSkQ).
-
-Broader GLIDE contributing process: [valkey-glide CONTRIBUTING.md](https://github.com/valkey-io/valkey-glide/blob/main/CONTRIBUTING.md).
