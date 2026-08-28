@@ -20,6 +20,9 @@ class TestConnectionLifecycleUnit < Minitest::Test
     pointer = FFI::Pointer.new(1)
     client.instance_variable_set(:@connection, pointer)
     client.instance_variable_set(:@close_lock, Mutex.new)
+    # The client must look owned by this process, or `close` correctly refuses
+    # to free a handle it cannot prove it owns (see test/unit/fork_safety_test.rb).
+    client.instance_variable_set(:@pid, Process.pid)
 
     source_path, source_line = Valkey.instance_method(:close).source_location
     # Line of `@connection = nil` inside the `begin` block. Locate it

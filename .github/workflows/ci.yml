@@ -253,6 +253,11 @@ jobs:
         env:
           SKIP_TLS_TESTS: ${{ matrix.host.OS == 'macos' && 'true' || '' }}
 
+      # Must run in its own process: the fork guard's precondition is that no
+      # command has been issued yet, which is false inside the shared suite.
+      - name: Run isolated fork tests
+        run: ruby -Itest -Ilib test/isolated/fork_no_parent_command_test.rb
+
       - name: Upload test artifacts
         if: always()
         continue-on-error: true
@@ -428,6 +433,11 @@ jobs:
       - name: Run tests
         shell: bash
         run: bundle exec rake test
+
+      # See the note on the isolated step in the gnu test job above.
+      - name: Run isolated fork tests
+        shell: bash
+        run: ruby -Itest -Ilib test/isolated/fork_no_parent_command_test.rb
 
       - name: Upload cluster logs on failure
         if: failure()

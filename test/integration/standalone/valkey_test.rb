@@ -29,6 +29,14 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::EvalEvalshaTypeProperties
 end
 
+# Fork-safety tests get their own class: they fork the test process, so keeping
+# them out of the big shared class limits how much inherited minitest state the
+# child carries. See test/support/helper/fork.rb for the exit!/finalizer note.
+class TestStandaloneForkSafety < Minitest::Test
+  include Helper::Client
+  include ValkeyTests::ForkSafety
+end
+
 # OpenTelemetry tests need their own class to avoid setup interference
 # The OTel module has its own setup that initializes OpenTelemetry once,
 # and including Helper::Client would cause extra commands (flushdb) to
