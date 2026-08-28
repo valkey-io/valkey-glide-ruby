@@ -4,6 +4,7 @@
 
 ### Fixes
 
+* Ruby: Fix `xpending`'s `idle:` option, which was emitted after `start`/`end`/`count` instead of before them. The Valkey `XPENDING` grammar is `XPENDING key group [IDLE ms] start end count [consumer]`, so the trailing `IDLE <ms>` was parsed by the server as the optional `consumer` argument, causing `xpending(key, group, start, end, count, idle: ms)` to silently return an empty result set instead of the idle-filtered entries. Also, `idle: false` was previously indistinguishable from `idle: nil` (both are falsy in Ruby) and silently dropped the filter instead of forwarding it to the server; `idle:` is now only omitted when explicitly `nil` ([#270](https://github.com/valkey-io/valkey-glide-ruby/issues/270), [#241](https://github.com/valkey-io/valkey-glide-ruby/issues/241)).
 * Ruby: Fix `blpop`, `brpop`, `blmove`, `rpoplpush` and `brpoplpush`, all of which were non-functional. `blpop`/`brpop` called a non-existent `send_blocking_command` helper, `blmove` leaked the command name into argv, and `rpoplpush`/`brpoplpush` dispatched `RequestType::RPOPLPUSH`/`BRPOPLPUSH`, for which glide-core has no command mapping. Since Valkey defines `RPOPLPUSH src dst` as exactly `LMOVE src dst RIGHT LEFT` (and `BRPOPLPUSH src dst timeout` as `BLMOVE src dst RIGHT LEFT timeout`), `rpoplpush`/`brpoplpush` are now fixed-argument facades over `lmove`/`blmove`. Both remain deprecated as of Redis 6.2; prefer `lmove`/`blmove` in new code. The unusable `RequestType::RPOPLPUSH`/`BRPOPLPUSH` constants were removed.
 
 ### Changes

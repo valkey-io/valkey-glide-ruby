@@ -433,8 +433,8 @@ class Valkey
       # @see https://valkey.io/commands/xpending/
       def xpending(key, group, *args, idle: nil)
         cmd_args = [key, group]
+        cmd_args << "IDLE" << idle.to_s unless idle.nil?
         cmd_args.concat(args)
-        cmd_args << "IDLE" << idle.to_s if idle
 
         send_command(RequestType::X_PENDING, cmd_args) do |reply|
           # If args provided (start, end, count), return detailed format

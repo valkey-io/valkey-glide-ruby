@@ -336,6 +336,25 @@ module Lint
       r.del "mystream"
     end
 
+    # Argument-order correctness (IDLE placed before start/end/count) is
+    # covered by the unit tests in test/unit/commands/stream_commands_test.rb.
+    # This is just a pass-through check that the real server accepts the
+    # `idle:` option and returns the filtered entries end-to-end.
+    def test_xpending_with_idle_filter
+      # Clean up any existing stream first
+      r.del "mystream"
+
+      r.xadd("mystream", { "field1" => "value1" }, id: "1-1")
+      r.xadd("mystream", { "field2" => "value2" }, id: "2-2")
+      r.xgroup_create("mystream", "mygroup", "0")
+      r.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
+
+      entries = r.xpending("mystream", "mygroup", "-", "+", 10, idle: 0)
+      assert_equal 2, entries.length
+
+      r.del "mystream"
+    end
+
     def test_xclaim
       # Clean up any existing stream first
       r.del "mystream"
