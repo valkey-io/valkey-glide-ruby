@@ -5,7 +5,7 @@ require "test_helper"
 # Run directly, in its own process (see the "Run isolated fork tests" step in
 # ci.yml):
 #
-#   ruby -Itest -Ilib test/isolated/fork_no_parent_command_test.rb
+#   bundle exec ruby -Itest -Ilib test/isolated/fork_no_parent_command_test.rb
 #
 # glide-core arms a process-global timeout watchdog on the first command issued
 # anywhere in the process. This test's precondition is that no command has been
