@@ -2,7 +2,7 @@
 
 require "test_helper"
 
-# Server-free unit tests for the fork-safety guard (issue #255).
+# Server-free unit tests for the fork-safety guard.
 #
 #   parent_proc  the process that created the client (`@pid == Process.pid`)
 #   child_proc   a process that inherited it across fork() (`@pid != Process.pid`)
@@ -33,6 +33,9 @@ class TestForkSafety < Minitest::Test
 
   def build_client(pid:, connection:)
     client = Valkey.allocate
+
+    # We use reflection to set the states. Not ideal.
+    # Pending refactor in the Valkey class to allow for better testability.
     client.instance_variable_set(:@connection, connection)
     client.instance_variable_set(:@close_lock, Mutex.new)
     client.instance_variable_set(:@pid, pid) unless pid == :unset
