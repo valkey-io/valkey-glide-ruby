@@ -359,7 +359,7 @@ class Valkey
       # ft_aggregate, and ft_info. Returns an options instance (built from a lone
       # positional options object, or from keyword args), or nil for the
       # raw/plain path. Validates the invocation up front — a malformed call
-      # raises rather than silently degrading (F-DRY-1).
+      # raises rather than silently degrading.
       #
       # @param klass [Class] the options class (SearchOptions/AggregateOptions/InfoOptions)
       # @param args [Array] positional args after the fixed leading arguments
@@ -439,7 +439,7 @@ class Valkey
         raise ArgumentError, "schema must contain at least one field" if fields.empty?
 
         unless fields.all?(Valkey::Search::Field)
-          # F-DISPATCH-1: a lone Array selects the builder path, so raw FT.CREATE
+          # a lone Array selects the builder path, so raw FT.CREATE
           # tokens passed as one Array land here. Hint at the splat requirement.
           hint =
             if fields.all?(String)

@@ -141,7 +141,7 @@ class Valkey
         new(total, documents)
       end
 
-      # F-AP-4 / F-PARSE-2: coerce the count strictly so a malformed reply
+      # coerce the count strictly so a malformed reply
       # surfaces loudly instead of silently becoming "0 results". Only an Integer
       # or an integer-valued String is accepted — a Float (e.g. 2.5) is rejected
       # rather than silently truncated by Integer().
@@ -167,7 +167,7 @@ class Valkey
             sort_key = value[0]
             fields = value[1] if value[1].is_a?(Hash)
           elsif with_sort_keys && no_content
-            # F-PARSE-3: WITHSORTKEYS + NOCONTENT — the value is the bare sort key,
+            # WITHSORTKEYS + NOCONTENT — the value is the bare sort key,
             # neither an Array nor a field Hash, so capture it directly.
             sort_key = value
           elsif !no_content && value.is_a?(Hash)
@@ -185,7 +185,7 @@ class Valkey
           i += 1
           sort_key = nil
           if with_sort_keys
-            # F-PARSE-1: bounds-check every read past the KEY so a truncated reply
+            # bounds-check every read past the KEY so a truncated reply
             # raises loudly (matching coerce_count) instead of emitting a phantom
             # document with missing pieces.
             raise TypeError, "FT.SEARCH reply truncated (missing sort key)" if i >= rest.length
@@ -199,7 +199,7 @@ class Valkey
 
             pairs = rest[i]
             i += 1
-            # F2: block-form to_h tolerates an odd-length array (dangling key => nil),
+            # block-form to_h tolerates an odd-length array (dangling key => nil),
             # unlike bare each_slice(2).to_h which raises, so a malformed reply never
             # escapes ft_search as a non-Valkey error.
             fields = pairs.each_slice(2).to_h { |k, v| [k, v] } if pairs.is_a?(Array)
