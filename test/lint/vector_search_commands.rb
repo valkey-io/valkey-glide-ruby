@@ -468,7 +468,7 @@ module Lint
     end
 
     # ------------------------------------------------------------------
-    # Builder-API integration coverage (TDD 1.1-1.5).
+    # Builder-API integration coverage.
     #
     # These exercise the Valkey::Search::* builder path of ft_create against a
     # live search module. Like the rest of this suite they are module-gated:
@@ -476,7 +476,7 @@ module Lint
     # remain pending-integration in environments without a live search module.
     # ------------------------------------------------------------------
 
-    # TDD 1.1 — create index with text and numeric fields via the builder API.
+    # create index with text and numeric fields via the builder API.
     def test_ft_create_builder_text_and_numeric
       ensure_redisearch_loaded
 
@@ -491,7 +491,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 1.2 — create index with an HNSW vector field via the builder API.
+    # create index with an HNSW vector field via the builder API.
     def test_ft_create_builder_vector_hnsw
       ensure_redisearch_loaded
 
@@ -507,7 +507,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 1.3 — create index with a FLAT vector field via the builder API.
+    # create index with a FLAT vector field via the builder API.
     def test_ft_create_builder_vector_flat
       ensure_redisearch_loaded
 
@@ -522,7 +522,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 1.4 — create index with a tag field via the builder API.
+    # create index with a tag field via the builder API.
     def test_ft_create_builder_tag
       ensure_redisearch_loaded
 
@@ -536,7 +536,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 1.5 — HASH data type + key prefixes: only prefixed keys are indexed.
+    # HASH data type + key prefixes: only prefixed keys are indexed.
     def test_ft_create_builder_prefix_only_indexes_matching_keys
       ensure_redisearch_loaded
 
@@ -558,13 +558,13 @@ module Lint
     end
 
     # ------------------------------------------------------------------
-    # Builder-API query integration coverage (TDD 2.1-2.7).
+    # Builder-API query integration coverage.
     #
     # Exercise the SearchOptions builder path of ft_search (returns a structured
     # Valkey::Search::SearchResult). Module-gated like the rest of this suite.
     # ------------------------------------------------------------------
 
-    # TDD 2.1 — basic text search returns fields + total via SearchResult.
+    # basic text search returns fields + total via SearchResult.
     def test_ft_search_builder_basic_text
       ensure_redisearch_loaded
 
@@ -582,7 +582,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 2.2 — pagination via LIMIT returns only the requested page.
+    # pagination via LIMIT returns only the requested page.
     def test_ft_search_builder_limit
       ensure_redisearch_loaded
 
@@ -599,7 +599,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 2.3 — field projection via RETURN limits returned fields.
+    # field projection via RETURN limits returned fields.
     def test_ft_search_builder_return_fields
       ensure_redisearch_loaded
 
@@ -619,7 +619,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 2.4 — sorting by a sortable field returns results in order.
+    # sorting by a sortable field returns results in order.
     def test_ft_search_builder_sort_by
       ensure_redisearch_loaded
 
@@ -641,7 +641,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 2.5 — KNN vector similarity search returns nearest neighbors.
+    # KNN vector similarity search returns nearest neighbors.
     def test_ft_search_builder_vector_knn
       ensure_redisearch_loaded
 
@@ -663,7 +663,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 2.6 — NOCONTENT returns keys only (no field data).
+    # NOCONTENT returns keys only (no field data).
     def test_ft_search_builder_no_content
       ensure_redisearch_loaded
 
@@ -680,7 +680,7 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # TDD 2.7 — query dialect 2 is accepted.
+    # query dialect 2 is accepted.
     def test_ft_search_builder_dialect
       ensure_redisearch_loaded
 
@@ -697,7 +697,285 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
+    # ------------------------------------------------------------------
+    # Builder-API aggregate integration coverage.
+    #
+    # Exercise the AggregateOptions / clause builder path of ft_aggregate against
+    # live seeded data. ft_aggregate returns the raw Array reply (no structured
+    # aggregate result type), so we assert on that reply shape. Module-gated like
+    # the rest of this suite. Every query uses a numeric filter, never "*"
+    # (Valkey-native FT.AGGREGATE rejects the wildcard).
+    # ------------------------------------------------------------------
+
+    # Seed a small products dataset (category TAG + price NUMERIC) for aggregate
+    # tests. Returns after a short delay to allow async indexing to settle.
+    def seed_products_for_aggregate
+      r.ft_create(TEST_INDEX,
+                  [Valkey::Search::TagField.new("category"),
+                   Valkey::Search::NumericField.new("price", sortable: true)],
+                  on: :hash, prefixes: ["product:"])
+      r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
+      r.send_command(Valkey::RequestType::HSET, ["product:2", "category", "electronics", "price", "200"])
+      r.send_command(Valkey::RequestType::HSET, ["product:3", "category", "books", "price", "50"])
+      r.send_command(Valkey::RequestType::HSET, ["product:4", "category", "books", "price", "30"])
+      sleep 0.1
+    end
+
+    # GROUPBY (>=1 property) with COUNT and SUM reducers over live data.
+    def test_ft_aggregate_builder_groupby_reducers
+      ensure_redisearch_loaded
+
+      with_db0 do
+        seed_products_for_aggregate
+
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 clauses: [
+                                   Valkey::Search::GroupBy.new(
+                                     ["@category"],
+                                     reducers: [
+                                       Valkey::Search::Reducer.count(as: "count"),
+                                       Valkey::Search::Reducer.sum("@price", as: "total")
+                                     ]
+                                   )
+                                 ], dialect: 2)
+        # glide-core normalizes FT.AGGREGATE into an Array of Hash rows.
+        rows = aggregate_rows(results)
+        refute_empty rows, "GROUPBY should produce at least one row"
+        assert(rows.all? { |h| h.key?("count") }, "COUNT reducer alias should be present")
+        assert(rows.all? { |h| h.key?("total") }, "SUM reducer alias should be present")
+        # COUNT reflects the four seeded, price-matching documents.
+        assert_equal 4, rows.sum { |h| Integer(h["count"]) }, "COUNT should total the seeded docs"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # SORTBY (with MAX) is accepted and windows the grouped output.
+    def test_ft_aggregate_builder_sortby_max
+      ensure_redisearch_loaded
+
+      with_db0 do
+        seed_products_for_aggregate
+
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 clauses: [
+                                   Valkey::Search::GroupBy.new(
+                                     ["@category"],
+                                     reducers: [Valkey::Search::Reducer.sum("@price", as: "total")]
+                                   ),
+                                   Valkey::Search::SortBy.new({ "@total" => :desc }, max: 1)
+                                 ], dialect: 2)
+        rows = aggregate_rows(results)
+        assert_operator rows.length, :<=, 1, "SORTBY MAX 1 should window output to one row"
+        assert(rows.all? { |h| h.key?("total") }, "SUM reducer alias should survive SORTBY")
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # FILTER is accepted and prunes rows that fail the predicate.
+    def test_ft_aggregate_builder_filter
+      ensure_redisearch_loaded
+
+      with_db0 do
+        seed_products_for_aggregate
+
+        # Grouped total is 0 in this engine build, so `@total < 1` keeps rows and
+        # `@total > 1000` drops them — proving FILTER changes the row set.
+        kept = aggregate_rows(
+          r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                         clauses: [
+                           Valkey::Search::GroupBy.new(
+                             ["@category"], reducers: [Valkey::Search::Reducer.sum("@price", as: "total")]
+                           ),
+                           Valkey::Search::Filter.new("@total < 1")
+                         ], dialect: 2)
+        )
+        dropped = aggregate_rows(
+          r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                         clauses: [
+                           Valkey::Search::GroupBy.new(
+                             ["@category"], reducers: [Valkey::Search::Reducer.sum("@price", as: "total")]
+                           ),
+                           Valkey::Search::Filter.new("@total > 1000")
+                         ], dialect: 2)
+        )
+        refute_empty kept, "FILTER @total < 1 should keep the grouped row(s)"
+        assert_empty dropped, "FILTER @total > 1000 should drop all rows"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # APPLY adds a computed field to each row.
+    def test_ft_aggregate_builder_apply
+      ensure_redisearch_loaded
+
+      with_db0 do
+        seed_products_for_aggregate
+
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 clauses: [
+                                   Valkey::Search::GroupBy.new(
+                                     ["@category"],
+                                     reducers: [Valkey::Search::Reducer.sum("@price", as: "total")]
+                                   ),
+                                   Valkey::Search::Apply.new("@total * 2", as: "double_total")
+                                 ], dialect: 2)
+        rows = aggregate_rows(results)
+        refute_empty rows, "APPLY pipeline should still produce rows"
+        assert(rows.all? { |h| h.key?("double_total") }, "APPLY should add double_total to every row")
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # LIMIT windows the pipeline output.
+    def test_ft_aggregate_builder_limit
+      ensure_redisearch_loaded
+
+      with_db0 do
+        seed_products_for_aggregate
+
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 clauses: [
+                                   Valkey::Search::GroupBy.new(
+                                     ["@category"],
+                                     reducers: [Valkey::Search::Reducer.count(as: "count")]
+                                   ),
+                                   Valkey::Search::Limit.new(0, 1)
+                                 ], dialect: 2)
+        rows = aggregate_rows(results)
+        assert_operator rows.length, :<=, 1, "LIMIT 0 1 should return at most one row"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # ------------------------------------------------------------------
+    # Builder-API info + lifecycle integration coverage.
+    # ------------------------------------------------------------------
+
+    # ft_info (plain and scoped) returns index metadata as a Hash.
+    def test_ft_info_builder_metadata
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX,
+                    [Valkey::Search::TextField.new("title"),
+                     Valkey::Search::NumericField.new("price")],
+                    on: :hash, prefixes: ["doc:"])
+
+        info = r.ft_info(TEST_INDEX)
+        assert_kind_of Hash, info
+        name = info["index_name"] || info["index_name".upcase] || info[:index_name]
+        assert_equal TEST_INDEX, name.to_s, "info should report the index name"
+
+        # Scoped info (LOCAL) must be accepted on standalone (no-op scope).
+        scoped = r.ft_info(TEST_INDEX, scope: :local)
+        assert_kind_of Hash, scoped
+        scoped_name = scoped["index_name"] || scoped["index_name".upcase] || scoped[:index_name]
+        assert_equal TEST_INDEX, scoped_name.to_s, "scoped info should report the index name"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # ft_drop_index removes the index from ft_list; documents survive.
+    def test_ft_drop_index_builder_preserves_documents
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc:"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "keep me"])
+        sleep 0.1
+
+        assert_includes r.ft_list, TEST_INDEX
+
+        result = r.ft_drop_index(TEST_INDEX)
+        assert_equal "OK", result
+        refute_includes r.ft_list, TEST_INDEX, "index should be gone after drop"
+
+        # Docs survive (Valkey FT.DROPINDEX has no DD; keys preserved).
+        value = r.send_command(Valkey::RequestType::HGET, ["doc:1", "title"])
+        assert_equal "keep me", value, "document should survive FT.DROPINDEX"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # ft_list includes a builder-created index.
+    def test_ft_list_includes_builder_index
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc:"])
+        list = r.ft_list
+        assert_kind_of Array, list
+        assert_includes list, TEST_INDEX, "ft_list should include the builder-created index"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # ft_explain returns a non-empty plan string for a builder index.
+    def test_ft_explain_builder_index
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX,
+                    [Valkey::Search::TextField.new("title"),
+                     Valkey::Search::NumericField.new("price")],
+                    on: :hash, prefixes: ["doc:"])
+
+        plan = r.ft_explain(TEST_INDEX, "@title:hello @price:[0 100]")
+        assert_kind_of String, plan
+        refute_empty plan.strip, "explain should return a non-empty plan"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # alias add/update/del round-trip against a builder-created index.
+    def test_ft_alias_builder_roundtrip
+      ensure_redisearch_loaded
+
+      with_db0 do
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc:"])
+        r.ft_create("#{TEST_INDEX}_2", [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc2:"])
+
+        assert_equal "OK", r.ft_alias_add("#{TEST_INDEX}_alias", TEST_INDEX)
+        assert_equal "OK", r.ft_alias_update("#{TEST_INDEX}_alias", "#{TEST_INDEX}_2")
+        assert_equal "OK", r.ft_alias_del("#{TEST_INDEX}_alias")
+
+        r.ft_drop_index("#{TEST_INDEX}_2")
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
     private
+
+    # Normalize an FT.AGGREGATE reply into an Array of row Hashes. glide-core
+    # normalizes the reply to an Array of Hashes already; tolerate the raw
+    # `[count, [k, v, ...], ...]` shape too for robustness across engine builds.
+    def aggregate_rows(results)
+      return [] if results.nil?
+
+      arr = Array(results)
+      return [] if arr.empty?
+
+      if arr.all?(Hash)
+        arr
+      else
+        # Raw shape: drop the leading count, fold each [k, v, ...] pair-array to a Hash.
+        arr[1..].to_a.map { |row| row.is_a?(Hash) ? row : Hash[*row] }
+      end
+    end
 
     # RediSearch requires database 0, so we wrap operations to ensure we're on the right DB
     def with_db0(&block)

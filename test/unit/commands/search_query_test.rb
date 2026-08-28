@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Pure unit tests for the Phase 2 Valkey::Search query API — SearchOptions
-# serialization (TDD 6.2), SearchResult parsing (TDD 6.4), and ft_search dispatch
+# serialization, SearchResult parsing, and ft_search dispatch
 # (returns SearchResult on the builder path, raw Array on the raw path).
 #
 # No server: options are asserted via #to_args, SearchResult via from_raw against
@@ -34,7 +34,7 @@ class TestSearchQuery < Minitest::Test
     end
   end
 
-  # ---- SearchOptions serialization (TDD 6.2) ----
+  # ---- SearchOptions serialization ----
 
   def test_empty_options
     assert_equal [], Valkey::Search::SearchOptions.new.to_args
@@ -104,7 +104,7 @@ class TestSearchQuery < Minitest::Test
     assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(return_fields: [{ as: "x" }]) }
   end
 
-  # ---- SearchResult parsing (TDD 6.4) ----
+  # ---- SearchResult parsing ----
 
   def test_from_raw_flat_form_with_content
     raw = [2, "doc:1", %w[title Hello], "doc:2", %w[title World]]
@@ -204,9 +204,9 @@ class TestSearchQuery < Minitest::Test
     assert_raises(ArgumentError) { client.ft_search("idx", "q", "LIMIT", "0", "10", dialect: 2) }
   end
 
-  # ---- QA Round 3 mitigations ----
+  # ---- Defensive option mitigations ----
 
-  # F-SPEC-4: DIALECT is pinned to v2 on Valkey-native search.
+  # DIALECT is pinned to v2 on Valkey-native search.
   def test_dialect_only_v2_allowed
     assert_equal ["DIALECT", 2], Valkey::Search::SearchOptions.new(dialect: 2).to_args
     assert_equal [], Valkey::Search::SearchOptions.new(dialect: nil).to_args
@@ -214,7 +214,7 @@ class TestSearchQuery < Minitest::Test
     assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(dialect: 3) }
   end
 
-  # F-DOM-4: WITHSORTKEYS without SORTBY corrupts the parser; reject it.
+  # WITHSORTKEYS without SORTBY corrupts the parser; reject it.
   def test_with_sort_keys_requires_sort_by
     assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(with_sort_keys: true) }
     # valid when paired with sort_by
@@ -222,14 +222,14 @@ class TestSearchQuery < Minitest::Test
     assert_includes opts.to_args, "WITHSORTKEYS"
   end
 
-  # F-DOM-6: sort_order typos must not silently coerce to ASC.
+  # sort_order typos must not silently coerce to ASC.
   def test_sort_order_validated
     assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(sort_by: "p", sort_order: :ascending) }
     assert_equal %w[SORTBY p DESC],
                  Valkey::Search::SearchOptions.new(sort_by: "p", sort_order: :desc).to_args
   end
 
-  # F-DOM-5: limit Array must be [offset, count].
+  # limit Array must be [offset, count].
   def test_limit_array_arity
     assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(limit: [5]) }
     assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(limit: [1, 2, 3]) }
@@ -260,7 +260,7 @@ class TestSearchQuery < Minitest::Test
     assert_nil result.documents.first.fields["dangling"]
   end
 
-  # F-AP-4: a non-integer count surfaces loudly, not as "0 results".
+  # a non-integer count surfaces loudly, not as "0 results".
   def test_from_raw_rejects_non_integer_count
     assert_raises(TypeError) { Valkey::Search::SearchResult.from_raw(["not-a-number", "doc:1", []]) }
   end
@@ -270,16 +270,16 @@ class TestSearchQuery < Minitest::Test
     assert_equal [], Valkey::Search::CreateOptions.new(stopwords: []).to_args
   end
 
-  # F-DRY-1: the shared lookup_token helper backs the enum validations.
+  # the shared lookup_token helper backs the enum validations.
   def test_lookup_token_helper
     assert_equal "HASH", Valkey::Search.lookup_token({ hash: "HASH" }, :hash, "data type")
     assert_equal "HASH", Valkey::Search.lookup_token({ hash: "HASH" }, "HASH", "data type")
     assert_raises(ArgumentError) { Valkey::Search.lookup_token({ hash: "HASH" }, :nope, "data type") }
   end
 
-  # ---- R4 regression coverage ----
+  # ---- Regression coverage ----
 
-  # F-PARSE-2: an integer-valued String count is accepted (happy path)...
+  # an integer-valued String count is accepted (happy path)...
   def test_coerce_count_accepts_integer_string
     result = Valkey::Search::SearchResult.from_raw(["2", "doc:1", [], "doc:2", []])
     assert_equal 2, result.total_results
@@ -290,7 +290,7 @@ class TestSearchQuery < Minitest::Test
     assert_raises(TypeError) { Valkey::Search::SearchResult.from_raw([2.5, "doc:1", []]) }
   end
 
-  # F-PARSE-1: a truncated flat reply raises instead of yielding a phantom doc.
+  # a truncated flat reply raises instead of yielding a phantom doc.
   def test_from_raw_flat_truncated_missing_payload_raises
     assert_raises(TypeError) { Valkey::Search::SearchResult.from_raw([2, "doc:1", %w[f v], "doc:2"]) }
   end
@@ -301,7 +301,7 @@ class TestSearchQuery < Minitest::Test
     end
   end
 
-  # F-PARSE-3: map form under WITHSORTKEYS + NOCONTENT — value is the bare sort
+  # map form under WITHSORTKEYS + NOCONTENT — value is the bare sort
   # key (no field map). The sort key must be preserved, not dropped.
   def test_from_raw_map_with_sort_keys_no_content
     raw = [1, { "doc:1" => "42" }]
@@ -312,13 +312,13 @@ class TestSearchQuery < Minitest::Test
     assert_empty doc.fields
   end
 
-  # F-DOM-1: a bare Symbol return field is accepted and stringified.
+  # a bare Symbol return field is accepted and stringified.
   def test_return_fields_accepts_symbol
     opts = Valkey::Search::SearchOptions.new(return_fields: %i[title price])
     assert_equal ["RETURN", 2, "title", "price"], opts.to_args
   end
 
-  # F-DOM-1: the { name:, as: } Hash accepts String keys too.
+  # the { name:, as: } Hash accepts String keys too.
   def test_return_fields_hash_string_keys
     opts = Valkey::Search::SearchOptions.new(return_fields: [{ "name" => "loc", "as" => "location" }])
     assert_equal ["RETURN", 3, "loc", "AS", "location"], opts.to_args

@@ -13,7 +13,7 @@ require "valkey/search"
 require "valkey/commands/vector_search_commands"
 
 # Pure unit tests for the Phase 1 Valkey::Search builder API — field/option
-# serialization (TDD 6.1) and the ft_create builder dispatch path (TDD 1.1-1.5).
+# serialization and the ft_create builder dispatch path.
 #
 # These tests do not touch a server: field/option objects are asserted via
 # #to_args, and ft_create is exercised against a fake client that captures the
@@ -33,7 +33,7 @@ class TestSearchBuilder < Minitest::Test
     end
   end
 
-  # ---- Field serialization (TDD 6.1) ----
+  # ---- Field serialization ----
 
   def test_text_field_basic
     assert_equal %w[title TEXT], Valkey::Search::TextField.new("title").to_args
@@ -138,7 +138,7 @@ class TestSearchBuilder < Minitest::Test
     assert_raises(ArgumentError) { Valkey::Search::CreateOptions.new(on: :bogus) }
   end
 
-  # ---- ft_create dispatch (TDD 1.1-1.5) ----
+  # ---- ft_create dispatch ----
 
   def test_ft_create_builder_with_kwargs_options
     client = FakeClient.new
@@ -180,7 +180,7 @@ class TestSearchBuilder < Minitest::Test
     assert_equal %w[idx SCHEMA title TEXT price NUMERIC], client.captured_args
   end
 
-  # ---- ft_create dispatch guards (F-DISPATCH-1..5) ----
+  # ---- ft_create dispatch guards ----
 
   def test_ft_create_raises_on_options_and_kwargs_conflict
     client = FakeClient.new
@@ -213,7 +213,7 @@ class TestSearchBuilder < Minitest::Test
     assert_match(/must be a Valkey::Search::Field/, error.message)
   end
 
-  # F-DISPATCH-1: raw FT.CREATE tokens passed as one Array hit the builder path;
+  # raw FT.CREATE tokens passed as one Array hit the builder path;
   # the error should hint at the splat requirement.
   def test_ft_create_all_string_array_hints_splat
     client = FakeClient.new
@@ -231,7 +231,7 @@ class TestSearchBuilder < Minitest::Test
     end
   end
 
-  # ---- Vector type validation (F-VECTOR-TYPE) ----
+  # ---- Vector type validation ----
 
   def test_vector_field_rejects_unknown_type
     error = assert_raises(ArgumentError) do
@@ -245,7 +245,7 @@ class TestSearchBuilder < Minitest::Test
     assert_includes field.to_args, "FLOAT32"
   end
 
-  # ---- Dispatch coverage through ft_create (F-TEST-2) ----
+  # ---- Dispatch coverage through ft_create ----
 
   def test_ft_create_flat_vector_and_tag_through_dispatch
     client = FakeClient.new
@@ -279,7 +279,7 @@ class TestSearchBuilder < Minitest::Test
                  client.captured_args
   end
 
-  # F-R2-1: ft() dispatches via public_send, so it must not be able to reach a
+  # ft() dispatches via public_send, so it must not be able to reach a
   # private helper like ft_create_builder_args. Guards against a public_send->send
   # regression.
   def test_ft_convenience_cannot_reach_private_helpers

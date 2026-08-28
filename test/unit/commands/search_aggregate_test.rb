@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Pure unit tests for the Phase 3 Valkey::Search aggregate API — Reducer and
-# clause serialization plus AggregateOptions (TDD 6.3 / 3.1-3.5), and
+# clause serialization plus AggregateOptions, and
 # ft_aggregate dispatch (builder path serializes options, raw path forwards
 # tokens verbatim).
 #
@@ -66,7 +66,7 @@ class TestSearchAggregate < Minitest::Test
     assert_equal ["REDUCE", "TOLIST", 1, "@tag"], S::Reducer.new(:tolist, "@tag").to_args
   end
 
-  # ---- GroupBy clause (TDD 3.1) ----
+  # ---- GroupBy clause ----
 
   def test_group_by_with_reducers
     clause = S::GroupBy.new(["@category"],
@@ -92,7 +92,7 @@ class TestSearchAggregate < Minitest::Test
     assert_match(/must be Valkey::Search::Reducer/, err.message)
   end
 
-  # ---- SortBy clause (TDD 3.2) ----
+  # ---- SortBy clause ----
 
   def test_sort_by_single_pair
     assert_equal ["SORTBY", 2, "@total", "DESC"], S::SortBy.new("@total", :desc).to_args
@@ -116,7 +116,7 @@ class TestSearchAggregate < Minitest::Test
     assert_raises(ArgumentError) { S::SortBy.new("@a", :sideways).to_args }
   end
 
-  # ---- Filter / Apply / Limit clauses (TDD 3.3-3.5) ----
+  # ---- Filter / Apply / Limit clauses ----
 
   def test_filter_clause
     assert_equal ["FILTER", "@total > 5"], S::Filter.new("@total > 5").to_args
@@ -131,7 +131,7 @@ class TestSearchAggregate < Minitest::Test
     assert_equal ["LIMIT", 0, 10], S::Limit.new(0, 10).to_args
   end
 
-  # ---- AggregateOptions assembly (TDD 6.3) ----
+  # ---- AggregateOptions assembly ----
 
   def test_empty_aggregate_options
     assert_equal [], S::AggregateOptions.new.to_args
