@@ -123,44 +123,11 @@ client.get("foo")
 
 ## Forking Support
 
-A client cannot cross `fork()`: the native runtimes and threads behind it exist
-only in the process that created it. Using an inherited client raises
-`Valkey::InheritedError` (a `Valkey::BaseConnectionError`), so each process must
-create its own.
-
-In a forking server, create the client in the post-fork hook and keep Valkey out
-of the parent:
-
-```ruby
-module ValkeyClient
-  def self.connect!
-    @client = Valkey.new(url: ENV.fetch("VALKEY_URL", "valkey://localhost:6379"))
-  end
-
-  def self.client
-    @client || raise("ValkeyClient.connect! has not run in PID #{Process.pid}")
-  end
-end
-
-# Puma (config/puma.rb); `on_worker_boot` before Puma 7
-before_worker_boot { ValkeyClient.connect! }
-
-# Unicorn        after_fork { |_server, _worker| ValkeyClient.connect! }
-# Resque         Resque.after_fork { ValkeyClient.connect! }
-# Spring         Spring.after_fork { ValkeyClient.connect! }
-# Passenger      PhusionPassenger.on_event(:starting_worker_process) { |forked| ValkeyClient.connect! if forked }
-```
-
-Use an accessor rather than a constant: `VALKEY = Valkey.new` in an initializer
-cannot be reassigned from a worker hook without a redefinition warning.
-
-Applies to Puma in clustered mode, Unicorn, Passenger with smart spawning,
-Resque and Spring. Sidekiq is threaded, not forking, and is unaffected.
+A Ruby client currently have limited forking support. After each fork you need to recreate the Valkey instance.
 
 > **Note:** if the parent issues any command before forking, a client created in
 > the child can still be killed by a native signal. This is a limitation of the
-> Rust core, tracked in
-> [valkey-glide#6912](https://github.com/valkey-io/valkey-glide/pull/6912). Until
+> Rust core, tracked in [valkey-glide#6912](https://github.com/valkey-io/valkey-glide/pull/6912). Until
 > it ships, do not use Valkey in the parent process.
 
 ## Building and Testing
