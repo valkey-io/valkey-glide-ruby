@@ -34,9 +34,10 @@ class Valkey
 
       # Subscription mode to the integer key glide-core expects in the
       # connection JSON.
-      MODE_CODES = { exact: 0, pattern: 1, sharded: 2 }.freeze
+      SUBSCRIPTION_MODES = { exact: 0, pattern: 1, sharded: 2 }.freeze
 
-      RESP2_OPTIONS = [:resp2, "resp2", 2].freeze
+      # PubSub requires RESP3
+      RESP3_VALUES = [:resp3, "resp3", 3].freeze
 
       class << self
         # Parses and validates the `pubsub:` option.
@@ -53,7 +54,7 @@ class Valkey
         #   }
         #
         # @param pubsub_configs [Hash, nil] the `pubsub:` options.
-        # @param protocol [Symbol, String, Integer, nil] the `protocol:` option
+        # @param protocol [Symbol, String, Integer, nil] the `protocol:` option.
         # @return [Hash] the input sanitized.
         # @raise [ArgumentError] on invalid arguments.
         def parse_config(pubsub_configs, protocol: nil)
@@ -73,7 +74,7 @@ class Valkey
           return {} if subscriptions.empty?
 
           mapped = subscriptions
-                   .transform_keys { |mode| MODE_CODES.fetch(mode).to_s }
+                   .transform_keys { |mode| SUBSCRIPTION_MODES.fetch(mode).to_s }
                    .transform_values { |channels| Array(channels).map(&:to_s) }
 
           { "pubsub_subscriptions" => mapped }
@@ -82,15 +83,17 @@ class Valkey
         def validate!(subscriptions, protocol:)
           return if subscriptions.empty?
 
-          unknown_modes = subscriptions.keys - MODE_CODES.keys
+          unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
           raise ArgumentError, unknown_mode_message(unknown_modes) if unknown_modes.any?
 
-          raise ArgumentError, "Pub/Sub requires RESP3 protocol. Found #{protocol}" if RESP2_OPTIONS.include?(protocol)
+          return if RESP3_VALUES.include?(protocol)
+
+          raise ArgumentError, "Pub/Sub requires the RESP3 protocol. Found #{protocol.inspect}"
         end
 
         def unknown_mode_message(unknown_modes)
           "Unknown Pub/Sub subscription mode(s): #{unknown_modes.join(', ')}. " \
-            "Valid modes are: #{MODE_CODES.keys.join(', ')}"
+            "Valid modes are: #{SUBSCRIPTION_MODES.keys.join(', ')}"
         end
       end
 

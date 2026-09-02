@@ -79,12 +79,26 @@ class TestGlidePubSubUnit < Minitest::Test
     assert_match(/RESP3/, error.message)
   end
 
+  def test_pubsub_omitted_protocol_raises
+    error = assert_raises(ArgumentError) do
+      Valkey::Glide::PubSub.parse_config({ subscriptions: { exact: ["news"] } })
+    end
+    assert_match(/RESP3/, error.message)
+  end
+
+  def test_pubsub_explicit_nil_protocol_raises
+    error = assert_raises(ArgumentError) do
+      Valkey::Glide::PubSub.parse_config({ subscriptions: { exact: ["news"] } }, protocol: nil)
+    end
+    assert_match(/RESP3/, error.message)
+  end
+
   def test_pubsub_parse_config_ok
     pubsub_config = {
       subscriptions: { exact: ["news", :symbols], pattern: ["news.*"], sharded: ["news.shard"] }
     }
 
-    parsed = Valkey::Glide::PubSub.parse_config(pubsub_config)
+    parsed = Valkey::Glide::PubSub.parse_config(pubsub_config, protocol: :resp3)
 
     expected = { "pubsub_subscriptions" => { "0" => %w[news symbols], "1" => ["news.*"], "2" => ["news.shard"] } }
 
