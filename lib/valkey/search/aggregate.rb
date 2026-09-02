@@ -5,11 +5,10 @@ class Valkey
     # Pipeline clauses and options for FT.AGGREGATE. Clauses (GroupBy, SortBy,
     # Filter, Limit, Apply) serialize in the order the user supplies them, since
     # FT.AGGREGATE is an ordered pipeline. Flat top-level options (verbatim, load,
-    # params, dialect, timeout, shard_scope, consistency) are keyword arguments on
-    # {AggregateOptions}. Mirrors the Java FTAggregateOptions surface, adapted to
-    # Ruby idiom.
+    # params, dialect, timeout) are keyword arguments on {AggregateOptions}.
+    # Mirrors the Java FTAggregateOptions surface, adapted to Ruby idiom.
     #
-    # @see https://redis.io/commands/ft.aggregate/
+    # @see https://valkey.io/commands/ft.aggregate/
 
     # A single REDUCE within a GROUPBY. Emits `REDUCE <function> <nargs> <arg...>
     # [AS <name>]`. The nargs count is the number of argument tokens that follow
@@ -280,7 +279,6 @@ class Valkey
         args.concat(Search.params_tokens(@params))
         args.push("DIALECT", @dialect) unless @dialect.nil?
         @clauses.each { |clause| args.concat(clause.to_args) }
-        Search.append_cluster_flags(args, @shard_scope, @consistency)
         args
       end
 

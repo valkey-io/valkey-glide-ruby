@@ -17,16 +17,19 @@ class TestSearchInfo < Minitest::Test
   class FakeClient
     include Valkey::Commands::VectorSearchCommands
 
-    attr_reader :captured_type, :captured_args
+    attr_reader :captured_type, :captured_args, :captured_route
     attr_accessor :canned_reply
 
     def initialize(canned_reply = [])
       @canned_reply = canned_reply
     end
 
-    def send_command(command_type, command_args = [])
+    # Mirrors Valkey#send_command's signature, including the cluster `route:`
+    # kwarg that ft_create/ft_drop_index use to broadcast across a cluster.
+    def send_command(command_type, command_args = [], route: nil)
       @captured_type = command_type
       @captured_args = command_args
+      @captured_route = route
       @canned_reply
     end
   end

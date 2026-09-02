@@ -20,16 +20,19 @@ class TestSearchQuery < Minitest::Test
   class FakeClient
     include Valkey::Commands::VectorSearchCommands
 
-    attr_reader :captured_type, :captured_args
+    attr_reader :captured_type, :captured_args, :captured_route
     attr_accessor :canned_reply
 
     def initialize(canned_reply = [0])
       @canned_reply = canned_reply
     end
 
-    def send_command(command_type, command_args = [])
+    # Mirrors Valkey#send_command's signature, including the cluster `route:`
+    # kwarg that ft_create/ft_drop_index use to broadcast across a cluster.
+    def send_command(command_type, command_args = [], route: nil)
       @captured_type = command_type
       @captured_args = command_args
+      @captured_route = route
       @canned_reply
     end
   end
@@ -176,20 +179,19 @@ class TestSearchQuery < Minitest::Test
     assert_instance_of Valkey::Search::SearchResult, result
   end
 
-  def test_ft_search_raw_args_returns_raw_array
-    raw = [1, "doc:1", %w[title Hello]]
-    client = FakeClient.new(raw)
-    result = client.ft_search("idx", "@title:hello", "LIMIT", "0", "10")
-    assert_equal ["idx", "@title:hello", "LIMIT", "0", "10"], client.captured_args
-    assert_same raw, result, "raw-args path must return the unwrapped reply"
+  # Raw FT.SEARCH token pass-through was removed.
+  def test_ft_search_rejects_raw_tokens
+    client = FakeClient.new
+    assert_raises(ArgumentError) { client.ft_search("idx", "@title:hello", "LIMIT") }
   end
 
-  def test_ft_search_no_args_returns_raw_array
-    raw = [0]
-    client = FakeClient.new(raw)
+  # With no options at all the query still goes out and a SearchResult comes back.
+  def test_ft_search_without_options_returns_search_result
+    client = FakeClient.new([0])
     result = client.ft_search("idx", "*")
     assert_equal ["idx", "*"], client.captured_args
-    assert_same raw, result
+    assert_instance_of Valkey::Search::SearchResult, result
+    assert_equal 0, result.total_results
   end
 
   def test_ft_search_rejects_options_and_kwargs_conflict
@@ -198,15 +200,9 @@ class TestSearchQuery < Minitest::Test
     assert_raises(ArgumentError) { client.ft_search("idx", "q", opts, dialect: 2) }
   end
 
-  def test_ft_search_rejects_extra_positional_with_options
+  def test_ft_search_rejects_wrong_typed_options
     client = FakeClient.new
-    opts = Valkey::Search::SearchOptions.new(dialect: 2)
-    assert_raises(ArgumentError) { client.ft_search("idx", "q", opts, "EXTRA") }
-  end
-
-  def test_ft_search_rejects_raw_tokens_mixed_with_kwargs
-    client = FakeClient.new
-    assert_raises(ArgumentError) { client.ft_search("idx", "q", "LIMIT", "0", "10", dialect: 2) }
+    assert_raises(ArgumentError) { client.ft_search("idx", "q", "EXTRA") }
   end
 
   # ---- Defensive option mitigations ----
@@ -383,13 +379,5 @@ class TestSearchQuery < Minitest::Test
     client.instance_variable_set(:@flatten_map, true)
     err = assert_raises(ArgumentError) { client.ft_search("idx", "hello", dialect: 2) }
     assert_match(/flatten_map/, err.message)
-  end
-
-  # The raw-args path stays usable in both of those cases.
-  def test_ft_search_raw_args_allowed_with_flatten_map
-    client = FakeClient.new
-    client.instance_variable_set(:@flatten_map, true)
-    client.ft_search("idx", "hello", "LIMIT", "0", "10")
-    assert_equal %w[idx hello LIMIT 0 10], client.captured_args
   end
 end
