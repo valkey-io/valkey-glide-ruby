@@ -294,8 +294,6 @@ jobs:
     needs: [build-native-library]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Disabled for now until Module support is added.
-    if: false
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

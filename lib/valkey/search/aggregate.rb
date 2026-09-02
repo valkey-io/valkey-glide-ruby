@@ -223,11 +223,15 @@ class Valkey
     #
     # Options for FT.AGGREGATE, serialized after `index query`. The flat
     # top-level options are emitted first, then the ordered pipeline clauses (in
-    # supplied order), then the trailing cluster flags.
+    # supplied order).
     #
     # Note: Java emits DIALECT after the pipeline clauses; this builder emits it
     # before them. The server is order-independent for these tokens, so the
     # divergence is wire-benign — kept for a simpler assembly.
+    #
+    # FT.AGGREGATE does not accept the shard-scope / consistency cluster flags
+    # (the server rejects them with "Unexpected: argument `ALLSHARDS`"); they are
+    # available on {SearchOptions} and {InfoOptions} only.
     #
     # @example
     #   Valkey::Search::AggregateOptions.new(
@@ -239,7 +243,7 @@ class Valkey
     #     ],
     #     dialect: 2)
     #
-    # @see https://redis.io/commands/ft.aggregate/
+    # @see https://valkey.io/commands/ft.aggregate/
     class AggregateOptions
       # @param clauses [Array<AggregateClause>] ordered pipeline clauses
       # @param load [Array<String>, :all, nil] LOAD fields, or :all for `LOAD *`
@@ -249,11 +253,8 @@ class Valkey
       # @param slop [Integer, nil] emit `SLOP <n>`
       # @param dialect [Integer, nil] emit `DIALECT <n>` (only 2 is valid)
       # @param timeout [Integer, nil] emit `TIMEOUT <ms>`
-      # @param shard_scope [Symbol, nil] :all_shards or :some_shards
-      # @param consistency [Symbol, nil] :consistent or :inconsistent
       def initialize(clauses: [], load: nil, params: nil, verbatim: false,
-                     in_order: false, slop: nil, dialect: nil, timeout: nil,
-                     shard_scope: nil, consistency: nil)
+                     in_order: false, slop: nil, dialect: nil, timeout: nil)
         @clauses = clauses
         unless @clauses.all?(AggregateClause)
           raise ArgumentError, "aggregate clauses must be Valkey::Search::AggregateClause objects"
@@ -266,8 +267,6 @@ class Valkey
         @slop = slop
         @dialect = Search.normalize_dialect(dialect)
         @timeout = timeout
-        @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")
-        @consistency = consistency.nil? ? nil : Search.lookup_token(Search::CONSISTENCY, consistency, "consistency")
       end
 
       # @return [Array] FT.AGGREGATE option tokens (after `index query`), in wire order
