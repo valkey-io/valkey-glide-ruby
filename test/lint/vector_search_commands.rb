@@ -87,7 +87,9 @@ module Lint
 
       with_db0 do
         # Create a simple text index
-        result = r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT", "price", "NUMERIC")
+        result = r.ft_create(TEST_INDEX,
+                             [Valkey::Search::TextField.new("title"),
+                              Valkey::Search::NumericField.new("price")])
         assert_equal "OK", result
 
         # Verify index exists
@@ -105,14 +107,9 @@ module Lint
         # Create an index with a vector field
         result = r.ft_create(
           TEST_INDEX,
-          "ON", "HASH",
-          "PREFIX", "1", "doc:",
-          "SCHEMA",
-          "title", "TEXT",
-          "embedding", "VECTOR", "FLAT", "6",
-          "TYPE", "FLOAT32",
-          "DIM", "128",
-          "DISTANCE_METRIC", "COSINE"
+          [Valkey::Search::TextField.new("title"),
+           Valkey::Search::VectorField.flat("embedding", dim: 128, metric: :cosine)],
+          on: :hash, prefixes: ["doc:"]
         )
         assert_equal "OK", result
 
@@ -129,7 +126,7 @@ module Lint
 
       with_db0 do
         # Create an index first
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")])
 
         # Get index info
         # Note: FT.INFO returns a MAP structure from glide-core
@@ -148,7 +145,7 @@ module Lint
 
       with_db0 do
         # Create an index
-        r.ft_create(TEST_INDEX, "SCHEMA", "title", "TEXT")
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")])
 
         # Verify index exists (use ft_list directly since we're already in db0)
         list = r.ft_list
@@ -171,7 +168,8 @@ module Lint
 
       with_db0 do
         # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc:"])
 
         # Add a document
         r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "test document"])
@@ -196,7 +194,8 @@ module Lint
 
       with_db0 do
         # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc:"])
 
         # Add documents
         r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
@@ -207,11 +206,8 @@ module Lint
 
         # Search for documents
         results = r.ft_search(TEST_INDEX, "hello")
-        assert_kind_of Array, results
-
-        # First element should be the count
-        count = results[0]
-        assert count.is_a?(Integer) || count.is_a?(String), "First element should be result count"
+        assert_instance_of Valkey::Search::SearchResult, results
+        assert_kind_of Integer, results.total_results
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -222,7 +218,8 @@ module Lint
 
       with_db0 do
         # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "doc:", "SCHEMA", "title", "TEXT")
+        r.ft_create(TEST_INDEX, [Valkey::Search::TextField.new("title")],
+                    on: :hash, prefixes: ["doc:"])
 
         # Add documents
         r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello world"])
@@ -231,8 +228,9 @@ module Lint
         sleep 0.1
 
         # Search with LIMIT and RETURN options
-        results = r.ft_search(TEST_INDEX, "world", "LIMIT", "0", "1", "RETURN", "1", "title")
-        assert_kind_of Array, results
+        results = r.ft_search(TEST_INDEX, "world", limit: { offset: 0, count: 1 }, return_fields: ["title"])
+        assert_instance_of Valkey::Search::SearchResult, results
+        assert_operator results.documents.length, :<=, 1
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -243,8 +241,10 @@ module Lint
 
       with_db0 do
         # Create an index
-        r.ft_create(TEST_INDEX, "ON", "HASH", "PREFIX", "1", "product:",
-                    "SCHEMA", "category", "TAG", "price", "NUMERIC")
+        r.ft_create(TEST_INDEX,
+                    [Valkey::Search::TagField.new("category"),
+                     Valkey::Search::NumericField.new("price")],
+                    on: :hash, prefixes: ["product:"])
 
         # Add documents
         r.send_command(Valkey::RequestType::HSET, ["product:1", "category", "electronics", "price", "100"])
@@ -256,8 +256,11 @@ module Lint
         # Run aggregation with a numeric filter that matches all documents
         # NOTE: Valkey's native search does not support "*" wildcard in FT.AGGREGATE queries.
         # Use a filter expression that matches all indexed documents instead.
-        results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]", "GROUPBY", "1", "@category",
-                                 "REDUCE", "COUNT", "0", "AS", "count")
+        results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 clauses: [Valkey::Search::GroupBy.new(
+                                   ["@category"],
+                                   reducers: [Valkey::Search::Reducer.count(as: "count")]
+                                 )])
         assert_kind_of Array, results
       end
     rescue Valkey::CommandError => e
@@ -346,9 +349,8 @@ module Lint
         sleep 0.1
 
         results = r.ft_search(TEST_INDEX, "hello")
-        assert_kind_of Array, results
-        # Coerce: total count may come back as Integer (RESP3) or String (RESP2).
-        assert_equal 1, Integer(results[0]), "only the doc:-prefixed key should be indexed"
+        assert_instance_of Valkey::Search::SearchResult, results
+        assert_equal 1, results.total_results, "only the doc:-prefixed key should be indexed"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)

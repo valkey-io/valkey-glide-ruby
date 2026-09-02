@@ -10,6 +10,7 @@ $LOAD_PATH.unshift File.expand_path("../../../lib", __dir__)
 require "minitest/autorun"
 require "valkey/request_type"
 require "valkey/search"
+require "valkey/route"
 require "valkey/commands/vector_search_commands"
 
 # Pure unit tests for the Phase 1 Valkey::Search builder API — field/option
@@ -24,11 +25,14 @@ class TestSearchBuilder < Minitest::Test
   class FakeClient
     include Valkey::Commands::VectorSearchCommands
 
-    attr_reader :captured_type, :captured_args
+    attr_reader :captured_type, :captured_args, :captured_route
 
-    def send_command(command_type, command_args = [])
+    # Mirrors Valkey#send_command's signature, including the cluster `route:`
+    # kwarg, so dispatch-level routing is exercised the way the real client is.
+    def send_command(command_type, command_args = [], route: nil)
       @captured_type = command_type
       @captured_args = command_args
+      @captured_route = route
       "OK"
     end
   end
@@ -174,10 +178,10 @@ class TestSearchBuilder < Minitest::Test
                   "TYPE", "FLOAT32", "DIM", 128, "DISTANCE_METRIC", "COSINE"], client.captured_args
   end
 
-  def test_ft_create_backward_compatible_raw_args
+  # Raw FT.CREATE token pass-through was removed: the schema must be builders.
+  def test_ft_create_rejects_raw_tokens
     client = FakeClient.new
-    client.ft_create("idx", "SCHEMA", "title", "TEXT", "price", "NUMERIC")
-    assert_equal %w[idx SCHEMA title TEXT price NUMERIC], client.captured_args
+    assert_raises(ArgumentError) { client.ft_create("idx", "SCHEMA", "title") }
   end
 
   # ---- ft_create dispatch guards ----
@@ -215,12 +219,13 @@ class TestSearchBuilder < Minitest::Test
 
   # raw FT.CREATE tokens passed as one Array hit the builder path;
   # the error should hint at the splat requirement.
-  def test_ft_create_all_string_array_hints_splat
+  # An Array of raw tokens is not a schema; it must be Field objects.
+  def test_ft_create_rejects_string_array_schema
     client = FakeClient.new
     error = assert_raises(ArgumentError) do
       client.ft_create("idx", %w[SCHEMA title TEXT])
     end
-    assert_match(/splat/, error.message)
+    assert_match(/must be a Valkey::Search::Field/, error.message)
   end
 
   def test_ft_create_raises_on_too_many_positionals
@@ -277,5 +282,40 @@ class TestSearchBuilder < Minitest::Test
     assert_equal ["idx", "ON", "JSON", "SCORE", 0.5, "LANGUAGE", "english", "SKIPINITIALSCAN",
                   "SCHEMA", "title", "TEXT"],
                  client.captured_args
+  end
+
+  # ---- Cluster routing (index definitions are per-node) ----
+
+  # On standalone no route is applied, so default routing is untouched.
+  def test_ft_create_standalone_applies_no_route
+    client = FakeClient.new
+    client.ft_create("idx", [Valkey::Search::TextField.new("title")])
+    assert_nil client.captured_route
+  end
+
+  # In cluster mode FT.CREATE must reach every primary, otherwise a query routed
+  # to another shard fails with "Index with name '...' not found".
+  def test_ft_create_cluster_broadcasts_to_all_primaries
+    client = FakeClient.new
+    client.instance_variable_set(:@cluster_mode, true)
+    client.ft_create("idx", [Valkey::Search::TextField.new("title")])
+    refute_nil client.captured_route
+    assert_equal :all_primaries, client.captured_route.instance_variable_get(:@route_type)
+  end
+
+  def test_ft_drop_index_cluster_broadcasts_to_all_primaries
+    client = FakeClient.new
+    client.instance_variable_set(:@cluster_mode, true)
+    client.ft_drop_index("idx")
+    assert_equal ["idx"], client.captured_args
+    assert_equal :all_primaries, client.captured_route.instance_variable_get(:@route_type)
+  end
+
+  # An explicit route: always wins over the broadcast default.
+  def test_ft_create_explicit_route_overrides_broadcast
+    client = FakeClient.new
+    client.instance_variable_set(:@cluster_mode, true)
+    client.ft_create("idx", [Valkey::Search::TextField.new("title")], route: Valkey::Route.random)
+    assert_equal :random, client.captured_route.instance_variable_get(:@route_type)
   end
 end
