@@ -14,6 +14,7 @@ require_relative 'support/helper/generic'
 require_relative 'support/helper/version'
 require_relative 'support/helper/client'
 require_relative 'support/helper/cluster'
+require_relative 'support/helper/fork'
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 

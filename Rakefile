@@ -129,8 +129,10 @@ namespace :test do
   # Exclude module directories (integration/valkey/, lint/) from lost_tests check
   # These contain reusable test modules, not standalone test files
   module_dirs = %w[integration/valkey lint]
-  # Standalone scripts run directly (not via a test group) — see cd.yml
-  standalone_scripts = %w[test/smoke_test.rb]
+  # Scripts run directly rather than via a test group — see ci.yml and cd.yml.
+  # test/isolated/ holds tests that must not share a process with any other test.
+  standalone_scripts = %w[test/smoke_test.rb] +
+                       Dir["test/isolated/**/*_test.rb"]
   lost_tests = Dir["test/**/*_test.rb"] -
                groups.values.map { |d| Dir["test/#{d}/**/*_test.rb"] }.flatten -
                module_dirs.map { |d| Dir["test/#{d}/**/*_test.rb"] }.flatten -

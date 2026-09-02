@@ -31,6 +31,11 @@ class Valkey
 
   class TimeoutError < BaseConnectionError; end
 
+  # Raised when the connection was inherited by a child process.
+  #
+  # A native client handle cannot survive `fork()`: the Rust runtimes and
+  # background threads behind it exist only in the parent. Create a new client
+  # in the child rather than reusing the inherited one.
   class InheritedError < BaseConnectionError; end
 
   class ReadOnlyError < BaseConnectionError; end

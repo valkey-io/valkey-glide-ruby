@@ -60,6 +60,16 @@ class TestClusterFunctionCommands < Minitest::Test
   include ValkeyTests::FunctionCommands
 end
 
+# Cluster variant of the fork-safety suite (issue #255). Own class so the forked
+# child inherits as little minitest state as possible. Note the child MUST exit
+# with exit! (Helper::Fork enforces this): Helper::Cluster holds a TestCluster
+# whose ObjectSpace finalizer would otherwise run in the child and stop the very
+# cluster the parent suite is using.
+class TestClusterForkSafety < Minitest::Test
+  include Helper::Cluster
+  include ValkeyTests::ForkSafety
+end
+
 # Server-modules support is not yet added. Re-enable when implemented.
 # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/233
 #       https://github.com/valkey-io/valkey-glide-ruby/issues/234
