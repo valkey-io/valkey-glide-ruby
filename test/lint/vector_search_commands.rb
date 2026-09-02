@@ -256,12 +256,18 @@ module Lint
         # Run aggregation with a numeric filter that matches all documents
         # NOTE: Valkey's native search does not support "*" wildcard in FT.AGGREGATE queries.
         # Use a filter expression that matches all indexed documents instead.
+        # LOAD is required for GROUPBY to see @category; without it the server
+        # collapses all documents into one ungrouped row instead of erroring.
         results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 load: ["@category"],
                                  clauses: [Valkey::Search::GroupBy.new(
                                    ["@category"],
                                    reducers: [Valkey::Search::Reducer.count(as: "count")]
                                  )])
         assert_kind_of Array, results
+        rows = aggregate_rows(results)
+        assert_equal 2, rows.length, "electronics and books should group into two rows"
+        assert_equal 3, rows.sum { |h| Integer(h["count"]) }, "COUNT should total the three seeded docs"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -302,6 +308,11 @@ module Lint
                              on: :hash, prefixes: ["doc:"])
         assert_equal "OK", result
         assert_includes r.ft_list, TEST_INDEX
+        # Same reasoning as the FLAT case: pin the stored algorithm so a builder
+        # emitting the wrong one cannot pass on "OK" alone.
+        info_text = r.ft_info(TEST_INDEX).to_a.flatten.join(" ")
+        assert_match(/HNSW/, info_text, "FT.INFO should report the HNSW algorithm")
+        refute_match(/FLAT/, info_text, "an HNSW index should not report FLAT")
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -317,6 +328,12 @@ module Lint
                              on: :hash, prefixes: ["doc:"])
         assert_equal "OK", result
         assert_includes r.ft_list, TEST_INDEX
+        # Assert the schema the server actually stored, not just that creation
+        # succeeded: "OK" plus index existence holds true for any schema, including
+        # the wrong algorithm or a dropped DIM.
+        info_text = r.ft_info(TEST_INDEX).to_a.flatten.join(" ")
+        assert_match(/FLAT/, info_text, "FT.INFO should report the FLAT algorithm")
+        assert_match(/\b128\b/, info_text, "FT.INFO should report the requested dimension")
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -390,9 +407,22 @@ module Lint
         3.times { |i| r.send_command(Valkey::RequestType::HSET, ["doc:#{i}", "title", "hello"]) }
         sleep 0.1
 
+        # LIMIT must truncate to exactly `count`, and total_results still reports
+        # the full match count. Asserting equality (not <=) is deliberate: a
+        # builder that drops or zeroes the count arg still satisfies `<= 2`.
         result = r.ft_search(TEST_INDEX, "hello", limit: { offset: 0, count: 2 })
-        assert_operator result.documents.length, :<=, 2
+        assert_equal 2, result.documents.length, "LIMIT 0 2 should return exactly two documents"
         assert_equal 3, result.total_results
+
+        # A non-zero offset must select a different window of the same result set,
+        # which pins the offset arg as well as the count arg.
+        page1 = r.ft_search(TEST_INDEX, "hello", limit: { offset: 0, count: 1 })
+        page2 = r.ft_search(TEST_INDEX, "hello", limit: { offset: 1, count: 1 })
+
+        assert_equal 1, page1.documents.length, "LIMIT 0 1 should return exactly one document"
+        assert_equal 1, page2.documents.length, "LIMIT 1 1 should return exactly one document"
+        refute_equal page1.documents.first.key, page2.documents.first.key,
+                     "offset 1 should return a different document than offset 0"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -427,14 +457,26 @@ module Lint
                     [Valkey::Search::TextField.new("title"),
                      Valkey::Search::NumericField.new("price", sortable: true)],
                     on: :hash, prefixes: ["doc:"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello", "price", "20"])
-        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "hello", "price", "10"])
+        # Seed in descending price order so the *unsorted* reply order is wrong.
+        # With only two ascending-by-accident documents, `assert_equal prices.sort,
+        # prices` can pass even when SORTBY is never emitted; seeding worst-case and
+        # asserting the exact expected sequence removes that luck.
+        r.send_command(Valkey::RequestType::HSET, ["doc:1", "title", "hello", "price", "30"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:2", "title", "hello", "price", "20"])
+        r.send_command(Valkey::RequestType::HSET, ["doc:3", "title", "hello", "price", "10"])
         sleep 0.1
 
         result = r.ft_search(TEST_INDEX, "hello",
                              sort_by: "price", sort_order: :asc, return_fields: ["price"])
         prices = result.documents.map { |d| Integer(d.fields["price"]) }
-        assert_equal prices.sort, prices, "results should be ascending by price"
+        assert_equal [10, 20, 30], prices, "results should be ascending by price"
+
+        # Descending must invert the sequence, which pins the direction token as
+        # well as the SORTBY clause itself.
+        desc = r.ft_search(TEST_INDEX, "hello",
+                           sort_by: "price", sort_order: :desc, return_fields: ["price"])
+        assert_equal [30, 20, 10], desc.documents.map { |d| Integer(d.fields["price"]) },
+                     "results should be descending by price"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -456,7 +498,13 @@ module Lint
         result = r.ft_search(TEST_INDEX, "*=>[KNN 2 @embedding $vec]",
                              params: { vec: query_vec }, dialect: 2)
         assert_instance_of Valkey::Search::SearchResult, result
-        assert_operator result.documents.length, :>=, 1
+        # KNN 2 over two indexed vectors must return both, and the nearest neighbour
+        # must be doc:1 (identical to the query vector). Asserting order pins the
+        # vector payload and PARAMS binding; a bare `>= 1` would pass on a garbled
+        # query that happened to match one document.
+        assert_equal 2, result.documents.length, "KNN 2 should return both indexed vectors"
+        assert_equal "doc:1", result.documents.first.key,
+                     "the vector identical to the query should rank first"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -474,6 +522,21 @@ module Lint
         result = r.ft_search(TEST_INDEX, "hello", no_content: true)
         assert_equal "doc:1", result.documents.first.key
         assert_empty result.documents.first.fields
+
+        # Contrast against the default reply: without NOCONTENT the server returns
+        # the field payload.
+        with_content = r.ft_search(TEST_INDEX, "hello")
+        assert_equal({ "title" => "hello" }, with_content.documents.first.fields,
+                     "without no_content the field payload should be present")
+
+        # The parsed result alone cannot prove NOCONTENT reached the wire: the
+        # parser is passed no_content: separately and discards the field payload
+        # client-side, so a builder that never emits the token yields an identical
+        # SearchResult. Assert the emitted args directly to pin the token itself.
+        assert_includes Valkey::Search::SearchOptions.new(no_content: true).to_args, "NOCONTENT",
+                        "no_content: true must emit the NOCONTENT token"
+        refute_includes Valkey::Search::SearchOptions.new.to_args, "NOCONTENT",
+                        "NOCONTENT must not be emitted by default"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -527,7 +590,13 @@ module Lint
       with_db0 do
         seed_products_for_aggregate
 
+        # LOAD is required for GROUPBY to see the field: without `LOAD 1 @category`
+        # the attribute is not in the aggregate pipeline and the server silently
+        # collapses every document into a single ungrouped row (count=4) instead of
+        # erroring. Asserting the group count and the per-group breakdown is what
+        # distinguishes real grouping from that collapse.
         results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 load: ["@category", "@price"],
                                  clauses: [
                                    Valkey::Search::GroupBy.new(
                                      ["@category"],
@@ -539,11 +608,19 @@ module Lint
                                  ], dialect: 2)
         # glide-core normalizes FT.AGGREGATE into an Array of Hash rows.
         rows = aggregate_rows(results)
-        refute_empty rows, "GROUPBY should produce at least one row"
+        assert_equal 2, rows.length, "two seeded categories should group into two rows"
         assert(rows.all? { |h| h.key?("count") }, "COUNT reducer alias should be present")
         assert(rows.all? { |h| h.key?("total") }, "SUM reducer alias should be present")
         # COUNT reflects the four seeded, price-matching documents.
         assert_equal 4, rows.sum { |h| Integer(h["count"]) }, "COUNT should total the seeded docs"
+
+        by_category = rows.to_h { |h| [h["category"], h] }
+        assert_equal %w[books electronics], by_category.keys.sort,
+                     "GROUPBY should key rows by the loaded category field"
+        assert_equal 2, Integer(by_category["electronics"]["count"])
+        assert_equal 300, Integer(by_category["electronics"]["total"]), "100 + 200"
+        assert_equal 2, Integer(by_category["books"]["count"])
+        assert_equal 80, Integer(by_category["books"]["total"]), "50 + 30"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -556,7 +633,12 @@ module Lint
       with_db0 do
         seed_products_for_aggregate
 
+        # LOAD makes the group field visible, so this groups into two rows; MAX 1
+        # then windows it to exactly one. Asserting equality rather than `<= 1`
+        # matters because a dropped SORTBY/MAX would leave two rows, while `<= 1`
+        # would also accept zero rows from a broken pipeline.
         results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 load: ["@category", "@price"],
                                  clauses: [
                                    Valkey::Search::GroupBy.new(
                                      ["@category"],
@@ -565,8 +647,11 @@ module Lint
                                    Valkey::Search::SortBy.new({ "@total" => :desc }, max: 1)
                                  ], dialect: 2)
         rows = aggregate_rows(results)
-        assert_operator rows.length, :<=, 1, "SORTBY MAX 1 should window output to one row"
+        assert_equal 1, rows.length, "SORTBY MAX 1 should window output to one row"
         assert(rows.all? { |h| h.key?("total") }, "SUM reducer alias should survive SORTBY")
+        # electronics totals 300 vs books' 80, so DESC ordering must surface electronics.
+        assert_equal 300, Integer(rows.first["total"]),
+                     "SORTBY @total DESC should surface the highest-total group first"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -579,19 +664,23 @@ module Lint
       with_db0 do
         seed_products_for_aggregate
 
-        # Grouped total is 0 in this engine build, so `@total < 1` keeps rows and
-        # `@total > 1000` drops them — proving FILTER changes the row set.
+        # With LOAD the groups carry real SUM totals (electronics 300, books 80), so
+        # `@total > 100` keeps exactly electronics and `@total > 1000` drops both.
+        # Distinguishing kept-count 1 from 2 proves FILTER evaluates the predicate,
+        # rather than merely proving rows survived.
         kept = aggregate_rows(
           r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                         load: ["@category", "@price"],
                          clauses: [
                            Valkey::Search::GroupBy.new(
                              ["@category"], reducers: [Valkey::Search::Reducer.sum("@price", as: "total")]
                            ),
-                           Valkey::Search::Filter.new("@total < 1")
+                           Valkey::Search::Filter.new("@total > 100")
                          ], dialect: 2)
         )
         dropped = aggregate_rows(
           r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                         load: ["@category", "@price"],
                          clauses: [
                            Valkey::Search::GroupBy.new(
                              ["@category"], reducers: [Valkey::Search::Reducer.sum("@price", as: "total")]
@@ -599,7 +688,8 @@ module Lint
                            Valkey::Search::Filter.new("@total > 1000")
                          ], dialect: 2)
         )
-        refute_empty kept, "FILTER @total < 1 should keep the grouped row(s)"
+        assert_equal 1, kept.length, "FILTER @total > 100 should keep only the electronics group"
+        assert_equal 300, Integer(kept.first["total"])
         assert_empty dropped, "FILTER @total > 1000 should drop all rows"
       end
     rescue Valkey::CommandError => e
@@ -614,6 +704,7 @@ module Lint
         seed_products_for_aggregate
 
         results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 load: ["@category", "@price"],
                                  clauses: [
                                    Valkey::Search::GroupBy.new(
                                      ["@category"],
@@ -622,8 +713,14 @@ module Lint
                                    Valkey::Search::Apply.new("@total * 2", as: "double_total")
                                  ], dialect: 2)
         rows = aggregate_rows(results)
-        refute_empty rows, "APPLY pipeline should still produce rows"
+        assert_equal 2, rows.length, "APPLY should preserve both grouped rows"
         assert(rows.all? { |h| h.key?("double_total") }, "APPLY should add double_total to every row")
+        # Assert the arithmetic, not just the alias: a no-op APPLY would still add
+        # the key but leave the value equal to @total.
+        rows.each do |h|
+          assert_equal Integer(h["total"]) * 2, Integer(h["double_total"]),
+                       "double_total should be twice total for #{h['category']}"
+        end
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
@@ -636,7 +733,25 @@ module Lint
       with_db0 do
         seed_products_for_aggregate
 
+        # The seed data has exactly two categories, so an unlimited GROUPBY returns
+        # two rows (LOAD is required for the group field to be visible). Asserting
+        # the unlimited count first, then exactly one row under LIMIT 0 1, proves the
+        # clause actually truncated: a builder that drops the LIMIT clause entirely
+        # would return two rows and fail here, whereas a bare `<= 1` assertion would
+        # pass for any count including zero.
+        unlimited = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                   load: ["@category"],
+                                   clauses: [
+                                     Valkey::Search::GroupBy.new(
+                                       ["@category"],
+                                       reducers: [Valkey::Search::Reducer.count(as: "count")]
+                                     )
+                                   ], dialect: 2)
+        assert_equal 2, aggregate_rows(unlimited).length,
+                     "two seeded categories should group into two rows without LIMIT"
+
         results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                                 load: ["@category"],
                                  clauses: [
                                    Valkey::Search::GroupBy.new(
                                      ["@category"],
@@ -645,7 +760,7 @@ module Lint
                                    Valkey::Search::Limit.new(0, 1)
                                  ], dialect: 2)
         rows = aggregate_rows(results)
-        assert_operator rows.length, :<=, 1, "LIMIT 0 1 should return at most one row"
+        assert_equal 1, rows.length, "LIMIT 0 1 should return exactly one row"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
