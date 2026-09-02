@@ -178,16 +178,11 @@ class TestSearchAggregate < Minitest::Test
     assert_equal ["INORDER", "SLOP", 2, "TIMEOUT", 500], opts.to_args
   end
 
-  def test_aggregate_options_cluster_flags_tail
-    opts = S::AggregateOptions.new(clauses: [S::Filter.new("@x > 1")],
-                                   shard_scope: :all_shards, consistency: :consistent)
-    assert_equal ["FILTER", "@x > 1", "ALLSHARDS", "CONSISTENT"], opts.to_args
-  end
-
-  # SOMESHARDS/INCONSISTENT emission (the :all_shards path is covered above).
-  def test_aggregate_options_some_shards_flags
-    opts = S::AggregateOptions.new(shard_scope: :some_shards, consistency: :inconsistent)
-    assert_equal %w[SOMESHARDS INCONSISTENT], opts.to_args
+  # FT.AGGREGATE does not accept the shard-scope / consistency cluster flags
+  # (the server rejects them), so AggregateOptions must not offer them.
+  def test_aggregate_options_rejects_cluster_flags
+    assert_raises(ArgumentError) { S::AggregateOptions.new(shard_scope: :all_shards) }
+    assert_raises(ArgumentError) { S::AggregateOptions.new(consistency: :consistent) }
   end
 
   def test_aggregate_options_rejects_bad_dialect

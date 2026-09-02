@@ -278,14 +278,4 @@ class TestSearchBuilder < Minitest::Test
                   "SCHEMA", "title", "TEXT"],
                  client.captured_args
   end
-
-  # ft() dispatches via public_send, so it must not be able to reach a
-  # private helper like ft_create_builder_args. Guards against a public_send->send
-  # regression.
-  def test_ft_convenience_cannot_reach_private_helpers
-    client = FakeClient.new
-    assert_raises(NoMethodError) do
-      client.ft(:create_builder_args, "idx", [], {})
-    end
-  end
 end

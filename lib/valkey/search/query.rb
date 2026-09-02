@@ -21,6 +21,10 @@ class Valkey
       # @param params [Hash, nil] query parameters (PARAMS)
       # @param sort_by [String, nil] field to sort by
       # @param sort_order [Symbol] :asc (default) or :desc
+      # @param with_sort_keys [Boolean] emit WITHSORTKEYS (requires sort_by; cannot
+      #   be combined with no_content — the server discards the sort keys when
+      #   NOCONTENT is set, which desynchronizes the reply parser)
+      # @param no_content [Boolean] emit NOCONTENT (keys only)
       # @param shard_scope [Symbol, nil] :all_shards or :some_shards
       # @param consistency [Symbol, nil] :consistent or :inconsistent
       def initialize(limit: nil, return_fields: nil, params: nil, sort_by: nil,
@@ -28,6 +32,15 @@ class Valkey
                      verbatim: false, in_order: false, slop: nil, dialect: nil,
                      timeout: nil, shard_scope: nil, consistency: nil)
         raise ArgumentError, "with_sort_keys requires sort_by" if with_sort_keys && sort_by.nil?
+        # The server honors NOCONTENT and silently drops the sort keys, but the
+        # reply is still parsed as (key, sort_key) pairs — so the combination
+        # yields mispaired documents or a parse error depending on how many
+        # documents matched. Reject it up front instead of returning garbage.
+        if with_sort_keys && no_content
+          raise ArgumentError,
+                "with_sort_keys cannot be combined with no_content: the server omits sort keys " \
+                "under NOCONTENT, so the reply cannot be parsed reliably"
+        end
 
         @limit = normalize_limit(limit)
         @return_tokens = expand_return_fields(return_fields)
@@ -99,7 +112,14 @@ class Valkey
           raise ArgumentError, "limit Array must be [offset, count], got #{limit.inspect}" unless limit.length == 2
 
           limit
-        when Hash then [limit.fetch(:offset), limit.fetch(:count)]
+        when Hash
+          # Use explicit key checks so a missing key raises the documented
+          # ArgumentError rather than a KeyError (which is an IndexError, so a
+          # rescue on the documented class would miss it).
+          raise ArgumentError, "limit Hash requires :offset, got #{limit.inspect}" unless limit.key?(:offset)
+          raise ArgumentError, "limit Hash requires :count, got #{limit.inspect}" unless limit.key?(:count)
+
+          [limit[:offset], limit[:count]]
         else raise ArgumentError, "limit must be a { offset:, count: } Hash or [offset, count] Array"
         end
       end

@@ -68,63 +68,6 @@ class Valkey
         send_command(RequestType::FT_AGGREGATE, command_args)
       end
 
-      # Add an alias to an index.
-      #
-      # @example Add an alias to an index
-      #   valkey.ft_alias_add("myAlias", "myIndex")
-      #     # => "OK"
-      #
-      # @param [String] alias the alias name
-      # @param [String] index the index name
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.aliasadd/
-      def ft_alias_add(alias_name, index)
-        send_command(RequestType::FT_ALIAS_ADD, [alias_name, index])
-      end
-
-      # Delete an alias from an index.
-      #
-      # @example Delete an alias
-      #   valkey.ft_alias_del("myAlias")
-      #     # => "OK"
-      #
-      # @param [String] alias the alias name to delete
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.aliasdel/
-      def ft_alias_del(alias_name)
-        send_command(RequestType::FT_ALIAS_DEL, [alias_name])
-      end
-
-      # List all existing aliases.
-      #
-      # @example List all aliases
-      #   valkey.ft_alias_list
-      #     # => ["alias1", "alias2"]
-      #
-      # @return [Array<String>] array of alias names
-      #
-      # @see https://redis.io/commands/ft.aliaslist/
-      def ft_alias_list
-        send_command(RequestType::FT_ALIAS_LIST)
-      end
-
-      # Update an alias to point to a different index.
-      #
-      # @example Update an alias
-      #   valkey.ft_alias_update("myAlias", "newIndex")
-      #     # => "OK"
-      #
-      # @param [String] alias the alias name
-      # @param [String] index the new index name
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.aliasupdate/
-      def ft_alias_update(alias_name, index)
-        send_command(RequestType::FT_ALIAS_UPDATE, [alias_name, index])
-      end
-
       # Create a search index with the given schema.
       #
       # Two calling styles are supported:
@@ -170,59 +113,21 @@ class Valkey
         send_command(RequestType::FT_CREATE, command_args)
       end
 
-      # Drop an index and optionally delete all documents.
+      # Drop an index. Indexed documents are always preserved.
       #
-      # @example Drop an index without deleting documents
+      # Valkey Search has no DD flag (FT.DROPINDEX takes the index name only),
+      # so the underlying documents are never deleted.
+      #
+      # @example Drop an index
       #   valkey.ft_drop_index("myIndex")
       #     # => "OK"
       #
-      # @example Drop an index and delete all documents
-      #   valkey.ft_drop_index("myIndex", dd: true)
-      #     # => "OK"
-      #
-      # @param [String] index the index name
-      # @param [Boolean] dd whether to delete documents (DD flag)
+      # @param index [String] the index name
       # @return [String] "OK" on success
       #
-      # @see https://redis.io/commands/ft.dropindex/
-      def ft_drop_index(index, dd: false)
-        args = [index]
-        args << "DD" if dd
-        send_command(RequestType::FT_DROP_INDEX, args)
-      end
-
-      # Explain how a query is parsed and executed.
-      #
-      # @example Explain a query
-      #   valkey.ft_explain("myIndex", "@title:hello @price:[0 100]")
-      #     # => "INTERSECT {\n  @title:hello\n  @price:[0 100]\n}\n"
-      #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments
-      # @return [String] query execution plan
-      #
-      # @see https://redis.io/commands/ft.explain/
-      def ft_explain(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_EXPLAIN, command_args)
-      end
-
-      # Explain how a query is parsed and executed (CLI-formatted output).
-      #
-      # @example Explain a query in CLI format
-      #   valkey.ft_explain_cli("myIndex", "@title:hello")
-      #     # => formatted query plan
-      #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments
-      # @return [String] formatted query execution plan
-      #
-      # @see https://redis.io/commands/ft.explaincli/
-      def ft_explain_cli(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_EXPLAIN_CLI, command_args)
+      # @see https://valkey.io/commands/ft.dropindex/
+      def ft_drop_index(index)
+        send_command(RequestType::FT_DROP_INDEX, [index])
       end
 
       # Get information about an index.
@@ -254,27 +159,6 @@ class Valkey
         send_command(RequestType::FT_INFO, command_args)
       end
 
-      # Profile a search or aggregation query.
-      #
-      # @example Profile a search query
-      #   valkey.ft_profile("myIndex", "SEARCH", "QUERY", "@title:hello")
-      #     # => [execution time, results]
-      #
-      # @example Profile an aggregation query
-      #   valkey.ft_profile("myIndex", "AGGREGATE", "QUERY", "*", "GROUPBY", "1", "@category")
-      #     # => [execution time, results]
-      #
-      # @param [String] index the index name
-      # @param [String] query_type either "SEARCH" or "AGGREGATE"
-      # @param [Array<String>] args query arguments
-      # @return [Array] profiling results with execution time and query results
-      #
-      # @see https://redis.io/commands/ft.profile/
-      def ft_profile(index, query_type, *args)
-        command_args = [index, query_type] + args
-        send_command(RequestType::FT_PROFILE, command_args)
-      end
-
       # Search an index with a query.
       #
       # Two calling styles are supported:
@@ -299,6 +183,17 @@ class Valkey
       # {Valkey::Search::SearchOptions}, or when only keyword options are given.
       # Any other positional arguments are forwarded verbatim (raw path).
       #
+      # ### Limitations of the builder path
+      #
+      # * **`flatten_map: true` is not supported.** That client option is a
+      #   redis-rb 4.x compatibility shim that flattens every map reply, which
+      #   destroys the structure {Valkey::Search::SearchResult} parses. Use the
+      #   raw-args path when the client is constructed with `flatten_map: true`.
+      # * **Not supported inside `pipelined` / `multi`.** Commands queued in a
+      #   batch return a {Valkey::Future} rather than a reply, so there is nothing
+      #   to parse into a SearchResult. Use the raw-args path in a batch, or issue
+      #   the builder call outside it.
+      #
       # @param index [String] the index name
       # @param query [String] the search query
       # @param args [Array] a lone SearchOptions (builder) or raw FT.SEARCH tokens
@@ -306,12 +201,14 @@ class Valkey
       #   {Valkey::Search::SearchOptions}); ignored on the raw-args path
       # @return [Valkey::Search::SearchResult, Array] structured result on the
       #   builder path; the raw reply Array on the raw path
-      # @raise [ArgumentError] on a malformed builder invocation
+      # @raise [ArgumentError] on a malformed builder invocation, or when the
+      #   builder path is used inside a batch or with `flatten_map: true`
       #
-      # @see https://redis.io/commands/ft.search/
+      # @see https://valkey.io/commands/ft.search/
       def ft_search(index, query, *args, **kwargs)
         options = ft_search_options(args, kwargs)
         if options
+          ft_assert_builder_supported!("ft_search")
           command_args = [index, query] + options.to_args
           raw = send_command(RequestType::FT_SEARCH, command_args)
           Valkey::Search::SearchResult.from_raw(
@@ -322,38 +219,38 @@ class Valkey
         end
       end
 
-      # Convenience method for FT.* commands.
-      #
-      # @example List indexes
-      #   valkey.ft(:list)
-      #     # => ["idx1", "idx2"]
-      #
-      # @example Create an index
-      #   valkey.ft(:create, "myIndex", "SCHEMA", "title", "TEXT")
-      #     # => "OK"
-      #
-      # @example Search an index
-      #   valkey.ft(:search, "myIndex", "hello")
-      #     # => [results]
-      #
-      # @param [String, Symbol] subcommand the subcommand (list, create, search, etc.)
-      # @param [Array] args arguments for the subcommand
-      # @param [Hash] options options for the subcommand
-      # @return [Object] depends on subcommand
-      def ft(subcommand, *args, **options)
-        subcommand = subcommand.to_s.downcase.gsub("-", "_")
+      private
 
-        # public_send so ft() cannot reach private helpers (SEC-001).
-        if args.empty? && options.empty?
-          public_send("ft_#{subcommand}")
-        elsif options.empty?
-          public_send("ft_#{subcommand}", *args)
-        else
-          public_send("ft_#{subcommand}", *args, **options)
+      # The builder path parses the reply into a structured result, which is
+      # incompatible with two redis-rb compatibility behaviors: a queued batch
+      # yields a {Valkey::Future} instead of a reply, and `flatten_map: true`
+      # flattens the map structure the parser depends on. Fail with a clear
+      # ArgumentError instead of returning a corrupt result (or a NoMethodError
+      # from deep inside the parser).
+      #
+      # The batch check is duck-typed rather than `is_a?(Valkey::Pipeline)` so it
+      # holds even when pipeline.rb has not been loaded (the class name is only
+      # compared when the constant is actually defined).
+      def ft_assert_builder_supported!(method_name)
+        if ft_queued_in_batch?
+          raise ArgumentError,
+                "#{method_name} builder options are not supported inside pipelined/multi; " \
+                "queue raw FT.SEARCH tokens instead"
         end
+        return unless instance_variable_defined?(:@flatten_map) && instance_variable_get(:@flatten_map)
+
+        raise ArgumentError,
+              "#{method_name} builder options are not supported with flatten_map: true; " \
+              "use the raw-args form on a flatten_map client"
       end
 
-      private
+      # True when this receiver queues commands instead of executing them: either
+      # a Pipeline (which collects @commands/@futures) or a client inside MULTI.
+      def ft_queued_in_batch?
+        return true if instance_variable_defined?(:@futures) && instance_variable_defined?(:@commands)
+
+        instance_variable_defined?(:@in_multi) && instance_variable_get(:@in_multi)
+      end
 
       # Shared resolver for the builder-vs-raw dispatch used by ft_search,
       # ft_aggregate, and ft_info. Returns an options instance (built from a lone

@@ -67,11 +67,16 @@ class TestSearchQuery < Minitest::Test
   def test_flags_and_scalars
     opts = Valkey::Search::SearchOptions.new(
       no_content: true, verbatim: true, in_order: true, slop: 2,
-      sort_by: "price", with_sort_keys: true, dialect: 2, timeout: 500
+      sort_by: "price", dialect: 2, timeout: 500
     )
     assert_equal ["NOCONTENT", "VERBATIM", "INORDER", "SLOP", 2,
-                  "SORTBY", "price", "ASC", "WITHSORTKEYS", "DIALECT", 2, "TIMEOUT", 500],
+                  "SORTBY", "price", "ASC", "DIALECT", 2, "TIMEOUT", 500],
                  opts.to_args
+  end
+
+  def test_with_sort_keys_emission
+    opts = Valkey::Search::SearchOptions.new(sort_by: "price", with_sort_keys: true)
+    assert_equal %w[SORTBY price ASC WITHSORTKEYS], opts.to_args
   end
 
   def test_shard_scope_and_consistency
@@ -328,5 +333,63 @@ class TestSearchQuery < Minitest::Test
   def test_some_shards_emission
     opts = Valkey::Search::SearchOptions.new(shard_scope: :some_shards, consistency: :inconsistent)
     assert_equal %w[SOMESHARDS INCONSISTENT], opts.to_args
+  end
+
+  # ---- Review follow-ups ----
+
+  # A malformed limit Hash must raise the documented ArgumentError, not KeyError
+  # (KeyError is an IndexError, so a rescue on ArgumentError would miss it).
+  def test_limit_hash_missing_keys_raise_argument_error
+    err = assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(limit: { offset: 0 }) }
+    assert_match(/requires :count/, err.message)
+    err = assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(limit: { count: 5 }) }
+    assert_match(/requires :offset/, err.message)
+  end
+
+  def test_limit_hash_accepts_zero_offset
+    opts = Valkey::Search::SearchOptions.new(limit: { offset: 0, count: 0 })
+    assert_equal ["LIMIT", 0, 0], opts.to_args
+  end
+
+  # The server drops sort keys under NOCONTENT, which desynchronizes the reply
+  # parser, so the combination is rejected up front.
+  def test_with_sort_keys_rejects_no_content
+    err = assert_raises(ArgumentError) do
+      Valkey::Search::SearchOptions.new(sort_by: "price", with_sort_keys: true, no_content: true)
+    end
+    assert_match(/cannot be combined with no_content/, err.message)
+  end
+
+  # The builder path cannot produce a SearchResult from a queued batch (a Future)
+  # or from a flatten_map client, so it raises instead of corrupting the result.
+  def test_ft_search_builder_rejected_in_batch
+    client = FakeClient.new
+    # A Pipeline queues commands (@commands/@futures) instead of executing them.
+    client.instance_variable_set(:@commands, [])
+    client.instance_variable_set(:@futures, [])
+    err = assert_raises(ArgumentError) { client.ft_search("idx", "hello", dialect: 2) }
+    assert_match(%r{not supported inside pipelined/multi}, err.message)
+  end
+
+  def test_ft_search_builder_rejected_in_multi
+    client = FakeClient.new
+    client.instance_variable_set(:@in_multi, true)
+    err = assert_raises(ArgumentError) { client.ft_search("idx", "hello", dialect: 2) }
+    assert_match(%r{not supported inside pipelined/multi}, err.message)
+  end
+
+  def test_ft_search_builder_rejected_with_flatten_map
+    client = FakeClient.new
+    client.instance_variable_set(:@flatten_map, true)
+    err = assert_raises(ArgumentError) { client.ft_search("idx", "hello", dialect: 2) }
+    assert_match(/flatten_map/, err.message)
+  end
+
+  # The raw-args path stays usable in both of those cases.
+  def test_ft_search_raw_args_allowed_with_flatten_map
+    client = FakeClient.new
+    client.instance_variable_set(:@flatten_map, true)
+    client.ft_search("idx", "hello", "LIMIT", "0", "10")
+    assert_equal %w[idx hello LIMIT 0 10], client.captured_args
   end
 end
