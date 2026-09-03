@@ -121,6 +121,15 @@ client.get("foo")
 | `lazy_connect` | Delay the actual connection until the first command is sent |
 | `periodic_checks` | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
 
+## Forking Support
+
+A Ruby client currently have limited forking support. After each fork you need to recreate the Valkey instance.
+
+> **Note:** if the parent issues any command before forking, a client created in
+> the child can still be killed by a native signal. This is a limitation of the
+> Rust core, tracked in [valkey-glide#6912](https://github.com/valkey-io/valkey-glide/pull/6912). Until
+> it ships, do not use Valkey in the parent process.
+
 ## Building and Testing
 
 For AI-assisted development, see [AGENTS.md](./AGENTS.md) and [CLAUDE.md](./CLAUDE.md).

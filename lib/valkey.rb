@@ -273,6 +273,7 @@ class Valkey
       raise CannotConnectError, error_message
     end
 
+    @pid = Process.pid
     @connection = res[:conn_ptr]
     # Lock for serializing close() (issue #212).
     @close_lock = Mutex.new
@@ -306,6 +307,9 @@ class Valkey
       # Closed before the native handle goes away, so a thread blocked in
       # get_message wakes with nil instead of hanging on a dead client.
       @pubsub&.close
+      # Fork safety: freeing a handle owned by another process aborts this one.
+      # The parent still frees it on its own close.
+      return if @pid != Process.pid
 
       Bindings.close_client(conn) unless conn.nil? || conn.null?
     ensure
@@ -469,9 +473,19 @@ class Valkey
 
   private
 
-  # Returns the live native client handle, raising if the client has been
-  # closed.
+  # Returns the live native client handle.
+  #
+  # A handle cannot cross `fork()`: the runtimes and threads behind it live only
+  # in the process that created it. A child must build its own client, so this
+  # raises rather than handing back an inherited handle. Every FFI call obtains
+  # the handle here, so this one check covers all of them.
   def connection!
+    # Fork safety.
+    if @pid != Process.pid
+      raise InheritedError, "Cannot use a client created before fork(). " \
+                            "Create a new client in the child process."
+    end
+
     conn = @connection
     raise ConnectionError, "the client is closed" if conn.nil? || conn.null?
 
