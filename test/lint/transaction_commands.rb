@@ -15,17 +15,6 @@ module Lint
       assert_nil r.get("foo")
     end
 
-    def test_multi_exception_kwarg_without_a_block_raises
-      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
-      # and behave differently with connection routing
-      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-
-      # exception: only applies to the block form; imperative multi/#exec
-      # has no equivalent control.
-      assert_raises(ArgumentError) { r.multi(exception: false) }
-      assert_raises(ArgumentError) { r.multi(exception: true) }
-    end
-
     def test_discard
       # In cluster mode, MULTI/EXEC transactions require all keys in same slot
       # and behave differently with connection routing
@@ -636,9 +625,6 @@ module Lint
     def test_multi_future_is_aborted_when_batch_raises_a_command_error
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
-      # A real per-command error (unlike the user's block raising
-      # Ruby-level, see test_multi_future_is_aborted_when_block_raises)
-      # raises via multi's default exception: true.
       r.set("foo", "not_a_list")
 
       future = nil
@@ -655,8 +641,6 @@ module Lint
     def test_multi_future_resolves_to_command_error_with_exception_false
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
-      # exception: false leaves the CommandError in place instead of
-      # raising - other queued commands' replies stay reachable.
       r.set("foo", "not_a_list")
 
       future = nil
@@ -702,7 +686,7 @@ module Lint
       assert_equal false, hexists_future.value
     end
 
-    def test_multi_matches_pipelined_reproduce_from_gh_issue
+    def test_multi_exception_false_leaves_successful_replies_reachable
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
       r.set("notint", "hello")

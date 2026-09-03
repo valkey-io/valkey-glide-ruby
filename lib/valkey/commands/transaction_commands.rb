@@ -7,11 +7,6 @@ class Valkey
     # @see https://valkey.io/commands/#transactions
     #
     module TransactionCommands
-      # Distinguishes "exception: not passed" from any real boolean, so the
-      # no-block branch of #multi can raise instead of silently ignoring it.
-      NO_EXCEPTION_KWARG = Object.new
-      private_constant :NO_EXCEPTION_KWARG
-
       # Mark the start of a transaction block.
       #
       # @example With a block
@@ -37,17 +32,15 @@ class Valkey
       #     end
       #     future.value # => 6
       #
-      #   With `exception: true` (the default, matching redis-rb), a runtime
-      #   error from a queued command (e.g. WRONGTYPE) raises and the array
-      #   is discarded, even though the server already committed the other
+      #   With `exception: true` (the default), a runtime error from a
+      #   queued command (e.g. WRONGTYPE) raises and the array is
+      #   discarded, even though the server already committed the other
       #   commands. Pass `exception: false` to get the array back instead,
       #   with the failing command's slot holding a {Valkey::CommandError}.
       #   A queue-time abort (e.g. a syntax/arity error) still always raises
-      #   {Valkey::ExecAbortError}, since nothing ran in that case.
-      #
-      #   `exception:` only applies here - the imperative `multi` (no
-      #   block) / `#exec` pair has no equivalent control and raises
-      #   {ArgumentError} if passed one.
+      #   {Valkey::ExecAbortError}, since nothing ran in that case. This
+      #   kwarg only applies to the block form - the imperative `multi` (no
+      #   block) / `#exec` pair has no equivalent control.
       #
       # @example Without a block
       #   valkey.multi          # sends a real MULTI to the server now
@@ -61,17 +54,15 @@ class Valkey
       #   pending commands to run afterward simply leaves the transaction
       #   open until `#exec` or `#discard` closes it.
       # @yieldparam [Valkey::Pipeline] multi collects the block's commands
-      # @param exception [Boolean] see above; a valkey-glide-ruby-specific
-      #   extension - redis-rb's `multi` has no equivalent kwarg.
+      # @param exception [Boolean] see above
       #
       # @return [Array<...>]
       #   - an array with replies
       #
       # @see #watch
       # @see #unwatch
-      def multi(exception: NO_EXCEPTION_KWARG)
+      def multi(exception: true)
         if block_given?
-          exception = true if exception.equal?(NO_EXCEPTION_KWARG)
           pipeline = Pipeline.new
 
           begin
@@ -87,10 +78,6 @@ class Valkey
             raise
           end
         else
-          unless exception.equal?(NO_EXCEPTION_KWARG)
-            raise ArgumentError, "exception: is only supported for multi's block form"
-          end
-
           start_multi
           self
         end

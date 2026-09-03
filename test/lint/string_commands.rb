@@ -314,12 +314,24 @@ module Lint
     end
 
     def test_pipelined_raises_on_inline_error_by_default
-      # exception: true is the default, matching redis-rb - the SET below
-      # still commits server-side even though the array is discarded.
+      # exception: true is the default - the SET below still commits
+      # server-side even though the array is discarded.
       r.set('{1}notint', 'hello')
 
       assert_raises(Valkey::CommandError) do
         r.pipelined do |pipeline|
+          pipeline.set('{1}z', '1')
+          pipeline.incr('{1}notint')
+        end
+      end
+      assert_equal '1', r.get('{1}z')
+    end
+
+    def test_pipelined_exception_true_raises_on_inline_error
+      r.set('{1}notint', 'hello')
+
+      assert_raises(Valkey::CommandError) do
+        r.pipelined(exception: true) do |pipeline|
           pipeline.set('{1}z', '1')
           pipeline.incr('{1}notint')
         end

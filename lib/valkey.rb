@@ -24,13 +24,12 @@ class Valkey
   include Commands
   include PubSubCallback
 
-  # @param exception [Boolean] when `true` (the default, matching redis-rb),
-  #   a runtime error from a queued command (e.g. WRONGTYPE) raises the
-  #   first such error and aborts the pipeline's futures (see
-  #   {Future#value}). Pass `false` to instead leave it in its slot of the
-  #   returned Array as a {CommandError} - other commands' replies stay
-  #   reachable, matching the server's "no rollback on a runtime error"
-  #   semantics.
+  # @param exception [Boolean] when `true` (the default), a runtime error
+  #   from a queued command (e.g. WRONGTYPE) raises the first such error
+  #   and aborts the pipeline's futures (see {Future#value}). Pass `false`
+  #   to instead leave it in its slot of the returned Array as a
+  #   {CommandError} - other commands' replies stay reachable, matching
+  #   the server's "no rollback on a runtime error" semantics.
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
