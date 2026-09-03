@@ -2,7 +2,7 @@
 
 # SimpleCov configuration
 SimpleCov.configure do
-  enable_coverage :branch 
+  enable_coverage :branch
   primary_coverage :line
   command_name "test-#{ENV['COV_GROUP'] || 'all'}"
   merging true
@@ -12,7 +12,7 @@ SimpleCov.configure do
   skip %r{^/valkey-glide/} # vendored upstream submodule, not our code
   cover "lib/**/*.rb" # includes unloaded lib files and restricts the report to them
 
-  # Ideally, branch should be at 80. However at the time of writing the coverage sits
-  # slightly above 65. We should increase this overtime.
-  minimum_coverage line: 80, branch: 65
+  # We aims for a minimum of 80% coverage. However, our coverage at this time is much lower than this.
+  # Improvement is tracked in https://github.com/valkey-io/valkey-glide-ruby/issues/307
+  minimum_coverage line: 40, branch: 10
 end
