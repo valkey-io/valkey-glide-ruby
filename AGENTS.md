@@ -271,7 +271,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (the `PubSubCallback` `puts` in `lib/valkey/pubsub_callback.rb` is intentional while Pub/Sub is unfinished)
+- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
 
 ## Project Structure (Essential)
 
@@ -281,7 +281,7 @@ valkey-glide-ruby/
 ├── lib/valkey/
 │   ├── bindings.rb
 │   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
-│   ├── pubsub_callback.rb
+│   ├── glide/pubsub.rb   # all Pub/Sub logic; internal, wired into Valkey
 │   ├── commands.rb       # requires + includes all command modules
 │   ├── commands/*.rb     # 20 command-family modules
 │   ├── opentelemetry.rb

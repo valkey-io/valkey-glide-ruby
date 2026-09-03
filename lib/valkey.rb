@@ -14,7 +14,7 @@ require "valkey/utils"
 require "valkey/commands"
 require "valkey/errors"
 require "valkey/future"
-require "valkey/pubsub_callback"
+require "valkey/glide/pubsub"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
@@ -22,7 +22,6 @@ require "valkey/route"
 class Valkey
   include Utils
   include Commands
-  include PubSubCallback
 
   def pipelined(exception: true)
     pipeline = Pipeline.new
@@ -249,7 +248,10 @@ class Valkey
       }
     end
 
-    # Convert JSON options to string (pass nil if empty)
+    pubsub_config = Glide::PubSub.parse_config(options[:pubsub], protocol: options[:protocol])
+    json_options.merge!(pubsub_config)
+
+    @pubsub = Glide::PubSub.new(self, cluster_mode: options[:cluster_mode] ? true : false)
     json_str = json_options.empty? ? nil : JSON.generate(json_options)
 
     # Create client using URI-based FFI function
@@ -260,7 +262,7 @@ class Valkey
       uri_str,
       json_str,
       client_type,
-      method(:pubsub_callback)
+      @pubsub.ffi_handler
     )
 
     res = Bindings::ConnectionResponse.new(response_ptr)
@@ -302,6 +304,9 @@ class Valkey
       conn = @connection
       @connection = nil
 
+      # Closed before the native handle goes away, so a thread blocked in
+      # get_message wakes with nil instead of hanging on a dead client.
+      @pubsub&.close
       # Fork safety: freeing a handle owned by another process aborts this one.
       # The parent still frees it on its own close.
       return if @pid != Process.pid
