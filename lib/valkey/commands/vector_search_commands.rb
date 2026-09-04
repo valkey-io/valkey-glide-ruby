@@ -200,14 +200,13 @@ class Valkey
       # @return [Object, nil] an instance of klass, or nil
       # @raise [ArgumentError] on a wrong-typed positional, or options given both ways
       def ft_resolve_options(klass, options, kwargs, label:)
-        short = klass.name.split("::").last
         if options.nil?
           kwargs.empty? ? nil : klass.new(**kwargs)
         else
           raise ArgumentError, "#{label} options must be a #{klass}, got #{options.class}" unless options.is_a?(klass)
           unless kwargs.empty?
             raise ArgumentError,
-                  "pass options to #{label} either as a #{short} object or as keyword arguments, not both"
+                  "pass options to #{label} either as a #{klass} object or as keyword arguments, not both"
           end
 
           options
