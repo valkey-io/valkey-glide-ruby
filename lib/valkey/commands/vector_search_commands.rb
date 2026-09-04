@@ -192,6 +192,7 @@ class Valkey
       # Resolve an options object from either a positional instance or keyword
       # arguments, rejecting both at once. Returns nil when neither is given.
       #
+      # @api private
       # @param klass [Class] the options class
       # @param options [Object, nil] a positional options instance
       # @param kwargs [Hash] keyword options
@@ -215,6 +216,7 @@ class Valkey
 
       # Build the FT.CREATE token array from the schema + options.
       #
+      # @api private
       # @raise [ArgumentError] on an empty/invalid schema, a non-CreateOptions
       #   options object, or options passed both ways
       def ft_create_args(index, fields, options, kwargs)
@@ -240,6 +242,8 @@ class Valkey
       # FT.DROPINDEX) collapse it back to the single value, so cluster and
       # standalone callers see the same "OK". A genuine per-node disagreement is
       # returned as-is rather than hidden.
+      #
+      # @api private
       def ft_collapse_broadcast(reply)
         return reply unless reply.is_a?(Hash) && !reply.empty?
 
@@ -252,6 +256,8 @@ class Valkey
       # create leaves other shards answering "Index with name '...' not found".
       # Returns nil on standalone (and wherever routing is unavailable, e.g. a
       # queued batch), which leaves the command's default routing untouched.
+      #
+      # @api private
       def ft_all_primaries_route
         return nil unless instance_variable_defined?(:@cluster_mode) && instance_variable_get(:@cluster_mode)
         return nil unless defined?(Valkey::Route)
@@ -268,6 +274,8 @@ class Valkey
       # commands inside a batch/transaction yet. Fail with a clear ArgumentError
       # instead of returning a corrupt result (or a NoMethodError from deep inside
       # the parser).
+      #
+      # @api private
       def ft_assert_supported!(method_name, flatten_map_check: true)
         if ft_queued_in_batch?
           raise ArgumentError,
@@ -285,6 +293,8 @@ class Valkey
 
       # True when this receiver queues commands instead of executing them: either
       # a Pipeline (which collects @commands/@futures) or a client inside MULTI.
+      #
+      # @api private
       def ft_queued_in_batch?
         return true if instance_variable_defined?(:@futures) && instance_variable_defined?(:@commands)
 
