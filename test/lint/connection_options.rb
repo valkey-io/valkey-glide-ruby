@@ -99,18 +99,7 @@ module Lint
       client.close
     end
 
-    # --- Library identification options (F-08) ---
-    #
-    # lib_name and client_info_tag are connection options, so they belong in the
-    # connection-options lint suite that runs against both standalone and cluster.
-    # Behavioural depth lives in test/integration/valkey/client_info_tag_test.rb;
-    # these assert the options are accepted and take effect on a real connection
-    # in both modes.
-
-    # Single extraction point for the lint module. The equivalent helper in
-    # ValkeyTests::ClientInfoTag is not in scope here, and inlining the regex per
-    # test produced multiple copies of it. Field name anchored so a hypothetical
-    # "other-lib-name=" field cannot hijack the match.
+    # Field name anchored so a hypothetical "other-lib-name=" field cannot hijack the match.
     def reported_lib_name(client)
       client.call("CLIENT", "INFO")[/(?:\A|\s)lib-name=(\S*)/, 1]
     end

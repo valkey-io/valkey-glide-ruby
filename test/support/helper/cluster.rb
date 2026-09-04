@@ -73,13 +73,7 @@ module Helper
       valkey
     end
 
-    # Query actual server version from the cluster.
-    #
-    # Detection failure raises rather than degrading to a sentinel. A sentinel
-    # version ("0.0") makes every `omit_version` gate skip, and a skipped test is
-    # indistinguishable from a passing one in the suite output — so an
-    # undetectable version silently destroys test signal instead of reporting a
-    # problem. Failing loudly is the only way that surfaces.
+    # Raises rather than returning a sentinel version, which would turn every omit_version gate into a skip.
     def version
       info = valkey.info
       ver = extract_version_from_info(info)
@@ -97,18 +91,8 @@ module Helper
 
     private
 
-    # Extracts a server version from an INFO reply.
-    #
-    # A cluster INFO fans out, so the reply may be a per-node Hash
-    # ({ "host:port" => { ... } }) or an Array of node replies rather than a flat
-    # field hash. Every node is searched, not just the first — an arbitrary node
-    # may legitimately lack the version keys, and stopping at it reports "no
-    # version found" for a cluster that has one.
-    #
-    # When nodes disagree, the MINIMUM version is returned: version gates exist
-    # to skip tests the weakest node cannot satisfy, so the conservative bound is
-    # the correct one and it makes the gate deterministic regardless of hash
-    # ordering.
+    # Extracts a server version from an INFO reply. A cluster INFO fans out, so the reply
+    # may be a flat field Hash, a per-node Hash, an Array of node replies, or a raw String.
     def extract_version_from_info(info)
       case info
       when Hash
@@ -123,16 +107,9 @@ module Helper
       end
     end
 
-    # Smallest usable version found across node replies, or nil when none report
-    # one.
-    #
-    # Unparseable values are DISCARDED, not ranked. Version comparison treats a
-    # non-numeric part as 0, so an empty or garbage string sorts below every real
-    # version and would otherwise be elected as the minimum — letting a single bad
-    # node silence version-gated tests for the whole cluster. Discarding means a
-    # cluster with one bad node and one good node still reports the good version,
-    # and a cluster where every node is unusable yields nil, which `version`
-    # turns into a loud failure.
+    # Smallest usable version across node replies, or nil when none report one. Minimum, not
+    # maximum: a gate must reflect the weakest node, and it does not depend on hash ordering.
+    # Unparseable values are dropped rather than ranked: they sort below every real version.
     def min_version(entries)
       Array(entries)
         .filter_map { |entry| extract_version_from_info(entry) }

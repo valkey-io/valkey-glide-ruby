@@ -167,16 +167,9 @@ location that exists, in this order:
 Raw equivalent (only if not using Rake):
 
 ```bash
-# GLIDE_NAME and GLIDE_VERSION are baked in at COMPILE time and reported via
-# CLIENT SETINFO (LIB-NAME / LIB-VER). Omitting them yields a library that
-# misreports its identity with no error and no local symptom — you would only
-# notice by inspecting CLIENT INFO against a live 7.2+ server. Always pass both;
-# GLIDE_VERSION must match lib/valkey/version.rb.
-#
-# Resolve the version from the REPO ROOT, before the cd, and abort if it fails:
-# inside valkey-glide/ffi the relative require cannot resolve, and in a
-# `VAR=$(...)` form the LoadError would be swallowed, leaving GLIDE_VERSION empty
-# — exactly the silent misidentity described above.
+# GLIDE_NAME/GLIDE_VERSION are baked in at compile time; omitting or mismatching them
+# silently misreports LIB-NAME/LIB-VER. GLIDE_VERSION must match `lib/valkey/version.rb`.
+# Resolve it from the repo root: the relative require will not resolve inside `valkey-glide/ffi`.
 GLIDE_VERSION=$(ruby -r./lib/valkey/version -e 'print Valkey::VERSION') || exit 1
 [ -n "$GLIDE_VERSION" ] || { echo "could not resolve GLIDE_VERSION" >&2; exit 1; }
 
