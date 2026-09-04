@@ -25,9 +25,6 @@ on:
       - main
       - release-*
 
-  schedule:
-    - cron: "0 6 * * *"
-
   workflow_dispatch:
     inputs:
       full-matrix:
@@ -252,6 +249,7 @@ jobs:
         run: bundle exec rake test
         env:
           SKIP_TLS_TESTS: ${{ matrix.host.OS == 'macos' && 'true' || '' }}
+          COVERAGE: "1" # Coverage is cheap so we compute it every run
 
       # Must run in its own process: the fork guard's precondition is that no
       # command has been issued yet, which is false inside the shared suite.
