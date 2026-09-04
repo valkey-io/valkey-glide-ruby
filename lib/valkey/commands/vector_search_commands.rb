@@ -189,6 +189,18 @@ class Valkey
       # Resolve an options object from either a positional instance or keyword
       # arguments, rejecting both at once. Returns nil when neither is given.
       #
+      # This dual form is specific to the FT.* builders rather than a client-wide
+      # convention: every other command with structured options in this client
+      # (client_kill, client_tracking, zadd, ...) takes kwargs only. It exists
+      # here because AggregateOptions already needs composable clause objects
+      # (GroupBy, SortBy, Filter, ...) regardless, so accepting the options
+      # themselves as a pre-built object is consistent with that, and lets a
+      # caller build one CreateOptions/SearchOptions/AggregateOptions/InfoOptions
+      # once and reuse it across calls. Validation is identical either way: both
+      # paths construct the same options class, e.g. `klass.new(**kwargs)` calls
+      # the exact constructor the object form would have called, so kwargs never
+      # bypass whatever the class validates in #initialize.
+      #
       # @api private
       # @param klass [Class] the options class
       # @param options [Object, nil] a positional options instance
