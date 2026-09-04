@@ -31,7 +31,10 @@ namespace :native do
     Dir.chdir("valkey-glide/ffi") do
       # Set GLIDE_NAME to identify this as the Ruby client in CLIENT SETINFO
       # GLIDE_VERSION is set from lib/valkey/version.rb
-      version = File.read("../../lib/valkey/version.rb")[/VERSION = "([^"]+)"/, 1] || "unknown"
+      # Abort rather than baking a bogus version: GLIDE_VERSION is compile-time,
+      # so an "unknown" LIB-VER is undetectable without a live 7.2+ server.
+      version = File.read("../../lib/valkey/version.rb")[/VERSION = "([^"]+)"/, 1] ||
+                abort("Could not determine VERSION from lib/valkey/version.rb")
       sh({ "GLIDE_NAME" => "GlideRuby", "GLIDE_VERSION" => version }, "cargo build --release")
     end
     puts "Native library built successfully!"
@@ -43,7 +46,10 @@ namespace :native do
     puts "Building native FFI library (debug)..."
     Dir.chdir("valkey-glide/ffi") do
       # Set GLIDE_NAME to identify this as the Ruby client in CLIENT SETINFO
-      version = File.read("../../lib/valkey/version.rb")[/VERSION = "([^"]+)"/, 1] || "unknown"
+      # Abort rather than baking a bogus version: GLIDE_VERSION is compile-time,
+      # so an "unknown" LIB-VER is undetectable without a live 7.2+ server.
+      version = File.read("../../lib/valkey/version.rb")[/VERSION = "([^"]+)"/, 1] ||
+                abort("Could not determine VERSION from lib/valkey/version.rb")
       sh({ "GLIDE_NAME" => "GlideRuby", "GLIDE_VERSION" => version }, "cargo build")
     end
     puts "Native library built successfully!"

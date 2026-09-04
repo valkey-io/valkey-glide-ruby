@@ -73,14 +73,22 @@ module Helper
       valkey
     end
 
-    # Query actual server version from the cluster. Falls back to "0.0" if
-    # detection fails so that version-gated tests skip rather than error.
+    # Query actual server version from the cluster.
+    #
+    # Detection failure raises rather than degrading to a sentinel. A sentinel
+    # version ("0.0") makes every `omit_version` gate skip, and a skipped test is
+    # indistinguishable from a passing one in the suite output — so an
+    # undetectable version silently destroys test signal instead of reporting a
+    # problem. Failing loudly is the only way that surfaces.
     def version
       info = valkey.info
       ver = extract_version_from_info(info)
-      Version.new(ver || "0.0")
-    rescue StandardError
-      Version.new("0.0")
+      unless Version.parseable?(ver)
+        raise "Could not determine a usable server version from INFO " \
+              "(got: #{ver.inspect} from #{info.class})"
+      end
+
+      Version.new(ver)
     end
 
     def cluster_mode?
@@ -89,18 +97,47 @@ module Helper
 
     private
 
+    # Extracts a server version from an INFO reply.
+    #
+    # A cluster INFO fans out, so the reply may be a per-node Hash
+    # ({ "host:port" => { ... } }) or an Array of node replies rather than a flat
+    # field hash. Every node is searched, not just the first — an arbitrary node
+    # may legitimately lack the version keys, and stopping at it reports "no
+    # version found" for a cluster that has one.
+    #
+    # When nodes disagree, the MINIMUM version is returned: version gates exist
+    # to skip tests the weakest node cannot satisfy, so the conservative bound is
+    # the correct one and it makes the gate deterministic regardless of hash
+    # ordering.
     def extract_version_from_info(info)
       case info
       when Hash
-        info["valkey_version"] || info["redis_version"]
+        info["valkey_version"] || info["redis_version"] ||
+          min_version(info.values)
       when Array
-        # Could be array of node responses; try first element
-        first = info.first
-        extract_version_from_info(first)
+        min_version(info)
       when String
-        # Raw INFO string — parse valkey_version or redis_version
-        ::Regexp.last_match(1) if info =~ /(?:valkey|redis)_version:(\S+)/
+        # Anchor to the start of a line so an unrelated field that merely ends in
+        # "valkey_version" (e.g. "other_valkey_version:9.9.9") cannot be latched.
+        ::Regexp.last_match(1) if info =~ /^(?:valkey|redis)_version:(\S+)/
       end
+    end
+
+    # Smallest usable version found across node replies, or nil when none report
+    # one.
+    #
+    # Unparseable values are DISCARDED, not ranked. Version comparison treats a
+    # non-numeric part as 0, so an empty or garbage string sorts below every real
+    # version and would otherwise be elected as the minimum — letting a single bad
+    # node silence version-gated tests for the whole cluster. Discarding means a
+    # cluster with one bad node and one good node still reports the good version,
+    # and a cluster where every node is unusable yields nil, which `version`
+    # turns into a loud failure.
+    def min_version(entries)
+      Array(entries)
+        .filter_map { |entry| extract_version_from_info(entry) }
+        .select { |ver| Version.parseable?(ver) }
+        .min_by { |ver| Version.new(ver) }
     end
 
     def _new_client(options = {})

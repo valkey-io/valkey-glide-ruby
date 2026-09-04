@@ -83,7 +83,17 @@ module Helper
 
     def version
       info = valkey.info
-      Version.new(info["valkey_version"] || info["redis_version"])
+      ver = info["valkey_version"] || info["redis_version"]
+      # Screened for the same reason as the cluster helper: an empty or garbage
+      # value is truthy and sorts below every real version, so it would silently
+      # drag every omit_version gate down to a skip instead of failing. A skipped
+      # test and a passing test look identical in the suite output.
+      unless Version.parseable?(ver)
+        raise "Could not determine a usable server version from INFO " \
+              "(got: #{ver.inspect})"
+      end
+
+      Version.new(ver)
     end
 
     def with_acl

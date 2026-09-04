@@ -167,8 +167,21 @@ location that exists, in this order:
 Raw equivalent (only if not using Rake):
 
 ```bash
-cd /path/to/valkey-glide/ffi
-cargo build --release
+# GLIDE_NAME and GLIDE_VERSION are baked in at COMPILE time and reported via
+# CLIENT SETINFO (LIB-NAME / LIB-VER). Omitting them yields a library that
+# misreports its identity with no error and no local symptom — you would only
+# notice by inspecting CLIENT INFO against a live 7.2+ server. Always pass both;
+# GLIDE_VERSION must match lib/valkey/version.rb.
+#
+# Resolve the version from the REPO ROOT, before the cd, and abort if it fails:
+# inside valkey-glide/ffi the relative require cannot resolve, and in a
+# `VAR=$(...)` form the LoadError would be swallowed, leaving GLIDE_VERSION empty
+# — exactly the silent misidentity described above.
+GLIDE_VERSION=$(ruby -r./lib/valkey/version -e 'print Valkey::VERSION') || exit 1
+[ -n "$GLIDE_VERSION" ] || { echo "could not resolve GLIDE_VERSION" >&2; exit 1; }
+
+cd valkey-glide/ffi
+GLIDE_NAME=GlideRuby GLIDE_VERSION="$GLIDE_VERSION" cargo build --release
 # release/debug builds under target/ are picked up automatically (order 1-2 above)
 ```
 

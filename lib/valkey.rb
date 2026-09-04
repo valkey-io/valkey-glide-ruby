@@ -23,6 +23,84 @@ class Valkey
   include Utils
   include Commands
 
+  # Default value reported for `CLIENT SETINFO LIB-NAME`.
+  #
+  # The native artifact is normally compiled with `GLIDE_NAME=GlideRuby`, and
+  # glide-core falls back to that compile-time value when no runtime library name
+  # is sent. Resolving the same default here means the runtime value is always
+  # sent explicitly, so the reported name does not depend on how the native
+  # artifact happened to be built, while compile-time naming remains a fallback.
+  DEFAULT_LIB_NAME = "GlideRuby"
+
+  # Resolves the effective `CLIENT SETINFO LIB-NAME` value from the raw override
+  # and tag. Pure — no connection, no FFI — so the whole matrix is unit-testable.
+  #
+  # Applies compositional rules only; character validity is glide-core's
+  # (see valkey-io/valkey-glide#6891). An empty override or tag means "not
+  # configured", so neither `base()` nor `(tag)` is ever composed. A
+  # whitespace-only value is NOT normalized away — it is passed through and
+  # rejected by core, which is the intended behaviour: the server is the
+  # authority on library-name validity and its error is the intended feedback.
+  #
+  # A `lib_name` already ending in "(...)" plus a tag composes "A(x)(y)", which
+  # core rejects — left to core, since inspecting the base is validation.
+  #
+  # @api private
+  # @param lib_name [String, Symbol, nil] raw `lib_name` override, may be empty
+  # @param client_info_tag [String, Symbol, nil] raw `client_info_tag`, may be empty
+  # @return [String] the effective library name
+  # @raise [ArgumentError] if either value is neither a String, a Symbol, nor nil
+  def self.resolve_lib_name(lib_name: nil, client_info_tag: nil)
+    base = coerce_client_metadata("lib_name", lib_name)
+    tag = coerce_client_metadata("client_info_tag", client_info_tag)
+
+    resolved = base || DEFAULT_LIB_NAME
+    tag ? "#{resolved}(#{tag})" : resolved
+  end
+
+  # Normalizes a client-identification value to a non-empty String or nil.
+  #
+  # Accepts only String, Symbol or nil — a TYPE check, not character validation.
+  # Blanket `to_s` was harmful: `lib_name: false` silently identified the client
+  # as "false", and arbitrary objects leaked inspect output or a
+  # JSON::GeneratorError, neither of which is a Valkey error, breaking the
+  # documented `rescue Valkey::BaseError` contract around construction.
+  #
+  # @param field [String] option name, used in the error message
+  # @param value [String, Symbol, nil] the raw configured value
+  # @return [String, nil] the value, or nil when absent/empty
+  # @raise [ArgumentError] if the value is not a String/Symbol/nil, or is a
+  #   String with an invalid byte sequence
+  def self.coerce_client_metadata(field, value)
+    return nil if value.nil?
+
+    unless value.is_a?(String) || value.is_a?(Symbol)
+      raise ArgumentError,
+            "#{field} must be a String, Symbol, or nil, got #{value.class}"
+    end
+
+    string = value.to_s
+    # Both checks are required: #valid_encoding? catches a String tagged UTF-8
+    # holding invalid bytes (where #encode is a no-op); #encode catches other
+    # encodings not representable as UTF-8 (where valid_encoding? is vacuously
+    # true). Either alone leaves a JSON::GeneratorError vector. Screens BYTES,
+    # not characters — "café" passes through for core to judge.
+    unless string.valid_encoding?
+      raise ArgumentError,
+            "#{field} must not contain an invalid #{string.encoding} byte sequence"
+    end
+
+    begin
+      string = string.encode(Encoding::UTF_8)
+    rescue EncodingError => e
+      raise ArgumentError,
+            "#{field} must be convertible to UTF-8 (#{e.class}: #{e.message})"
+    end
+
+    string.empty? ? nil : string
+  end
+  private_class_method :coerce_client_metadata
+
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
@@ -150,6 +228,21 @@ class Valkey
 
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
+
+    # Library name and client info tag (CLIENT SETINFO LIB-NAME).
+    #
+    # Composition/normalization lives in the pure `Valkey.resolve_lib_name`
+    # resolver so it is testable without a server or the FFI. Character validity
+    # is glide-core's responsibility (see valkey-io/valkey-glide#6891), so no
+    # character checking is performed here.
+    #
+    # The resolved value is always sent, so the reported library name does not
+    # depend on the native artifact having been compiled with
+    # `GLIDE_NAME=GlideRuby`.
+    json_options["lib_name"] = self.class.resolve_lib_name(
+      lib_name: options[:lib_name],
+      client_info_tag: options[:client_info_tag]
+    )
 
     # read_from parsing.
     json_options["read_from"] = options[:read_from] if options[:read_from]
