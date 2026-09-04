@@ -259,7 +259,7 @@ class Valkey
       #
       # @api private
       def ft_all_primaries_route
-        return nil unless instance_variable_defined?(:@cluster_mode) && instance_variable_get(:@cluster_mode)
+        return nil unless @cluster_mode
         return nil unless defined?(Valkey::Route)
 
         Valkey::Route.all_primaries
