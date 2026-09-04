@@ -16,5 +16,5 @@ gem "rubocop", "~> 1.21"
 group :test do
   gem "minitest", "~> 5.16"
   gem "minitest-reporters", "~> 1.4"
-  gem "simplecov", "~> 1.1"
+  gem "simplecov", "~> 1.1" if RUBY_VERSION >= "3.2"
 end

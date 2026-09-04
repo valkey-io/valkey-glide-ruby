@@ -4,8 +4,12 @@
 # This is useful for CD testing to verify the published gem works correctly
 $LOAD_PATH.unshift File.expand_path("../lib", __dir__) unless ENV["TEST_INSTALLED_GEM"]
 
-require "simplecov"
-SimpleCov.start if ENV["COVERAGE"]
+# We use SimpleCov expected_coverage option, which requires SimpleCov 1.0 which needs
+# Ruby 3.2. Enable for Ruby 3.0 and 3.1 once coverage reaches 80%.
+if ENV["COVERAGE"] && RUBY_VERSION >= "3.2"
+  require "simplecov"
+  SimpleCov.start
+end
 
 require "valkey"
 require_relative "support/test_cluster"
