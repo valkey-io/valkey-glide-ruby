@@ -12,13 +12,11 @@ class Valkey
     #
     # @see https://redis.io/commands/ft.info/
     class InfoOptions
-      SCOPES = { local: "LOCAL", primary: "PRIMARY", cluster: "CLUSTER" }.freeze
-
       # @param scope [Symbol, nil] :local, :primary, or :cluster
       # @param shard_scope [Symbol, nil] :all_shards or :some_shards
       # @param consistency [Symbol, nil] :consistent or :inconsistent
       def initialize(scope: nil, shard_scope: nil, consistency: nil)
-        @scope = scope.nil? ? nil : Search.lookup_token(SCOPES, scope, "info scope")
+        @scope = scope.nil? ? nil : Search.lookup_token(Search::SCOPES, scope, "info scope")
         @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")
         @consistency = consistency.nil? ? nil : Search.lookup_token(Search::CONSISTENCY, consistency, "consistency")
       end
