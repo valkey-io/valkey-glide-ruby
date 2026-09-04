@@ -11,6 +11,13 @@ class Valkey
     CONSISTENCY = { consistent: "CONSISTENT", inconsistent: "INCONSISTENT" }.freeze
     # Query dialects accepted by Valkey-native search (only DIALECT 2).
     DIALECTS = [2].freeze
+    # FT.AGGREGATE REDUCE functions with a {Reducer} class method. Not
+    # enforced as a closed set — {Reducer.new} accepts any function name so a
+    # server-added reducer doesn't require a client release — but it is the
+    # single source of truth for generating `Reducer.count`/`.sum`/etc. below,
+    # so the class methods and their docs can't drift out of sync with each
+    # other.
+    REDUCER_FUNCTIONS = %w[COUNT COUNT_DISTINCT SUM MIN MAX AVG STDDEV].freeze
 
     # Look up a symbol/string against a wire-token map, raising a uniform
     # ArgumentError on an unknown value. Shared by the enum-like option

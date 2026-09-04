@@ -38,34 +38,15 @@ class Valkey
         new("COUNT", as: as)
       end
 
-      # COUNT_DISTINCT of a property.
-      def self.count_distinct(property, as: nil)
-        new("COUNT_DISTINCT", property, as: as)
-      end
-
-      # SUM of a numeric property.
-      def self.sum(property, as: nil)
-        new("SUM", property, as: as)
-      end
-
-      # MIN of a property.
-      def self.min(property, as: nil)
-        new("MIN", property, as: as)
-      end
-
-      # MAX of a property.
-      def self.max(property, as: nil)
-        new("MAX", property, as: as)
-      end
-
-      # AVG of a numeric property.
-      def self.avg(property, as: nil)
-        new("AVG", property, as: as)
-      end
-
-      # STDDEV of a numeric property.
-      def self.stddev(property, as: nil)
-        new("STDDEV", property, as: as)
+      # Defines Reducer.count_distinct/.sum/.min/.max/.avg/.stddev, each taking a
+      # single property, from {Search::REDUCER_FUNCTIONS} (skipping COUNT, which
+      # takes no property and is defined explicitly above). One definition per
+      # function name keeps the class methods, and their docs, from drifting out
+      # of sync with the table.
+      (Search::REDUCER_FUNCTIONS - %w[COUNT]).each do |function|
+        define_singleton_method(function.downcase) do |property, as: nil|
+          new(function, property, as: as)
+        end
       end
 
       # @return [Array] `REDUCE <function> <nargs> <arg...> [AS <name>]`
