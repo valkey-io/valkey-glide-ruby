@@ -6,13 +6,12 @@ class Valkey
     # Filter, Limit, Apply) serialize in the order the user supplies them, since
     # FT.AGGREGATE is an ordered pipeline. Flat top-level options (verbatim, load,
     # params, dialect, timeout) are keyword arguments on {AggregateOptions}.
-    # Mirrors the Java FTAggregateOptions surface, adapted to Ruby idiom.
     #
     # @see https://valkey.io/commands/ft.aggregate/
 
     # A single REDUCE within a GROUPBY. Emits `REDUCE <function> <nargs> <arg...>
     # [AS <name>]`. The nargs count is the number of argument tokens that follow
-    # the function name, matching the wire format and Java.
+    # the function name.
     #
     # @example
     #   Valkey::Search::Reducer.count(as: "total")
@@ -100,7 +99,7 @@ class Valkey
       def initialize(properties = [], reducers: [])
         super()
         @properties = Array(properties)
-        @reducers = reducers
+        @reducers = Array(reducers)
         return if @reducers.all?(Reducer)
 
         raise ArgumentError, "GroupBy reducers must be Valkey::Search::Reducer objects"
@@ -114,8 +113,10 @@ class Valkey
     end
 
     # SORTBY clause: `SORTBY <nargs> <property> <ASC|DESC>... [MAX <count>]`. The
-    # nargs count is the number of property/order tokens (2 per key), matching the
-    # wire format and Java.
+    # nargs count is the number of property/order tokens (2 per key).
+    #
+    # Accepts an ordered Hash of `property => order` for multiple sort keys, since
+    # insertion order determines sort priority and Ruby Hashes preserve it.
     #
     # @example
     #   Valkey::Search::SortBy.new({ "@total" => :desc }, max: 10)
@@ -186,7 +187,7 @@ class Valkey
     #   Valkey::Search::Apply.new("@price * @qty", as: "line_total")
     class Apply < AggregateClause
       # @param expression [String] the projection expression
-      # @param as [String] result field name (required by the wire format)
+      # @param as [String] result field name (APPLY requires the AS clause)
       def initialize(expression, as:)
         super()
         @expression = expression
@@ -216,17 +217,9 @@ class Valkey
       end
     end
 
-    # Options for FT.AGGREGATE, serialized after `index query`. The ordered
-    # pipeline clauses are emitted first (in supplied order), followed by the flat
-    # top-level options, matching Java's builder assembly.
-    #
     # Options for FT.AGGREGATE, serialized after `index query`. The flat
     # top-level options are emitted first, then the ordered pipeline clauses (in
     # supplied order).
-    #
-    # Note: Java emits DIALECT after the pipeline clauses; this builder emits it
-    # before them. The server is order-independent for these tokens, so the
-    # divergence is wire-benign — kept for a simpler assembly.
     #
     # FT.AGGREGATE does not accept the shard-scope / consistency cluster flags
     # (the server rejects them with "Unexpected: argument `ALLSHARDS`"); they are

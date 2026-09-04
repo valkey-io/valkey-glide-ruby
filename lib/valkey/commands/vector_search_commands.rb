@@ -6,10 +6,6 @@ class Valkey
     # full-text search, aggregation, and vector similarity search. They require
     # the search module to be loaded on the server.
     #
-    # Options are always expressed with the {Valkey::Search} builders — either as
-    # an options object or as the equivalent keyword arguments. There is no
-    # raw-token pass-through form; to send FT.* tokens by hand use {Valkey#call}.
-    #
     # @see https://valkey.io/commands/#search
     module VectorSearchCommands
       # List all available indexes.
@@ -120,9 +116,11 @@ class Valkey
       #
       # ### Limitations
       #
-      # * **`flatten_map: true` is not supported.** That client option is a
-      #   redis-rb 4.x compatibility shim that flattens every map reply, which
-      #   destroys the structure {Valkey::Search::SearchResult} parses.
+      # * **`flatten_map: true` is not supported.** That's the `Valkey.new(...,
+      #   flatten_map: true)` client-wide constructor option (a redis-rb 4.x
+      #   compatibility shim, unrelated to the FT.* builders), which flattens
+      #   every map reply — destroying the structure {Valkey::Search::SearchResult}
+      #   parses.
       # * **Not supported inside `pipelined` / `multi`.** Commands queued in a
       #   batch return a {Valkey::Future} rather than a reply, so there is nothing
       #   to parse into a SearchResult.
@@ -166,16 +164,23 @@ class Valkey
       # Note that Valkey Search rejects the `"*"` wildcard here — use a filter
       # expression such as `"@price:[0 +inf]"` as the query.
       #
+      # Not supported inside `pipelined` / `multi`, matching every other FT.*
+      # command and the other GLIDE clients: a queued command returns a
+      # {Valkey::Future} rather than a reply. Use {Valkey#call} to issue
+      # FT.AGGREGATE directly inside a batch.
+      #
       # @param index [String] the index name to search
       # @param query [String] the search/filter query
       # @param options [Valkey::Search::AggregateOptions, nil] aggregate options
       # @param kwargs [Hash] aggregate options, as an alternative to +options+
       #   (forwarded to {Valkey::Search::AggregateOptions})
       # @return [Array] aggregation results
-      # @raise [ArgumentError] on options passed both positionally and as keywords
+      # @raise [ArgumentError] on options passed both positionally and as
+      #   keywords, or when used inside a batch
       #
       # @see https://valkey.io/commands/ft.aggregate/
       def ft_aggregate(index, query, options = nil, **kwargs)
+        ft_assert_supported!("ft_aggregate", flatten_map_check: false)
         resolved = ft_resolve_options(Valkey::Search::AggregateOptions, options, kwargs, label: "ft_aggregate")
         command_args = [index, query]
         command_args.concat(resolved.to_args) if resolved
@@ -257,15 +262,20 @@ class Valkey
       # ft_search parses the reply into a structured result, which is incompatible
       # with two redis-rb compatibility behaviors: a queued batch yields a
       # {Valkey::Future} instead of a reply, and `flatten_map: true` flattens the
-      # map structure the parser depends on. Fail with a clear ArgumentError
+      # map structure the parser depends on. ft_aggregate returns the raw reply
+      # unparsed, so only the batch restriction applies there (flatten_map_check:
+      # false) — matching the other GLIDE clients, none of which support FT.*
+      # commands inside a batch/transaction yet. Fail with a clear ArgumentError
       # instead of returning a corrupt result (or a NoMethodError from deep inside
       # the parser).
-      def ft_assert_supported!(method_name)
+      def ft_assert_supported!(method_name, flatten_map_check: true)
         if ft_queued_in_batch?
           raise ArgumentError,
                 "#{method_name} is not supported inside pipelined/multi; " \
-                "use Valkey#call to issue FT.SEARCH and handle the raw reply"
+                "use Valkey#call to issue #{method_name == 'ft_search' ? 'FT.SEARCH' : 'FT.AGGREGATE'} " \
+                "and handle the raw reply"
         end
+        return unless flatten_map_check
         return unless instance_variable_defined?(:@flatten_map) && instance_variable_get(:@flatten_map)
 
         raise ArgumentError,

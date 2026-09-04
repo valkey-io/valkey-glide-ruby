@@ -90,6 +90,14 @@ class TestSearchAggregate < Minitest::Test
     assert_equal ["GROUPBY", 1, "@category"], S::GroupBy.new("@category").to_args
   end
 
+  # reducers: gets the same Array() coercion as properties, so a single Reducer
+  # (a plausible mistake when there's exactly one) is accepted rather than
+  # raising on `["COUNT"].all?(Reducer)` never running `.each` correctly.
+  def test_group_by_scalar_reducer_coerced_to_array
+    assert_equal ["GROUPBY", 1, "@category", "REDUCE", "COUNT", 0],
+                 S::GroupBy.new(["@category"], reducers: S::Reducer.count).to_args
+  end
+
   def test_group_by_rejects_non_reducer
     err = assert_raises(ArgumentError) { S::GroupBy.new(["@c"], reducers: ["COUNT"]) }
     assert_match(/must be Valkey::Search::Reducer/, err.message)
@@ -244,5 +252,34 @@ class TestSearchAggregate < Minitest::Test
     assert_raises(ArgumentError) do
       client.ft_aggregate("idx", "q", "GROUPBY", clauses: [S::Filter.new("@x>1")])
     end
+  end
+
+  # ft_aggregate is not supported inside a batch, matching ft_search and the
+  # other GLIDE clients (none of which support FT.* commands in a
+  # batch/transaction yet). Unlike ft_search it returns the raw reply
+  # unparsed, so this only guards against a queued command returning a
+  # Valkey::Future instead of a reply — there is no flatten_map interaction.
+  def test_ft_aggregate_rejected_in_batch
+    client = FakeClient.new
+    client.instance_variable_set(:@commands, [])
+    client.instance_variable_set(:@futures, [])
+    err = assert_raises(ArgumentError) { client.ft_aggregate("idx", "@price:[0 +inf]") }
+    assert_match(%r{not supported inside pipelined/multi}, err.message)
+  end
+
+  def test_ft_aggregate_rejected_in_multi
+    client = FakeClient.new
+    client.instance_variable_set(:@in_multi, true)
+    err = assert_raises(ArgumentError) { client.ft_aggregate("idx", "@price:[0 +inf]") }
+    assert_match(%r{not supported inside pipelined/multi}, err.message)
+  end
+
+  # flatten_map does not affect ft_aggregate (it returns the raw reply
+  # unparsed), so it must not be rejected here the way it is for ft_search.
+  def test_ft_aggregate_allowed_with_flatten_map
+    client = FakeClient.new
+    client.instance_variable_set(:@flatten_map, true)
+    client.ft_aggregate("idx", "@price:[0 +inf]")
+    assert_equal ["idx", "@price:[0 +inf]"], client.captured_args
   end
 end
