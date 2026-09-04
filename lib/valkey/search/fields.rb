@@ -108,11 +108,6 @@ class Valkey
     # @example
     #   Valkey::Search::VectorField.hnsw("embedding", dim: 1536, metric: :cosine, m: 40)
     class VectorField < Field
-      # Distance metrics mapped to wire tokens (Java DistanceMetric).
-      DISTANCE_METRICS = { l2: "L2", ip: "IP", cosine: "COSINE" }.freeze
-      # Supported vector element types (only FLOAT32, matching Java).
-      VECTOR_TYPES = ["FLOAT32"].freeze
-
       # @param dim [Integer] vector dimensionality
       # @param metric [Symbol, String] :l2, :ip, or :cosine (case-insensitive)
       # @param initial_cap [Integer, nil] emit `INITIAL_CAP <n>`
@@ -158,14 +153,14 @@ class Valkey
       private
 
       def normalize_metric(metric)
-        Search.lookup_token(DISTANCE_METRICS, metric, "distance metric")
+        Search.lookup_token(Search::DISTANCE_METRICS, metric, "distance metric")
       end
 
       def normalize_type(type)
         token = type.to_s.upcase
-        return token if VECTOR_TYPES.include?(token)
+        return token if Search::VECTOR_TYPES.include?(token)
 
-        raise ArgumentError, "unknown vector type #{type.inspect}; expected one of #{VECTOR_TYPES.inspect}"
+        raise ArgumentError, "unknown vector type #{type.inspect}; expected one of #{Search::VECTOR_TYPES.inspect}"
       end
     end
   end

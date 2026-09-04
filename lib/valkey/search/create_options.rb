@@ -10,8 +10,6 @@ class Valkey
     #
     # @see https://redis.io/commands/ft.create/
     class CreateOptions
-      DATA_TYPES = { hash: "HASH", json: "JSON" }.freeze
-
       # @param on [Symbol, String, nil] :hash or :json (ON clause)
       # @param prefixes [Array<String>, nil] key prefixes (`PREFIX <count> <p...>`)
       # @param score [Numeric, nil] default document score
@@ -52,7 +50,7 @@ class Valkey
       private
 
       def normalize_on(on)
-        Search.lookup_token(DATA_TYPES, on, "data type")
+        Search.lookup_token(Search::DATA_TYPES, on, "data type")
       end
     end
   end

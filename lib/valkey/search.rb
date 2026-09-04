@@ -18,6 +18,14 @@ class Valkey
     # so the class methods and their docs can't drift out of sync with each
     # other.
     REDUCER_FUNCTIONS = %w[COUNT COUNT_DISTINCT SUM MIN MAX AVG STDDEV].freeze
+    # FT.CREATE's ON clause: the index's underlying key type ({CreateOptions}).
+    DATA_TYPES = { hash: "HASH", json: "JSON" }.freeze
+    # VECTOR field DISTANCE_METRIC values ({VectorField}).
+    DISTANCE_METRICS = { l2: "L2", ip: "IP", cosine: "COSINE" }.freeze
+    # VECTOR field element types — only FLOAT32 is supported ({VectorField}).
+    VECTOR_TYPES = ["FLOAT32"].freeze
+    # FT.INFO's scope: which node(s) to report on ({InfoOptions}).
+    SCOPES = { local: "LOCAL", primary: "PRIMARY", cluster: "CLUSTER" }.freeze
 
     # Look up a symbol/string against a wire-token map, raising a uniform
     # ArgumentError on an unknown value. Shared by the enum-like option
