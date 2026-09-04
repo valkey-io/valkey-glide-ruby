@@ -39,10 +39,6 @@ on:
           - "use-self-hosted"
           - "use-github"
         default: "false"
-      upload-coverage:
-        description: "Upload the coverage report as an artifact"
-        type: boolean
-        default: false
       name:
         description: "Custom run name"
         type: string
@@ -54,10 +50,6 @@ on:
         description: "Include macOS runners"
         type: string
         default: "false"
-      upload-coverage:
-        description: "Upload the coverage report as an artifact"
-        type: boolean
-        default: false
 
 concurrency:
   group: ruby-${{ github.head_ref || github.ref }}-${{ toJson(inputs) }}
@@ -258,16 +250,6 @@ jobs:
         env:
           SKIP_TLS_TESTS: ${{ matrix.host.OS == 'macos' && 'true' || '' }}
           COVERAGE: "1" # Coverage is cheap so we compute it every run
-
-      - name: Upload coverage report
-        if: always() && inputs.upload-coverage == true
-        continue-on-error: true
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: coverage-report-ruby-${{ matrix.version }}-${{ matrix.engine.type }}-${{ matrix.engine.version }}-${{ matrix.host.NAMED_OS }}-${{ matrix.host.ARCH }}
-          path: coverage/
-          retention-days: 7
-          if-no-files-found: ignore
 
       # Must run in its own process: the fork guard's precondition is that no
       # command has been issued yet, which is false inside the shared suite.
