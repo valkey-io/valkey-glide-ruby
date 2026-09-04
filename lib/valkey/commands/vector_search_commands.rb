@@ -161,6 +161,13 @@ class Valkey
       #         Valkey::Search::Limit.new(0, 10),
       #       ], dialect: 2)
       #
+      # A bare `"*"` query (no filter) is version-dependent: rejected with
+      # "Invalid query string syntax" on module builds before
+      # valkey-search's fix for bare-wildcard queries, matches every document
+      # afterward. Use a filter expression that matches every indexed
+      # document (e.g. `"@price:[0 +inf]"`) for a query that behaves the same
+      # regardless of module version.
+      #
       # Not supported inside `pipelined` / `multi`, matching every other FT.*
       # command and the other GLIDE clients: a queued command returns a
       # {Valkey::Future} rather than a reply. Use {Valkey#call} to issue

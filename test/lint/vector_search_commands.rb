@@ -623,27 +623,24 @@ module Lint
       skip_if_redisearch_unavailable(e)
     end
 
-    # `"*"` is a valid FT.AGGREGATE query on this module version, matching every
-    # document rather than raising. A prior comment in this file claimed the
-    # opposite ("Valkey Search rejects the wildcard"); measured directly against
-    # a live server, that claim does not hold, so this pins the actual behavior
-    # instead of leaving an untested assumption in the code.
+    # `"*"` as an FT.AGGREGATE query is version-dependent server behavior, not
+    # something this client controls: valkey-search's shared query-string parser
+    # rejected a bare "*" with no vector filter as "Invalid query string syntax"
+    # before https://github.com/valkey-io/valkey-search/commit/f1db9ed ("Fix
+    # FT.SEARCH bare wildcard execution", landed in the 1.2.0 release train) and
+    # accepts it afterward, matching every document. FT.AGGREGATE was never
+    # mentioned in that fix's own description, but shares the same parser
+    # (query::SearchParameters::PreParseQueryString), so it inherits the same
+    # behavior change on either side of that commit. Measured directly: it
+    # errors against the CI Docker image (valkey/valkey-bundle:9.1) and succeeds
+    # against a local build past that fix. Assert what should hold either way,
+    # rather than assuming one server version.
     def test_ft_aggregate_builder_wildcard_query_matches_all
       ensure_redisearch_loaded
 
       with_db0 do
         seed_products_for_aggregate
 
-        wildcard = aggregate_rows(
-          r.ft_aggregate(TEST_INDEX, "*",
-                         load: ["@category"],
-                         clauses: [
-                           Valkey::Search::GroupBy.new(
-                             ["@category"],
-                             reducers: [Valkey::Search::Reducer.count(as: "count")]
-                           )
-                         ], dialect: 2)
-        )
         filtered = aggregate_rows(
           r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
                          load: ["@category"],
@@ -655,6 +652,30 @@ module Lint
                          ], dialect: 2)
         )
         as_hash = ->(rows) { rows.to_h { |h| [h["category"], Integer(h["count"])] } }
+
+        begin
+          wildcard = aggregate_rows(
+            r.ft_aggregate(TEST_INDEX, "*",
+                           load: ["@category"],
+                           clauses: [
+                             Valkey::Search::GroupBy.new(
+                               ["@category"],
+                               reducers: [Valkey::Search::Reducer.count(as: "count")]
+                             )
+                           ], dialect: 2)
+          )
+        rescue Valkey::CommandError => e
+          # Older module builds reject the bare wildcard outright. That is a
+          # legitimate, versioned server response (not a malformed query), so
+          # accept it rather than failing the test on a server version this
+          # client cannot control.
+          assert_match(/Invalid:? query string syntax/i, e.message,
+                       "a rejected \"*\" should fail with this specific error, not some other issue")
+          next
+        end
+
+        # On a module build past the fix, "*" must match every document,
+        # identically to a filter matching all of them.
         assert_equal as_hash.call(filtered), as_hash.call(wildcard),
                      "\"*\" should match every document, identically to a filter matching all of them"
       end
