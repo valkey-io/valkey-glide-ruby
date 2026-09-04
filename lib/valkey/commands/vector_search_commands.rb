@@ -161,9 +161,6 @@ class Valkey
       #         Valkey::Search::Limit.new(0, 10),
       #       ], dialect: 2)
       #
-      # Note that Valkey Search rejects the `"*"` wildcard here — use a filter
-      # expression such as `"@price:[0 +inf]"` as the query.
-      #
       # Not supported inside `pipelined` / `multi`, matching every other FT.*
       # command and the other GLIDE clients: a queued command returns a
       # {Valkey::Future} rather than a reply. Use {Valkey#call} to issue
