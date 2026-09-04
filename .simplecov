@@ -12,7 +12,7 @@ SimpleCov.configure do
   skip %r{^/valkey-glide/} # vendored upstream submodule, not our code
   cover "lib/**/*.rb" # includes unloaded lib files and restricts the report to them
 
-  # We aims for a minimum of 80% coverage. However, our coverage at this time is much lower than this.
-  # Improvement is tracked in https://github.com/valkey-io/valkey-glide-ruby/issues/307
-  minimum_coverage line: 40, branch: 10
+  # Ideally, we aim for 80% coverage, which at this time is lower.
+  # Should we make coverage improvements, please bump this number.
+  expected_coverage line: 40, branch: 10
 end
