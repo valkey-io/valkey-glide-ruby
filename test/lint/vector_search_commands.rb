@@ -253,9 +253,7 @@ module Lint
 
         sleep 0.1
 
-        # Run aggregation with a numeric filter that matches all documents
-        # NOTE: Valkey's native search does not support "*" wildcard in FT.AGGREGATE queries.
-        # Use a filter expression that matches all indexed documents instead.
+        # Run aggregation with a numeric filter that matches all documents.
         # LOAD is required for GROUPBY to see @category; without it the server
         # collapses all documents into one ungrouped row instead of erroring.
         results = r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
@@ -565,8 +563,7 @@ module Lint
     # Exercise the AggregateOptions / clause builder path of ft_aggregate against
     # live seeded data. ft_aggregate returns the raw Array reply (no structured
     # aggregate result type), so we assert on that reply shape. Module-gated like
-    # the rest of this suite. Every query uses a numeric filter, never "*"
-    # (Valkey-native FT.AGGREGATE rejects the wildcard).
+    # the rest of this suite.
     # ------------------------------------------------------------------
 
     # Seed a small products dataset (category TAG + price NUMERIC) for aggregate
@@ -621,6 +618,45 @@ module Lint
         assert_equal 300, Integer(by_category["electronics"]["total"]), "100 + 200"
         assert_equal 2, Integer(by_category["books"]["count"])
         assert_equal 80, Integer(by_category["books"]["total"]), "50 + 30"
+      end
+    rescue Valkey::CommandError => e
+      skip_if_redisearch_unavailable(e)
+    end
+
+    # `"*"` is a valid FT.AGGREGATE query on this module version, matching every
+    # document rather than raising. A prior comment in this file claimed the
+    # opposite ("Valkey Search rejects the wildcard"); measured directly against
+    # a live server, that claim does not hold, so this pins the actual behavior
+    # instead of leaving an untested assumption in the code.
+    def test_ft_aggregate_builder_wildcard_query_matches_all
+      ensure_redisearch_loaded
+
+      with_db0 do
+        seed_products_for_aggregate
+
+        wildcard = aggregate_rows(
+          r.ft_aggregate(TEST_INDEX, "*",
+                         load: ["@category"],
+                         clauses: [
+                           Valkey::Search::GroupBy.new(
+                             ["@category"],
+                             reducers: [Valkey::Search::Reducer.count(as: "count")]
+                           )
+                         ], dialect: 2)
+        )
+        filtered = aggregate_rows(
+          r.ft_aggregate(TEST_INDEX, "@price:[0 +inf]",
+                         load: ["@category"],
+                         clauses: [
+                           Valkey::Search::GroupBy.new(
+                             ["@category"],
+                             reducers: [Valkey::Search::Reducer.count(as: "count")]
+                           )
+                         ], dialect: 2)
+        )
+        as_hash = ->(rows) { rows.to_h { |h| [h["category"], Integer(h["count"])] } }
+        assert_equal as_hash.call(filtered), as_hash.call(wildcard),
+                     "\"*\" should match every document, identically to a filter matching all of them"
       end
     rescue Valkey::CommandError => e
       skip_if_redisearch_unavailable(e)
