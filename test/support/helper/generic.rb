@@ -83,7 +83,13 @@ module Helper
 
     def version
       info = valkey.info
-      Version.new(info["valkey_version"] || info["redis_version"])
+      ver = info["valkey_version"] || info["redis_version"]
+      unless Version.parseable?(ver)
+        raise "Could not determine a usable server version from INFO " \
+              "(got: #{ver.inspect})"
+      end
+
+      Version.new(ver)
     end
 
     def with_acl

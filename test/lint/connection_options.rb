@@ -99,6 +99,60 @@ module Lint
       client.close
     end
 
+    # Field name anchored so a hypothetical "other-lib-name=" field cannot hijack the match.
+    def reported_lib_name(client)
+      client.call("CLIENT", "INFO")[/(?:\A|\s)lib-name=(\S*)/, 1]
+    end
+
+    def _lib_name_client(**opts)
+      if cluster_mode?
+        Valkey.new(nodes: test_cluster_nodes, cluster_mode: true, timeout: test_timeout, **opts)
+      else
+        Valkey.new(host: "127.0.0.1", port: test_port, timeout: test_timeout, **opts)
+      end
+    end
+
+    def test_connection_with_lib_name
+      client = _lib_name_client(lib_name: "LintCustomLib")
+      begin
+        assert_equal "PONG", client.ping
+        omit_version("7.2") # CLIENT SETINFO (lib-name) requires Valkey/Redis 7.2+
+        assert_equal "LintCustomLib", reported_lib_name(client)
+      ensure
+        client&.close
+      end
+    end
+
+    def test_connection_with_client_info_tag
+      client = _lib_name_client(client_info_tag: "lint:1.0")
+      begin
+        assert_equal "PONG", client.ping
+        omit_version("7.2")
+        assert_equal "GlideRuby(lint:1.0)", reported_lib_name(client)
+      ensure
+        client&.close
+      end
+    end
+
+    def test_connection_with_lib_name_and_client_info_tag
+      client = _lib_name_client(lib_name: "LintLib", client_info_tag: "lint:2.0")
+      begin
+        assert_equal "PONG", client.ping
+        omit_version("7.2")
+        assert_equal "LintLib(lint:2.0)", reported_lib_name(client)
+      ensure
+        client&.close
+      end
+    end
+
+    def test_connection_with_invalid_lib_name_is_rejected
+      # Rejection comes from glide-core at client creation, not from the wrapper.
+      error = assert_raises(Valkey::CannotConnectError) do
+        _lib_name_client(lib_name: "Invalid Name").close
+      end
+      assert_match(/library name must contain only printable ASCII/, error.message)
+    end
+
     def test_connection_with_timeout_options
       # Test timeout and connect_timeout options (redis-rb compatible)
       client = if cluster_mode?

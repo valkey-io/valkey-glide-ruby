@@ -167,8 +167,14 @@ location that exists, in this order:
 Raw equivalent (only if not using Rake):
 
 ```bash
-cd /path/to/valkey-glide/ffi
-cargo build --release
+# GLIDE_NAME/GLIDE_VERSION are baked in at compile time; omitting or mismatching them
+# silently misreports LIB-NAME/LIB-VER. GLIDE_VERSION must match `lib/valkey/version.rb`.
+# Resolve it from the repo root: the relative require will not resolve inside `valkey-glide/ffi`.
+GLIDE_VERSION=$(ruby -r./lib/valkey/version -e 'print Valkey::VERSION') || exit 1
+[ -n "$GLIDE_VERSION" ] || { echo "could not resolve GLIDE_VERSION" >&2; exit 1; }
+
+cd valkey-glide/ffi
+GLIDE_NAME=GlideRuby GLIDE_VERSION="$GLIDE_VERSION" cargo build --release
 # release/debug builds under target/ are picked up automatically (order 1-2 above)
 ```
 

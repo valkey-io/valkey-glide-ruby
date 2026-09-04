@@ -11,6 +11,7 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::AuthCommands
   include ValkeyTests::Bitpos
   include ValkeyTests::Call
+  include ValkeyTests::ClientInfoTag
   include ValkeyTests::ConnectionLifecycle
   include ValkeyTests::FailoverCommands
   include ValkeyTests::FunctionCommands

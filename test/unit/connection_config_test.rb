@@ -45,6 +45,55 @@ class TestConnectionConfig < Minitest::Test
     captured_client_args(options)[:uri].start_with?("rediss://") ? "rediss" : "redis"
   end
 
+  def test_lib_name_is_always_sent_to_the_ffi
+    assert_equal "GlideRuby", captured_json_options["lib_name"]
+  end
+
+  def test_lib_name_override_reaches_the_ffi
+    assert_equal "CustomLib", captured_json_options(lib_name: "CustomLib")["lib_name"]
+  end
+
+  def test_composed_lib_name_and_tag_reach_the_ffi
+    json_options = captured_json_options(lib_name: "CustomLib", client_info_tag: "v2.0")
+    assert_equal "CustomLib(v2.0)", json_options["lib_name"]
+  end
+
+  def test_tag_only_composes_against_default_base_in_the_ffi_payload
+    assert_equal "GlideRuby(v2.0)", captured_json_options(client_info_tag: "v2.0")["lib_name"]
+  end
+
+  def test_lib_name_and_tag_are_not_transposed
+    json_options = captured_json_options(lib_name: "CustomLib", client_info_tag: "v2.0")
+    refute_equal "v2.0(CustomLib)", json_options["lib_name"]
+  end
+
+  # Routed through the FFI payload because JSON.generate runs after the resolver,
+  # so a resolver-only version of this test would pass vacuously.
+  def test_no_foreign_exception_escapes_client_construction_for_any_input_class
+    raising = Object.new
+    def raising.to_s
+      raise "boom"
+    end
+
+    inputs = [
+      nil, "", "GoodName", :SymLib, "café",
+      "\xC3".dup.force_encoding("UTF-8"),
+      "ab\xFFc".dup.force_encoding("ASCII-8BIT"),
+      "plain".dup.force_encoding("ASCII-8BIT"),
+      "caf\xE9".dup.force_encoding("ISO-8859-1"),
+      false, true, 42, 8.1, [], {}, raising
+    ]
+
+    inputs.each do |input|
+      captured_json_options(lib_name: input)
+    rescue ArgumentError, Valkey::BaseError
+      nil # permitted outcomes
+    rescue StandardError => e
+      flunk "lib_name: #{input.class} raised #{e.class}, which is neither " \
+            "ArgumentError nor a Valkey error: #{e.message}"
+    end
+  end
+
   def test_read_from_accepts_canonical_strings
     %w[Primary PreferReplica AZAffinity AZAffinityReplicasAndPrimary].each do |value|
       json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
