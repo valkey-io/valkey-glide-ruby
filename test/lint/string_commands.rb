@@ -313,6 +313,47 @@ module Lint
       assert_equal 'not_a_list', result[1]
     end
 
+    def test_pipelined_raises_on_inline_error_by_default
+      # exception: true is the default - the SET below still commits
+      # server-side even though the array is discarded.
+      r.set('{1}notint', 'hello')
+
+      assert_raises(Valkey::CommandError) do
+        r.pipelined do |pipeline|
+          pipeline.set('{1}z', '1')
+          pipeline.incr('{1}notint')
+        end
+      end
+      assert_equal '1', r.get('{1}z')
+    end
+
+    def test_pipelined_exception_true_raises_on_inline_error
+      r.set('{1}notint', 'hello')
+
+      assert_raises(Valkey::CommandError) do
+        r.pipelined(exception: true) do |pipeline|
+          pipeline.set('{1}z', '1')
+          pipeline.incr('{1}notint')
+        end
+      end
+      assert_equal '1', r.get('{1}z')
+    end
+
+    def test_pipelined_exception_false_returns_array_with_inline_error
+      r.set('{1}notint', 'hello')
+
+      result = r.pipelined(exception: false) do |pipeline|
+        pipeline.set('{1}z', '1')
+        pipeline.incr('{1}notint')
+        pipeline.get('{1}z')
+      end
+
+      assert_equal 'OK', result[0]
+      assert_instance_of Valkey::CommandError, result[1]
+      assert_match(/not an integer/, result[1].message)
+      assert_equal '1', result[2]
+    end
+
     def test_mset
       r.mset('{1}foo', 's1', '{1}bar', 's2')
 
