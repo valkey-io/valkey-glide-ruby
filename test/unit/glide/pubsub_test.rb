@@ -191,7 +191,7 @@ class TestGlidePubSubUnit < Minitest::Test
     client = RecordingClient.new
     pubsub = build_pubsub(client)
 
-    pubsub.subscribe("news", "alerts", timeout: 2000)
+    pubsub.subscribe("news", "alerts", timeout_ms: 2000)
 
     assert_equal Valkey::RequestType::SUBSCRIBE_BLOCKING, client.last_command.request_type
     assert_equal %w[news alerts 2000], client.last_command.args
@@ -208,8 +208,8 @@ class TestGlidePubSubUnit < Minitest::Test
     client = RecordingClient.new
     pubsub = build_pubsub(client)
 
-    pubsub.subscribe("news", timeout: 1500.6)
-    pubsub.subscribe("news", timeout: 250.2)
+    pubsub.subscribe("news", timeout_ms: 1500.6)
+    pubsub.subscribe("news", timeout_ms: 250.2)
 
     assert_equal %w[news 1500], client.sent_commands[0].args
     assert_equal %w[news 250], client.sent_commands[1].args
@@ -218,7 +218,7 @@ class TestGlidePubSubUnit < Minitest::Test
   def test_subscribe_sub_milliseconds_timeout
     client = RecordingClient.new
 
-    build_pubsub(client).subscribe("news", timeout: 0.4)
+    build_pubsub(client).subscribe("news", timeout_ms: 0.4)
 
     assert_equal %w[news 1], client.last_command.args
   end
@@ -226,7 +226,7 @@ class TestGlidePubSubUnit < Minitest::Test
   def test_subscribe_rejects_a_negative_timeout
     client = RecordingClient.new
 
-    assert_raises(ArgumentError) { build_pubsub(client).subscribe("news", timeout: -1) }
+    assert_raises(ArgumentError) { build_pubsub(client).subscribe("news", timeout_ms: -1) }
     assert_empty client.sent_commands
   end
 
@@ -242,7 +242,7 @@ class TestGlidePubSubUnit < Minitest::Test
   def test_unsubscribe
     client = RecordingClient.new
 
-    build_pubsub(client).unsubscribe("news", timeout: 3000)
+    build_pubsub(client).unsubscribe("news", timeout_ms: 3000)
 
     assert_equal Valkey::RequestType::UNSUBSCRIBE_BLOCKING, client.last_command.request_type
     assert_equal %w[news 3000], client.last_command.args
@@ -260,7 +260,7 @@ class TestGlidePubSubUnit < Minitest::Test
   def test_unsubscribe_rejects_a_negative_timeout
     client = RecordingClient.new
 
-    assert_raises(ArgumentError) { build_pubsub(client).unsubscribe("news", timeout: -0.5) }
+    assert_raises(ArgumentError) { build_pubsub(client).unsubscribe("news", timeout_ms: -0.5) }
     assert_empty client.sent_commands
   end
 

@@ -183,14 +183,15 @@ class Valkey
       #
       # @param channels [Array<String>] the channel names to subscribe to. An
       #   empty list is rejected with "No channels provided for subscription".
-      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
+      # @param timeout_ms [Integer, Float] maximum time in milliseconds to wait
+      #   for the server to confirm. `0` blocks indefinitely.
       # @return [void] once the server has confirmed the subscription.
-      # @raise [ArgumentError] on a negative timeout or an empty channel list.
+      # @raise [ArgumentError] on a negative timeout_ms or an empty channel list.
       # @raise [Valkey::Resp3RequiredError]
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
       # @see https://valkey.io/commands/subscribe/
-      def subscribe(*channels, timeout: nil)
+      def subscribe(*channels, timeout_ms: 0)
         validate_resp3!
         # glide-core already rejects an empty list with this message, but as
         # ErrorKind::ClientError, which surfaces here as the too-generic
@@ -199,7 +200,7 @@ class Valkey
         # error, then drop the check here.
         raise ArgumentError, "No channels provided for subscription" if channels.empty?
 
-        @client.send_command(RequestType::SUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout)])
+        @client.send_command(RequestType::SUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout_ms)])
       end
 
       # Unsubscribes from exact channels (blocking). Updates the client's
@@ -207,17 +208,18 @@ class Valkey
       #
       # @param channels [Array<String>] the channel names to unsubscribe from.
       #   Empty unsubscribes from every exact channel.
-      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
+      # @param timeout_ms [Integer, Float] maximum time in milliseconds to wait
+      #   for the server to confirm. `0` blocks indefinitely.
       # @return [void] once the server has confirmed the unsubscription.
-      # @raise [ArgumentError] on a negative timeout.
+      # @raise [ArgumentError] on a negative timeout_ms.
       # @raise [Valkey::Resp3RequiredError]  GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
       # @see https://valkey.io/commands/unsubscribe/
-      def unsubscribe(*channels, timeout: nil)
+      def unsubscribe(*channels, timeout_ms: 0)
         validate_resp3!
 
-        @client.send_command(RequestType::UNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout)])
+        @client.send_command(RequestType::UNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout_ms)])
       end
 
       # Subscribes to channel patterns (blocking). Updates the client's desired
@@ -226,28 +228,30 @@ class Valkey
       # @param patterns [Array<String>] the glob-style patterns to subscribe to,
       #   for example `"news.*"`. An empty list is rejected with "No channels
       #   provided for subscription".
-      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
+      # @param timeout_ms [Integer, Float] maximum time in milliseconds to wait
+      #   for the server to confirm. `0` blocks indefinitely.
       # @return [void] once the server has confirmed the subscription.
-      # @raise [ArgumentError] on a negative timeout.
+      # @raise [ArgumentError] on a negative timeout_ms.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
       # @raise [NotImplementedError] this method is not implemented yet.
       # @see https://valkey.io/commands/psubscribe/
-      def psubscribe(*patterns, timeout: nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def psubscribe(*patterns, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribes from channel patterns (blocking). Updates the client's
       # desired subscription state and waits for the server's confirmation.
       #
       # @param patterns [Array<String>] the patterns to unsubscribe from. Empty
       #   unsubscribes from every pattern.
-      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
+      # @param timeout_ms [Integer, Float] maximum time in milliseconds to wait
+      #   for the server to confirm. `0` blocks indefinitely.
       # @return [void] once the server has confirmed the unsubscription.
-      # @raise [ArgumentError] on a negative timeout.
+      # @raise [ArgumentError] on a negative timeout_ms.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
       # @raise [NotImplementedError] this method is not implemented yet.
       # @see https://valkey.io/commands/punsubscribe/
-      def punsubscribe(*patterns, timeout: nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def punsubscribe(*patterns, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Subscribes to sharded channels (blocking). Updates the client's desired
       # subscription state and waits for the server's confirmation. Requires
@@ -258,14 +262,15 @@ class Valkey
       # @param channels [Array<String>] the sharded channel names to subscribe
       #   to. An empty list is rejected with "No channels provided for
       #   subscription".
-      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
+      # @param timeout_ms [Integer, Float] maximum time in milliseconds to wait
+      #   for the server to confirm. `0` blocks indefinitely.
       # @return [void] once the server has confirmed the subscription.
-      # @raise [ArgumentError] on a negative timeout.
+      # @raise [ArgumentError] on a negative timeout_ms.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
       # @raise [NotImplementedError] this method is not implemented yet.
       # @see https://valkey.io/commands/ssubscribe/
-      def ssubscribe(*channels, timeout: nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def ssubscribe(*channels, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribes from sharded channels (blocking). Updates the client's
       # desired subscription state and waits for the server's confirmation.
@@ -276,14 +281,15 @@ class Valkey
       #
       # @param channels [Array<String>] the sharded channel names to unsubscribe
       #   from. Empty unsubscribes from every sharded channel.
-      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
+      # @param timeout_ms [Integer, Float] maximum time in milliseconds to wait
+      #   for the server to confirm. `0` blocks indefinitely.
       # @return [void] once the server has confirmed the unsubscription.
-      # @raise [ArgumentError] on a negative timeout.
+      # @raise [ArgumentError] on a negative timeout_ms.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
       # @raise [NotImplementedError] this method is not implemented yet.
       # @see https://valkey.io/commands/sunsubscribe/
-      def sunsubscribe(*channels, timeout: nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def sunsubscribe(*channels, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Subscribes to exact channels (non-blocking). Updates the client's
       # desired subscription state without waiting for the server's
@@ -509,14 +515,13 @@ class Valkey
 
       # glide-core takes the timeout as the last command argument, in whole
       # milliseconds, and reads a zero as "no deadline".
-      def timeout_argument(timeout)
-        milliseconds = timeout || 0
-        valid = milliseconds.is_a?(Numeric) && !milliseconds.negative?
-        raise ArgumentError, "Timeout must be a non-negative number, got: #{timeout.inspect}" unless valid
-        return "0" if milliseconds.zero?
+      def timeout_argument(timeout_ms)
+        valid = timeout_ms.is_a?(Numeric) && !timeout_ms.negative?
+        raise ArgumentError, "Timeout must be a non-negative number, got: #{timeout_ms.inspect}" unless valid
+        return "0" if timeout_ms.zero?
 
         # Handling floats.
-        [milliseconds.to_i, 1].max.to_s
+        [timeout_ms.to_i, 1].max.to_s
       end
 
       # Single delivery point, so push mode is added by branching here and

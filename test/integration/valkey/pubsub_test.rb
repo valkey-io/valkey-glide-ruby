@@ -173,8 +173,8 @@ module ValkeyTests
       channel = unique_channel
 
       with_client do |subscriber|
-        assert_raises(ArgumentError) { subscriber.subscribe(channel, timeout: -1) }
-        assert_raises(ArgumentError) { subscriber.unsubscribe(channel, timeout: -0.5) }
+        assert_raises(ArgumentError) { subscriber.subscribe(channel, timeout_ms: -1) }
+        assert_raises(ArgumentError) { subscriber.unsubscribe(channel, timeout_ms: -0.5) }
       end
     end
 
@@ -184,9 +184,9 @@ module ValkeyTests
       channel = unique_channel
 
       with_client do |subscriber|
-        subscriber.subscribe(channel, timeout: 0)
+        subscriber.subscribe(channel, timeout_ms: 0)
         publish_until_received("zero-timeout", channel, subscriber)
-        subscriber.unsubscribe(channel, timeout: 0)
+        subscriber.unsubscribe(channel, timeout_ms: 0)
       end
     end
 

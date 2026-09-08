@@ -37,15 +37,16 @@ class Valkey
       #   valkey.subscribe("channel1", "channel2")
       #
       # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
-      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       #
       # @see https://valkey.io/commands/subscribe/
-      def subscribe(*channels, timeout: nil)
-        @pubsub.subscribe(*channels, timeout: timeout)
+      def subscribe(*channels, timeout_ms: 0)
+        @pubsub.subscribe(*channels, timeout_ms: timeout_ms)
       end
 
       # Unsubscribe from exact channels, waiting for the server to confirm the change.
@@ -57,15 +58,16 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
-      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       #
       # @see https://valkey.io/commands/unsubscribe/
-      def unsubscribe(*channels, timeout: nil)
-        @pubsub.unsubscribe(*channels, timeout: timeout)
+      def unsubscribe(*channels, timeout_ms: 0)
+        @pubsub.unsubscribe(*channels, timeout_ms: timeout_ms)
       end
 
       # Subscribe to channel patterns, waiting for the server to confirm the subscription.
@@ -74,15 +76,16 @@ class Valkey
       #   valkey.psubscribe("news.*", "events.*")
       #
       # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
-      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
-      # @raise [ArgumentError] if timeout is negative
+      # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/psubscribe/
-      def psubscribe(*patterns, timeout: nil)
-        @pubsub.psubscribe(*patterns, timeout: timeout)
+      def psubscribe(*patterns, timeout_ms: 0)
+        @pubsub.psubscribe(*patterns, timeout_ms: timeout_ms)
       end
 
       # Unsubscribe from channel patterns, waiting for the server to confirm the change.
@@ -94,15 +97,16 @@ class Valkey
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
-      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
-      # @raise [ArgumentError] if timeout is negative
+      # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/punsubscribe/
-      def punsubscribe(*patterns, timeout: nil)
-        @pubsub.punsubscribe(*patterns, timeout: timeout)
+      def punsubscribe(*patterns, timeout_ms: 0)
+        @pubsub.punsubscribe(*patterns, timeout_ms: timeout_ms)
       end
 
       # Subscribe to sharded channels, waiting for the server to confirm the subscription.
@@ -113,15 +117,16 @@ class Valkey
       #   valkey.ssubscribe("shard1", "shard2")
       #
       # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
-      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
-      # @raise [ArgumentError] if timeout is negative
+      # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/ssubscribe/
-      def ssubscribe(*channels, timeout: nil)
-        @pubsub.ssubscribe(*channels, timeout: timeout)
+      def ssubscribe(*channels, timeout_ms: 0)
+        @pubsub.ssubscribe(*channels, timeout_ms: timeout_ms)
       end
 
       # Unsubscribe from sharded channels, waiting for the server to confirm the change.
@@ -135,15 +140,16 @@ class Valkey
       #
       # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
-      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
-      # @raise [ArgumentError] if timeout is negative
+      # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/sunsubscribe/
-      def sunsubscribe(*channels, timeout: nil)
-        @pubsub.sunsubscribe(*channels, timeout: timeout)
+      def sunsubscribe(*channels, timeout_ms: 0)
+        @pubsub.sunsubscribe(*channels, timeout_ms: timeout_ms)
       end
 
       # Subscribe to exact channels without waiting for the server to confirm.
