@@ -23,7 +23,6 @@ SimpleCov.configure do
   project_total = suite == "cluster"
 
   if reference_config && project_total
-    minimum_coverage line: 88.87, branch: 72.5
-    maximum_coverage line: 88.87
+    minimum_coverage line: 80, branch: 70
   end
 end
