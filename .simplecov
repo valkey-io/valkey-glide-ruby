@@ -14,21 +14,16 @@ SimpleCov.configure do
   skip %r{^/valkey-glide/} # vendored upstream submodule, not our code
   cover "lib/**/*.rb" # includes unloaded lib files and restricts the report to them
 
-  # Ideally, we aim for 80% coverage, which at this time is lower.
-  expected = {
-    "unit" => { line: 51.11, branch: 17.41 },
-    "standalone" => { line: 86.73 },
-    "cluster" => { line: 76.80, branch: 49.30 }
-  }
+  # tracked in https://github.com/valkey-io/valkey-glide-ruby/issues/307
+  # reference_config = RUBY_PLATFORM.start_with?("x86_64-linux") &&
+  #                    RUBY_VERSION.start_with?("3.4") &&
+  #                    ENV["ENGINE_VERSION"] == "9.0"
 
-  # Different configurations have different coverage. We enforce on the latest
-  # for now. See https://github.com/valkey-io/valkey-glide-ruby/issues/307
-  reference_config = RUBY_PLATFORM.start_with?("x86_64-linux") &&
-                     RUBY_VERSION.start_with?("3.4") &&
-                     ENV["ENGINE_VERSION"] == "9.0"
+  # cluster runs last, so its report is the merge of all three suites.
+  project_total = suite == "cluster"
 
-  if reference_config && expected.key?(suite)
-    # Ideally this should be minimum_coverage line: 80, branch: 80
-    expected_coverage expected.fetch(suite)
+  if reference_config && project_total
+    minimum_coverage line: 88.87, branch: 72.5
+    maximum_coverage line: 88.87
   end
 end
