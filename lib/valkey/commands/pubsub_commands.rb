@@ -35,16 +35,13 @@ class Valkey
       #
       # @example Subscribe to channels
       #   valkey.subscribe("channel1", "channel2")
-      # @example Give up if the server does not confirm within 2.5 seconds
-      #   valkey.subscribe("channel1", timeout: 2.5)
       #
       # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
-      # @param [Float, Integer, nil] timeout maximum time in seconds to wait for the server confirmation;
-      #   `nil` blocks indefinitely
+      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
       # @return [void] returns once the server has confirmed the subscription
-      # @raise [ArgumentError] if timeout is negative
+      # @raise [ArgumentError] on argument errors
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/subscribe/
       def subscribe(*channels, timeout: nil)
@@ -60,12 +57,11 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
-      # @param [Float, Integer, nil] timeout maximum time in seconds to wait for the server confirmation;
-      #   `nil` blocks indefinitely
+      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
       # @return [void] returns once the server has confirmed the change
-      # @raise [ArgumentError] if timeout is negative
+      # @raise [ArgumentError] on argument errors
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/unsubscribe/
       def unsubscribe(*channels, timeout: nil)
@@ -76,12 +72,9 @@ class Valkey
       #
       # @example Subscribe to patterns
       #   valkey.psubscribe("news.*", "events.*")
-      # @example Give up if the server does not confirm within 1 second
-      #   valkey.psubscribe("news.*", timeout: 1)
       #
       # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
-      # @param [Float, Integer, nil] timeout maximum time in seconds to wait for the server confirmation;
-      #   `nil` blocks indefinitely
+      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -101,8 +94,7 @@ class Valkey
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
-      # @param [Float, Integer, nil] timeout maximum time in seconds to wait for the server confirmation;
-      #   `nil` blocks indefinitely
+      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -119,12 +111,9 @@ class Valkey
       #
       # @example Subscribe to shard channels
       #   valkey.ssubscribe("shard1", "shard2")
-      # @example Give up if the server does not confirm within 2 seconds
-      #   valkey.ssubscribe("shard1", timeout: 2)
       #
       # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
-      # @param [Float, Integer, nil] timeout maximum time in seconds to wait for the server confirmation;
-      #   `nil` blocks indefinitely
+      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -146,8 +135,7 @@ class Valkey
       #
       # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
-      # @param [Float, Integer, nil] timeout maximum time in seconds to wait for the server confirmation;
-      #   `nil` blocks indefinitely
+      # @param [Float, Integer, nil] timeout maximum timeout in milliseconds
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -286,7 +274,7 @@ class Valkey
       # @return [Integer] the number of subscriptions that received the message: in cluster mode the
       #   subscriptions on the node the request was routed to, in standalone the subscriptions on the primary
       #   node, which excludes subscriptions configured on replicas
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [NotImplementedError] sharded publish is not implemented yet
       #
       # @see https://valkey.io/commands/publish/
       # @see https://valkey.io/commands/spublish/
@@ -303,6 +291,7 @@ class Valkey
       #
       # @return [Valkey::Glide::PubSub::Message, nil] the message, or `nil` once the client is closed.
       #   `#pattern` is set only when the push was a `PMESSAGE`
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       def get_pubsub_message
         @pubsub.get_message
       end
@@ -318,6 +307,7 @@ class Valkey
       #
       # @return [Valkey::Glide::PubSub::Message, nil] the message, or `nil` when the queue is empty or the
       #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       def try_get_pubsub_message
         @pubsub.try_get_message
       end

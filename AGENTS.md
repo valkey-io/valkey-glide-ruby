@@ -259,11 +259,11 @@ cargo fmt --manifest-path ./Cargo.toml --all
 
 - **Ruby 3.0+ Required:** Minimum per `valkey.gemspec`
 - **FFI dependency:** `ffi ~> 1.17.0`; do not break ABI without rebuilding native lib
+- **FFI bindings MUST pass `blocking: true`:** Every `attach_function` in `lib/valkey/bindings.rb` releases the GVL. Ruby-FFI defaults to `blocking: false`, which holds the GVL for the entire native call — that stalls every other Ruby thread, and deadlocks outright whenever the native call waits on a thread that needs the GVL to make progress.
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
 - **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
 - **Command args:** All FFI args are strings; convert types in Ruby before `send_command`
 - **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback; do not remove without fixing FFI batch stability
-- **Pub/Sub:** The public API is currently disabled (`include PubSubCommands` is commented out in `lib/valkey/commands.rb`); Pub/Sub is only partially implemented (see issue #135). Do not re-enable without completing it.
 - **OpenTelemetry:** Init once per process via `Valkey::OpenTelemetry.init`; spans created in FFI layer
 
 ### Command Implementation Guidelines

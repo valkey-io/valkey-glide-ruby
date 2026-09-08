@@ -26,13 +26,6 @@ class Valkey
     #   waiting for the server to confirm the change; read back
     #   {#get_subscriptions} for the subscriptions the server actually has.
     #
-    # Blocking methods take `timeout:` in seconds. glide-core receives it as an
-    # integer millisecond count appended as the last command argument, where `0`
-    # means "block indefinitely", so `nil` is sent as `0`.
-    #
-    # Only `parse_config`, the message queue and {#close} are implemented; the
-    # rest of the surface raises NotImplementedError.
-    #
     # @see https://valkey.io/docs/topics/pubsub/
     # @api private
     class PubSub
@@ -99,8 +92,8 @@ class Valkey
         #   Subscriptions require RESP3.
         # @return [Hash] the subscriptions keyed by the integer mode glide-core
         #   expects, or an empty Hash when nothing is subscribed to.
-        # @raise [ArgumentError] on an unknown subscription mode, or on
-        #   subscriptions configured with a protocol other than RESP3.
+        # @raise [ArgumentError] on an unknown subscription mode.
+        # @raise [Valkey::Resp3RequiredError] on a protocol other than RESP3.
         # @see https://valkey.io/docs/topics/pubsub/
         def parse_config(pubsub_configs, protocol: nil)
           pubsub_configs ||= {}
@@ -133,7 +126,7 @@ class Valkey
 
           return if RESP3_VALUES.include?(protocol)
 
-          raise ArgumentError, "Pub/Sub requires the RESP3 protocol. Found #{protocol.inspect}"
+          raise Resp3RequiredError, protocol
         end
 
         def unknown_mode_message(unknown_modes)
@@ -144,9 +137,11 @@ class Valkey
 
       # @param client [Valkey] A valkey client connection.
       # @param cluster_mode [Boolean] The client cluster mode.
-      def initialize(client, cluster_mode:)
+      # @param protocol [Symbol, String, Integer, nil] the client's protocol.
+      def initialize(client, cluster_mode:, protocol: nil)
         @client = client
         @cluster_mode = cluster_mode
+        @protocol = protocol
         @message_queue = Thread::Queue.new
 
         # The handler proc for receiving messages from the FFI.
@@ -159,7 +154,9 @@ class Valkey
       #
       # @return [Message, nil] the next message, or nil once the message queue
       #   is closed.
+      # @raise [Valkey::Resp3RequiredError]
       def get_message
+        validate_resp3!
         @message_queue.pop
       end
 
@@ -167,7 +164,9 @@ class Valkey
       #
       # @return [Message, nil] the next message, or nil when the message queue
       #   is empty or closed.
+      # @raise [Valkey::Resp3RequiredError]
       def try_get_message
+        validate_resp3!
         @message_queue.pop(true)
       rescue ThreadError
         nil
@@ -184,30 +183,42 @@ class Valkey
       #
       # @param channels [Array<String>] the channel names to subscribe to. An
       #   empty list is rejected with "No channels provided for subscription".
-      # @param timeout [Float, Integer, nil] maximum time in seconds to wait for
-      #   the server's confirmation. `nil` blocks indefinitely.
+      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
       # @return [void] once the server has confirmed the subscription.
-      # @raise [ArgumentError] on a negative timeout.
+      # @raise [ArgumentError] on a negative timeout or an empty channel list.
+      # @raise [Valkey::Resp3RequiredError]
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
-      # @raise [NotImplementedError] this method is not implemented yet.
       # @see https://valkey.io/commands/subscribe/
-      def subscribe(*channels, timeout: nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def subscribe(*channels, timeout: nil)
+        validate_resp3!
+        # glide-core already rejects an empty list with this message, but as
+        # ErrorKind::ClientError, which surfaces here as the too-generic
+        # Valkey::CommandError.
+        # TODO: push this upstream once glide-core reports it as an argument
+        # error, then drop the check here.
+        raise ArgumentError, "No channels provided for subscription" if channels.empty?
+
+        @client.send_command(RequestType::SUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout)])
+      end
 
       # Unsubscribes from exact channels (blocking). Updates the client's
       # desired subscription state and waits for the server's confirmation.
       #
       # @param channels [Array<String>] the channel names to unsubscribe from.
       #   Empty unsubscribes from every exact channel.
-      # @param timeout [Float, Integer, nil] maximum time in seconds to wait for
-      #   the server's confirmation. `nil` blocks indefinitely.
+      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
       # @return [void] once the server has confirmed the unsubscription.
       # @raise [ArgumentError] on a negative timeout.
+      # @raise [Valkey::Resp3RequiredError]  GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] when the timeout expires before the
       #   server confirms.
-      # @raise [NotImplementedError] this method is not implemented yet.
       # @see https://valkey.io/commands/unsubscribe/
-      def unsubscribe(*channels, timeout: nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def unsubscribe(*channels, timeout: nil)
+        validate_resp3!
+
+        @client.send_command(RequestType::UNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout)])
+      end
 
       # Subscribes to channel patterns (blocking). Updates the client's desired
       # subscription state and waits for the server's confirmation.
@@ -215,8 +226,7 @@ class Valkey
       # @param patterns [Array<String>] the glob-style patterns to subscribe to,
       #   for example `"news.*"`. An empty list is rejected with "No channels
       #   provided for subscription".
-      # @param timeout [Float, Integer, nil] maximum time in seconds to wait for
-      #   the server's confirmation. `nil` blocks indefinitely.
+      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
       # @return [void] once the server has confirmed the subscription.
       # @raise [ArgumentError] on a negative timeout.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
@@ -230,8 +240,7 @@ class Valkey
       #
       # @param patterns [Array<String>] the patterns to unsubscribe from. Empty
       #   unsubscribes from every pattern.
-      # @param timeout [Float, Integer, nil] maximum time in seconds to wait for
-      #   the server's confirmation. `nil` blocks indefinitely.
+      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
       # @return [void] once the server has confirmed the unsubscription.
       # @raise [ArgumentError] on a negative timeout.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
@@ -249,8 +258,7 @@ class Valkey
       # @param channels [Array<String>] the sharded channel names to subscribe
       #   to. An empty list is rejected with "No channels provided for
       #   subscription".
-      # @param timeout [Float, Integer, nil] maximum time in seconds to wait for
-      #   the server's confirmation. `nil` blocks indefinitely.
+      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
       # @return [void] once the server has confirmed the subscription.
       # @raise [ArgumentError] on a negative timeout.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
@@ -268,8 +276,7 @@ class Valkey
       #
       # @param channels [Array<String>] the sharded channel names to unsubscribe
       #   from. Empty unsubscribes from every sharded channel.
-      # @param timeout [Float, Integer, nil] maximum time in seconds to wait for
-      #   the server's confirmation. `nil` blocks indefinitely.
+      # @param timeout [Float, Integer, nil] maximum timeout in milliseconds
       # @return [void] once the server has confirmed the unsubscription.
       # @raise [ArgumentError] on a negative timeout.
       # @raise [Valkey::TimeoutError] when the timeout expires before the
@@ -380,10 +387,15 @@ class Valkey
       #   In cluster mode that is the count on the node the request was routed
       #   to; in standalone it is the count on the primary node, which does not
       #   include subscriptions configured on replicas.
-      # @raise [NotImplementedError] this method is not implemented yet.
+      # @raise [NotImplementedError] when `sharded` is true; sharded publish is
+      #   not implemented yet.
       # @see https://valkey.io/commands/publish/
       # @see https://valkey.io/commands/spublish/
-      def publish(message, channel, sharded: false) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def publish(message, channel, sharded: false)
+        raise NotImplementedError, "Sharded publish is not implemented yet" if sharded
+
+        @client.send_command(RequestType::PUBLISH, [channel.to_s, message.to_s])
+      end
 
       # The connection's subscription state: what the client asked for, and what
       # the server currently has. The way to confirm the outcome of a lazy
@@ -477,17 +489,34 @@ class Valkey
       # stalls every message behind it. The pointers are freed when it returns,
       # so the copy has to happen synchronously.
       #
-      # TODO: unfinished -- the handler still has to:
-      #   - return early unless PushKind::MESSAGE_KINDS covers kind
-      #   - log DISCONNECTION, drop the confirmation kinds silently
-      #   - read_string(len) for message and channel; pattern is nil when
-      #     pat_ptr is null (exact and sharded pushes)
-      #   - deliver(Message.new(...))
-      #   - rescue StandardError and swallow: an exception must never cross the
-      #     FFI boundary
+      # The reads are length-driven so a payload with an embedded NUL survives.
       def build_ffi_handler
-        lambda do |_client_ptr, _kind, _msg_ptr, _msg_len, _chan_ptr, _chan_len, _pat_ptr, _pat_len|
+        lambda do |_client_ptr, kind, message_ptr, message_size, channel_ptr, channel_size, pattern_ptr, pattern_size|
+          next unless PushKind::MESSAGE_KINDS.include?(kind)
+
+          pattern = pattern_ptr.null? ? nil : pattern_ptr.read_string(pattern_size)
+          message = message_ptr.read_string(message_size)
+          deliver(Message.new(message, channel_ptr.read_string(channel_size), pattern))
+        rescue StandardError
+          # TODO: Log the swallowed error once a logger binding exists.
+          nil
         end
+      end
+
+      def validate_resp3!
+        raise Resp3RequiredError, @protocol unless RESP3_VALUES.include?(@protocol)
+      end
+
+      # glide-core takes the timeout as the last command argument, in whole
+      # milliseconds, and reads a zero as "no deadline".
+      def timeout_argument(timeout)
+        milliseconds = timeout || 0
+        valid = milliseconds.is_a?(Numeric) && !milliseconds.negative?
+        raise ArgumentError, "Timeout must be a non-negative number, got: #{timeout.inspect}" unless valid
+        return "0" if milliseconds.zero?
+
+        # Handling floats.
+        [milliseconds.to_i, 1].max.to_s
       end
 
       # Single delivery point, so push mode is added by branching here and
