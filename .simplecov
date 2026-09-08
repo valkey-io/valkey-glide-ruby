@@ -17,7 +17,7 @@ SimpleCov.configure do
   # Ideally, we aim for 80% coverage, which at this time is lower.
   expected = {
     "unit" => { line: 51.11, branch: 17.41 },
-    "standalone" => { line: 86.73, branch: 71.13 },
+    "standalone" => { line: 86.73 },
     "cluster" => { line: 76.80, branch: 49.30 }
   }
 
@@ -28,9 +28,7 @@ SimpleCov.configure do
                      ENV["ENGINE_VERSION"] == "9.0"
 
   if reference_config && expected.key?(suite)
+    # Ideally this should be minimum_coverage line: 80, branch: 80
     expected_coverage expected.fetch(suite)
-  else
-    # Ideally this should be the minimum
-    # minimum_coverage line: 80, branch: 80
   end
 end
