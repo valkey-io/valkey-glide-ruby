@@ -73,14 +73,16 @@ module Helper
       valkey
     end
 
-    # Query actual server version from the cluster. Falls back to "0.0" if
-    # detection fails so that version-gated tests skip rather than error.
+    # Raises rather than returning a sentinel version, which would turn every omit_version gate into a skip.
     def version
       info = valkey.info
       ver = extract_version_from_info(info)
-      Version.new(ver || "0.0")
-    rescue StandardError
-      Version.new("0.0")
+      unless Version.parseable?(ver)
+        raise "Could not determine a usable server version from INFO " \
+              "(got: #{ver.inspect} from #{info.class})"
+      end
+
+      Version.new(ver)
     end
 
     def cluster_mode?
@@ -89,18 +91,30 @@ module Helper
 
     private
 
+    # Extracts a server version from an INFO reply. A cluster INFO fans out, so the reply
+    # may be a flat field Hash, a per-node Hash, an Array of node replies, or a raw String.
     def extract_version_from_info(info)
       case info
       when Hash
-        info["valkey_version"] || info["redis_version"]
+        info["valkey_version"] || info["redis_version"] ||
+          min_version(info.values)
       when Array
-        # Could be array of node responses; try first element
-        first = info.first
-        extract_version_from_info(first)
+        min_version(info)
       when String
-        # Raw INFO string — parse valkey_version or redis_version
-        ::Regexp.last_match(1) if info =~ /(?:valkey|redis)_version:(\S+)/
+        # Anchor to the start of a line so an unrelated field that merely ends in
+        # "valkey_version" (e.g. "other_valkey_version:9.9.9") cannot be latched.
+        ::Regexp.last_match(1) if info =~ /^(?:valkey|redis)_version:(\S+)/
       end
+    end
+
+    # Smallest usable version across node replies, or nil when none report one. Minimum, not
+    # maximum: a gate must reflect the weakest node, and it does not depend on hash ordering.
+    # Unparseable values are dropped rather than ranked: they sort below every real version.
+    def min_version(entries)
+      Array(entries)
+        .filter_map { |entry| extract_version_from_info(entry) }
+        .select { |ver| Version.parseable?(ver) }
+        .min_by { |ver| Version.new(ver) }
     end
 
     def _new_client(options = {})

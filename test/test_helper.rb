@@ -8,6 +8,7 @@ require "valkey"
 require_relative "support/test_cluster"
 
 require "minitest/autorun"
+require "minitest/mock"
 require 'minitest/reporters'
 
 require_relative 'support/helper/generic'

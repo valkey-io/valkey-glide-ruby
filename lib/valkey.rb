@@ -14,7 +14,7 @@ require "valkey/utils"
 require "valkey/commands"
 require "valkey/errors"
 require "valkey/future"
-require "valkey/pubsub_callback"
+require "valkey/glide/pubsub"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
@@ -22,7 +22,64 @@ require "valkey/route"
 class Valkey
   include Utils
   include Commands
-  include PubSubCallback
+
+  # Default value reported for `CLIENT SETINFO LIB-NAME`. Always sent explicitly, so the
+  # reported name does not depend on the native artifact having been compiled with
+  # `GLIDE_NAME=GlideRuby`, which is only glide-core's fallback.
+  DEFAULT_LIB_NAME = "GlideRuby"
+
+  # Resolves the effective `CLIENT SETINFO LIB-NAME` value, composing `base(tag)`.
+  # An empty override or tag means "not configured" and is omitted. Character
+  # validity is glide-core's (see valkey-io/valkey-glide#6891).
+  #
+  # @api private
+  # @param lib_name [String, Symbol, nil] raw `lib_name` override, may be empty
+  # @param client_info_tag [String, Symbol, nil] raw `client_info_tag`, may be empty
+  # @return [String] the effective library name
+  # @raise [ArgumentError] if either value is not a String, Symbol or nil, or is a String
+  #   whose bytes are invalid or not convertible to UTF-8
+  def self.resolve_lib_name(lib_name: nil, client_info_tag: nil)
+    base = coerce_client_metadata("lib_name", lib_name)
+    tag = coerce_client_metadata("client_info_tag", client_info_tag)
+
+    resolved = base || DEFAULT_LIB_NAME
+    tag ? "#{resolved}(#{tag})" : resolved
+  end
+
+  # Normalizes a client-identification value to a non-empty String or nil.
+  #
+  # @param field [String] option name, used in the error message
+  # @param value [String, Symbol, nil] the raw configured value
+  # @return [String, nil] the value, or nil when absent/empty
+  # @raise [ArgumentError] if the value is not a String, Symbol or nil, or is a String
+  #   whose bytes are invalid or not convertible to UTF-8
+  def self.coerce_client_metadata(field, value)
+    return nil if value.nil?
+
+    unless value.is_a?(String) || value.is_a?(Symbol)
+      raise ArgumentError,
+            "#{field} must be a String, Symbol, or nil, got #{value.class}"
+    end
+
+    string = value.to_s
+    # Both checks are needed: #valid_encoding? catches invalid bytes in a String already
+    # tagged UTF-8; #encode catches bytes not mappable from a non-UTF-8 encoding, where
+    # valid_encoding? is vacuously true.
+    unless string.valid_encoding?
+      raise ArgumentError,
+            "#{field} must not contain an invalid #{string.encoding} byte sequence"
+    end
+
+    begin
+      string = string.encode(Encoding::UTF_8)
+    rescue EncodingError => e
+      raise ArgumentError,
+            "#{field} must be convertible to UTF-8 (#{e.class}: #{e.message})"
+    end
+
+    string.empty? ? nil : string
+  end
+  private_class_method :coerce_client_metadata
 
   # @param exception [Boolean] when `true` (the default), a runtime error
   #   from a queued command (e.g. WRONGTYPE) raises the first such error
@@ -158,6 +215,11 @@ class Valkey
     # Client name (user-configurable)
     json_options["client_name"] = options[:client_name] if options[:client_name]
 
+    json_options["lib_name"] = self.class.resolve_lib_name(
+      lib_name: options[:lib_name],
+      client_info_tag: options[:client_info_tag]
+    )
+
     # read_from parsing.
     json_options["read_from"] = options[:read_from] if options[:read_from]
 
@@ -255,7 +317,10 @@ class Valkey
       }
     end
 
-    # Convert JSON options to string (pass nil if empty)
+    pubsub_config = Glide::PubSub.parse_config(options[:pubsub], protocol: options[:protocol])
+    json_options.merge!(pubsub_config)
+
+    @pubsub = Glide::PubSub.new(self, cluster_mode: options[:cluster_mode] ? true : false)
     json_str = json_options.empty? ? nil : JSON.generate(json_options)
 
     # Create client using URI-based FFI function
@@ -266,7 +331,7 @@ class Valkey
       uri_str,
       json_str,
       client_type,
-      method(:pubsub_callback)
+      @pubsub.ffi_handler
     )
 
     res = Bindings::ConnectionResponse.new(response_ptr)
@@ -308,6 +373,9 @@ class Valkey
       conn = @connection
       @connection = nil
 
+      # Closed before the native handle goes away, so a thread blocked in
+      # get_message wakes with nil instead of hanging on a dead client.
+      @pubsub&.close
       # Fork safety: freeing a handle owned by another process aborts this one.
       # The parent still frees it on its own close.
       return if @pid != Process.pid

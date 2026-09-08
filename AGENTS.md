@@ -167,8 +167,14 @@ location that exists, in this order:
 Raw equivalent (only if not using Rake):
 
 ```bash
-cd /path/to/valkey-glide/ffi
-cargo build --release
+# GLIDE_NAME/GLIDE_VERSION are baked in at compile time; omitting or mismatching them
+# silently misreports LIB-NAME/LIB-VER. GLIDE_VERSION must match `lib/valkey/version.rb`.
+# Resolve it from the repo root: the relative require will not resolve inside `valkey-glide/ffi`.
+GLIDE_VERSION=$(ruby -r./lib/valkey/version -e 'print Valkey::VERSION') || exit 1
+[ -n "$GLIDE_VERSION" ] || { echo "could not resolve GLIDE_VERSION" >&2; exit 1; }
+
+cd valkey-glide/ffi
+GLIDE_NAME=GlideRuby GLIDE_VERSION="$GLIDE_VERSION" cargo build --release
 # release/debug builds under target/ are picked up automatically (order 1-2 above)
 ```
 
@@ -271,7 +277,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (the `PubSubCallback` `puts` in `lib/valkey/pubsub_callback.rb` is intentional while Pub/Sub is unfinished)
+- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
 
 ## Project Structure (Essential)
 
@@ -281,7 +287,7 @@ valkey-glide-ruby/
 ├── lib/valkey/
 │   ├── bindings.rb
 │   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
-│   ├── pubsub_callback.rb
+│   ├── glide/pubsub.rb   # all Pub/Sub logic; internal, wired into Valkey
 │   ├── commands.rb       # requires + includes all command modules
 │   ├── commands/*.rb     # 20 command-family modules
 │   ├── opentelemetry.rb

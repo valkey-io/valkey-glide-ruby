@@ -114,6 +114,8 @@ client.get("foo")
 | `nodes` | Array of `{ host:, port: }` hashes |
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
+| `lib_name` | Full override of the `CLIENT SETINFO LIB-NAME` value (default `GlideRuby`). Accepts a `String`, a `Symbol`, or `nil`. Validated by glide-core: printable ASCII excluding space, `(` and `)`, plus at most one matched trailing `(tag)`; an invalid value raises `Valkey::CannotConnectError` at client creation. An empty value falls back to the default. |
+| `client_info_tag` | Appends a parenthesized tag to the resolved library name while keeping the base token intact — e.g. `GlideRuby(my-framework:1.0)`, or `<lib_name>(<tag>)` when combined with `lib_name`. An empty tag is treated as absent (no suffix). Like `lib_name`, the composed value is validated by glide-core. Note the resolved library name is visible to anyone who can run `CLIENT LIST`/`CLIENT INFO` and may appear in server logs, so do not put secrets or sensitive tenant identifiers in it. Preferred over `lib_name` for framework attribution because it preserves GLIDE adoption visibility. |
 | `reconnect_attempts`, `reconnect_delay`, `reconnect_delay_max` | Connection retry strategy |
 | `read_from` | Read routing: the `Valkey::ReadFrom::*` constants: `PRIMARY`, `PREFER_REPLICA`, `AZ_AFFINITY`, `AZ_AFFINITY_REPLICAS_AND_PRIMARY`.`AZ_AFFINITY`/`AZ_AFFINITY_REPLICAS_AND_PRIMARY` require `client_az` to also be set. |
 | `client_az` | Availability-zone identifier for `AZ_AFFINITY` / `AZ_AFFINITY_REPLICAS_AND_PRIMARY` routing (e.g. `"us-west-2a"`) |
