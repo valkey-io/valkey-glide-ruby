@@ -15,10 +15,10 @@ require "valkey/search"
 require "valkey/commands"
 require "valkey/errors"
 require "valkey/future"
-require "valkey/glide/pubsub"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
+require "valkey/glide/pubsub_receiver"
 
 class Valkey
   include Utils
@@ -28,6 +28,9 @@ class Valkey
   # reported name does not depend on the native artifact having been compiled with
   # `GLIDE_NAME=GlideRuby`, which is only glide-core's fallback.
   DEFAULT_LIB_NAME = "GlideRuby"
+
+  # The RESP protocol specified.
+  attr_reader :protocol
 
   # Resolves the effective `CLIENT SETINFO LIB-NAME` value, composing `base(tag)`.
   # An empty override or tag means "not configured" and is omitted. Character
@@ -112,6 +115,8 @@ class Valkey
       # Merge URL options, but explicit options take precedence
       options = url_options.merge(options.except(:url))
     end
+
+    @protocol = options[:protocol]
 
     # Extract connection parameters
     host = options[:host] || "127.0.0.1"
@@ -318,16 +323,12 @@ class Valkey
       }
     end
 
-    pubsub_config = Glide::PubSub.parse_config(options[:pubsub], protocol: options[:protocol])
+    pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol])
     json_options.merge!(pubsub_config)
 
-    @pubsub = Glide::PubSub.new(
-      self,
-      cluster_mode: options[:cluster_mode] ? true : false,
-      protocol: options[:protocol]
-    )
-    json_str = json_options.empty? ? nil : JSON.generate(json_options)
+    @pubsub_receiver = Glide::PubSubReceiver.new
 
+    json_str = json_options.empty? ? nil : JSON.generate(json_options)
     # Create client using URI-based FFI function
     client_type = Bindings::ClientType.new
     client_type[:tag] = 1 # SyncClient
@@ -336,7 +337,7 @@ class Valkey
       uri_str,
       json_str,
       client_type,
-      @pubsub.ffi_handler
+      @pubsub_receiver.ffi_handler
     )
 
     res = Bindings::ConnectionResponse.new(response_ptr)
@@ -380,7 +381,7 @@ class Valkey
 
       # Closed before the native handle goes away, so a thread blocked in
       # get_message wakes with nil instead of hanging on a dead client.
-      @pubsub&.close
+      @pubsub_receiver&.close
       # Fork safety: freeing a handle owned by another process aborts this one.
       # The parent still frees it on its own close.
       return if @pid != Process.pid
@@ -859,5 +860,43 @@ class Valkey
     else
       response
     end
+  end
+
+  # Parses and validates the `pubsub:` option into the connection JSON.
+  #
+  # @example pubsub_configs:
+  #   {
+  #     subscriptions: {
+  #       exact:   ["news", "alerts"],  # exact matches
+  #       pattern: ["news.*"],          # glob patterns
+  #       sharded: ["shard-chan"]       # cluster mode
+  #     },
+  #     callback: ->(message, context) { ... },  # callback handler
+  #     context: my_app_state                   # callback context
+  #   }
+  def parse_pubsub_configs(pubsub_configs, protocol: nil)
+    subscriptions = (pubsub_configs || {})[:subscriptions] || {}
+    return {} if subscriptions.empty?
+
+    validate_pubsub_subscriptions!(subscriptions, protocol: protocol)
+
+    { "pubsub_subscriptions" => pubsub_subscriptions_to_ffi(subscriptions) }
+  end
+
+  def validate_pubsub_subscriptions!(subscriptions, protocol:)
+    unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
+    raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
+    raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+  end
+
+  def pubsub_subscriptions_to_ffi(subscriptions)
+    subscriptions
+      .transform_keys { |mode| SUBSCRIPTION_MODES.fetch(mode).to_s }
+      .transform_values { |channels| Array(channels).map(&:to_s) }
+  end
+
+  def unknown_pubsub_mode_message(unknown_modes)
+    "Unknown Pub/Sub subscription mode(s): #{unknown_modes.join(', ')}. " \
+      "Valid modes are: #{SUBSCRIPTION_MODES.keys.join(', ')}"
   end
 end

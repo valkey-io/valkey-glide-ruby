@@ -20,7 +20,7 @@ class Valkey
     # Valkey#send_command, since any command reaching a pipeline through #call
     # passes it, but a batch is dispatched as one unit so a per-command route
     # cannot be honored. Batch-level routing is tracked in issue #137.
-    def send_command(command_type, command_args = [], route: nil, &block) # rubocop:disable Lint/UnusedMethodArgument
+    def send_command(command_type, command_args = [], route: nil, &block)
       @commands << [command_type, command_args, block]
       future = Future.new(command_type, command_args)
       @futures << future
@@ -185,5 +185,85 @@ class Valkey
       super
     end
     # rubocop:enable Lint/UselessMethodDefinition
+
+    def subscribe(*_channels, timeout_ms: 0)
+      raise CommandError, "subscribe is not supported in a pipeline or transaction"
+    end
+
+    def unsubscribe(*_channels, timeout_ms: 0)
+      raise CommandError, "unsubscribe is not supported in a pipeline or transaction"
+    end
+
+    def psubscribe(*_patterns, timeout_ms: 0)
+      raise CommandError, "psubscribe is not supported in a pipeline or transaction"
+    end
+
+    def punsubscribe(*_patterns, timeout_ms: 0)
+      raise CommandError, "punsubscribe is not supported in a pipeline or transaction"
+    end
+
+    def ssubscribe(*_channels, timeout_ms: 0)
+      raise CommandError, "ssubscribe is not supported in a pipeline or transaction"
+    end
+
+    def sunsubscribe(*_channels, timeout_ms: 0)
+      raise CommandError, "sunsubscribe is not supported in a pipeline or transaction"
+    end
+
+    def subscribe_lazy(*_channels)
+      raise CommandError, "subscribe_lazy is not supported in a pipeline or transaction"
+    end
+
+    def unsubscribe_lazy(*_channels)
+      raise CommandError, "unsubscribe_lazy is not supported in a pipeline or transaction"
+    end
+
+    def psubscribe_lazy(*_patterns)
+      raise CommandError, "psubscribe_lazy is not supported in a pipeline or transaction"
+    end
+
+    def punsubscribe_lazy(*_patterns)
+      raise CommandError, "punsubscribe_lazy is not supported in a pipeline or transaction"
+    end
+
+    def ssubscribe_lazy(*_channels)
+      raise CommandError, "ssubscribe_lazy is not supported in a pipeline or transaction"
+    end
+
+    def sunsubscribe_lazy(*_channels)
+      raise CommandError, "sunsubscribe_lazy is not supported in a pipeline or transaction"
+    end
+
+    def get_subscriptions
+      raise CommandError, "get_subscriptions is not supported in a pipeline or transaction"
+    end
+
+    def get_pubsub_message
+      raise CommandError, "get_pubsub_message is not supported in a pipeline or transaction"
+    end
+
+    def try_get_pubsub_message
+      raise CommandError, "try_get_pubsub_message is not supported in a pipeline or transaction"
+    end
+
+    def pubsub_channels(_pattern = nil)
+      raise CommandError, "pubsub_channels is not supported in a pipeline or transaction"
+    end
+
+    def pubsub_numpat
+      raise CommandError, "pubsub_numpat is not supported in a pipeline or transaction"
+    end
+
+    def pubsub_numsub(*_channels)
+      raise CommandError, "pubsub_numsub is not supported in a pipeline or transaction"
+    end
+
+    def pubsub_shardchannels(_pattern = nil)
+      raise CommandError, "pubsub_shardchannels is not supported in a pipeline or transaction"
+    end
+
+    def pubsub_shardnumsub(*_channels)
+      raise CommandError, "pubsub_shardnumsub is not supported in a pipeline or transaction"
+    end
   end
 end

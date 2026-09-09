@@ -31,14 +31,54 @@ class Valkey
     # @see https://valkey.io/commands/#pubsub
     #
     module PubSubCommands
+      # Subscription mode to the integer key glide-core expects in the
+      # connection JSON: `:exact` uses exact channel names, `:pattern` uses
+      # glob-style channel name patterns, `:sharded` uses sharded Pub/Sub and is
+      # cluster-only.
+      SUBSCRIPTION_MODES = { exact: 0, pattern: 1, sharded: 2 }.freeze
+
+      # PubSub requires RESP3
+      RESP3_VALUES = [:resp3, "resp3", 3].freeze
+
+      # Push kinds as delivered by the FFI handler's `kind` argument.
+      # Mirrors `PushKind` in valkey-glide/ffi/src/lib.rs; keep in sync there.
+      module PushKind
+        DISCONNECTION = 0
+        OTHER = 1
+        INVALIDATE = 2
+        MESSAGE = 3
+        PMESSAGE = 4
+        SMESSAGE = 5
+        UNSUBSCRIBE = 6
+        PUNSUBSCRIBE = 7
+        SUNSUBSCRIBE = 8
+        SUBSCRIBE = 9
+        PSUBSCRIBE = 10
+        SSUBSCRIBE = 11
+
+        # The only kinds that carry a payload for the user.
+        MESSAGE_KINDS = [MESSAGE, PMESSAGE, SMESSAGE].freeze
+      end
+
+      # One delivered push: the incoming `message`, the `channel` that carried
+      # it, and the `pattern` that matched it. `pattern` is set only for
+      # PMESSAGE; exact and sharded pushes leave it nil.
+      Message = Struct.new(:message, :channel, :pattern)
+
+      # A connection's subscriptions, as returned by {Valkey#get_subscriptions}. Both
+      # fields are a `Hash` keyed by `:exact`, `:pattern` and `:sharded`, each
+      # mapping to an `Array<String>`. `desired_subscriptions` is what the
+      # client asked for, `actual_subscriptions` is what the server currently
+      # has. Standalone connections omit `:sharded` entirely.
+      SubscriptionState = Struct.new(:desired_subscriptions, :actual_subscriptions)
+
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
       #
       # @example Subscribe to channels
       #   valkey.subscribe("channel1", "channel2")
       #
       # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
-      #   confirm; `0` blocks indefinitely
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
@@ -46,7 +86,15 @@ class Valkey
       #
       # @see https://valkey.io/commands/subscribe/
       def subscribe(*channels, timeout_ms: 0)
-        @pubsub.subscribe(*channels, timeout_ms: timeout_ms)
+        validate_resp3!
+        # glide-core already rejects an empty list with this message, but as
+        # ErrorKind::ClientError, which surfaces here as the too-generic
+        # Valkey::CommandError.
+        # TODO: push this upstream once glide-core reports it as an argument
+        # error, then drop the check here.
+        raise ArgumentError, "No channels provided for subscription" if channels.empty?
+
+        send_command(RequestType::SUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout_ms)])
       end
 
       # Unsubscribe from exact channels, waiting for the server to confirm the change.
@@ -58,8 +106,7 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
-      #   confirm; `0` blocks indefinitely
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
@@ -67,7 +114,9 @@ class Valkey
       #
       # @see https://valkey.io/commands/unsubscribe/
       def unsubscribe(*channels, timeout_ms: 0)
-        @pubsub.unsubscribe(*channels, timeout_ms: timeout_ms)
+        validate_resp3!
+
+        send_command(RequestType::UNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout_ms)])
       end
 
       # Subscribe to channel patterns, waiting for the server to confirm the subscription.
@@ -76,17 +125,14 @@ class Valkey
       #   valkey.psubscribe("news.*", "events.*")
       #
       # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
-      #   confirm; `0` blocks indefinitely
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/psubscribe/
-      def psubscribe(*patterns, timeout_ms: 0)
-        @pubsub.psubscribe(*patterns, timeout_ms: timeout_ms)
-      end
+      def psubscribe(*patterns, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribe from channel patterns, waiting for the server to confirm the change.
       #
@@ -97,17 +143,14 @@ class Valkey
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
-      #   confirm; `0` blocks indefinitely
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/punsubscribe/
-      def punsubscribe(*patterns, timeout_ms: 0)
-        @pubsub.punsubscribe(*patterns, timeout_ms: timeout_ms)
-      end
+      def punsubscribe(*patterns, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Subscribe to sharded channels, waiting for the server to confirm the subscription.
       #
@@ -117,17 +160,14 @@ class Valkey
       #   valkey.ssubscribe("shard1", "shard2")
       #
       # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
-      #   confirm; `0` blocks indefinitely
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/ssubscribe/
-      def ssubscribe(*channels, timeout_ms: 0)
-        @pubsub.ssubscribe(*channels, timeout_ms: timeout_ms)
-      end
+      def ssubscribe(*channels, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribe from sharded channels, waiting for the server to confirm the change.
       #
@@ -140,17 +180,14 @@ class Valkey
       #
       # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
-      #   confirm; `0` blocks indefinitely
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/sunsubscribe/
-      def sunsubscribe(*channels, timeout_ms: 0)
-        @pubsub.sunsubscribe(*channels, timeout_ms: timeout_ms)
-      end
+      def sunsubscribe(*channels, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Subscribe to exact channels without waiting for the server to confirm.
       #
@@ -166,9 +203,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/subscribe/
-      def subscribe_lazy(*channels)
-        @pubsub.subscribe_lazy(*channels)
-      end
+      def subscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribe from exact channels without waiting for the server to confirm.
       #
@@ -183,9 +218,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/unsubscribe/
-      def unsubscribe_lazy(*channels)
-        @pubsub.unsubscribe_lazy(*channels)
-      end
+      def unsubscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Subscribe to channel patterns without waiting for the server to confirm.
       #
@@ -201,9 +234,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/psubscribe/
-      def psubscribe_lazy(*patterns)
-        @pubsub.psubscribe_lazy(*patterns)
-      end
+      def psubscribe_lazy(*patterns) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribe from channel patterns without waiting for the server to confirm.
       #
@@ -218,9 +249,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/punsubscribe/
-      def punsubscribe_lazy(*patterns)
-        @pubsub.punsubscribe_lazy(*patterns)
-      end
+      def punsubscribe_lazy(*patterns) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Subscribe to sharded channels without waiting for the server to confirm.
       #
@@ -237,9 +266,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/ssubscribe/
-      def ssubscribe_lazy(*channels)
-        @pubsub.ssubscribe_lazy(*channels)
-      end
+      def ssubscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Unsubscribe from sharded channels without waiting for the server to confirm.
       #
@@ -256,9 +283,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/sunsubscribe/
-      def sunsubscribe_lazy(*channels)
-        @pubsub.sunsubscribe_lazy(*channels)
-      end
+      def sunsubscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Publish a message on a Pub/Sub channel.
       #
@@ -285,37 +310,9 @@ class Valkey
       # @see https://valkey.io/commands/publish/
       # @see https://valkey.io/commands/spublish/
       def publish(message, channel, sharded: false)
-        @pubsub.publish(message, channel, sharded: sharded)
-      end
+        raise NotImplementedError, "Sharded publish is not implemented yet" if sharded
 
-      # Get the next Pub/Sub message, blocking until one is available.
-      #
-      # @example Consume messages until the client is closed
-      #   while (message = valkey.get_pubsub_message)
-      #     handle(message.channel, message.message)
-      #   end
-      #
-      # @return [Valkey::Glide::PubSub::Message, nil] the message, or `nil` once the client is closed.
-      #   `#pattern` is set only when the push was a `PMESSAGE`
-      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
-      def get_pubsub_message
-        @pubsub.get_message
-      end
-
-      # Get the next Pub/Sub message if one is already queued. Never blocks.
-      #
-      # @example Poll for a message
-      #   valkey.try_get_pubsub_message
-      #     # => #<struct Valkey::Glide::PubSub::Message message="hi", channel="channel1", pattern=nil>
-      # @example Poll when nothing is queued
-      #   valkey.try_get_pubsub_message
-      #     # => nil
-      #
-      # @return [Valkey::Glide::PubSub::Message, nil] the message, or `nil` when the queue is empty or the
-      #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
-      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
-      def try_get_pubsub_message
-        @pubsub.try_get_message
+        send_command(RequestType::PUBLISH, [channel.to_s, message.to_s])
       end
 
       # Get this connection's subscription state: what the client asked for and what the server confirmed.
@@ -327,12 +324,10 @@ class Valkey
       #   state.actual_subscriptions
       #     # => {exact: ["channel1"], pattern: [], sharded: ["shard1"]}
       #
-      # @return [Valkey::Glide::PubSub::SubscriptionState] both hashes are keyed `:exact`, `:pattern` and
-      #   `:sharded`, mapping to `Array<String>`; standalone connections omit `:sharded`
+      # @return [Valkey::Commands::PubSubCommands::SubscriptionState] both hashes are keyed `:exact`, `:pattern`
+      #   and `:sharded`, mapping to `Array<String>`; standalone connections omit `:sharded`
       # @raise [NotImplementedError] this method is not implemented yet
-      def get_subscriptions
-        @pubsub.get_subscriptions
-      end
+      def get_subscriptions = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # List the currently active channels, that is, the channels with at least one subscriber.
       #
@@ -351,9 +346,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-channels/
-      def pubsub_channels(pattern = nil)
-        @pubsub.pubsub_channels(pattern)
-      end
+      def pubsub_channels(pattern = nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Get the number of unique patterns that are subscribed to by clients.
       #
@@ -370,9 +363,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-numpat/
-      def pubsub_numpat
-        @pubsub.pubsub_numpat
-      end
+      def pubsub_numpat = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Get the number of subscribers for the specified channels, exclusive of clients subscribed to patterns.
       #
@@ -391,9 +382,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-numsub/
-      def pubsub_numsub(*channels)
-        @pubsub.pubsub_numsub(*channels)
-      end
+      def pubsub_numsub(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # List the currently active sharded channels, that is, the ones with at least one subscriber.
       #
@@ -414,9 +403,7 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-shardchannels/
-      def pubsub_shardchannels(pattern = nil)
-        @pubsub.pubsub_shardchannels(pattern)
-      end
+      def pubsub_shardchannels(pattern = nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
 
       # Get the number of subscribers for the specified sharded channels, exclusive of clients subscribed to
       # patterns.
@@ -436,8 +423,55 @@ class Valkey
       # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
-      def pubsub_shardnumsub(*channels)
-        @pubsub.pubsub_shardnumsub(*channels)
+      def pubsub_shardnumsub(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+
+      # Get the next Pub/Sub message, blocking until one is available.
+      #
+      # @example Consume messages until the client is closed
+      #   while (message = valkey.get_pubsub_message)
+      #     handle(message.channel, message.message)
+      #   end
+      #
+      # @return [Valkey::Commands::PubSubCommands::Message, nil] the message, or `nil` once the client is closed.
+      #   `#pattern` is set only when the push was a `PMESSAGE`
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
+      def get_pubsub_message
+        validate_resp3!
+        @pubsub_receiver.pop
+      end
+
+      # Get the next Pub/Sub message if one is already queued. Never blocks.
+      #
+      # @example Poll for a message
+      #   valkey.try_get_pubsub_message
+      #     # => #<struct Valkey::Commands::PubSubCommands::Message message="hi", channel="channel1", pattern=nil>
+      # @example Poll when nothing is queued
+      #   valkey.try_get_pubsub_message
+      #     # => nil
+      #
+      # @return [Valkey::Commands::PubSubCommands::Message, nil] the message, or `nil` when the queue is empty or the
+      #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
+      def try_get_pubsub_message
+        validate_resp3!
+        @pubsub_receiver.try_pop
+      end
+
+      private
+
+      def validate_resp3!
+        raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+      end
+
+      # glide-core takes the timeout as the last command argument, in whole
+      # milliseconds, and reads a zero as "no deadline".
+      def timeout_argument(timeout_ms)
+        valid = timeout_ms.is_a?(Numeric) && !timeout_ms.negative?
+        raise ArgumentError, "Timeout must be a non-negative number, got: #{timeout_ms.inspect}" unless valid
+        return "0" if timeout_ms.zero?
+
+        # Handling floats.
+        [timeout_ms.to_i, 1].max.to_s
       end
     end
   end
