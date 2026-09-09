@@ -160,6 +160,24 @@ module Lint
       # The exact error handling may vary by implementation
     end
 
+    def test_exec_raises_exec_abort_error_after_a_queue_time_error
+      # In cluster mode, MULTI/EXEC transactions require all keys in same slot
+      # and behave differently with connection routing
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      r.multi
+      begin
+        r.call("GET") # wrong arity - rejected at queue time, marks the transaction dirty
+      rescue Valkey::CommandError
+        nil
+      end
+
+      result = r.exec
+
+      assert_instance_of Array, result
+      assert_instance_of Valkey::ExecAbortError, result.first
+    end
+
     def test_discard_after_multi
       # In cluster mode, MULTI/EXEC transactions require all keys in same slot
       # and behave differently with connection routing

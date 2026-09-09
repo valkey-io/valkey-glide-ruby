@@ -15,9 +15,6 @@ class Valkey
 
   class CommandError < BaseError; end
 
-  # Raised when EXEC aborts a transaction before any queued command ran
-  # (e.g. a queued command had a syntax/arity error) - distinct from a
-  # plain CommandError so callers know nothing was applied.
   class ExecAbortError < CommandError; end
 
   class PermissionError < CommandError; end
