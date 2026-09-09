@@ -31,14 +31,37 @@ class Valkey
       #       multi.expire("counter", 60)
       #     end
       #     future.value # => 6
+      #
+      #   With `exception: true` (the default), a runtime error from a
+      #   queued command (e.g. WRONGTYPE) raises and the array is
+      #   discarded, even though the server already committed the other
+      #   commands. Pass `exception: false` to get the array back instead,
+      #   with the failing command's slot holding a {Valkey::CommandError}.
+      #   A queue-time abort (e.g. a syntax/arity error) still always raises
+      #   {Valkey::ExecAbortError}, since nothing ran in that case. This
+      #   kwarg only applies to the block form - the imperative `multi` (no
+      #   block) / `#exec` pair has no equivalent control.
+      #
+      # @example Without a block
+      #   valkey.multi          # sends a real MULTI to the server now
+      #   valkey.set("key", "value")   # each command is queued server-side
+      #   valkey.exec            # => ["OK"]
+      #
+      #   This is a separate, older-style calling convention - not a
+      #   fallback or a lesser version of the block form. Each queued
+      #   command is its own round trip (the server replies `"QUEUED"`);
+      #   `#exec` sends the actual `EXEC`. Calling `multi` this way with no
+      #   pending commands to run afterward simply leaves the transaction
+      #   open until `#exec` or `#discard` closes it.
       # @yieldparam [Valkey::Pipeline] multi collects the block's commands
+      # @param exception [Boolean] see above
       #
       # @return [Array<...>]
       #   - an array with replies
       #
       # @see #watch
       # @see #unwatch
-      def multi
+      def multi(exception: true)
         if block_given?
           pipeline = Pipeline.new
 
@@ -47,7 +70,7 @@ class Valkey
 
             return [] if pipeline.commands.empty?
 
-            results = send_batch_commands(pipeline.commands, exception: true, is_atomic: true)
+            results = send_batch_commands(pipeline.commands, exception: exception, is_atomic: true)
             pipeline.resolve_futures!(results)
             results
           rescue StandardError
@@ -202,6 +225,11 @@ class Valkey
         return result unless result.size == queued_commands.size
 
         result.each_with_index.map do |value, i|
+          # Leave an inline error slot alone - Boolify would otherwise
+          # coerce it to `true` (mirrors the same guard in
+          # Valkey#send_batch_commands).
+          next value if value.is_a?(CommandError)
+
           command_type, _args, block = queued_commands[i]
           if block
             block.call(value)

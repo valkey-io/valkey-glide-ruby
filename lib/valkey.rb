@@ -81,6 +81,12 @@ class Valkey
   end
   private_class_method :coerce_client_metadata
 
+  # @param exception [Boolean] when `true` (the default), a runtime error
+  #   from a queued command (e.g. WRONGTYPE) raises the first such error
+  #   and aborts the pipeline's futures (see {Future#value}). Pass `false`
+  #   to instead leave it in its slot of the returned Array as a
+  #   {CommandError} - other commands' replies stay reachable, matching
+  #   the server's "no rollback on a runtime error" semantics.
   def pipelined(exception: true)
     pipeline = Pipeline.new
 
@@ -760,7 +766,9 @@ class Valkey
       error = result[:command_error]
 
       case error[:command_error_type]
-      when RequestErrorType::EXECABORT, RequestErrorType::UNSPECIFIED
+      when RequestErrorType::EXECABORT
+        raise ExecAbortError, error[:command_error_message]
+      when RequestErrorType::UNSPECIFIED
         raise CommandError, error[:command_error_message]
       when RequestErrorType::TIMEOUT
         raise TimeoutError, error[:command_error_message]

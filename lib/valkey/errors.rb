@@ -15,6 +15,8 @@ class Valkey
 
   class CommandError < BaseError; end
 
+  class ExecAbortError < CommandError; end
+
   class PermissionError < CommandError; end
 
   class WrongTypeError < CommandError; end
