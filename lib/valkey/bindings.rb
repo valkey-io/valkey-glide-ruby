@@ -272,7 +272,7 @@ class Valkey
 
     attach_function :close_client, [
       :pointer # client_adapter_ptr
-    ], :void
+    ], :void, blocking: true
 
     attach_function :command, [
       :pointer,     # client_adapter_ptr

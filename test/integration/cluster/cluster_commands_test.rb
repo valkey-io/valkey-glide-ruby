@@ -61,6 +61,14 @@ class TestClusterFunctionCommands < Minitest::Test
   include ValkeyTests::FunctionCommands
 end
 
+# Pub/Sub gets its own class: the tests open extra RESP3 clients and spawn reader
+# threads, so keeping them out of the big shared class limits the blast radius of
+# a leaked subscriber.
+class TestClusterPubSub < Minitest::Test
+  include Helper::Cluster
+  include ValkeyTests::PubSub
+end
+
 # Cluster variant of the fork-safety suite (issue #255). Own class so the forked
 # child inherits as little minitest state as possible. Note the child MUST exit
 # with exit! (Helper::Fork enforces this): Helper::Cluster holds a TestCluster
