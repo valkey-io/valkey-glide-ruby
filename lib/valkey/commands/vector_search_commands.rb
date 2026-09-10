@@ -2,13 +2,11 @@
 
 class Valkey
   module Commands
-    # This module contains commands related to RediSearch Vector Search.
+    # Commands for Valkey Search (the FT.* command family): secondary indexing,
+    # full-text search, aggregation, and vector similarity search. They require
+    # the search module to be loaded on the server.
     #
-    # RediSearch provides secondary indexing, full-text search, and vector similarity search
-    # capabilities on top of Redis/Valkey. These commands require the RediSearch module to be loaded.
-    #
-    # @see https://redis.io/docs/stack/search/
-    #
+    # @see https://valkey.io/commands/#search
     module VectorSearchCommands
       # List all available indexes.
       #
@@ -18,253 +16,304 @@ class Valkey
       #
       # @return [Array<String>] array of index names
       #
-      # @see https://redis.io/commands/ft._list/
+      # @see https://valkey.io/commands/ft._list/
       def ft_list
         send_command(RequestType::FT_LIST)
       end
 
-      # Run a search query with aggregations.
-      #
-      # @example Perform an aggregation query
-      #   valkey.ft_aggregate("myIndex", "*", "GROUPBY", "1", "@category", "REDUCE", "COUNT", "0", "AS", "count")
-      #     # => [[1, ["category", "electronics", "count", "5"]]]
-      #
-      # @param [String] index the index name to search
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments (GROUPBY, REDUCE, etc.)
-      # @return [Array] aggregation results
-      #
-      # @see https://redis.io/commands/ft.aggregate/
-      def ft_aggregate(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_AGGREGATE, command_args)
-      end
-
-      # Add an alias to an index.
-      #
-      # @example Add an alias to an index
-      #   valkey.ft_alias_add("myAlias", "myIndex")
-      #     # => "OK"
-      #
-      # @param [String] alias the alias name
-      # @param [String] index the index name
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.aliasadd/
-      def ft_alias_add(alias_name, index)
-        send_command(RequestType::FT_ALIAS_ADD, [alias_name, index])
-      end
-
-      # Delete an alias from an index.
-      #
-      # @example Delete an alias
-      #   valkey.ft_alias_del("myAlias")
-      #     # => "OK"
-      #
-      # @param [String] alias the alias name to delete
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.aliasdel/
-      def ft_alias_del(alias_name)
-        send_command(RequestType::FT_ALIAS_DEL, [alias_name])
-      end
-
-      # List all existing aliases.
-      #
-      # @example List all aliases
-      #   valkey.ft_alias_list
-      #     # => ["alias1", "alias2"]
-      #
-      # @return [Array<String>] array of alias names
-      #
-      # @see https://redis.io/commands/ft.aliaslist/
-      def ft_alias_list
-        send_command(RequestType::FT_ALIAS_LIST)
-      end
-
-      # Update an alias to point to a different index.
-      #
-      # @example Update an alias
-      #   valkey.ft_alias_update("myAlias", "newIndex")
-      #     # => "OK"
-      #
-      # @param [String] alias the alias name
-      # @param [String] index the new index name
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.aliasupdate/
-      def ft_alias_update(alias_name, index)
-        send_command(RequestType::FT_ALIAS_UPDATE, [alias_name, index])
-      end
-
       # Create a search index with the given schema.
       #
-      # @example Create a basic index
-      #   valkey.ft_create("myIndex", "SCHEMA", "title", "TEXT", "price", "NUMERIC")
-      #     # => "OK"
+      # Pass an Array of {Valkey::Search::Field} objects and, optionally, a
+      # {Valkey::Search::CreateOptions} (or the same index-level options as
+      # keyword arguments):
       #
-      # @example Create an index with vector field
-      #   valkey.ft_create("vecIndex", "ON", "HASH", "PREFIX", "1", "doc:",
-      #                    "SCHEMA", "embedding", "VECTOR", "HNSW", "6",
-      #                    "TYPE", "FLOAT32", "DIM", "128", "DISTANCE_METRIC", "COSINE")
-      #     # => "OK"
+      #     valkey.ft_create("idx",
+      #       [Valkey::Search::TextField.new("title", sortable: true),
+      #        Valkey::Search::VectorField.hnsw("embedding", dim: 128, metric: :cosine)],
+      #       on: :hash, prefixes: ["doc:"])
       #
-      # @param [String] index the index name
-      # @param [Array<String>] args schema definition and options
-      # @return [String] "OK" on success
+      # In cluster mode the index definition is per-node, so FT.CREATE is
+      # broadcast to every primary (otherwise a query routed to another shard
+      # fails with "Index with name '...' not found"). Pass an explicit `route:`
+      # to override.
       #
-      # @see https://redis.io/commands/ft.create/
-      def ft_create(index, *args)
-        command_args = [index] + args
-        send_command(RequestType::FT_CREATE, command_args)
+      # @param index [String] the index name
+      # @param fields [Array<Valkey::Search::Field>] the schema
+      # @param options [Valkey::Search::CreateOptions, nil] index-level options
+      # @param route [Valkey::Route, nil] override the all-primaries broadcast
+      # @param kwargs [Hash] index-level options, as an alternative to +options+
+      #   (forwarded to {Valkey::Search::CreateOptions})
+      # @return [String, Hash] "OK" when every node agrees (the usual case);
+      #   the per-node `{ "host:port" => reply }` Hash if they disagree
+      # @raise [ArgumentError] on an empty/invalid schema, a non-CreateOptions
+      #   options object, or options passed both positionally and as keywords
+      #
+      # @see https://valkey.io/commands/ft.create/
+      def ft_create(index, fields, options = nil, route: nil, **kwargs)
+        command_args = ft_create_args(index, fields, options, kwargs)
+        ft_collapse_broadcast(
+          send_command(RequestType::FT_CREATE, command_args, route: route || ft_all_primaries_route)
+        )
       end
 
-      # Drop an index and optionally delete all documents.
+      # Drop an index. Indexed documents are always preserved.
       #
-      # @example Drop an index without deleting documents
+      # Valkey Search has no DD flag (FT.DROPINDEX takes the index name only),
+      # so the underlying documents are never deleted.
+      #
+      # Like {#ft_create}, this is broadcast to every primary in cluster mode
+      # because the index definition is per-node.
+      #
+      # @example Drop an index
       #   valkey.ft_drop_index("myIndex")
       #     # => "OK"
       #
-      # @example Drop an index and delete all documents
-      #   valkey.ft_drop_index("myIndex", dd: true)
-      #     # => "OK"
+      # @param index [String] the index name
+      # @param route [Valkey::Route, nil] override the all-primaries broadcast
+      # @return [String, Hash] "OK" when every node agrees (the usual case); the
+      #   per-node `{ "host:port" => reply }` Hash if they disagree
       #
-      # @param [String] index the index name
-      # @param [Boolean] dd whether to delete documents (DD flag)
-      # @return [String] "OK" on success
-      #
-      # @see https://redis.io/commands/ft.dropindex/
-      def ft_drop_index(index, dd: false)
-        args = [index]
-        args << "DD" if dd
-        send_command(RequestType::FT_DROP_INDEX, args)
-      end
-
-      # Explain how a query is parsed and executed.
-      #
-      # @example Explain a query
-      #   valkey.ft_explain("myIndex", "@title:hello @price:[0 100]")
-      #     # => "INTERSECT {\n  @title:hello\n  @price:[0 100]\n}\n"
-      #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments
-      # @return [String] query execution plan
-      #
-      # @see https://redis.io/commands/ft.explain/
-      def ft_explain(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_EXPLAIN, command_args)
-      end
-
-      # Explain how a query is parsed and executed (CLI-formatted output).
-      #
-      # @example Explain a query in CLI format
-      #   valkey.ft_explain_cli("myIndex", "@title:hello")
-      #     # => formatted query plan
-      #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments
-      # @return [String] formatted query execution plan
-      #
-      # @see https://redis.io/commands/ft.explaincli/
-      def ft_explain_cli(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_EXPLAIN_CLI, command_args)
+      # @see https://valkey.io/commands/ft.dropindex/
+      def ft_drop_index(index, route: nil)
+        ft_collapse_broadcast(
+          send_command(RequestType::FT_DROP_INDEX, [index], route: route || ft_all_primaries_route)
+        )
       end
 
       # Get information about an index.
       #
-      # @example Get index info
-      #   valkey.ft_info("myIndex")
-      #     # => ["index_name", "myIndex", "fields", [...], ...]
+      # Options are optional: pass a {Valkey::Search::InfoOptions} (or the same
+      # options as keyword arguments) to add a scope / cluster flags.
       #
-      # @param [String] index the index name
+      #     valkey.ft_info("idx")
+      #     valkey.ft_info("idx", scope: :cluster, consistency: :consistent)
+      #     valkey.ft_info("idx", Valkey::Search::InfoOptions.new(scope: :local))
+      #
+      # @param index [String] the index name
+      # @param options [Valkey::Search::InfoOptions, nil] info options
+      # @param kwargs [Hash] info options, as an alternative to +options+
+      #   (forwarded to {Valkey::Search::InfoOptions})
       # @return [Hash] index information as a hash of key-value pairs
+      # @raise [ArgumentError] on options passed both positionally and as keywords
       #
-      # @see https://redis.io/commands/ft.info/
-      def ft_info(index)
-        send_command(RequestType::FT_INFO, [index])
+      # @see https://valkey.io/commands/ft.info/
+      def ft_info(index, options = nil, **kwargs)
+        resolved = ft_resolve_options(Valkey::Search::InfoOptions, options, kwargs, label: "ft_info")
+        command_args = [index]
+        command_args.concat(resolved.to_args) if resolved
+        send_command(RequestType::FT_INFO, command_args)
       end
 
-      # Profile a search or aggregation query.
+      # Search an index with a query, returning a structured
+      # {Valkey::Search::SearchResult}.
       #
-      # @example Profile a search query
-      #   valkey.ft_profile("myIndex", "SEARCH", "QUERY", "@title:hello")
-      #     # => [execution time, results]
+      #     result = valkey.ft_search("idx", "@title:hello",
+      #       Valkey::Search::SearchOptions.new(limit: { offset: 0, count: 10 }, sort_by: "price"))
+      #     result.total_results  # => Integer
+      #     result.documents      # => [#<struct Document key=..., fields={...}>, ...]
       #
-      # @example Profile an aggregation query
-      #   valkey.ft_profile("myIndex", "AGGREGATE", "QUERY", "*", "GROUPBY", "1", "@category")
-      #     # => [execution time, results]
+      #     valkey.ft_search("idx", "@title:hello", limit: { offset: 0, count: 10 })
       #
-      # @param [String] index the index name
-      # @param [String] query_type either "SEARCH" or "AGGREGATE"
-      # @param [Array<String>] args query arguments
-      # @return [Array] profiling results with execution time and query results
+      # ### Limitations
       #
-      # @see https://redis.io/commands/ft.profile/
-      def ft_profile(index, query_type, *args)
-        command_args = [index, query_type] + args
-        send_command(RequestType::FT_PROFILE, command_args)
+      # * **`flatten_map: true` is not supported.** That's the `Valkey.new(...,
+      #   flatten_map: true)` client-wide constructor option (a redis-rb 4.x
+      #   compatibility shim, unrelated to the FT.* builders), which flattens
+      #   every map reply — destroying the structure {Valkey::Search::SearchResult}
+      #   parses.
+      # * **Not supported inside `pipelined` / `multi`.** Commands queued in a
+      #   batch return a {Valkey::Future} rather than a reply, so there is nothing
+      #   to parse into a SearchResult.
+      #
+      # In both cases use {Valkey#call} to issue FT.SEARCH directly and handle the
+      # raw reply yourself.
+      #
+      # @param index [String] the index name
+      # @param query [String] the search query
+      # @param options [Valkey::Search::SearchOptions, nil] search options
+      # @param kwargs [Hash] search options, as an alternative to +options+
+      #   (forwarded to {Valkey::Search::SearchOptions})
+      # @return [Valkey::Search::SearchResult] the structured result
+      # @raise [ArgumentError] on options passed both positionally and as
+      #   keywords, or when used inside a batch or with `flatten_map: true`
+      #
+      # @see https://valkey.io/commands/ft.search/
+      def ft_search(index, query, options = nil, **kwargs)
+        ft_assert_supported!("ft_search")
+        resolved = ft_resolve_options(Valkey::Search::SearchOptions, options, kwargs, label: "ft_search") ||
+                   Valkey::Search::SearchOptions.new
+        raw = send_command(RequestType::FT_SEARCH, [index, query] + resolved.to_args)
+        Valkey::Search::SearchResult.from_raw(
+          raw, no_content: resolved.no_content, with_sort_keys: resolved.with_sort_keys
+        )
       end
 
-      # Search an index with a query.
+      # Run an aggregation pipeline over an index.
       #
-      # @example Basic search
-      #   valkey.ft_search("myIndex", "hello world")
-      #     # => [1, "doc1", ["title", "hello world"]]
+      # Pass a {Valkey::Search::AggregateOptions} (or the same options as keyword
+      # arguments, including an ordered +clauses:+ array):
       #
-      # @example Search with options
-      #   valkey.ft_search("myIndex", "@title:hello", "LIMIT", "0", "10", "RETURN", "2", "title", "price")
-      #     # => [total_results, doc_id, [field1, value1, field2, value2], ...]
+      #     valkey.ft_aggregate("idx", "@price:[0 +inf]",
+      #       clauses: [
+      #         Valkey::Search::GroupBy.new(["@category"],
+      #           reducers: [Valkey::Search::Reducer.count(as: "count")]),
+      #         Valkey::Search::SortBy.new("@count", :desc),
+      #         Valkey::Search::Limit.new(0, 10),
+      #       ], dialect: 2)
       #
-      # @example Vector similarity search
-      #   valkey.ft_search("vecIndex", "*=>[KNN 5 @embedding $vec]",
-      #                    "PARAMS", "2", "vec", vector_blob,
-      #                    "RETURN", "1", "__embedding_score",
-      #                    "DIALECT", "2")
-      #     # => [results_count, doc_id, ["__embedding_score", "0.95"], ...]
+      # A bare `"*"` query (no filter) is version-dependent: rejected with
+      # "Invalid query string syntax" on module builds before
+      # valkey-search's fix for bare-wildcard queries, matches every document
+      # afterward. Use a filter expression that matches every indexed
+      # document (e.g. `"@price:[0 +inf]"`) for a query that behaves the same
+      # regardless of module version.
       #
-      # @param [String] index the index name
-      # @param [String] query the search query
-      # @param [Array<String>] args additional query arguments (LIMIT, RETURN, SORTBY, etc.)
-      # @return [Array] search results with total count and matching documents
+      # Not supported inside `pipelined` / `multi`, matching every other FT.*
+      # command and the other GLIDE clients: a queued command returns a
+      # {Valkey::Future} rather than a reply. Use {Valkey#call} to issue
+      # FT.AGGREGATE directly inside a batch.
       #
-      # @see https://redis.io/commands/ft.search/
-      def ft_search(index, query, *args)
-        command_args = [index, query] + args
-        send_command(RequestType::FT_SEARCH, command_args)
+      # @param index [String] the index name to search
+      # @param query [String] the search/filter query
+      # @param options [Valkey::Search::AggregateOptions, nil] aggregate options
+      # @param kwargs [Hash] aggregate options, as an alternative to +options+
+      #   (forwarded to {Valkey::Search::AggregateOptions})
+      # @return [Array] aggregation results
+      # @raise [ArgumentError] on options passed both positionally and as
+      #   keywords, or when used inside a batch
+      #
+      # @see https://valkey.io/commands/ft.aggregate/
+      def ft_aggregate(index, query, options = nil, **kwargs)
+        ft_assert_supported!("ft_aggregate", flatten_map_check: false)
+        resolved = ft_resolve_options(Valkey::Search::AggregateOptions, options, kwargs, label: "ft_aggregate")
+        command_args = [index, query]
+        command_args.concat(resolved.to_args) if resolved
+        send_command(RequestType::FT_AGGREGATE, command_args)
       end
 
-      # Convenience method for FT.* commands.
-      #
-      # @example List indexes
-      #   valkey.ft(:list)
-      #     # => ["idx1", "idx2"]
-      #
-      # @example Create an index
-      #   valkey.ft(:create, "myIndex", "SCHEMA", "title", "TEXT")
-      #     # => "OK"
-      #
-      # @example Search an index
-      #   valkey.ft(:search, "myIndex", "hello")
-      #     # => [results]
-      #
-      # @param [String, Symbol] subcommand the subcommand (list, create, search, etc.)
-      # @param [Array] args arguments for the subcommand
-      # @param [Hash] options options for the subcommand
-      # @return [Object] depends on subcommand
-      def ft(subcommand, *args, **options)
-        subcommand = subcommand.to_s.downcase.gsub("-", "_")
+      private
 
-        if args.empty? && options.empty?
-          send("ft_#{subcommand}")
-        elsif options.empty?
-          send("ft_#{subcommand}", *args)
+      # Resolve an options object from either a positional instance or keyword
+      # arguments, rejecting both at once. Returns nil when neither is given.
+      #
+      # This dual form is specific to the FT.* builders rather than a client-wide
+      # convention: every other command with structured options in this client
+      # (client_kill, client_tracking, zadd, ...) takes kwargs only. It exists
+      # here because AggregateOptions already needs composable clause objects
+      # (GroupBy, SortBy, Filter, ...) regardless, so accepting the options
+      # themselves as a pre-built object is consistent with that, and lets a
+      # caller build one CreateOptions/SearchOptions/AggregateOptions/InfoOptions
+      # once and reuse it across calls. Validation is identical either way: both
+      # paths construct the same options class, e.g. `klass.new(**kwargs)` calls
+      # the exact constructor the object form would have called, so kwargs never
+      # bypass whatever the class validates in #initialize.
+      #
+      # @api private
+      # @param klass [Class] the options class
+      # @param options [Object, nil] a positional options instance
+      # @param kwargs [Hash] keyword options
+      # @param label [String] command name, for error messages
+      # @return [Object, nil] an instance of klass, or nil
+      # @raise [ArgumentError] on a wrong-typed positional, or options given both ways
+      def ft_resolve_options(klass, options, kwargs, label:)
+        if options.nil?
+          kwargs.empty? ? nil : klass.new(**kwargs)
         else
-          send("ft_#{subcommand}", *args, **options)
+          raise ArgumentError, "#{label} options must be a #{klass}, got #{options.class}" unless options.is_a?(klass)
+          unless kwargs.empty?
+            raise ArgumentError,
+                  "pass options to #{label} either as a #{klass} object or as keyword arguments, not both"
+          end
+
+          options
         end
+      end
+
+      # Build the FT.CREATE token array from the schema + options.
+      #
+      # @api private
+      # @raise [ArgumentError] on an empty/invalid schema, a non-CreateOptions
+      #   options object, or options passed both ways
+      def ft_create_args(index, fields, options, kwargs)
+        unless fields.is_a?(Array)
+          raise ArgumentError, "ft_create schema must be an Array of Valkey::Search::Field, got #{fields.class}"
+        end
+        raise ArgumentError, "schema must contain at least one field" if fields.empty?
+        unless fields.all?(Valkey::Search::Field)
+          raise ArgumentError, "every schema field must be a Valkey::Search::Field"
+        end
+
+        resolved = ft_resolve_options(Valkey::Search::CreateOptions, options, kwargs, label: "ft_create")
+
+        command_args = [index]
+        command_args.concat(resolved.to_args) if resolved
+        command_args << "SCHEMA"
+        fields.each { |field| command_args.concat(field.to_args) }
+        command_args
+      end
+
+      # A broadcast route makes glide-core return `{ "host:port" => reply }`. When
+      # every node replied identically (the normal case for FT.CREATE /
+      # FT.DROPINDEX) collapse it back to the single value, so cluster and
+      # standalone callers see the same "OK". A genuine per-node disagreement is
+      # returned as-is rather than hidden.
+      #
+      # @api private
+      def ft_collapse_broadcast(reply)
+        return reply unless reply.is_a?(Hash) && !reply.empty?
+
+        values = reply.values.uniq
+        values.length == 1 ? values.first : reply
+      end
+
+      # Index definitions are per-node in Valkey Search, so FT.CREATE /
+      # FT.DROPINDEX must reach every primary in cluster mode — a single-node
+      # create leaves other shards answering "Index with name '...' not found".
+      # Returns nil on standalone (and wherever routing is unavailable, e.g. a
+      # queued batch), which leaves the command's default routing untouched.
+      #
+      # @api private
+      def ft_all_primaries_route
+        return nil unless @cluster_mode
+        return nil unless defined?(Valkey::Route)
+
+        Valkey::Route.all_primaries
+      end
+
+      # ft_search parses the reply into a structured result, which is incompatible
+      # with two redis-rb compatibility behaviors: a queued batch yields a
+      # {Valkey::Future} instead of a reply, and `flatten_map: true` flattens the
+      # map structure the parser depends on. ft_aggregate returns the raw reply
+      # unparsed, so only the batch restriction applies there (flatten_map_check:
+      # false) — matching the other GLIDE clients, none of which support FT.*
+      # commands inside a batch/transaction yet. Fail with a clear ArgumentError
+      # instead of returning a corrupt result (or a NoMethodError from deep inside
+      # the parser).
+      #
+      # @api private
+      def ft_assert_supported!(method_name, flatten_map_check: true)
+        if ft_queued_in_batch?
+          raise ArgumentError,
+                "#{method_name} is not supported inside pipelined/multi; " \
+                "use Valkey#call to issue #{method_name == 'ft_search' ? 'FT.SEARCH' : 'FT.AGGREGATE'} " \
+                "and handle the raw reply"
+        end
+        return unless flatten_map_check
+        return unless instance_variable_defined?(:@flatten_map) && instance_variable_get(:@flatten_map)
+
+        raise ArgumentError,
+              "#{method_name} is not supported with flatten_map: true; " \
+              "use Valkey#call to issue FT.SEARCH and handle the raw reply"
+      end
+
+      # True when this receiver queues commands instead of executing them: either
+      # a Pipeline (which collects @commands/@futures) or a client inside MULTI.
+      #
+      # @api private
+      def ft_queued_in_batch?
+        return true if instance_variable_defined?(:@futures) && instance_variable_defined?(:@commands)
+
+        instance_variable_defined?(:@in_multi) && instance_variable_get(:@in_multi)
       end
     end
   end

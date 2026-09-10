@@ -51,6 +51,7 @@ class Valkey
     # include PubSubCommands
     include ClusterCommands
     include TransactionCommands
+    include VectorSearchCommands
     include StreamCommands
     include HashCommands
 
