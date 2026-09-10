@@ -31,10 +31,7 @@ class Valkey
     # @see https://valkey.io/commands/#pubsub
     #
     module PubSubCommands
-      # Subscription mode to the integer key glide-core expects in the
-      # connection JSON: `:exact` uses exact channel names, `:pattern` uses
-      # glob-style channel name patterns, `:sharded` uses sharded Pub/Sub and is
-      # cluster-only.
+      # Subscription mode mapped to the integer key glide-core expects
       SUBSCRIPTION_MODES = { exact: 0, pattern: 1, sharded: 2 }.freeze
 
       # PubSub requires RESP3
@@ -78,7 +75,8 @@ class Valkey
       #   valkey.subscribe("channel1", "channel2")
       #
       # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
@@ -94,7 +92,7 @@ class Valkey
         # error, then drop the check here.
         raise ArgumentError, "No channels provided for subscription" if channels.empty?
 
-        send_command(RequestType::SUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout_ms)])
+        send_command(RequestType::SUBSCRIBE_BLOCKING, channels.map(&:to_s) + [parse_timeout(timeout_ms)])
       end
 
       # Unsubscribe from exact channels, waiting for the server to confirm the change.
@@ -106,7 +104,8 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
@@ -116,7 +115,7 @@ class Valkey
       def unsubscribe(*channels, timeout_ms: 0)
         validate_resp3!
 
-        send_command(RequestType::UNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [timeout_argument(timeout_ms)])
+        send_command(RequestType::UNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [parse_timeout(timeout_ms)])
       end
 
       # Subscribe to channel patterns, waiting for the server to confirm the subscription.
@@ -125,7 +124,8 @@ class Valkey
       #   valkey.psubscribe("news.*", "events.*")
       #
       # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -143,7 +143,8 @@ class Valkey
       #
       # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -160,7 +161,8 @@ class Valkey
       #   valkey.ssubscribe("shard1", "shard2")
       #
       # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -180,7 +182,8 @@ class Valkey
       #
       # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server
+      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -465,7 +468,7 @@ class Valkey
 
       # glide-core takes the timeout as the last command argument, in whole
       # milliseconds, and reads a zero as "no deadline".
-      def timeout_argument(timeout_ms)
+      def parse_timeout(timeout_ms)
         valid = timeout_ms.is_a?(Numeric) && !timeout_ms.negative?
         raise ArgumentError, "Timeout must be a non-negative number, got: #{timeout_ms.inspect}" unless valid
         return "0" if timeout_ms.zero?
