@@ -216,7 +216,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.subscribe(channel)
-        subscriber.select(DB)
+        subscriber.select(DB) unless cluster_mode?
         subscriber.set(key, "value")
 
         assert_equal "PONG", subscriber.ping
