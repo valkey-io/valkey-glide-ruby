@@ -45,6 +45,7 @@ Metrics/MethodLength:
 Metrics/ClassLength:
   Exclude:
     - 'lib/valkey.rb'
+    - 'lib/valkey/pipeline.rb'
     - 'test/**/*.rb'
 
 Metrics/BlockLength:
@@ -68,3 +69,7 @@ Metrics/ModuleLength:
     - 'lib/valkey/bindings.rb'
     - 'lib/valkey/opentelemetry.rb'
     - 'test/**/*.rb'
+
+Lint/UnusedMethodArgument:
+  Exclude:
+    - 'lib/valkey/pipeline.rb'
