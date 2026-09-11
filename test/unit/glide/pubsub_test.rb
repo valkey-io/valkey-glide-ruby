@@ -261,6 +261,154 @@ class TestPubSubCommandsUnit < Minitest::Test
     assert_empty client.sent_commands
   end
 
+  def test_psubscribe
+    client = RecordingClient.new
+
+    client.psubscribe("news.*", "events.*", timeout_ms: 2000)
+
+    assert_equal Valkey::RequestType::PSUBSCRIBE_BLOCKING, client.last_command.request_type
+    assert_equal %w[news.* events.* 2000], client.last_command.args
+  end
+
+  def test_psubscribe_with_default
+    client = RecordingClient.new
+
+    client.psubscribe("news.*")
+
+    assert_equal %w[news.* 0], client.last_command.args
+  end
+
+  def test_psubscribe_fractional_milliseconds
+    client = RecordingClient.new
+
+    client.psubscribe("news.*", timeout_ms: 1500.6)
+    client.psubscribe("news.*", timeout_ms: 250.2)
+
+    assert_equal %w[news.* 1500], client.sent_commands[0].args
+    assert_equal %w[news.* 250], client.sent_commands[1].args
+  end
+
+  def test_psubscribe_sub_milliseconds_timeout
+    client = RecordingClient.new
+
+    client.psubscribe("news.*", timeout_ms: 0.4)
+
+    assert_equal %w[news.* 1], client.last_command.args
+  end
+
+  def test_psubscribe_rejects_a_negative_timeout
+    client = RecordingClient.new
+
+    assert_raises(ArgumentError) { client.psubscribe("news.*", timeout_ms: -1) }
+    assert_empty client.sent_commands
+  end
+
+  def test_psubscribe_without_patterns_raises
+    client = RecordingClient.new
+
+    error = assert_raises(ArgumentError) { client.psubscribe }
+
+    assert_equal "No channels provided for subscription", error.message
+    assert_empty client.sent_commands
+  end
+
+  def test_punsubscribe
+    client = RecordingClient.new
+
+    client.punsubscribe("news.*", timeout_ms: 3000)
+
+    assert_equal Valkey::RequestType::PUNSUBSCRIBE_BLOCKING, client.last_command.request_type
+    assert_equal %w[news.* 3000], client.last_command.args
+  end
+
+  def test_punsubscribe_default
+    client = RecordingClient.new
+
+    client.punsubscribe
+
+    assert_equal Valkey::RequestType::PUNSUBSCRIBE_BLOCKING, client.last_command.request_type
+    assert_equal %w[0], client.last_command.args
+  end
+
+  def test_punsubscribe_sub_milliseconds_timeout
+    client = RecordingClient.new
+
+    client.punsubscribe("news.*", timeout_ms: 0.4)
+
+    assert_equal %w[news.* 1], client.last_command.args
+  end
+
+  def test_punsubscribe_rejects_a_negative_timeout
+    client = RecordingClient.new
+
+    assert_raises(ArgumentError) { client.punsubscribe("news.*", timeout_ms: -0.5) }
+    assert_empty client.sent_commands
+  end
+
+  def test_lazy_verbs_dispatch_without_a_timeout_argument
+    client = RecordingClient.new
+
+    client.subscribe_lazy("news")
+    client.unsubscribe_lazy("news")
+    client.psubscribe_lazy("news.*")
+    client.punsubscribe_lazy("news.*")
+
+    expected = [
+      [Valkey::RequestType::SUBSCRIBE, %w[news]],
+      [Valkey::RequestType::UNSUBSCRIBE, %w[news]],
+      [Valkey::RequestType::PSUBSCRIBE, %w[news.*]],
+      [Valkey::RequestType::PUNSUBSCRIBE, %w[news.*]]
+    ]
+
+    assert_equal(expected, client.sent_commands.map { |command| [command.request_type, command.args] })
+  end
+
+  def test_lazy_unsubscribe_verbs_without_arguments_target_every_subscription
+    client = RecordingClient.new
+
+    client.unsubscribe_lazy
+    client.punsubscribe_lazy
+
+    assert_equal [[], []], client.sent_commands.map(&:args)
+  end
+
+  def test_subscribe_lazy_without_channels_raises
+    client = RecordingClient.new
+
+    error = assert_raises(ArgumentError) { client.subscribe_lazy }
+
+    assert_equal "No channels provided for subscription", error.message
+    assert_empty client.sent_commands
+  end
+
+  def test_psubscribe_lazy_without_patterns_raises
+    client = RecordingClient.new
+
+    error = assert_raises(ArgumentError) { client.psubscribe_lazy }
+
+    assert_equal "No channels provided for subscription", error.message
+    assert_empty client.sent_commands
+  end
+
+  def test_subscription_verbs_coerce_their_arguments_to_strings
+    client = RecordingClient.new
+
+    client.psubscribe(:'news.*', 42, timeout_ms: 5)
+    client.punsubscribe(:'news.*', 42, timeout_ms: 5)
+    client.subscribe_lazy(:news, 42)
+    client.unsubscribe_lazy(:news, 42)
+    client.psubscribe_lazy(:'news.*', 42)
+    client.punsubscribe_lazy(:'news.*', 42)
+
+    expected = [
+      %w[news.* 42 5], %w[news.* 42 5],
+      %w[news 42], %w[news 42],
+      %w[news.* 42], %w[news.* 42]
+    ]
+
+    assert_equal expected, client.sent_commands.map(&:args)
+  end
+
   def test_publish_works_without_resp3
     client = RecordingClient.new(response: 0, protocol: nil)
 
@@ -292,6 +440,12 @@ class TestPubSubCommandsUnit < Minitest::Test
 
       client.subscribe("news")
       client.unsubscribe
+      client.psubscribe("news.*")
+      client.punsubscribe
+      client.subscribe_lazy("news")
+      client.unsubscribe_lazy
+      client.psubscribe_lazy("news.*")
+      client.punsubscribe_lazy
 
       assert_nil client.try_get_pubsub_message, "protocol #{protocol.inspect} must be accepted"
       assert_equal "hello", queued_message(client).message
@@ -325,6 +479,12 @@ class TestPubSubCommandsUnit < Minitest::Test
     {
       subscribe: -> { client.subscribe("news") },
       unsubscribe: -> { client.unsubscribe },
+      psubscribe: -> { client.psubscribe("news.*") },
+      punsubscribe: -> { client.punsubscribe },
+      subscribe_lazy: -> { client.subscribe_lazy("news") },
+      unsubscribe_lazy: -> { client.unsubscribe_lazy },
+      psubscribe_lazy: -> { client.psubscribe_lazy("news.*") },
+      punsubscribe_lazy: -> { client.punsubscribe_lazy },
       get_pubsub_message: -> { client.get_pubsub_message },
       try_get_pubsub_message: -> { client.try_get_pubsub_message }
     }
