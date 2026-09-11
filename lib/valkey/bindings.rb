@@ -404,5 +404,44 @@ class Valkey
 
     # Statistics function
     attach_function :get_statistics, [], Statistics.by_value # returns statistics by value
+
+    # Mirrors Rust's `Level` enum (valkey-glide/ffi/src/lib.rs)
+    LogLevel = enum(
+      :error, 0,
+      :warn,
+      :info,
+      :debug,
+      :trace,
+      :off
+    )
+
+    # Mirrors Rust's `LogResult`. `log_error` is NULL on success; when non-NULL it points
+    # to an error string owned by the result, which `free_log_result` deallocates.
+    class LogResult < FFI::Struct
+      layout(
+        :log_error, :pointer, # *mut c_char (NULL on success)
+        :level, LogLevel      # the level the logger was set to (only meaningful on success)
+      )
+    end
+
+    # Logger functions. `logger_init` and `glide_log` both write to stdout and to
+    # glide-core's rolling file appender, so they are attached as blocking: holding the
+    # GVL across a file write would stall every other thread in the VM.
+    #
+    # The Rust symbol is the very generic `init`, renamed here to say what it initializes.
+    attach_function :logger_init, :init, [
+      :pointer, # *const Level (NULL selects glide-core's default level)
+      :string   # *const c_char (log file name; NULL logs to the console)
+    ], :pointer, blocking: true # returns *mut LogResult
+
+    attach_function :glide_log, [
+      LogLevel, # Level (by value)
+      :string,  # *const c_char (identifier)
+      :string   # *const c_char (message)
+    ], :pointer, blocking: true # returns *mut LogResult
+
+    attach_function :free_log_result, [
+      :pointer # *mut LogResult (NULL is tolerated)
+    ], :void
   end
 end

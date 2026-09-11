@@ -17,6 +17,7 @@ require "valkey/future"
 require "valkey/pubsub_callback"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
+require "valkey/glide/logger"
 require "valkey/route"
 
 class Valkey

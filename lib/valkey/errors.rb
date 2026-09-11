@@ -43,4 +43,6 @@ class Valkey
   class InvalidClientOptionError < BaseError; end
 
   class SubscriptionError < BaseError; end
+
+  class LoggerError < BaseError; end
 end
