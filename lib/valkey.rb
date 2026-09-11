@@ -326,7 +326,7 @@ class Valkey
     pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol])
     json_options.merge!(pubsub_config)
 
-    @pubsub_receiver = Glide::PubSubReceiver.new
+    @pubsub_receiver = build_pubsub_receiver(options[:pubsub])
 
     json_str = json_options.empty? ? nil : JSON.generate(json_options)
     # Create client using URI-based FFI function
@@ -881,6 +881,39 @@ class Valkey
     validate_pubsub_subscriptions!(subscriptions, protocol: protocol)
 
     { "pubsub_subscriptions" => pubsub_subscriptions_to_ffi(subscriptions) }
+  end
+
+  # Builds the receiver for the delivery half of the `pubsub:` option.
+  #
+  # `callback:` and `context:` configure this process only, so unlike
+  # `subscriptions:` they are never part of the connection JSON.
+  #
+  # @param pubsub_configs [Hash, nil] the `pubsub:` option, which may carry:
+  #   - `:callback` [#call] receives every message instead of the inline queue,
+  #     which makes `get_pubsub_message` / `try_get_pubsub_message` raise. It
+  #     runs on the native push thread, so it must not block or call back into
+  #     the client. A callback of `arity == 1` is called with `(message)`, any
+  #     other arity with `(message, context)` -- so `->(message) {}` and
+  #     `proc { |message| }` differ, the latter having arity `-1`. An exception
+  #     escaping the callback drops that message silently.
+  #   - `:context` [Object] second argument for a callback whose arity is not 1.
+  # @return [Glide::PubSubReceiver]
+  # @raise [ArgumentError] if `context:` is given without `callback:`, or
+  #   `callback:` does not respond to `#call`.
+  def build_pubsub_receiver(pubsub_configs)
+    configs = pubsub_configs || {}
+    callback = configs[:callback]
+    context = configs[:context]
+    validate_pubsub_callback!(callback, context)
+
+    Glide::PubSubReceiver.new(callback: callback, context: context)
+  end
+
+  def validate_pubsub_callback!(callback, context)
+    raise ArgumentError, "Pub/Sub context: requires a callback:" if callback.nil? && !context.nil?
+    return if callback.nil? || callback.respond_to?(:call)
+
+    raise ArgumentError, "Pub/Sub callback: must respond to #call, got: #{callback.class}"
   end
 
   def validate_pubsub_subscriptions!(subscriptions, protocol:)
