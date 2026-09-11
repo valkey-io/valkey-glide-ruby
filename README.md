@@ -1,6 +1,10 @@
 
 # Valkey GLIDE for Ruby
 
+[![CI](https://github.com/valkey-io/valkey-glide-ruby/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/valkey-io/valkey-glide-ruby/actions/workflows/ci.yml?query=branch%3Amain)
+[![Gem Version](https://img.shields.io/gem/v/valkey-glide-rb.svg)](https://rubygems.org/gems/valkey-glide-rb)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/valkey-io/valkey-glide-ruby/blob/main/LICENSE)
+
 Valkey General Language Independent Driver for the Enterprise (GLIDE) is the official open-source Valkey client library, part of the [Valkey](https://valkey.io) organization. The Ruby gem (`valkey-glide-rb`) wraps [Valkey GLIDE Core](https://github.com/valkey-io/valkey-glide), giving Ruby applications the performance and reliability of the GLIDE core.
 
 ## Features
