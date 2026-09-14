@@ -57,16 +57,10 @@ class Valkey
         MESSAGE_KINDS = [MESSAGE, PMESSAGE, SMESSAGE].freeze
       end
 
-      # One delivered push: the incoming `message`, the `channel` that carried
-      # it, and the `pattern` that matched it. `pattern` is set only for
-      # PMESSAGE; exact and sharded pushes leave it nil.
+      # The message struct coming from GLIDE core
       Message = Struct.new(:message, :channel, :pattern)
 
-      # A connection's subscriptions, as returned by {Valkey#get_subscriptions}. Both
-      # fields are a `Hash` keyed by `:exact`, `:pattern` and `:sharded`, each
-      # mapping to an `Array<String>`. `desired_subscriptions` is what the
-      # client asked for, `actual_subscriptions` is what the server currently
-      # has. Standalone connections omit `:sharded` entirely.
+      # A connection's subscriptions, as returned by {Valkey#get_subscriptions}.
       SubscriptionState = Struct.new(:desired_subscriptions, :actual_subscriptions)
 
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
