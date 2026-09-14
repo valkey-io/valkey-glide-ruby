@@ -6,7 +6,7 @@ require "timeout"
 # Unit tests for Valkey::Commands::PubSubCommands.
 # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/135.
 class TestPubSubCommandsUnit < Minitest::Test
-  Kind = Valkey::Commands::PubSubCommands::PushKind
+  Kind = Valkey::Glide::PubSubReceiver::PushKind
 
   # A real client with the connection left out, so the mixin's own methods run
   # unmodified while dispatch is asserted without a server: records what would
@@ -50,7 +50,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   # handler may call it in production.
   def deliver(message:, channel:, pattern: nil)
     receiver_for(@pubsub).send(:deliver,
-                               Valkey::Commands::PubSubCommands::Message.new(message, channel, pattern))
+                               Valkey::Glide::PubSubMessage.new(message, channel, pattern))
   end
 
   def test_message_kinds_cover_only_payload_carrying_pushes
@@ -60,7 +60,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   def test_message_carries_message_channel_and_pattern
-    msg = Valkey::Commands::PubSubCommands::Message.new("hello", "news.tech", "news.*")
+    msg = Valkey::Glide::PubSubMessage.new("hello", "news.tech", "news.*")
 
     assert_equal "hello", msg.message
     assert_equal "news.tech", msg.channel
@@ -273,7 +273,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   # holds one.
   def queued_message(client)
     receiver_for(client).send(:deliver,
-                              Valkey::Commands::PubSubCommands::Message.new("hello", "news", nil))
+                              Valkey::Glide::PubSubMessage.new("hello", "news", nil))
     client.get_pubsub_message
   end
 

@@ -4,6 +4,28 @@ class Valkey
   module Glide
     # @api private
     class PubSubReceiver
+      # Push kinds as delivered by the FFI PubSub handler's `kind` argument.
+      # Mirrors `PushKind` in valkey-glide/ffi/src/lib.rs; keep in sync there.
+      #
+      # @api private
+      module PushKind
+        DISCONNECTION = 0
+        OTHER = 1
+        INVALIDATE = 2
+        MESSAGE = 3
+        PMESSAGE = 4
+        SMESSAGE = 5
+        UNSUBSCRIBE = 6
+        PUNSUBSCRIBE = 7
+        SUNSUBSCRIBE = 8
+        SUBSCRIBE = 9
+        PSUBSCRIBE = 10
+        SSUBSCRIBE = 11
+
+        # The only kinds that carry a payload for the user.
+        MESSAGE_KINDS = [MESSAGE, PMESSAGE, SMESSAGE].freeze
+      end
+
       def initialize
         @message_queue = Thread::Queue.new
 
@@ -40,12 +62,12 @@ class Valkey
       # The reads are length-driven so a payload with an embedded NUL survives.
       def build_ffi_handler
         lambda do |_client_ptr, kind, message_ptr, message_size, channel_ptr, channel_size, pattern_ptr, pattern_size|
-          next unless Commands::PubSubCommands::PushKind::MESSAGE_KINDS.include?(kind)
+          next unless PushKind::MESSAGE_KINDS.include?(kind)
 
           pattern = pattern_ptr.null? ? nil : pattern_ptr.read_string(pattern_size)
           message = message_ptr.read_string(message_size)
           deliver(
-            Commands::PubSubCommands::Message.new(message, channel_ptr.read_string(channel_size), pattern)
+            PubSubMessage.new(message, channel_ptr.read_string(channel_size), pattern)
           )
         rescue StandardError
           # TODO: Log the swallowed error once a logger binding exists.

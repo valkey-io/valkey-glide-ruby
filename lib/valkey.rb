@@ -18,6 +18,8 @@ require "valkey/future"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
+require "valkey/glide/pubsub_message"
+require "valkey/glide/pubsub_state"
 require "valkey/glide/pubsub_receiver"
 
 class Valkey

@@ -37,32 +37,6 @@ class Valkey
       # PubSub requires RESP3
       RESP3_VALUES = [:resp3, "resp3", 3].freeze
 
-      # Push kinds as delivered by the FFI handler's `kind` argument.
-      # Mirrors `PushKind` in valkey-glide/ffi/src/lib.rs; keep in sync there.
-      module PushKind
-        DISCONNECTION = 0
-        OTHER = 1
-        INVALIDATE = 2
-        MESSAGE = 3
-        PMESSAGE = 4
-        SMESSAGE = 5
-        UNSUBSCRIBE = 6
-        PUNSUBSCRIBE = 7
-        SUNSUBSCRIBE = 8
-        SUBSCRIBE = 9
-        PSUBSCRIBE = 10
-        SSUBSCRIBE = 11
-
-        # The only kinds that carry a payload for the user.
-        MESSAGE_KINDS = [MESSAGE, PMESSAGE, SMESSAGE].freeze
-      end
-
-      # The message struct coming from GLIDE core
-      Message = Struct.new(:message, :channel, :pattern)
-
-      # A connection's subscriptions, as returned by {Valkey#get_subscriptions}.
-      SubscriptionState = Struct.new(:desired_subscriptions, :actual_subscriptions)
-
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
       #
       # @example Subscribe to channels
@@ -321,7 +295,7 @@ class Valkey
       #   state.actual_subscriptions
       #     # => {exact: ["channel1"], pattern: [], sharded: ["shard1"]}
       #
-      # @return [Valkey::Commands::PubSubCommands::SubscriptionState] both hashes are keyed `:exact`, `:pattern`
+      # @return [Valkey::Glide::PubSubState] both hashes are keyed `:exact`, `:pattern`
       #   and `:sharded`, mapping to `Array<String>`; standalone connections omit `:sharded`
       # @raise [NotImplementedError] this method is not implemented yet
       def get_subscriptions = raise(NotImplementedError, "#{__method__} is not implemented yet")
@@ -429,7 +403,7 @@ class Valkey
       #     handle(message.channel, message.message)
       #   end
       #
-      # @return [Valkey::Commands::PubSubCommands::Message, nil] the message, or `nil` once the client is closed.
+      # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` once the client is closed.
       #   `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       def get_pubsub_message
@@ -441,12 +415,12 @@ class Valkey
       #
       # @example Poll for a message
       #   valkey.try_get_pubsub_message
-      #     # => #<struct Valkey::Commands::PubSubCommands::Message message="hi", channel="channel1", pattern=nil>
+      #     # => #<struct Valkey::Glide::PubSubMessage message="hi", channel="channel1", pattern=nil>
       # @example Poll when nothing is queued
       #   valkey.try_get_pubsub_message
       #     # => nil
       #
-      # @return [Valkey::Commands::PubSubCommands::Message, nil] the message, or `nil` when the queue is empty or the
+      # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` when the queue is empty or the
       #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       def try_get_pubsub_message

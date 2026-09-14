@@ -3,7 +3,7 @@
 require "test_helper"
 
 class TestPubSubReceiverUnit < Minitest::Test
-  Kind = Valkey::Commands::PubSubCommands::PushKind
+  Kind = Valkey::Glide::PubSubReceiver::PushKind
 
   def setup
     @receiver = Valkey::Glide::PubSubReceiver.new
