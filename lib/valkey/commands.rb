@@ -47,8 +47,7 @@ class Valkey
     include SetCommands
     include ScriptingCommands
     include FunctionCommands
-    # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/135
-    # include PubSubCommands
+    include PubSubCommands
     include ClusterCommands
     include TransactionCommands
     include VectorSearchCommands

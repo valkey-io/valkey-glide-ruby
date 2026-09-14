@@ -27,6 +27,7 @@
   * `DIALECT` is validated to `2`, the only dialect Valkey Search supports.
   * `with_sort_keys:` cannot be combined with `no_content:` — the server omits the sort keys under `NOCONTENT`, so the reply cannot be parsed reliably.
   * `ft_search` is unsupported inside `pipelined`/`multi` (a queued command yields a `Valkey::Future`, not a reply) and with the `flatten_map: true` compatibility option; both raise `ArgumentError`. Use `call` in those cases.
+* Ruby: PubSub: added support for `subscribe(*channels, timeout_ms:)`, `unsubscribe(*channels, timeout_ms:)`, `publish(message, channel)`, `get_pubsub_message`, `try_get_pubsub_message`, and the connection-time `pubsub: { subscriptions: { exact: [...] } }` option. Requires `protocol: :resp3` ([#308](https://github.com/valkey-io/valkey-glide-ruby/pull/308))
 * Ruby: fixed cd workflow to correctly build the ffi with **glibc 2.17** ([#223](https://github.com/valkey-io/valkey-glide-ruby/issues/223))
 * Ruby: scripting commands now dispatch real `EVAL` / `EVALSHA` / `SCRIPT LOAD` to the server instead of a client-side script container ([#213](https://github.com/valkey-io/valkey-glide-ruby/issues/213)). Three behavior changes:
   * `eval` / `evalsha` (and the `_ro` variants) now accept the standard integer key-count form used by `valkey-cli` and the Valkey docs — `eval(script, 1, "mykey", "myarg")`. It previously made the count `KEYS[1]`, shifted the real key into `ARGV[1]`, and dropped the remaining arguments without raising.

@@ -44,5 +44,11 @@ class Valkey
 
   class InvalidClientOptionError < BaseError; end
 
+  class Resp3RequiredError < InvalidClientOptionError
+    def initialize(protocol)
+      super(format("Pub/Sub requires the RESP3 protocol. Found %p", protocol))
+    end
+  end
+
   class SubscriptionError < BaseError; end
 end

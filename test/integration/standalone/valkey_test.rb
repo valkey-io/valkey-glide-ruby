@@ -16,6 +16,7 @@ class TestStandaloneValkey < Minitest::Test
   include ValkeyTests::FailoverCommands
   include ValkeyTests::FunctionCommands
   include ValkeyTests::GenericCommands
+  include ValkeyTests::PubSub
   include ValkeyTests::Scanning
   include ValkeyTests::ScriptingCommands
   include ValkeyTests::ScriptingCommandsIntegration
