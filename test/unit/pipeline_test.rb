@@ -41,4 +41,14 @@ class TestPipelineUnit < Minitest::Test
     assert_equal "OK", future_a.value
     assert_raises(Valkey::FutureAborted) { future_b.value }
   end
+
+  def test_pubsub_commands_raise_argument_error
+    pipeline = Valkey::Pipeline.new
+
+    Valkey::Pipeline::PUBSUB_UNSUPPORTED.each do |name|
+      error = assert_raises(ArgumentError, "#{name} must be rejected") { pipeline.public_send(name) }
+
+      assert_equal "#{name} is not supported inside pipelined/multi", error.message
+    end
+  end
 end
