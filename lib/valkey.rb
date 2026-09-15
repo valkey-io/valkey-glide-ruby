@@ -325,7 +325,8 @@ class Valkey
       }
     end
 
-    pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol])
+    pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol],
+                                                           cluster_mode: options[:cluster_mode] ? true : false)
     json_options.merge!(pubsub_config)
 
     @pubsub_receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: options[:pubsub])
@@ -371,6 +372,18 @@ class Valkey
     # Track queued commands during MULTI so `EXEC` can map each reply back to
     # the command that produced it (see #reconvert_queued_replies).
     @queued_commands = []
+  end
+
+  # Whether this client is connected in cluster mode.
+  #
+  # Read as a method (not an ivar) so command mixins can gate cluster-only
+  # verbs the same way {Commands::PubSubCommands} reads {#protocol}. On a
+  # {Pipeline}, which mixes in the same commands but has no connection, this
+  # is never reached: those verbs are rejected earlier by the batch layer.
+  #
+  # @return [Boolean]
+  def cluster_mode?
+    @cluster_mode
   end
 
   # Closes the client and frees the native connection.
@@ -876,19 +889,24 @@ class Valkey
   #     callback: ->(message, context) { ... },  # callback handler
   #     context: my_app_state                   # callback context
   #   }
-  def parse_pubsub_configs(pubsub_configs, protocol: nil)
+  def parse_pubsub_configs(pubsub_configs, protocol: nil, cluster_mode: false)
     subscriptions = (pubsub_configs || {})[:subscriptions] || {}
     return {} if subscriptions.empty?
 
-    validate_pubsub_subscriptions!(subscriptions, protocol: protocol)
+    validate_pubsub_subscriptions!(subscriptions, protocol: protocol, cluster_mode: cluster_mode)
 
     { "pubsub_subscriptions" => pubsub_subscriptions_to_ffi(subscriptions) }
   end
 
-  def validate_pubsub_subscriptions!(subscriptions, protocol:)
+  def validate_pubsub_subscriptions!(subscriptions, protocol:, cluster_mode: false)
     unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
     raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
     raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+
+    return if cluster_mode
+    return if Array(subscriptions[:sharded]).empty?
+
+    raise ArgumentError, "Sharded Pub/Sub subscriptions are only available in cluster mode (cluster_mode: true)"
   end
 
   def pubsub_subscriptions_to_ffi(subscriptions)

@@ -375,6 +375,181 @@ module ValkeyTests
       subscriber&.close
     end
 
+    # --- Sharded Pub/Sub (cluster mode) --------------------------------------
+
+    def test_sharded_message_round_trip
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.ssubscribe(channel)
+        r.publish("sharded-msg", channel, sharded: true)
+        received = wait_for_message(subscriber)
+
+        assert_equal "sharded-msg", received.message
+        assert_equal channel,       received.channel
+        assert_nil                  received.pattern
+      end
+    end
+
+    def test_spublish_returns_the_receiver_count
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client do |subscriber|
+        assert_equal 0, r.publish("nobody", channel, sharded: true)
+
+        subscriber.ssubscribe(channel)
+        assert_equal 1, r.publish("counted", channel, sharded: true)
+      end
+    end
+
+    def test_sunsubscribe_stops_sharded_delivery
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.ssubscribe(channel)
+        r.publish("before", channel, sharded: true)
+        assert_equal "before", wait_for_message(subscriber).message
+
+        subscriber.sunsubscribe(channel)
+
+        assert_equal 0, r.publish("after", channel, sharded: true)
+        assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
+      end
+    end
+
+    def test_sunsubscribe_all_sharded_channels
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      # Same hash tag keeps both channels in one slot, so a single ssubscribe
+      # call is routed to one node and both land in the actual subscriptions.
+      channels = Array.new(2) { |i| unique_channel("{shardtag}-#{i}") }
+
+      with_client do |subscriber|
+        subscriber.ssubscribe(*channels)
+
+        subscriber.sunsubscribe
+
+        channels.each { |channel| assert_equal 0, r.publish("orphan", channel, sharded: true) }
+        assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
+      end
+    end
+
+    def test_ssubscribe_lazy_eventually_delivers
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.ssubscribe_lazy(channel)
+
+        received = publish_until_received_sharded("lazy-sharded-msg", channel, subscriber)
+
+        assert_equal "lazy-sharded-msg", received.message
+        assert_equal channel,            received.channel
+        assert_nil                       received.pattern
+      end
+    end
+
+    def test_sunsubscribe_lazy_eventually_stops_delivery
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.ssubscribe_lazy(channel)
+        publish_until_received_sharded("before", channel, subscriber)
+
+        subscriber.sunsubscribe_lazy(channel)
+
+        assert_delivery_ceased(channel, subscriber, sharded: true)
+      end
+    end
+
+    def test_connection_time_sharded_subscription
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client(pubsub: { subscriptions: { sharded: [channel] } }) do |client|
+        received = publish_until_received_sharded("connect-time-sharded", channel, client)
+
+        assert_equal "connect-time-sharded", received.message
+        assert_equal channel, received.channel
+        assert_nil received.pattern
+      end
+    end
+
+    def test_sharded_publish_reaches_a_subscriber_in_a_different_slot
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      # Distinct hash tags force the two channels onto different slots (and thus
+      # likely different owning nodes). A same-slot pair would pass even if the
+      # SPUBLISH were misrouted, so the different-slot case is what proves the
+      # publish is routed by the channel it names, not the subscriber's node.
+      subscribed_channel = unique_channel("{slot-a}")
+      other_slot_channel = unique_channel("{slot-b}")
+
+      with_client do |subscriber|
+        subscriber.ssubscribe(subscribed_channel)
+
+        # A message on a channel in a different slot must not arrive here.
+        r.publish("wrong-slot", other_slot_channel, sharded: true)
+        assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
+
+        # A message on the subscribed channel must arrive, proving the SPUBLISH
+        # was routed to the node owning that channel's slot.
+        r.publish("right-slot", subscribed_channel, sharded: true)
+        assert_equal "right-slot", wait_for_message(subscriber).message
+      end
+    end
+
+    def test_sharded_publish_is_batchable_in_a_pipeline
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.ssubscribe(channel)
+
+        counts = r.pipelined { |p| p.publish("piped", channel, sharded: true) }
+
+        assert_equal [1], counts
+        assert_equal "piped", wait_for_message(subscriber).message
+      end
+    end
+
+    def test_sharded_verbs_require_cluster_mode_in_standalone
+      skip "covers the standalone rejection path" if cluster_mode?
+
+      with_client do |client|
+        {
+          ssubscribe: -> { client.ssubscribe("shard1") },
+          sunsubscribe: -> { client.sunsubscribe },
+          ssubscribe_lazy: -> { client.ssubscribe_lazy("shard1") },
+          sunsubscribe_lazy: -> { client.sunsubscribe_lazy }
+        }.each do |name, call|
+          error = assert_raises(ArgumentError, "#{name} must require cluster mode") { call.call }
+          assert_match(/cluster mode/, error.message)
+        end
+      end
+    end
+
+    def test_sharded_connection_config_requires_cluster_mode_in_standalone
+      skip "covers the standalone rejection path" if cluster_mode?
+
+      error = assert_raises(ArgumentError) do
+        _new_client(protocol: :resp3, pubsub: { subscriptions: { sharded: [unique_channel] } })
+      end
+
+      assert_match(/cluster mode/, error.message)
+    end
+
     private
 
     def with_client(options = {})
@@ -401,6 +576,18 @@ module ValkeyTests
         return received if received
 
         flunk("no message on #{channel} within #{timeout}s") if monotonic_now >= deadline
+      end
+    end
+
+    def publish_until_received_sharded(message, channel, subscriber, timeout: MESSAGE_WAIT_SECONDS)
+      deadline = monotonic_now + timeout
+
+      loop do
+        r.publish(message, channel, sharded: true)
+        received = wait_for_message(subscriber, timeout: POLL_INTERVAL_SECONDS)
+        return received if received
+
+        flunk("no sharded message on #{channel} within #{timeout}s") if monotonic_now >= deadline
       end
     end
 
@@ -437,7 +624,7 @@ module ValkeyTests
       end
     end
 
-    def assert_delivery_ceased(channel, subscriber)
+    def assert_delivery_ceased(channel, subscriber, sharded: false)
       quiet_windows = 2
       deadline = monotonic_now + MESSAGE_WAIT_SECONDS
       quiet_count = 0
@@ -445,7 +632,7 @@ module ValkeyTests
       until quiet_count >= quiet_windows
         flunk("delivery did not cease on #{channel} within #{MESSAGE_WAIT_SECONDS}s") if monotonic_now >= deadline
 
-        r.publish("probe-ceased-#{SecureRandom.hex(4)}", channel)
+        r.publish("probe-ceased-#{SecureRandom.hex(4)}", channel, sharded: sharded)
         message = wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
 
         if message

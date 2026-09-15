@@ -16,10 +16,11 @@ class TestPubSubCommandsUnit < Minitest::Test
 
     attr_reader :sent_commands
 
-    def initialize(response: nil, protocol: :resp3) # rubocop:disable Lint/MissingSuper
+    def initialize(response: nil, protocol: :resp3, cluster_mode: false) # rubocop:disable Lint/MissingSuper
       @sent_commands = []
       @response = response
       @protocol = protocol
+      @cluster_mode = cluster_mode
       @pubsub_receiver = Valkey::Glide::PubSubReceiver.new
       @close_lock = Mutex.new
       @pid = Process.pid
@@ -122,11 +123,27 @@ class TestPubSubCommandsUnit < Minitest::Test
       subscriptions: { exact: ["news", :symbols], pattern: ["news.*"], sharded: ["news.shard"] }
     }
 
-    parsed = parse_pubsub_configs.call(pubsub_config, protocol: :resp3)
+    parsed = parse_pubsub_configs.call(pubsub_config, protocol: :resp3, cluster_mode: true)
 
     expected = { "pubsub_subscriptions" => { "0" => %w[news symbols], "1" => ["news.*"], "2" => ["news.shard"] } }
 
     assert_equal expected, parsed
+  end
+
+  def test_pubsub_parse_config_without_sharded_does_not_require_cluster_mode
+    pubsub_config = { subscriptions: { exact: ["news"], pattern: ["news.*"] } }
+
+    parsed = parse_pubsub_configs.call(pubsub_config, protocol: :resp3)
+
+    assert_equal({ "pubsub_subscriptions" => { "0" => ["news"], "1" => ["news.*"] } }, parsed)
+  end
+
+  def test_pubsub_sharded_config_requires_cluster_mode
+    error = assert_raises(ArgumentError) do
+      parse_pubsub_configs.call({ subscriptions: { sharded: ["shard-chan"] } }, protocol: :resp3)
+    end
+
+    assert_match(/cluster mode/, error.message)
   end
 
   def test_pubsub_parse_config_nil
@@ -377,11 +394,168 @@ class TestPubSubCommandsUnit < Minitest::Test
     assert_equal %w[news hello], client.last_command.args
   end
 
+  # --- Sharded Pub/Sub (cluster mode) --------------------------------------
+
+  def test_publish_defaults_to_unsharded
+    client = RecordingClient.new(response: 0)
+
+    client.publish("hello", "news")
+
+    assert_equal Valkey::RequestType::PUBLISH, client.last_command.request_type
+    assert_equal %w[news hello], client.last_command.args
+  end
+
+  def test_publish_sharded_uses_spublish_with_channel_first
+    client = RecordingClient.new(response: 0, cluster_mode: true)
+
+    client.publish("hello", "shard-chan", sharded: true)
+
+    assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
+    # Signature is (message, channel); wire order is <channel> <message>.
+    assert_equal %w[shard-chan hello], client.last_command.args
+  end
+
+  def test_publish_sharded_works_without_resp3
+    client = RecordingClient.new(response: 0, protocol: nil, cluster_mode: true)
+
+    client.publish("hello", "shard-chan", sharded: true)
+
+    assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
+    assert_equal %w[shard-chan hello], client.last_command.args
+  end
+
+  def test_ssubscribe_dispatches_sblocking_with_timeout
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.ssubscribe("shard1", "shard2", timeout_ms: 2000)
+
+    assert_equal Valkey::RequestType::SSUBSCRIBE_BLOCKING, client.last_command.request_type
+    assert_equal %w[shard1 shard2 2000], client.last_command.args
+  end
+
+  def test_ssubscribe_defaults_to_indefinite_timeout
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.ssubscribe("shard1")
+
+    assert_equal %w[shard1 0], client.last_command.args
+  end
+
+  def test_ssubscribe_coerces_arguments_and_truncates_timeout
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.ssubscribe(:shard1, 42, timeout_ms: 1500.6)
+
+    assert_equal %w[shard1 42 1500], client.last_command.args
+  end
+
+  def test_ssubscribe_rounds_sub_millisecond_timeout_up
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.ssubscribe("shard1", timeout_ms: 0.4)
+
+    assert_equal %w[shard1 1], client.last_command.args
+  end
+
+  def test_ssubscribe_rejects_a_negative_timeout
+    client = RecordingClient.new(cluster_mode: true)
+
+    assert_raises(ArgumentError) { client.ssubscribe("shard1", timeout_ms: -1) }
+    assert_empty client.sent_commands
+  end
+
+  def test_ssubscribe_without_channels_raises
+    client = RecordingClient.new(cluster_mode: true)
+
+    error = assert_raises(ArgumentError) { client.ssubscribe }
+
+    assert_equal "No channels provided for subscription", error.message
+    assert_empty client.sent_commands
+  end
+
+  def test_sunsubscribe_dispatches_sblocking_with_timeout
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.sunsubscribe("shard1", timeout_ms: 3000)
+
+    assert_equal Valkey::RequestType::SUNSUBSCRIBE_BLOCKING, client.last_command.request_type
+    assert_equal %w[shard1 3000], client.last_command.args
+  end
+
+  def test_sunsubscribe_without_channels_targets_all
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.sunsubscribe
+
+    assert_equal Valkey::RequestType::SUNSUBSCRIBE_BLOCKING, client.last_command.request_type
+    assert_equal %w[0], client.last_command.args
+  end
+
+  def test_lazy_sharded_verbs_dispatch_without_a_timeout_argument
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.ssubscribe_lazy("shard1")
+    client.sunsubscribe_lazy("shard1")
+
+    expected = [
+      [Valkey::RequestType::SSUBSCRIBE, %w[shard1]],
+      [Valkey::RequestType::SUNSUBSCRIBE, %w[shard1]]
+    ]
+
+    assert_equal(expected, client.sent_commands.map { |command| [command.request_type, command.args] })
+  end
+
+  def test_sunsubscribe_lazy_without_channels_targets_all
+    client = RecordingClient.new(cluster_mode: true)
+
+    client.sunsubscribe_lazy
+
+    assert_equal Valkey::RequestType::SUNSUBSCRIBE, client.last_command.request_type
+    assert_empty client.last_command.args
+  end
+
+  def test_ssubscribe_lazy_without_channels_raises
+    client = RecordingClient.new(cluster_mode: true)
+
+    error = assert_raises(ArgumentError) { client.ssubscribe_lazy }
+
+    assert_equal "No channels provided for subscription", error.message
+    assert_empty client.sent_commands
+  end
+
+  def test_sharded_verbs_require_cluster_mode
+    client = RecordingClient.new # standalone
+
+    {
+      ssubscribe: -> { client.ssubscribe("shard1") },
+      sunsubscribe: -> { client.sunsubscribe },
+      ssubscribe_lazy: -> { client.ssubscribe_lazy("shard1") },
+      sunsubscribe_lazy: -> { client.sunsubscribe_lazy }
+    }.each do |name, call|
+      error = assert_raises(ArgumentError, "#{name} must require cluster mode") { call.call }
+      assert_match(/cluster mode/, error.message)
+    end
+
+    assert_empty client.sent_commands
+  end
+
+  def test_sharded_publish_is_allowed_in_standalone
+    # publish stays batchable and un-guarded; the core decides. It must not
+    # raise the client-side cluster-mode ArgumentError.
+    client = RecordingClient.new(response: 0) # standalone
+
+    client.publish("hello", "shard-chan", sharded: true)
+
+    assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
+  end
+
   # --- RESP3 requirement ---------------------------------------------------
 
   def test_subscription_methods_reject_a_non_resp3_protocol
     [nil, :resp2, "resp2", 2].each do |protocol|
-      client = RecordingClient.new(protocol: protocol)
+      # Cluster mode so the sharded verbs clear their cluster-only guard and
+      # reach the RESP3 check; the non-sharded verbs are unaffected by it.
+      client = RecordingClient.new(protocol: protocol, cluster_mode: true)
 
       guarded_calls(client).each do |name, call|
         # Timeout so a missing guard fails the assertion instead of blocking in
@@ -396,7 +570,7 @@ class TestPubSubCommandsUnit < Minitest::Test
 
   def test_subscription_methods_accept_every_resp3_spelling
     [:resp3, "resp3", 3].each do |protocol|
-      client = RecordingClient.new(protocol: protocol)
+      client = RecordingClient.new(protocol: protocol, cluster_mode: true)
 
       client.subscribe("news")
       client.unsubscribe
@@ -406,6 +580,10 @@ class TestPubSubCommandsUnit < Minitest::Test
       client.unsubscribe_lazy
       client.psubscribe_lazy("news.*")
       client.punsubscribe_lazy
+      client.ssubscribe("shard1")
+      client.sunsubscribe
+      client.ssubscribe_lazy("shard1")
+      client.sunsubscribe_lazy
 
       assert_nil client.try_get_pubsub_message, "protocol #{protocol.inspect} must be accepted"
       assert_equal "hello", queued_message(client).message
@@ -441,6 +619,10 @@ class TestPubSubCommandsUnit < Minitest::Test
       unsubscribe_lazy: -> { client.unsubscribe_lazy },
       psubscribe_lazy: -> { client.psubscribe_lazy("news.*") },
       punsubscribe_lazy: -> { client.punsubscribe_lazy },
+      ssubscribe: -> { client.ssubscribe("shard1") },
+      sunsubscribe: -> { client.sunsubscribe },
+      ssubscribe_lazy: -> { client.ssubscribe_lazy("shard1") },
+      sunsubscribe_lazy: -> { client.sunsubscribe_lazy },
       get_pubsub_message: -> { client.get_pubsub_message },
       try_get_pubsub_message: -> { client.try_get_pubsub_message }
     }
