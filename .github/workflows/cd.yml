@@ -188,7 +188,7 @@ jobs:
           path: valkey-glide/ffi/target/${{ matrix.host.OS == 'macos' && 'release' || format('{0}/release', matrix.host.TARGET) }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
           if-no-files-found: error
 
-  build-and-publish-gem:
+  build-gem:
     needs: [set-release-version, load-platform-matrix, build-native-libraries]
     runs-on: ubuntu-latest
     env:
@@ -297,24 +297,46 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  publish-gem:
+    name: Publish gem to RubyGems
+    needs: [build-gem]
+    if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
+    runs-on: ubuntu-latest
+    environment: rubygems-publish
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: false
+
+      - name: Download gem artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: ruby-gem
+          path: .
+
       # Uses RubyGems OIDC trusted publishing 
       # Publishes to https://rubygems.org/gems/valkey-glide-rb
       - name: Configure RubyGems credentials (OIDC trusted publishing)
-        if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
         uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
 
       - name: Publish to RubyGems
-        id: publish
-        if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
         run: |
-          gem push ${{ steps.build-gem.outputs.GEM_FILE }}
-          echo "published=true" >> $GITHUB_OUTPUT
+          GEM_FILE=$(find . -maxdepth 1 -type f -name "*.gem" -print -quit)
+          if [[ -z "$GEM_FILE" ]]; then
+            echo "No gem artifact found"
+            exit 1
+          fi
+          gem push "$GEM_FILE"
 
-    outputs:
-      published: ${{ steps.publish.outputs.published || 'false' }}
-
-  test-gem:
-    needs: [set-release-version, load-platform-matrix, build-and-publish-gem]
+  smoke-test-gem:
+    name: Smoke Test Gem
+    needs: [set-release-version, load-platform-matrix, publish-gem]
     strategy:
       fail-fast: false
       matrix:
@@ -339,26 +361,7 @@ jobs:
           ruby-version: "3.3"
           bundler-cache: false  # We'll install gems manually
 
-      - name: Download gem artifact (unpublished)
-        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ruby-gem
-          path: .
-
-      - name: Install gem from artifact (unpublished)
-        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        run: |
-          GEM_FILE=$(ls *.gem | head -1)
-          echo "Installing gem from artifact: ${GEM_FILE}"
-          gem install "${GEM_FILE}"
-          echo "Installed gem:"
-          # Get gem name from gemspec for listing
-          GEM_NAME=$(ruby -e "puts Gem::Specification.load('valkey.gemspec').name")
-          gem list "${GEM_NAME}"
-
-      - name: Install gem from RubyGems (published)
-        if: ${{ needs.build-and-publish-gem.outputs.published == 'true' }}
+      - name: Install gem from RubyGems
         run: |
           echo "Installing published gem from RubyGems..."
           # Wait a bit for RubyGems to index the new version
@@ -376,9 +379,9 @@ jobs:
           rm -rf lib/
           ruby test/smoke_test.rb
 
-  test-gem-musl:
-    name: Test Gem (musl)
-    needs: [set-release-version, build-and-publish-gem]
+  smoke-test-gem-musl:
+    name: Smoke Test Gem (musl)
+    needs: [set-release-version, publish-gem]
     runs-on: ubuntu-24.04
     container:
       image: ruby:3.3-alpine
@@ -394,26 +397,7 @@ jobs:
       - name: Checkout (for test files)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v5
 
-      - name: Download gem artifact (unpublished)
-        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ruby-gem
-          path: .
-
-      - name: Install gem from artifact (unpublished)
-        if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        shell: bash
-        run: |
-          GEM_FILE=$(ls *.gem | head -1)
-          echo "Installing gem from artifact: ${GEM_FILE}"
-          gem install "${GEM_FILE}"
-          echo "Installed gem:"
-          GEM_NAME=$(ruby -e "puts Gem::Specification.load('valkey.gemspec').name")
-          gem list "${GEM_NAME}"
-
-      - name: Install gem from RubyGems (published)
-        if: ${{ needs.build-and-publish-gem.outputs.published == 'true' }}
+      - name: Install gem from RubyGems
         shell: bash
         run: |
           echo "Installing published gem from RubyGems..."
