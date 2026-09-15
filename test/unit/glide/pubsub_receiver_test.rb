@@ -51,6 +51,11 @@ class TestPubSubReceiverUnit < Minitest::Test
     assert_equal payload, @receiver.try_pop.message
   end
 
+  # This is a sanity check ensuring that FFI handler is not recreated, otherwise it won't work across the FFI.
+  def test_ffi_handler_is_retained
+    assert_same @receiver.ffi_handler, @receiver.ffi_handler
+  end
+
   private
 
   # Calls the retained FFI handler the way the Rust push worker does, with real
