@@ -72,6 +72,30 @@ jobs:
             exit 1
           fi
 
+  create-release-draft:
+    name: Create release draft
+    needs: [set-release-version]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Create draft release
+        uses: actions/github-script@373c709c69115d41ff229c7e5df9f8788daa9553 # v9
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ needs.set-release-version.outputs.RELEASE_VERSION }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const createReleaseDraft = require("./.github/scripts/create-release-draft.js");
+            await createReleaseDraft({ github, context, core });
+
   build-native-libraries:
     needs: [set-release-version, load-platform-matrix]
     strategy:
