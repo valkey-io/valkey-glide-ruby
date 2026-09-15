@@ -229,6 +229,152 @@ module ValkeyTests
       end
     end
 
+    def test_psubscribe_delivers_message_with_pattern
+      pattern = "pubsub-p-#{SecureRandom.hex(6)}.*"
+      channel = pattern.sub(".*", ".tech")
+
+      with_client do |subscriber|
+        subscriber.psubscribe(pattern)
+        r.publish("pattern-msg", channel)
+        msg = wait_for_message(subscriber)
+
+        assert_equal "pattern-msg", msg.message
+        assert_equal channel,       msg.channel
+        assert_equal pattern,       msg.pattern
+      end
+    end
+
+    def test_punsubscribe_stops_pattern_delivery
+      pattern = "pubsub-punsub-#{SecureRandom.hex(6)}.*"
+      channel = pattern.sub(".*", ".x")
+
+      with_client do |subscriber|
+        subscriber.psubscribe(pattern)
+        r.publish("before", channel)
+        assert_equal "before", wait_for_message(subscriber).message
+
+        subscriber.punsubscribe(pattern)
+
+        r.publish("after", channel)
+        assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
+      end
+    end
+
+    def test_subscribe_lazy_eventually_delivers
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.subscribe_lazy(channel)
+
+        received = publish_until_received("lazy-msg", channel, subscriber)
+
+        assert_equal "lazy-msg", received.message
+        assert_equal channel,    received.channel
+        assert_nil               received.pattern
+      end
+    end
+
+    def test_psubscribe_lazy_eventually_delivers_messages
+      pattern = "pubsub-lazy-p-#{SecureRandom.hex(6)}.*"
+      channel = pattern.sub(".*", ".y")
+
+      with_client do |subscriber|
+        subscriber.psubscribe_lazy(pattern)
+
+        received = publish_until_received("lazy-pattern-msg", channel, subscriber)
+
+        assert_equal "lazy-pattern-msg", received.message
+        assert_equal channel,            received.channel
+        assert_equal pattern,            received.pattern
+      end
+    end
+
+    def test_unsubscribe_lazy_eventually_stops_delivery
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.subscribe_lazy(channel)
+        publish_until_received("before", channel, subscriber)
+
+        subscriber.unsubscribe_lazy(channel)
+
+        assert_delivery_ceased(channel, subscriber)
+      end
+    end
+
+    def test_punsubscribe_lazy_eventually_stops_delivery
+      pattern = "pubsub-lazy-punsub-#{SecureRandom.hex(6)}.*"
+      channel = pattern.sub(".*", ".z")
+
+      with_client do |subscriber|
+        subscriber.psubscribe_lazy(pattern)
+        publish_until_received("before", channel, subscriber)
+
+        subscriber.punsubscribe_lazy(pattern)
+
+        assert_delivery_ceased(channel, subscriber)
+      end
+    end
+
+    def test_callback_mode_delivers_messages_end_to_end
+      channel = unique_channel
+      ctx     = { origin: "e2e-test" }
+      queue   = Thread::Queue.new
+
+      subscriber = _new_client(
+        protocol: :resp3,
+        pubsub: {
+          subscriptions: { exact: [channel] },
+          callback: ->(msg, callback_ctx) { queue.push([msg, callback_ctx]) },
+          context: ctx
+        }
+      )
+
+      pair = collect_callback_message(queue, "callback-msg", channel)
+
+      msg, delivered_ctx = pair
+      assert_equal "callback-msg", msg.message
+      assert_equal channel,        msg.channel
+      assert_nil                   msg.pattern
+      assert_same ctx,             delivered_ctx
+    ensure
+      subscriber&.close
+    end
+
+    def test_callback_exception_is_contained
+      channel    = unique_channel
+      boom_token = "boom-#{SecureRandom.hex(4)}"
+      safe_token = "safe-#{SecureRandom.hex(4)}"
+      invoked    = Thread::Queue.new
+      recovered  = Thread::Queue.new
+
+      callback = lambda do |msg, _ctx|
+        if msg.message == boom_token
+          invoked.push(msg.message)
+          raise "deliberate callback error"
+        else
+          recovered.push(msg.message)
+        end
+      end
+
+      subscriber = _new_client(
+        protocol: :resp3,
+        pubsub: {
+          subscriptions: { exact: [channel] },
+          callback: callback,
+          context: nil
+        }
+      )
+
+      collect_callback_message(invoked, boom_token, channel)
+
+      second = collect_callback_message(recovered, safe_token, channel)
+
+      assert_equal safe_token, second
+    ensure
+      subscriber&.close
+    end
+
     private
 
     def with_client(options = {})
@@ -272,6 +418,43 @@ module ValkeyTests
 
     def monotonic_now
       Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    end
+
+    def collect_callback_message(queue, payload, channel, timeout: MESSAGE_WAIT_SECONDS)
+      deadline = monotonic_now + timeout
+
+      loop do
+        r.publish(payload, channel)
+
+        begin
+          return queue.pop(true)
+        rescue ThreadError
+          flunk("callback queue got nothing for #{payload.inspect} within #{timeout}s") if monotonic_now >= deadline
+
+          sleep POLL_INTERVAL_SECONDS
+          retry
+        end
+      end
+    end
+
+    def assert_delivery_ceased(channel, subscriber)
+      quiet_windows = 2
+      deadline = monotonic_now + MESSAGE_WAIT_SECONDS
+      quiet_count = 0
+
+      until quiet_count >= quiet_windows
+        flunk("delivery did not cease on #{channel} within #{MESSAGE_WAIT_SECONDS}s") if monotonic_now >= deadline
+
+        r.publish("probe-ceased-#{SecureRandom.hex(4)}", channel)
+        message = wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
+
+        if message
+          nil while subscriber.try_get_pubsub_message
+          quiet_count = 0
+        else
+          quiet_count += 1
+        end
+      end
     end
   end
 end

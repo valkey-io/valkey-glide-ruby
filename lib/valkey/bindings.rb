@@ -240,14 +240,14 @@ class Valkey
       :ulong,          # usize (connection_request_len)
       ClientType.by_ref, # *const ClientType
       :pubsub_callback # callback
-    ], :pointer        # *const ConnectionResponse
+    ], :pointer, blocking: true # *const ConnectionResponse
 
     attach_function :create_client_from_uri, [
       :string,         # *const c_char (uri_str)
       :string,         # *const c_char (extra_options_json)
       ClientType.by_ref, # *const ClientType
       :pubsub_callback # callback
-    ], :pointer        # *const ConnectionResponse
+    ], :pointer, blocking: true # *const ConnectionResponse
 
     attach_function :free_connection_response, [
       :pointer # *mut ConnectionResponse
