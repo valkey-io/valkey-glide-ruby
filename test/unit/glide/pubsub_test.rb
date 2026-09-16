@@ -16,11 +16,11 @@ class TestPubSubCommandsUnit < Minitest::Test
 
     attr_reader :sent_commands
 
-    def initialize(response: nil, protocol: :resp3) # rubocop:disable Lint/MissingSuper
+    def initialize(response: nil, protocol: :resp3, callback: nil) # rubocop:disable Lint/MissingSuper
       @sent_commands = []
       @response = response
       @protocol = protocol
-      @pubsub_receiver = Valkey::Glide::PubSubReceiver.new
+      @pubsub_receiver = Valkey::Glide::PubSubReceiver.new(callback: callback)
       @close_lock = Mutex.new
       @pid = Process.pid
     end
@@ -321,6 +321,33 @@ class TestPubSubCommandsUnit < Minitest::Test
     ]
 
     assert_equal(expected, client.sent_commands.map { |command| [command.request_type, command.args] })
+  end
+
+  def test_lazy_verbs_return_nil
+    client = RecordingClient.new
+
+    returned = [
+      client.subscribe_lazy("news"),
+      client.unsubscribe_lazy("news"),
+      client.psubscribe_lazy("news.*"),
+      client.punsubscribe_lazy("news.*")
+    ]
+
+    assert_equal [nil, nil, nil, nil], returned
+  end
+
+  def test_inline_reads_raise_on_a_callback_mode_client
+    client = RecordingClient.new(callback: ->(_message, _context) {})
+
+    %i[get_pubsub_message try_get_pubsub_message].each do |name|
+      # Timeout so a missing guard fails the assertion instead of blocking in
+      # get_pubsub_message forever.
+      error = assert_raises(Valkey::InvalidClientOptionError, "#{name} must reject a callback-mode client") do
+        Timeout.timeout(2) { client.public_send(name) }
+      end
+
+      assert_match(%r{Inline Pub/Sub reads are unavailable}, error.message)
+    end
   end
 
   def test_lazy_unsubscribe_verbs_no_args

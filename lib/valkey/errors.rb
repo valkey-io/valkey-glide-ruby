@@ -13,6 +13,7 @@ class Valkey
     end
   end
 
+  # Raised on server side errors
   class CommandError < BaseError; end
 
   class ExecAbortError < CommandError; end
@@ -42,6 +43,7 @@ class Valkey
 
   class ReadOnlyError < BaseConnectionError; end
 
+  # Raised on client side errors
   class InvalidClientOptionError < BaseError; end
 
   class Resp3RequiredError < InvalidClientOptionError

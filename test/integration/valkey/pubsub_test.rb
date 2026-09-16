@@ -260,6 +260,22 @@ module ValkeyTests
       end
     end
 
+    def test_punsubscribe_without_patterns_stops_every_pattern
+      first  = "pubsub-punsub-all-#{SecureRandom.hex(6)}.*"
+      second = "pubsub-punsub-all-#{SecureRandom.hex(6)}.*"
+
+      with_client do |subscriber|
+        subscriber.psubscribe(first, second)
+        r.publish("before", first.sub(".*", ".x"))
+        assert_equal "before", wait_for_message(subscriber).message
+
+        subscriber.punsubscribe
+
+        assert_delivery_ceased(first.sub(".*", ".x"), subscriber)
+        assert_delivery_ceased(second.sub(".*", ".y"), subscriber)
+      end
+    end
+
     def test_subscribe_lazy_eventually_delivers
       channel = unique_channel
 
@@ -316,6 +332,54 @@ module ValkeyTests
       end
     end
 
+    def test_unsubscribe_lazy_without_channels_stops_every_channel
+      first  = unique_channel("unsub-all-1")
+      second = unique_channel("unsub-all-2")
+
+      with_client do |subscriber|
+        subscriber.subscribe(first, second)
+        publish_until_received("before", first, subscriber)
+
+        subscriber.unsubscribe_lazy
+
+        assert_delivery_ceased(first, subscriber)
+        assert_delivery_ceased(second, subscriber)
+      end
+    end
+
+    def test_punsubscribe_lazy_without_patterns_stops_every_pattern
+      first  = "pubsub-lazy-punsub-all-#{SecureRandom.hex(6)}.*"
+      second = "pubsub-lazy-punsub-all-#{SecureRandom.hex(6)}.*"
+
+      with_client do |subscriber|
+        subscriber.psubscribe(first, second)
+        publish_until_received("before", first.sub(".*", ".x"), subscriber)
+
+        subscriber.punsubscribe_lazy
+
+        assert_delivery_ceased(first.sub(".*", ".x"), subscriber)
+        assert_delivery_ceased(second.sub(".*", ".y"), subscriber)
+      end
+    end
+
+    def test_lazy_verbs_return_nil_without_waiting_for_the_server
+      channel = unique_channel
+      pattern = "pubsub-lazy-nil-#{SecureRandom.hex(6)}.*"
+
+      with_client do |subscriber|
+        returned = Timeout.timeout(MESSAGE_WAIT_SECONDS) do
+          [
+            subscriber.subscribe_lazy(channel),
+            subscriber.psubscribe_lazy(pattern),
+            subscriber.unsubscribe_lazy(channel),
+            subscriber.punsubscribe_lazy(pattern)
+          ]
+        end
+
+        assert_equal [nil, nil, nil, nil], returned
+      end
+    end
+
     def test_callback_mode_delivers_messages_end_to_end
       channel = unique_channel
       ctx     = { origin: "e2e-test" }
@@ -337,6 +401,28 @@ module ValkeyTests
       assert_equal channel,        msg.channel
       assert_nil                   msg.pattern
       assert_same ctx,             delivered_ctx
+    ensure
+      subscriber&.close
+    end
+
+    def test_callback_mode_delivers_pattern_messages_with_the_pattern
+      pattern = "pubsub-cb-p-#{SecureRandom.hex(6)}.*"
+      channel = pattern.sub(".*", ".tech")
+      queue   = Thread::Queue.new
+
+      subscriber = _new_client(
+        protocol: :resp3,
+        pubsub: {
+          subscriptions: { pattern: [pattern] },
+          callback: ->(msg, _callback_ctx) { queue.push(msg) }
+        }
+      )
+
+      msg = collect_callback_message(queue, "callback-pattern-msg", channel)
+
+      assert_equal "callback-pattern-msg", msg.message
+      assert_equal channel,                msg.channel
+      assert_equal pattern,                msg.pattern
     ensure
       subscriber&.close
     end

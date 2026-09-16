@@ -150,7 +150,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   def test_pop_raises_in_callback_mode
     @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
 
-    error = assert_raises(Valkey::CommandError) { @receiver.pop }
+    error = assert_raises(Valkey::InvalidClientOptionError) { @receiver.pop }
 
     assert_match(%r{Inline Pub/Sub reads are unavailable}, error.message)
   end
@@ -158,7 +158,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   def test_try_pop_raises_in_callback_mode
     @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
 
-    error = assert_raises(Valkey::CommandError) { @receiver.try_pop }
+    error = assert_raises(Valkey::InvalidClientOptionError) { @receiver.try_pop }
 
     assert_match(%r{Inline Pub/Sub reads are unavailable}, error.message)
   end

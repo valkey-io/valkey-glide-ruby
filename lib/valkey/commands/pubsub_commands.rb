@@ -424,6 +424,7 @@ class Valkey
       # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` once the client is closed.
       #   `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
+      # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
       def get_pubsub_message
         validate_resp3!
         @pubsub_receiver.pop
@@ -441,6 +442,7 @@ class Valkey
       # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` when the queue is empty or the
       #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
+      # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
       def try_get_pubsub_message
         validate_resp3!
         @pubsub_receiver.try_pop

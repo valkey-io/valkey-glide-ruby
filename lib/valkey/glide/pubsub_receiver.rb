@@ -85,7 +85,7 @@ class Valkey
       def check_callback!
         return unless callback_mode?
 
-        raise CommandError, "Pub/Sub callback was configured. Inline Pub/Sub reads are unavailable."
+        raise InvalidClientOptionError, "Pub/Sub callback was configured. Inline Pub/Sub reads are unavailable."
       end
 
       # Builds the proc handed to the FFI.
