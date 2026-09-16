@@ -80,7 +80,7 @@ class TestPubSubReceiverUnit < Minitest::Test
       ["pattern", "news.tech", "news.*"]
     ]
 
-    delivered = 2.times.map { received.pop.to_a }
+    delivered = 2.times.map { queue_pop(received).to_a }
 
     assert_equal expected, delivered
   end
@@ -102,7 +102,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
 
-    arguments = received.pop
+    arguments = queue_pop(received)
 
     assert_equal 1, arguments.size
     assert_equal "exact", arguments.first.message
@@ -118,7 +118,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
 
-    message, delivered_context = received.pop
+    message, delivered_context = queue_pop(received)
 
     assert_equal "exact", message.message
     assert_same context, delivered_context
@@ -131,7 +131,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
 
-    message, delivered_context = received.pop
+    message, delivered_context = queue_pop(received)
 
     assert_equal "exact", message.message
     assert_equal :app_state, delivered_context
@@ -149,7 +149,7 @@ class TestPubSubReceiverUnit < Minitest::Test
     push(Kind::MESSAGE, message: "first", channel: "news")
     push(Kind::MESSAGE, message: "second", channel: "news")
 
-    assert_equal "second", received.pop.message
+    assert_equal "second", queue_pop(received).message
     assert_empty received
   end
 
@@ -161,7 +161,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
     push(Kind::MESSAGE, message: "before", channel: "news")
 
-    assert_equal "before", Timeout.timeout(2) { received.pop }.message
+    assert_equal "before", queue_pop(received).message
 
     @receiver.close
     push(Kind::MESSAGE, message: "after", channel: "news")
@@ -221,7 +221,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
 
-    message, delivered_context = received.pop
+    message, delivered_context = queue_pop(received)
 
     assert_predicate @receiver, :callback_mode?
     assert_equal "exact", message.message
@@ -261,6 +261,11 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   private
+
+  # Thread::Queue.pop does not have timeout until Ruby 3.2
+  def queue_pop(queue, timeout_sec = 1)
+    Timeout.timeout(timeout_sec) { queue.pop }
+  end
 
   # Calls the retained FFI handler the way the Rust push worker does, with real
   # buffers and the byte lengths alongside them.
