@@ -101,7 +101,7 @@ class Valkey
       # @see https://valkey.io/commands/psubscribe/
       def psubscribe(*patterns, timeout_ms: 0)
         validate_resp3!
-        raise ArgumentError, "No channels provided for subscription" if patterns.empty?
+        raise ArgumentError, "No patterns provided for subscription" if patterns.empty?
 
         send_command(RequestType::PSUBSCRIBE_BLOCKING, patterns.map(&:to_s) + [parse_timeout(timeout_ms)])
       end
@@ -220,7 +220,7 @@ class Valkey
       #
       # @see https://valkey.io/commands/psubscribe/
       def psubscribe_lazy(*patterns)
-        send_lazy_subscription(RequestType::PSUBSCRIBE, patterns, reject_empty: true)
+        send_lazy_subscription(RequestType::PSUBSCRIBE, patterns, reject_empty: true, noun: "patterns")
       end
 
       # Unsubscribe from channel patterns without waiting for the server to confirm.
@@ -454,9 +454,9 @@ class Valkey
         raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
       end
 
-      def send_lazy_subscription(request_type, channels, reject_empty: false)
+      def send_lazy_subscription(request_type, channels, reject_empty: false, noun: "channels")
         validate_resp3!
-        raise ArgumentError, "No channels provided for subscription" if reject_empty && channels.empty?
+        raise ArgumentError, "No #{noun} provided for subscription" if reject_empty && channels.empty?
 
         send_command(request_type, channels.map(&:to_s))
       end

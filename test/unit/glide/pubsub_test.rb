@@ -268,7 +268,7 @@ class TestPubSubCommandsUnit < Minitest::Test
 
     error = assert_raises(ArgumentError) { client.psubscribe }
 
-    assert_equal "No channels provided for subscription", error.message
+    assert_equal "No patterns provided for subscription", error.message
     assert_empty client.sent_commands
   end
 
@@ -373,7 +373,7 @@ class TestPubSubCommandsUnit < Minitest::Test
 
     error = assert_raises(ArgumentError) { client.psubscribe_lazy }
 
-    assert_equal "No channels provided for subscription", error.message
+    assert_equal "No patterns provided for subscription", error.message
     assert_empty client.sent_commands
   end
 

@@ -45,7 +45,7 @@ class Valkey
         end
         raise InvalidClientOptionError, "Pub/Sub context: requires a callback" if callback.nil? && !context.nil?
 
-        Glide::PubSubReceiver.new(callback: callback, context: context)
+        new(callback: callback, context: context)
       end
 
       # @param callback [Proc, Method, nil] invoked with the message instead of
