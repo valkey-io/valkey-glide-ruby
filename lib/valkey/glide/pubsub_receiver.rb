@@ -50,6 +50,7 @@ class Valkey
         @callback = callback
         @context = context
         @message_queue = Thread::Queue.new
+        @closed = false
 
         @ffi_handler = build_ffi_handler
       end
@@ -77,6 +78,7 @@ class Valkey
       end
 
       def close
+        @closed = true
         @message_queue.close
       end
 
@@ -100,6 +102,7 @@ class Valkey
       def build_ffi_handler
         lambda do |_client_ptr, kind, message_ptr, message_size, channel_ptr, channel_size, pattern_ptr, pattern_size|
           next unless PushKind::MESSAGE_KINDS.include?(kind)
+          next if @closed
 
           pattern = pattern_ptr.null? ? nil : pattern_ptr.read_string(pattern_size)
           message = message_ptr.read_string(message_size)

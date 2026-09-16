@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "timeout"
 
 class TestPubSubReceiverUnit < Minitest::Test
   Kind = Valkey::Glide::PubSubReceiver::PushKind
@@ -144,6 +145,20 @@ class TestPubSubReceiverUnit < Minitest::Test
     push(Kind::MESSAGE, message: "second", channel: "news")
 
     assert_equal "second", received.pop.message
+    assert_empty received
+  end
+
+  def test_close_stops_callback_delivery
+    received = Thread::Queue.new
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(message, _context) { received.push(message) })
+
+    push(Kind::MESSAGE, message: "before", channel: "news")
+
+    assert_equal "before", Timeout.timeout(2) { received.pop }.message
+
+    @receiver.close
+    push(Kind::MESSAGE, message: "after", channel: "news")
+
     assert_empty received
   end
 
