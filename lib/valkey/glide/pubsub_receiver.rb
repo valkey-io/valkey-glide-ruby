@@ -62,6 +62,7 @@ class Valkey
         @closed = false
 
         @ffi_handler = build_ffi_handler
+        @callback_thread = start_callback_thread if callback
       end
 
       attr_reader :ffi_handler
@@ -89,9 +90,27 @@ class Valkey
       def close
         @closed = true
         @message_queue.close
+        # A user callback may try to close, which would be from the callback_thread, and a thread cannot join on itself.
+        @callback_thread&.join unless Thread.current == @callback_thread
       end
 
       private
+
+      # Handling user callback on a separate threads. This avoids having long running callbacks
+      # taking up the GVL and locking up the Ruby runtime.
+      def start_callback_thread
+        Thread.new do
+          while (message = @message_queue.pop)
+            break if @closed
+
+            begin
+              @callback.arity == 1 ? @callback.call(message) : @callback.call(message, @context)
+            rescue StandardError
+              # TODO: Log user callback errors
+            end
+          end
+        end
+      end
 
       def check_callback!
         return unless callback_mode?
@@ -115,24 +134,12 @@ class Valkey
 
           pattern = pattern_ptr.null? ? nil : pattern_ptr.read_string(pattern_size)
           message = message_ptr.read_string(message_size)
-          deliver(
-            PubSubMessage.new(message, channel_ptr.read_string(channel_size), pattern)
-          )
+          payload = PubSubMessage.new(message, channel_ptr.read_string(channel_size), pattern)
+          @message_queue.push(payload)
         rescue StandardError
           # TODO: Log the swallowed error once a logger binding exists.
           nil
         end
-      end
-
-      # Single delivery point, so push mode is added by branching here and
-      # nothing else changes.
-      def deliver(message)
-        if @callback
-          @callback.arity == 1 ? @callback.call(message) : @callback.call(message, @context)
-          return
-        end
-
-        @message_queue.push(message)
       end
     end
   end

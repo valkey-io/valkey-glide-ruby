@@ -68,7 +68,7 @@ class TestPubSubReceiverUnit < Minitest::Test
     assert_predicate @receiver, :callback_mode?
   end
 
-  def test_callback_receives_messages_in_delivery_order
+  def test_callback_receives_messages
     received = Thread::Queue.new
     @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(message, _context) { received.push(message) })
 
@@ -83,14 +83,8 @@ class TestPubSubReceiverUnit < Minitest::Test
     delivered = 2.times.map { queue_pop(received).to_a }
 
     assert_equal expected, delivered
-  end
 
-  def test_callback_mode_leaves_the_queue_empty
-    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
-
-    push(Kind::MESSAGE, message: "exact", channel: "news")
-
-    assert_empty @receiver.instance_variable_get(:@message_queue)
+    assert_raises(Valkey::InvalidClientOptionError) { @receiver.pop }
   end
 
   def test_callback_of_arity_one_receives_only_the_message

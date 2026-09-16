@@ -46,11 +46,9 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   # Enqueues without going through the FFI, so the queue contract can be tested
-  # before the handler exists. `deliver` is private because nothing outside the
-  # handler may call it in production.
+  # apart from the handler. In production only the handler enqueues.
   def deliver(message:, channel:, pattern: nil)
-    receiver_for(@pubsub).send(:deliver,
-                               Valkey::Glide::PubSubMessage.new(message, channel, pattern))
+    enqueue(@pubsub, Valkey::Glide::PubSubMessage.new(message, channel, pattern))
   end
 
   def test_message_kinds_cover_only_payload_carrying_pushes
@@ -453,9 +451,12 @@ class TestPubSubCommandsUnit < Minitest::Test
   # get_pubsub_message blocks, so it is only called on a queue that already
   # holds one.
   def queued_message(client)
-    receiver_for(client).send(:deliver,
-                              Valkey::Glide::PubSubMessage.new("hello", "news", nil))
+    enqueue(client, Valkey::Glide::PubSubMessage.new("hello", "news", nil))
     client.get_pubsub_message
+  end
+
+  def enqueue(client, message)
+    receiver_for(client).instance_variable_get(:@message_queue).push(message)
   end
 
   def guarded_calls(client)
