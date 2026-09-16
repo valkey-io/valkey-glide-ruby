@@ -33,17 +33,26 @@ class Valkey
         callback = configs[:callback]
         context = configs[:context]
 
-        if !callback.nil? && !callback.respond_to?(:call)
-          raise ArgumentError, "Pub/Sub callback: must respond to #call, got: #{callback.class}"
+        unless callback.nil?
+          unless callback.respond_to?(:call)
+            raise InvalidClientOptionError,
+                  "Pub/Sub: callback must respond to #call, got: #{callback.class}"
+          end
+          unless callback.respond_to?(:arity)
+            raise InvalidClientOptionError,
+                  "Pub/Sub: callback must respond to #arity, got: #{callback.class}"
+          end
         end
+        raise InvalidClientOptionError, "Pub/Sub context: requires a callback" if callback.nil? && !context.nil?
 
         Glide::PubSubReceiver.new(callback: callback, context: context)
       end
 
-      # @param callback [#call, nil] invoked with the message instead of queueing
-      #   it. A callback whose arity is exactly `1` receives `(message)`;
+      # @param callback [Proc, Method, nil] invoked with the message instead of
+      #   queueing it. A callback whose arity is exactly `1` receives `(message)`;
       #   every other arity receives `(message, context)`, including two-argument
-      #   callbacks and variadic procs.
+      #   callbacks and variadic procs. It must answer `#arity`, which `make`
+      #   enforces, so a bare object defining only `#call` is not accepted.
       # @param context [Object, nil] second argument for a callback whose arity
       #   is not 1.
       def initialize(callback: nil, context: nil)

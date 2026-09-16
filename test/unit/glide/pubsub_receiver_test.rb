@@ -6,6 +6,11 @@ require "timeout"
 class TestPubSubReceiverUnit < Minitest::Test
   Kind = Valkey::Glide::PubSubReceiver::PushKind
 
+  # An invalid Pubsub callback
+  class CallableWithoutArity
+    def call(message, context) = [message, context]
+  end
+
   def setup
     @receiver = Valkey::Glide::PubSubReceiver.new
   end
@@ -150,7 +155,9 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_close_stops_callback_delivery
     received = Thread::Queue.new
-    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(message, _context) { received.push(message) })
+    @receiver = Valkey::Glide::PubSubReceiver.make(
+      pubsub_configs: { callback: ->(message, _context) { received.push(message) } }
+    )
 
     push(Kind::MESSAGE, message: "before", channel: "news")
 
@@ -178,18 +185,28 @@ class TestPubSubReceiverUnit < Minitest::Test
     assert_match(%r{Inline Pub/Sub reads are unavailable}, error.message)
   end
 
-  def test_context_without_callback_builds_queue_mode_receiver
-    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: { context: :app_state })
+  def test_make_context_without_callback
+    error = assert_raises(Valkey::InvalidClientOptionError) do
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { context: :app_state })
+    end
 
-    refute_predicate @receiver, :callback_mode?
+    assert_equal "Pub/Sub context: requires a callback", error.message
+  end
+
+  def test_callback_without_arity
+    error = assert_raises(Valkey::InvalidClientOptionError) do
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { callback: CallableWithoutArity.new })
+    end
+
+    assert_equal "Pub/Sub: callback must respond to #arity, got: #{CallableWithoutArity}", error.message
   end
 
   def test_non_callable_callback_raises
-    error = assert_raises(ArgumentError) do
+    error = assert_raises(Valkey::InvalidClientOptionError) do
       Valkey::Glide::PubSubReceiver.make(pubsub_configs: { callback: "not callable" })
     end
 
-    assert_equal "Pub/Sub callback: must respond to #call, got: String", error.message
+    assert_equal "Pub/Sub: callback must respond to #call, got: String", error.message
   end
 
   def test_callback_and_context_build_a_callback_mode_receiver
@@ -225,6 +242,16 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_omitted_callback_builds_a_queue_mode_receiver
     @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: { subscriptions: { exact: ["news"] } })
+
+    refute_predicate @receiver, :callback_mode?
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    assert_equal "exact", @receiver.try_pop.message
+  end
+
+  def test_nil_configs
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: nil)
 
     refute_predicate @receiver, :callback_mode?
 
