@@ -56,6 +56,31 @@ class Valkey
       # PubSub requires RESP3
       RESP3_VALUES = [:resp3, "resp3", 3].freeze
 
+      HashifyNumsub = lambda { |reply|
+        Utils::Hashify.call(reply).to_h { |channel, count| [channel.to_s, count.to_i] }
+      }
+      private_constant :HashifyNumsub
+
+      SymbolizeSubscriptionModes = lambda { |payload|
+        Utils::Hashify.call(payload).to_h do |mode, channels|
+          [mode.to_s.downcase.to_sym, Array(channels).map(&:to_s).uniq]
+        end
+      }
+      private_constant :SymbolizeSubscriptionModes
+
+      StateifySubscriptions = lambda { |reply|
+        unless reply.is_a?(Array) && reply.size == 4
+          raise CommandError,
+                "Unexpected GET_SUBSCRIPTIONS response: expected a 4-element array, got: #{reply.inspect}"
+        end
+
+        Glide::PubSubState.new(
+          SymbolizeSubscriptionModes.call(reply[1]),
+          SymbolizeSubscriptionModes.call(reply[3])
+        )
+      }
+      private_constant :StateifySubscriptions
+
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
       #
       # @example Subscribe to channels
@@ -352,8 +377,9 @@ class Valkey
       #
       # @return [Valkey::Glide::PubSubState] both hashes are keyed `:exact`, `:pattern`
       #   and `:sharded`, mapping to `Array<String>`; standalone connections omit `:sharded`
-      # @raise [NotImplementedError] this method is not implemented yet
-      def get_subscriptions = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def get_subscriptions
+        send_command(RequestType::GET_SUBSCRIPTIONS, &StateifySubscriptions)
+      end
 
       # List the currently active channels, that is, the channels with at least one subscriber.
       #
@@ -369,10 +395,11 @@ class Valkey
       # @param [String, nil] pattern a glob-style pattern to match active channels against; if not provided,
       #   all active channels are returned
       # @return [Array<String>] the active channels matching the given pattern
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-channels/
-      def pubsub_channels(pattern = nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_channels(pattern = nil)
+        send_command(RequestType::PUBSUB_CHANNELS, [pattern].compact.map(&:to_s))
+      end
 
       # Get the number of unique patterns that are subscribed to by clients.
       #
@@ -386,10 +413,11 @@ class Valkey
       #     # => 3
       #
       # @return [Integer] the number of unique patterns
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-numpat/
-      def pubsub_numpat = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_numpat
+        send_command(RequestType::PUBSUB_NUM_PAT)
+      end
 
       # Get the number of subscribers for the specified channels, exclusive of clients subscribed to patterns.
       #
@@ -405,10 +433,11 @@ class Valkey
       # @param [Array<String>] channels the channels to query for the number of subscribers; an empty list
       #   returns an empty hash
       # @return [Hash{String => Integer}] the channel names mapped to their number of subscribers
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-numsub/
-      def pubsub_numsub(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_numsub(*channels)
+        send_command(RequestType::PUBSUB_NUM_SUB, channels.map(&:to_s), &HashifyNumsub)
+      end
 
       # List the currently active sharded channels, that is, the ones with at least one subscriber.
       #
@@ -426,10 +455,11 @@ class Valkey
       # @param [String, nil] pattern a glob-style pattern to match active sharded channels against; if not
       #   provided, all active sharded channels are returned
       # @return [Array<String>] the active sharded channels matching the given pattern
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-shardchannels/
-      def pubsub_shardchannels(pattern = nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_shardchannels(pattern = nil)
+        send_command(RequestType::PUBSUB_SHARD_CHANNELS, [pattern].compact.map(&:to_s))
+      end
 
       # Get the number of subscribers for the specified sharded channels, exclusive of clients subscribed to
       # patterns.
@@ -446,10 +476,45 @@ class Valkey
       # @param [Array<String>] channels the sharded channels to query for the number of subscribers; an empty
       #   list returns an empty hash
       # @return [Hash{String => Integer}] the sharded channel names mapped to their number of subscribers
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
-      def pubsub_shardnumsub(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_shardnumsub(*channels)
+        send_command(RequestType::PUBSUB_SHARD_NUM_SUB, channels.map(&:to_s), &HashifyNumsub)
+      end
+
+      # Dispatch a PUBSUB introspection subcommand. Mirrors redis-rb's `pubsub(subcommand, *args)`.
+      #
+      # The subcommand is matched case-insensitively and may be a Symbol or a String. Supported
+      # subcommands are `channels`, `numpat`, `numsub`, `shardchannels` and `shardnumsub`; each
+      # dispatches to the corresponding `pubsub_*` method and returns its converted result.
+      #
+      # @example List active channels matching a pattern
+      #   valkey.pubsub(:channels, "news.*")
+      #     # => ["news.sports", "news.weather"]
+      # @example Get the pattern count
+      #   valkey.pubsub(:numpat)
+      #     # => 3
+      # @example Get subscriber counts
+      #   valkey.pubsub(:numsub, "channel1", "channel2")
+      #     # => {"channel1" => 5, "channel2" => 3}
+      #
+      # @param [Symbol, String] subcommand the PUBSUB subcommand to run
+      # @param [Array<String>] args the arguments forwarded to the subcommand
+      # @return [Array<String>, Integer, Hash{String => Integer}] the subcommand's result
+      # @raise [ArgumentError] if the subcommand is not a known PUBSUB subcommand
+      #
+      # @see https://valkey.io/commands/#pubsub
+      def pubsub(subcommand, *args)
+        case subcommand.to_s.downcase
+        when "channels"      then pubsub_channels(*args)
+        when "numpat"        then pubsub_numpat
+        when "numsub"        then pubsub_numsub(*args)
+        when "shardchannels" then pubsub_shardchannels(*args)
+        when "shardnumsub"   then pubsub_shardnumsub(*args)
+        else
+          raise ArgumentError, "Unknown PUBSUB subcommand: #{subcommand.inspect}"
+        end
+      end
 
       # Get the next Pub/Sub message, blocking until one is available.
       #

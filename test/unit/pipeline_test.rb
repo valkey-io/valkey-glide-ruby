@@ -71,4 +71,39 @@ class TestPipelineUnit < Minitest::Test
       [Valkey::RequestType::SPUBLISH, %w[shard-chan hello], nil]
     ], pipeline.commands
   end
+
+  def test_pubsub_introspection_commands_queue_and_return_futures
+    pipeline = Valkey::Pipeline.new
+
+    futures = [
+      pipeline.pubsub_channels("news.*"),
+      pipeline.pubsub_numpat,
+      pipeline.pubsub_numsub("a", "b"),
+      pipeline.pubsub_shardchannels,
+      pipeline.pubsub_shardnumsub("a")
+    ]
+
+    futures.each { |future| assert_instance_of Valkey::Future, future }
+    assert_equal futures, pipeline.futures
+
+    expected = [
+      [Valkey::RequestType::PUBSUB_CHANNELS, ["news.*"]],
+      [Valkey::RequestType::PUBSUB_NUM_PAT, []],
+      [Valkey::RequestType::PUBSUB_NUM_SUB, %w[a b]],
+      [Valkey::RequestType::PUBSUB_SHARD_CHANNELS, []],
+      [Valkey::RequestType::PUBSUB_SHARD_NUM_SUB, ["a"]]
+    ]
+    queued = pipeline.commands.map { |type, args, _block| [type, args] }
+    assert_equal expected, queued
+  end
+
+  def test_get_subscriptions_raises_argument_error_and_queues_nothing
+    pipeline = Valkey::Pipeline.new
+
+    error = assert_raises(ArgumentError) { pipeline.get_subscriptions }
+
+    assert_equal "get_subscriptions is not supported inside pipelined/multi", error.message
+    assert_empty pipeline.commands
+    assert_empty pipeline.futures
+  end
 end

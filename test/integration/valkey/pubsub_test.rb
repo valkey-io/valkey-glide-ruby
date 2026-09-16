@@ -636,6 +636,106 @@ module ValkeyTests
       assert_match(/cluster mode/, error.message)
     end
 
+    SUBSCRIPTION_MODE_KEYS = %i[exact pattern sharded].freeze
+
+    def test_get_subscriptions_tracks_subscribe_and_unsubscribe
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.subscribe(channel)
+
+        state = subscriber.get_subscriptions
+        assert_kind_of Valkey::Glide::PubSubState, state
+        assert_empty state.desired_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
+        assert_empty state.actual_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
+        assert_includes state.desired_subscriptions.fetch(:exact, []), channel
+
+        confirmed = wait_until do
+          subscriber.get_subscriptions.actual_subscriptions.fetch(:exact, []).include?(channel)
+        end
+        assert confirmed, "server never confirmed the subscription to #{channel} in actual_subscriptions"
+
+        subscriber.unsubscribe(channel)
+
+        refute_includes subscriber.get_subscriptions.desired_subscriptions.fetch(:exact, []), channel
+
+        drained = wait_until do
+          !subscriber.get_subscriptions.actual_subscriptions.fetch(:exact, []).include?(channel)
+        end
+        assert drained, "the subscription to #{channel} never drained from actual_subscriptions"
+      end
+    end
+
+    def test_introspection_sees_another_clients_subscription
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.subscribe(channel)
+
+        assert_includes r.pubsub_channels, channel
+        assert_includes r.pubsub_channels("#{channel}*"), channel
+        assert_equal({ channel => 1 }, r.pubsub_numsub(channel))
+      end
+    end
+
+    def test_pipelined_pubsub_introspection
+      channel = unique_channel
+
+      numpat_future = nil
+      numsub_future = nil
+      results = r.pipelined do |pipeline|
+        numpat_future = pipeline.pubsub_numpat
+        numsub_future = pipeline.pubsub_numsub(channel)
+      end
+
+      assert_kind_of Integer, numpat_future.value
+      assert_equal({ channel => 0 }, numsub_future.value)
+      assert_equal [numpat_future.value, { channel => 0 }], results
+    end
+
+    def test_pipelined_get_subscriptions_raises
+      error = assert_raises(ArgumentError) { r.pipelined(&:get_subscriptions) }
+
+      assert_match(%r{not supported inside pipelined/multi}, error.message)
+    end
+
+    def test_pubsub_channels_aggregates_across_nodes
+      skip("cluster-only: exercises the core's cross-node fan-out") unless cluster_mode?
+
+      channels = %w[{bar} {key1} {foo}].map { |tag| unique_channel(tag) }
+
+      subscribers = channels.map do |channel|
+        subscriber = _new_client(protocol: :resp3)
+        subscriber.subscribe(channel)
+        subscriber
+      end
+
+      seen = r.pubsub_channels
+
+      channels.each do |channel|
+        assert_includes seen, channel
+        assert_equal 1, seen.count(channel), "expected #{channel} exactly once in #{seen.inspect}"
+      end
+
+      assert_equal channels.to_h { |channel| [channel, 1] }, r.pubsub_numsub(*channels)
+    ensure
+      subscribers&.each(&:close)
+    end
+
+    def test_shard_introspection_shapes
+      skip("cluster-only: sharded Pub/Sub commands") unless cluster_mode?
+      omit_version("7.0")
+
+      channel = unique_channel
+
+      shard_channels = r.pubsub_shardchannels
+      assert_kind_of Array, shard_channels
+      shard_channels.each { |shard_channel| assert_kind_of String, shard_channel }
+      assert_kind_of Array, r.pubsub_shardchannels("#{channel}*")
+
+      assert_equal({ channel => 0 }, r.pubsub_shardnumsub(channel))
+    end
+
     private
 
     def skip_unless_sharded_pubsub
