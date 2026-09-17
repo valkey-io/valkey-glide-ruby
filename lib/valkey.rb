@@ -328,7 +328,7 @@ class Valkey
     pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol])
     json_options.merge!(pubsub_config)
 
-    @pubsub_receiver = Glide::PubSubReceiver.new
+    @pubsub_receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: options[:pubsub])
 
     json_str = json_options.empty? ? nil : JSON.generate(json_options)
     # Create client using URI-based FFI function

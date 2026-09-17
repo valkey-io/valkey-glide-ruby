@@ -7,6 +7,7 @@ class Valkey
     # Pub/Sub requires the RESP3 protocol. Subscriptions can be declared when the client is created, and are
     # applied via SUBSCRIBE/PSUBSCRIBE/SSUBSCRIBE during connection establishment:
     #
+    # @example
     #   valkey = Valkey.new(
     #     protocol: :resp3,
     #     pubsub: {
@@ -23,9 +24,27 @@ class Valkey
     # * Inline: messages are queued on the connection and read with {#get_pubsub_message} or
     #   {#try_get_pubsub_message}.
     # * Callback: a `callback:` proc receives every message instead, along with an arbitrary `context:`.
-    #   Not supported yet.
     # * Lazy: the `_lazy` subscribe and unsubscribe methods return without waiting for the server to confirm
     #   the change; read back {#get_subscriptions} to see the subscriptions the server actually has.
+    #
+    # @example PubSub with callback
+    #   valkey = Valkey.new(
+    #     protocol: :resp3,
+    #     pubsub: {
+    #       subscriptions: { exact: ["news"], pattern: ["news.*"] },
+    #       callback: ->(message, context) { context[:messages] << [message.channel, message.message] },
+    #       context: { messages: [] }
+    #     }
+    #   )
+    #
+    # @note While the callback executes it holds the GVL, blocking the Ruby runtime until it
+    #   returns. A slow callback becomes a bottleneck for the whole application, so avoid
+    #   costly operations in it.
+    #
+    # @note The callback may be invoked during initial connection, before Valkey.new returns.
+    #   Do not reference the client being constructed from inside the callback, and
+    #   any state the callback needs at delivery time should be passed via the context
+    #   instead
     #
     # @see https://valkey.io/docs/topics/pubsub/
     # @see https://valkey.io/commands/#pubsub
@@ -96,11 +115,16 @@ class Valkey
       #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
       # @raise [ArgumentError] if timeout_ms is negative
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/psubscribe/
-      def psubscribe(*patterns, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def psubscribe(*patterns, timeout_ms: 0)
+        validate_resp3!
+        raise ArgumentError, "No patterns provided for subscription" if patterns.empty?
+
+        send_command(RequestType::PSUBSCRIBE_BLOCKING, patterns.map(&:to_s) + [parse_timeout(timeout_ms)])
+      end
 
       # Unsubscribe from channel patterns, waiting for the server to confirm the change.
       #
@@ -115,11 +139,15 @@ class Valkey
       #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
       # @raise [ArgumentError] if timeout_ms is negative
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/punsubscribe/
-      def punsubscribe(*patterns, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def punsubscribe(*patterns, timeout_ms: 0)
+        validate_resp3!
+
+        send_command(RequestType::PUNSUBSCRIBE_BLOCKING, patterns.map(&:to_s) + [parse_timeout(timeout_ms)])
+      end
 
       # Subscribe to sharded channels, waiting for the server to confirm the subscription.
       #
@@ -171,10 +199,13 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
       # @return [void] returns as soon as the desired subscription state is updated
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [ArgumentError] on argument errors
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/subscribe/
-      def subscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def subscribe_lazy(*channels)
+        send_lazy_subscription(RequestType::SUBSCRIBE, channels, reject_empty: true)
+      end
 
       # Unsubscribe from exact channels without waiting for the server to confirm.
       #
@@ -186,10 +217,12 @@ class Valkey
       # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
       # @return [void] returns as soon as the desired subscription state is updated
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/unsubscribe/
-      def unsubscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def unsubscribe_lazy(*channels)
+        send_lazy_subscription(RequestType::UNSUBSCRIBE, channels)
+      end
 
       # Subscribe to channel patterns without waiting for the server to confirm.
       #
@@ -202,10 +235,13 @@ class Valkey
       #
       # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
       # @return [void] returns as soon as the desired subscription state is updated
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [ArgumentError] on argument errors
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/psubscribe/
-      def psubscribe_lazy(*patterns) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def psubscribe_lazy(*patterns)
+        send_lazy_subscription(RequestType::PSUBSCRIBE, patterns, reject_empty: true, noun: "patterns")
+      end
 
       # Unsubscribe from channel patterns without waiting for the server to confirm.
       #
@@ -217,10 +253,12 @@ class Valkey
       # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
       # @return [void] returns as soon as the desired subscription state is updated
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/punsubscribe/
-      def punsubscribe_lazy(*patterns) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def punsubscribe_lazy(*patterns)
+        send_lazy_subscription(RequestType::PUNSUBSCRIBE, patterns)
+      end
 
       # Subscribe to sharded channels without waiting for the server to confirm.
       #
@@ -406,6 +444,7 @@ class Valkey
       # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` once the client is closed.
       #   `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
+      # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
       def get_pubsub_message
         validate_resp3!
         @pubsub_receiver.pop
@@ -423,6 +462,7 @@ class Valkey
       # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` when the queue is empty or the
       #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
+      # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
       def try_get_pubsub_message
         validate_resp3!
         @pubsub_receiver.try_pop
@@ -432,6 +472,13 @@ class Valkey
 
       def validate_resp3!
         raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+      end
+
+      def send_lazy_subscription(request_type, channels, reject_empty: false, noun: "channels")
+        validate_resp3!
+        raise ArgumentError, "No #{noun} provided for subscription" if reject_empty && channels.empty?
+
+        send_command(request_type, channels.map(&:to_s))
       end
 
       # glide-core takes the timeout as the last command argument, in whole

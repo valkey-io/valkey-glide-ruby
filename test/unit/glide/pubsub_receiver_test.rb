@@ -1,9 +1,15 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "timeout"
 
 class TestPubSubReceiverUnit < Minitest::Test
   Kind = Valkey::Glide::PubSubReceiver::PushKind
+
+  # An invalid Pubsub callback
+  class CallableWithoutArity
+    def call(message, context) = [message, context]
+  end
 
   def setup
     @receiver = Valkey::Glide::PubSubReceiver.new
@@ -56,7 +62,204 @@ class TestPubSubReceiverUnit < Minitest::Test
     assert_same @receiver.ffi_handler, @receiver.ffi_handler
   end
 
+  def test_callback_mode_is_reported
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
+
+    assert_predicate @receiver, :callback_mode?
+  end
+
+  def test_callback_receives_messages
+    received = Thread::Queue.new
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(message, _context) { received.push(message) })
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+    push(Kind::PMESSAGE, message: "pattern", channel: "news.tech", pattern: "news.*")
+
+    expected = [
+      ["exact", "news", nil],
+      ["pattern", "news.tech", "news.*"]
+    ]
+
+    delivered = 2.times.map { queue_pop(received).to_a }
+
+    assert_equal expected, delivered
+
+    assert_raises(Valkey::InvalidClientOptionError) { @receiver.pop }
+  end
+
+  def test_callback_of_arity_one_receives_only_the_message
+    received = Thread::Queue.new
+    @receiver = Valkey::Glide::PubSubReceiver.new(
+      callback: ->(message) { received.push([message]) },
+      context: :ignored
+    )
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    arguments = queue_pop(received)
+
+    assert_equal 1, arguments.size
+    assert_equal "exact", arguments.first.message
+  end
+
+  def test_callback_of_arity_two_receives_the_context
+    received = Thread::Queue.new
+    context = { state: "app" }
+    @receiver = Valkey::Glide::PubSubReceiver.new(
+      callback: ->(message, callback_context) { received.push([message, callback_context]) },
+      context: context
+    )
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    message, delivered_context = queue_pop(received)
+
+    assert_equal "exact", message.message
+    assert_same context, delivered_context
+  end
+
+  def test_two_argument_proc_receives_the_context
+    received = Thread::Queue.new
+    callback = proc { |message, callback_context| received.push([message, callback_context]) }
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: callback, context: :app_state)
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    message, delivered_context = queue_pop(received)
+
+    assert_equal "exact", message.message
+    assert_equal :app_state, delivered_context
+  end
+
+  def test_raising_callback_does_not_propagate_and_does_not_kill_the_receiver
+    received = Thread::Queue.new
+    callback = lambda do |message, _context|
+      raise "callback boom" if message.message == "first"
+
+      received.push(message)
+    end
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: callback)
+
+    push(Kind::MESSAGE, message: "first", channel: "news")
+    push(Kind::MESSAGE, message: "second", channel: "news")
+
+    assert_equal "second", queue_pop(received).message
+    assert_empty received
+  end
+
+  def test_close_stops_callback_delivery
+    received = Thread::Queue.new
+    @receiver = Valkey::Glide::PubSubReceiver.make(
+      pubsub_configs: { callback: ->(message, _context) { received.push(message) } }
+    )
+
+    push(Kind::MESSAGE, message: "before", channel: "news")
+
+    assert_equal "before", queue_pop(received).message
+
+    @receiver.close
+    push(Kind::MESSAGE, message: "after", channel: "news")
+
+    assert_empty received
+  end
+
+  def test_pop_raises_in_callback_mode
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
+
+    error = assert_raises(Valkey::InvalidClientOptionError) { @receiver.pop }
+
+    assert_match(%r{Inline Pub/Sub reads are unavailable}, error.message)
+  end
+
+  def test_try_pop_raises_in_callback_mode
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
+
+    error = assert_raises(Valkey::InvalidClientOptionError) { @receiver.try_pop }
+
+    assert_match(%r{Inline Pub/Sub reads are unavailable}, error.message)
+  end
+
+  def test_make_context_without_callback
+    error = assert_raises(Valkey::InvalidClientOptionError) do
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { context: :app_state })
+    end
+
+    assert_equal "Pub/Sub context: requires a callback", error.message
+  end
+
+  def test_callback_without_arity
+    error = assert_raises(Valkey::InvalidClientOptionError) do
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { callback: CallableWithoutArity.new })
+    end
+
+    assert_equal "Pub/Sub: callback must respond to #arity, got: #{CallableWithoutArity}", error.message
+  end
+
+  def test_non_callable_callback_raises
+    error = assert_raises(Valkey::InvalidClientOptionError) do
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { callback: "not callable" })
+    end
+
+    assert_equal "Pub/Sub: callback must respond to #call, got: String", error.message
+  end
+
+  def test_callback_and_context_build_a_callback_mode_receiver
+    received = Thread::Queue.new
+    pubsub_configs = {
+      subscriptions: { exact: ["news"] },
+      callback: ->(message, callback_context) { received.push([message, callback_context]) },
+      context: :app_state
+    }
+
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: pubsub_configs)
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    message, delivered_context = queue_pop(received)
+
+    assert_predicate @receiver, :callback_mode?
+    assert_equal "exact", message.message
+    assert_equal :app_state, delivered_context
+  end
+
+  def test_callback_and_context_stay_out_of_the_connection_json
+    pubsub_configs = {
+      subscriptions: { exact: ["news"] },
+      callback: ->(_message, _context) {},
+      context: :app_state
+    }
+
+    parsed = Valkey.allocate.send(:parse_pubsub_configs, pubsub_configs, protocol: :resp3)
+
+    assert_equal({ "pubsub_subscriptions" => { "0" => ["news"] } }, parsed)
+  end
+
+  def test_omitted_callback_builds_a_queue_mode_receiver
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: { subscriptions: { exact: ["news"] } })
+
+    refute_predicate @receiver, :callback_mode?
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    assert_equal "exact", @receiver.try_pop.message
+  end
+
+  def test_nil_configs
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: nil)
+
+    refute_predicate @receiver, :callback_mode?
+
+    push(Kind::MESSAGE, message: "exact", channel: "news")
+
+    assert_equal "exact", @receiver.try_pop.message
+  end
+
   private
+
+  # Thread::Queue.pop does not have timeout until Ruby 3.2
+  def queue_pop(queue, timeout_sec = 1)
+    Timeout.timeout(timeout_sec) { queue.pop }
+  end
 
   # Calls the retained FFI handler the way the Rust push worker does, with real
   # buffers and the byte lengths alongside them.
