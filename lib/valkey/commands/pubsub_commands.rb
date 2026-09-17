@@ -56,11 +56,6 @@ class Valkey
       # PubSub requires RESP3
       RESP3_VALUES = [:resp3, "resp3", 3].freeze
 
-      HashifyNumsub = lambda { |reply|
-        Utils::Hashify.call(reply).to_h { |channel, count| [channel.to_s, count.to_i] }
-      }
-      private_constant :HashifyNumsub
-
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
       #
       # @example Subscribe to channels
@@ -419,11 +414,13 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to query for the number of subscribers; an empty list
       #   returns an empty hash
-      # @return [Hash{String => Integer}] the channel names mapped to their number of subscribers
+      # @return [Hash{String => Integer}, Array] the channel names against their number of subscribers,
+      #   returned as glide-core produces it: a `Hash` in cluster mode and on a RESP3 connection, a flat
+      #   `[channel, count, ...]` `Array` on a standalone RESP2 connection or with `flatten_map: true`
       #
       # @see https://valkey.io/commands/pubsub-numsub/
       def pubsub_numsub(*channels)
-        send_command(RequestType::PUBSUB_NUM_SUB, channels.map(&:to_s), &HashifyNumsub)
+        send_command(RequestType::PUBSUB_NUM_SUB, channels.map(&:to_s))
       end
 
       # List the currently active sharded channels, that is, the ones with at least one subscriber.
@@ -462,11 +459,14 @@ class Valkey
       #
       # @param [Array<String>] channels the sharded channels to query for the number of subscribers; an empty
       #   list returns an empty hash
-      # @return [Hash{String => Integer}] the sharded channel names mapped to their number of subscribers
+      # @return [Hash{String => Integer}, Array] the sharded channel names against their number of
+      #   subscribers, returned as glide-core produces it: a `Hash` in cluster mode and on a RESP3
+      #   connection, a flat `[channel, count, ...]` `Array` on a standalone RESP2 connection or with
+      #   `flatten_map: true`
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
       def pubsub_shardnumsub(*channels)
-        send_command(RequestType::PUBSUB_SHARD_NUM_SUB, channels.map(&:to_s), &HashifyNumsub)
+        send_command(RequestType::PUBSUB_SHARD_NUM_SUB, channels.map(&:to_s))
       end
 
       # Get the next Pub/Sub message, blocking until one is available.

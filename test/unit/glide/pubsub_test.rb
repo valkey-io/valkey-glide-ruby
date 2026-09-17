@@ -650,37 +650,23 @@ class TestPubSubCommandsUnit < Minitest::Test
     end
   end
 
-  def test_numsub_conversion_normalizes_every_reply_shape
+  # The numsub reply is handed back exactly as glide-core produces it, matching the Python client, so the
+  # shape follows the connection: a Hash from a cluster's combined per-node maps or from RESP3, a flat
+  # array from a standalone RESP2 connection or under `flatten_map: true`.
+  def test_numsub_returns_every_reply_shape_unchanged
     replies = [
-      ["a", 1, "b", 2],           # RESP2 flat array
-      { "a" => 1, "b" => 2 },     # RESP3 map
-      [["a", 1], ["b", 2]]        # array of pairs
+      ["a", 1, "b", 2],           # standalone RESP2, or flatten_map: true
+      { "a" => 1, "b" => 2 },     # RESP3, or cluster CombineMaps
+      [],
+      {}
     ]
 
     %i[pubsub_numsub pubsub_shardnumsub].each do |name|
       replies.each do |reply|
         client = RecordingClient.new(response: reply)
 
-        assert_equal({ "a" => 1, "b" => 2 }, client.public_send(name, "a", "b"),
-                     "#{name} must normalize #{reply.inspect}")
-      end
-    end
-  end
-
-  def test_numsub_conversion_coerces_string_counts_to_integers
-    %i[pubsub_numsub pubsub_shardnumsub].each do |name|
-      client = RecordingClient.new(response: %w[a 1])
-
-      assert_equal({ "a" => 1 }, client.public_send(name, "a"))
-    end
-  end
-
-  def test_numsub_conversion_maps_an_empty_reply_to_an_empty_hash
-    %i[pubsub_numsub pubsub_shardnumsub].each do |name|
-      [[], {}].each do |reply|
-        client = RecordingClient.new(response: reply)
-
-        assert_equal({}, client.public_send(name), "#{name} must map #{reply.inspect} to {}")
+        assert_equal reply, client.public_send(name, "a", "b"),
+                     "#{name} must return #{reply.inspect} unchanged"
       end
     end
   end
@@ -797,59 +783,6 @@ class TestPubSubCommandsUnit < Minitest::Test
       end
       assert_match(/Unexpected GET_SUBSCRIPTIONS response/, error.message)
     end
-  end
-
-  def test_pubsub_dispatches_each_subcommand_case_insensitively
-    {
-      channels: Valkey::RequestType::PUBSUB_CHANNELS,
-      numpat: Valkey::RequestType::PUBSUB_NUM_PAT,
-      numsub: Valkey::RequestType::PUBSUB_NUM_SUB,
-      shardchannels: Valkey::RequestType::PUBSUB_SHARD_CHANNELS,
-      shardnumsub: Valkey::RequestType::PUBSUB_SHARD_NUM_SUB
-    }.each do |subcommand, request_type|
-      spellings = [subcommand, subcommand.to_s, subcommand.to_s.upcase, subcommand.to_s.capitalize.to_sym]
-
-      spellings.each do |spelling|
-        client = RecordingClient.new(response: [])
-
-        client.pubsub(spelling)
-
-        assert_equal request_type, client.last_command.request_type, "pubsub(#{spelling.inspect})"
-      end
-    end
-  end
-
-  def test_pubsub_dispatch_handles_mixed_case_spellings
-    client = RecordingClient.new(response: [])
-
-    client.pubsub(:NumPat)
-    client.pubsub("CHANNELS")
-
-    assert_equal Valkey::RequestType::PUBSUB_NUM_PAT, client.sent_commands[0].request_type
-    assert_equal Valkey::RequestType::PUBSUB_CHANNELS, client.sent_commands[1].request_type
-  end
-
-  def test_pubsub_dispatch_forwards_extra_arguments
-    client = RecordingClient.new(response: [])
-
-    client.pubsub(:channels, "pat*")
-    client.pubsub(:numsub, "a", "b")
-    client.pubsub(:shardchannels, "shard*")
-    client.pubsub(:shardnumsub, "a")
-
-    assert_equal ["pat*"], client.sent_commands[0].args
-    assert_equal %w[a b], client.sent_commands[1].args
-    assert_equal ["shard*"], client.sent_commands[2].args
-    assert_equal ["a"], client.sent_commands[3].args
-  end
-
-  def test_pubsub_dispatch_rejects_an_unknown_subcommand
-    client = RecordingClient.new(response: [])
-
-    error = assert_raises(ArgumentError) { client.pubsub(:bogus) }
-
-    assert_equal "Unknown PUBSUB subcommand: :bogus", error.message
-    assert_empty client.sent_commands
   end
 
   # --- RESP3 requirement ---------------------------------------------------

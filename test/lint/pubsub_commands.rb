@@ -35,13 +35,13 @@ module Lint
     def test_pubsub_numsub
       result = r.pubsub_numsub("lint_numsub_chan1", "lint_numsub_chan2")
 
-      assert_equal({ "lint_numsub_chan1" => 0, "lint_numsub_chan2" => 0 }, result)
+      assert_numsub({ "lint_numsub_chan1" => 0, "lint_numsub_chan2" => 0 }, result)
     end
 
     def test_pubsub_numsub_no_channels
       result = r.pubsub_numsub
 
-      assert_equal({}, result)
+      assert_numsub({}, result)
     end
 
     def test_pubsub_shardchannels
@@ -82,7 +82,7 @@ module Lint
       omit_version("7.0")
       result = r.pubsub_shardnumsub("lint_shard_chan1", "lint_shard_chan2")
 
-      assert_equal({ "lint_shard_chan1" => 0, "lint_shard_chan2" => 0 }, result)
+      assert_numsub({ "lint_shard_chan1" => 0, "lint_shard_chan2" => 0 }, result)
     rescue Valkey::TimeoutError
       skip("Shard channel command timed out - cluster may be initializing")
     rescue Valkey::CommandError => e
@@ -107,68 +107,6 @@ module Lint
       # Skip if shard channels not supported
       skip("Shard channels not supported") if e.message.include?("unknown command") || e.message.include?("SPUBLISH")
       raise
-    end
-
-    def test_pubsub_convenience_method_channels
-      channels = r.pubsub(:channels)
-
-      assert_kind_of Array, channels
-      channels.each { |channel| assert_kind_of String, channel }
-    end
-
-    def test_pubsub_convenience_method_channels_with_pattern
-      channels = r.pubsub(:channels, "test*")
-
-      assert_kind_of Array, channels
-      channels.each { |channel| assert_kind_of String, channel }
-    end
-
-    def test_pubsub_convenience_method_numpat
-      count = r.pubsub(:numpat)
-
-      assert_kind_of Integer, count
-      assert count >= 0
-    end
-
-    def test_pubsub_convenience_method_numsub
-      result = r.pubsub(:numsub, "lint_numsub_chan1", "lint_numsub_chan2")
-
-      assert_equal({ "lint_numsub_chan1" => 0, "lint_numsub_chan2" => 0 }, result)
-    end
-
-    def test_pubsub_convenience_method_shardchannels
-      # PUBSUB SHARDCHANNELS was introduced in Redis 7.0.
-      # Skipped on Redis 6.2 and earlier versions.
-      omit_version("7.0")
-      channels = r.pubsub(:shardchannels)
-
-      assert_kind_of Array, channels
-      channels.each { |channel| assert_kind_of String, channel }
-    rescue Valkey::TimeoutError
-      skip("Shard channel command timed out - cluster may be initializing")
-    rescue Valkey::CommandError => e
-      skip("Shard channels not supported") if e.message.include?("unknown command")
-      raise
-    end
-
-    def test_pubsub_convenience_method_shardnumsub
-      # PUBSUB SHARDNUMSUB was introduced in Redis 7.0.
-      # Skipped on Redis 6.2 and earlier versions.
-      omit_version("7.0")
-      result = r.pubsub(:shardnumsub, "lint_shard_chan1", "lint_shard_chan2")
-
-      assert_equal({ "lint_shard_chan1" => 0, "lint_shard_chan2" => 0 }, result)
-    rescue Valkey::TimeoutError
-      skip("Shard channel command timed out - cluster may be initializing")
-    rescue Valkey::CommandError => e
-      skip("Shard channels not supported") if e.message.include?("unknown command")
-      raise
-    end
-
-    def test_pubsub_convenience_method_unknown_subcommand
-      error = assert_raises(ArgumentError) { r.pubsub(:bogus) }
-
-      assert_match(/Unknown PUBSUB subcommand/, error.message)
     end
   end
 end

@@ -674,7 +674,7 @@ module ValkeyTests
 
         assert_includes r.pubsub_channels, channel
         assert_includes r.pubsub_channels("#{channel}*"), channel
-        assert_equal({ channel => 1 }, r.pubsub_numsub(channel))
+        assert_numsub({ channel => 1 }, r.pubsub_numsub(channel))
       end
     end
 
@@ -689,7 +689,7 @@ module ValkeyTests
       end
 
       assert_kind_of Integer, numpat_future.value
-      assert_equal({ channel => 0 }, numsub_future.value)
+      assert_numsub({ channel => 0 }, numsub_future.value)
       assert_equal [numpat_future.value, { channel => 0 }], results
     end
 
@@ -717,7 +717,7 @@ module ValkeyTests
         assert_equal 1, seen.count(channel), "expected #{channel} exactly once in #{seen.inspect}"
       end
 
-      assert_equal channels.to_h { |channel| [channel, 1] }, r.pubsub_numsub(*channels)
+      assert_numsub channels.to_h { |channel| [channel, 1] }, r.pubsub_numsub(*channels)
     ensure
       subscribers&.each(&:close)
     end
@@ -733,7 +733,7 @@ module ValkeyTests
       shard_channels.each { |shard_channel| assert_kind_of String, shard_channel }
       assert_kind_of Array, r.pubsub_shardchannels("#{channel}*")
 
-      assert_equal({ channel => 0 }, r.pubsub_shardnumsub(channel))
+      assert_numsub({ channel => 0 }, r.pubsub_shardnumsub(channel))
     end
 
     private
