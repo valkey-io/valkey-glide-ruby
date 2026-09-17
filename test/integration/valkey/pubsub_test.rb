@@ -464,7 +464,7 @@ module ValkeyTests
     # --- Sharded Pub/Sub (cluster mode) --------------------------------------
 
     def test_sharded_message_round_trip
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -480,7 +480,7 @@ module ValkeyTests
     end
 
     def test_spublish_returns_the_receiver_count
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -493,7 +493,7 @@ module ValkeyTests
     end
 
     def test_sunsubscribe_stops_sharded_delivery
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -510,7 +510,7 @@ module ValkeyTests
     end
 
     def test_sunsubscribe_all_sharded_channels
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       # Same hash tag keeps both channels in one slot, so a single ssubscribe
       # call is routed to one node and both land in the actual subscriptions.
@@ -527,7 +527,7 @@ module ValkeyTests
     end
 
     def test_ssubscribe_lazy_eventually_delivers
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -543,7 +543,7 @@ module ValkeyTests
     end
 
     def test_sunsubscribe_lazy_eventually_stops_delivery
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -558,7 +558,7 @@ module ValkeyTests
     end
 
     def test_connection_time_sharded_subscription
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -572,7 +572,7 @@ module ValkeyTests
     end
 
     def test_sharded_publish_reaches_a_subscriber_in_a_different_slot
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       # Distinct hash tags force the two channels onto different slots (and thus
       # likely different owning nodes). A same-slot pair would pass even if the
@@ -596,7 +596,7 @@ module ValkeyTests
     end
 
     def test_sharded_publish_is_batchable_in_a_pipeline
-      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+      skip_unless_sharded_pubsub
 
       channel = unique_channel
 
@@ -637,6 +637,12 @@ module ValkeyTests
     end
 
     private
+
+    def skip_unless_sharded_pubsub
+      skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
+
+      omit_version("7.0")
+    end
 
     def with_client(options = {})
       subscriber = _new_client(options.merge(protocol: :resp3))
