@@ -62,7 +62,6 @@ class Valkey
         @closed = false
 
         @ffi_handler = build_ffi_handler
-        @callback_thread = start_callback_thread if callback
       end
 
       attr_reader :ffi_handler
@@ -90,26 +89,12 @@ class Valkey
       def close
         @closed = true
         @message_queue.close
-        # A user callback may try to close, which would be from the callback_thread, and a thread cannot join on itself.
-        @callback_thread&.join unless Thread.current == @callback_thread
       end
 
       private
 
-      # Handling user callback on a separate threads. This avoids having long running callbacks
-      # taking up the GVL and locking up the Ruby runtime.
-      def start_callback_thread
-        Thread.new do
-          while (message = @message_queue.pop)
-            break if @closed
-
-            begin
-              @callback.arity == 1 ? @callback.call(message) : @callback.call(message, @context)
-            rescue StandardError
-              # TODO: Log user callback errors
-            end
-          end
-        end
+      def deliver_to_callback(message)
+        @callback.arity == 1 ? @callback.call(message) : @callback.call(message, @context)
       end
 
       def check_callback!
@@ -121,10 +106,10 @@ class Valkey
       # Builds the proc handed to the FFI.
       #
       # Runs on a Rust thread the Ruby runtime did not create, on a single push
-      # worker, with the GVL borrowed. Keep it thin: copy out, enqueue, return.
-      # No user code, no FFI re-entry, no blocking I/O -- anything slow here
-      # stalls every message behind it. The pointers are freed when it returns,
-      # so the copy has to happen synchronously.
+      # worker, with the GVL borrowed. The pointers are freed when it returns, so
+      # the copy has to happen synchronously. A callback runs here rather than on a
+      # dispatcher thread, matching the other GLIDE clients, so a slow callback
+      # stalls every message behind it and every other Ruby thread with it.
       #
       # The reads are length-driven so a payload with an embedded NUL survives.
       def build_ffi_handler
@@ -135,8 +120,8 @@ class Valkey
           pattern = pattern_ptr.null? ? nil : pattern_ptr.read_string(pattern_size)
           message = message_ptr.read_string(message_size)
           payload = PubSubMessage.new(message, channel_ptr.read_string(channel_size), pattern)
-          @message_queue.push(payload)
-        rescue StandardError
+          callback_mode? ? deliver_to_callback(payload) : @message_queue.push(payload)
+        rescue Exception # rubocop:disable Lint/RescueException
           # TODO: Log the swallowed error once a logger binding exists.
           nil
         end
