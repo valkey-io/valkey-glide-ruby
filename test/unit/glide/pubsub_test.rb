@@ -652,10 +652,10 @@ class TestPubSubCommandsUnit < Minitest::Test
 
   # The numsub reply is handed back exactly as glide-core produces it, matching the Python client, so the
   # shape follows the connection: a Hash from a cluster's combined per-node maps or from RESP3, a flat
-  # array from a standalone RESP2 connection or under `flatten_map: true`.
+  # array from a standalone RESP2 connection.
   def test_numsub_returns_every_reply_shape_unchanged
     replies = [
-      ["a", 1, "b", 2],           # standalone RESP2, or flatten_map: true
+      ["a", 1, "b", 2],           # standalone RESP2
       { "a" => 1, "b" => 2 },     # RESP3, or cluster CombineMaps
       [],
       {}
