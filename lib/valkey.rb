@@ -374,12 +374,7 @@ class Valkey
     @queued_commands = []
   end
 
-  # Whether this client is connected in cluster mode.
-  #
-  # Read as a method (not an ivar) so command mixins can gate cluster-only
-  # verbs the same way {Commands::PubSubCommands} reads {#protocol}. On a
-  # {Pipeline}, which mixes in the same commands but has no connection, this
-  # is never reached: those verbs are rejected earlier by the batch layer.
+  # True if client is in cluster mode.
   #
   # @return [Boolean]
   def cluster_mode?
@@ -903,10 +898,9 @@ class Valkey
     raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
     raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
 
-    return if cluster_mode
-    return if Array(subscriptions[:sharded]).empty?
+    return unless Array(subscriptions[:sharded]).any? && !cluster_mode
 
-    raise ArgumentError, "Sharded Pub/Sub subscriptions are only available in cluster mode (cluster_mode: true)"
+    raise ArgumentError, "Sharded Pub/Sub subscriptions are only available in cluster mode."
   end
 
   def pubsub_subscriptions_to_ffi(subscriptions)

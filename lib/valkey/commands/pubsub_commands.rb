@@ -491,14 +491,10 @@ class Valkey
         raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
       end
 
-      # Sharded Pub/Sub is a cluster-only feature (SSUBSCRIBE et al. exist only
-      # in cluster mode, since Valkey 7.0.0). Read `cluster_mode?` as a method,
-      # mirroring how `validate_resp3!` reads `protocol`, so the check stays
-      # decoupled from the client's ivars.
       def validate_cluster_mode!(command)
         return if cluster_mode?
 
-        raise ArgumentError, "#{command} is only available in cluster mode (cluster_mode: true)"
+        raise ArgumentError, "#{command} is only available in cluster mode."
       end
 
       def send_lazy_subscription(request_type, channels, reject_empty: false, noun: "channels")
