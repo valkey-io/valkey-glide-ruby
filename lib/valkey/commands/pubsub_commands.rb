@@ -61,26 +61,6 @@ class Valkey
       }
       private_constant :HashifyNumsub
 
-      SymbolizeSubscriptionModes = lambda { |payload|
-        Utils::Hashify.call(payload).to_h do |mode, channels|
-          [mode.to_s.downcase.to_sym, Array(channels).map(&:to_s).uniq]
-        end
-      }
-      private_constant :SymbolizeSubscriptionModes
-
-      StateifySubscriptions = lambda { |reply|
-        unless reply.is_a?(Array) && reply.size == 4
-          raise CommandError,
-                "Unexpected GET_SUBSCRIPTIONS response: expected a 4-element array, got: #{reply.inspect}"
-        end
-
-        Glide::PubSubState.new(
-          SymbolizeSubscriptionModes.call(reply[1]),
-          SymbolizeSubscriptionModes.call(reply[3])
-        )
-      }
-      private_constant :StateifySubscriptions
-
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
       #
       # @example Subscribe to channels
@@ -368,17 +348,24 @@ class Valkey
 
       # Get this connection's subscription state: what the client asked for and what the server confirmed.
       #
-      # @example Compare desired and actual subscriptions
+      # @example Compare desired and actual subscriptions on a cluster client
+      #   valkey.subscribe("channel1")
       #   state = valkey.get_subscriptions
       #   state.desired_subscriptions
-      #     # => {exact: ["channel1"], pattern: ["news.*"], sharded: ["shard1"]}
+      #     # => {exact: ["channel1"]}
       #   state.actual_subscriptions
-      #     # => {exact: ["channel1"], pattern: [], sharded: ["shard1"]}
+      #     # => {exact: ["channel1"], pattern: [], sharded: []}
       #
-      # @return [Valkey::Glide::PubSubState] both hashes are keyed `:exact`, `:pattern`
-      #   and `:sharded`, mapping to `Array<String>`; standalone connections omit `:sharded`
+      # @example A fresh connection has asked for nothing
+      #   Valkey.new(protocol: :resp3).get_subscriptions.desired_subscriptions
+      #     # => {}
+      #
+      # @return [Valkey::Glide::PubSubState] both hashes map `:exact`, `:pattern` and `:sharded` to
+      #   `Array<String>`; standalone connections never carry `:sharded`
+      # @raise [Valkey::CommandError] if the reply is not the expected labelled 4-element array
+      # @raise [ArgumentError] if called inside `pipelined` or `multi`
       def get_subscriptions
-        send_command(RequestType::GET_SUBSCRIPTIONS, &StateifySubscriptions)
+        Glide::PubSubState.from_reply(send_command(RequestType::GET_SUBSCRIPTIONS))
       end
 
       # List the currently active channels, that is, the channels with at least one subscriber.
@@ -480,40 +467,6 @@ class Valkey
       # @see https://valkey.io/commands/pubsub-shardnumsub/
       def pubsub_shardnumsub(*channels)
         send_command(RequestType::PUBSUB_SHARD_NUM_SUB, channels.map(&:to_s), &HashifyNumsub)
-      end
-
-      # Dispatch a PUBSUB introspection subcommand. Mirrors redis-rb's `pubsub(subcommand, *args)`.
-      #
-      # The subcommand is matched case-insensitively and may be a Symbol or a String. Supported
-      # subcommands are `channels`, `numpat`, `numsub`, `shardchannels` and `shardnumsub`; each
-      # dispatches to the corresponding `pubsub_*` method and returns its converted result.
-      #
-      # @example List active channels matching a pattern
-      #   valkey.pubsub(:channels, "news.*")
-      #     # => ["news.sports", "news.weather"]
-      # @example Get the pattern count
-      #   valkey.pubsub(:numpat)
-      #     # => 3
-      # @example Get subscriber counts
-      #   valkey.pubsub(:numsub, "channel1", "channel2")
-      #     # => {"channel1" => 5, "channel2" => 3}
-      #
-      # @param [Symbol, String] subcommand the PUBSUB subcommand to run
-      # @param [Array<String>] args the arguments forwarded to the subcommand
-      # @return [Array<String>, Integer, Hash{String => Integer}] the subcommand's result
-      # @raise [ArgumentError] if the subcommand is not a known PUBSUB subcommand
-      #
-      # @see https://valkey.io/commands/#pubsub
-      def pubsub(subcommand, *args)
-        case subcommand.to_s.downcase
-        when "channels"      then pubsub_channels(*args)
-        when "numpat"        then pubsub_numpat
-        when "numsub"        then pubsub_numsub(*args)
-        when "shardchannels" then pubsub_shardchannels(*args)
-        when "shardnumsub"   then pubsub_shardnumsub(*args)
-        else
-          raise ArgumentError, "Unknown PUBSUB subcommand: #{subcommand.inspect}"
-        end
       end
 
       # Get the next Pub/Sub message, blocking until one is available.

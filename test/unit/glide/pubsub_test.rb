@@ -730,7 +730,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   def test_get_subscriptions_standalone_reply_omits_sharded
     reply = [
       "desired", { "Exact" => %w[news], "Pattern" => ["news.*"] },
-      "actual", { "Exact" => %w[news] }
+      "actual", { "Exact" => %w[news], "Pattern" => [] }
     ]
     client = RecordingClient.new(response: reply)
 
@@ -738,7 +738,19 @@ class TestPubSubCommandsUnit < Minitest::Test
 
     refute state.desired_subscriptions.key?(:sharded)
     refute state.actual_subscriptions.key?(:sharded)
-    refute state.actual_subscriptions.key?(:pattern)
+    assert_equal [], state.actual_subscriptions[:pattern]
+  end
+
+  # glide-core seeds every supported mode in `actual` but only records a mode in `desired` once the
+  # client subscribes in it, so the two hashes do not carry the same keys.
+  def test_get_subscriptions_reports_an_empty_desired_hash_before_any_subscribe
+    reply = ["desired", {}, "actual", { "Exact" => [], "Pattern" => [], "Sharded" => [] }]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert_empty state.desired_subscriptions
+    assert_equal({ exact: [], pattern: [], sharded: [] }, state.actual_subscriptions)
   end
 
   def test_get_subscriptions_deduplicates_channels
@@ -771,6 +783,8 @@ class TestPubSubCommandsUnit < Minitest::Test
     malformed = [
       ["desired", {}],                                # too short
       ["desired", {}, "actual", {}, "extra"],         # too long
+      ["actual", {}, "desired", {}],                  # labels swapped
+      ["wanted", {}, "actual", {}],                   # unknown labels
       "not an array",
       nil
     ]
