@@ -7,6 +7,7 @@ class Valkey
     # Pub/Sub requires the RESP3 protocol. Subscriptions can be declared when the client is created, and are
     # applied via SUBSCRIBE/PSUBSCRIBE/SSUBSCRIBE during connection establishment:
     #
+    # @example
     #   valkey = Valkey.new(
     #     protocol: :resp3,
     #     pubsub: {
@@ -25,6 +26,25 @@ class Valkey
     # * Callback: a `callback:` proc receives every message instead, along with an arbitrary `context:`.
     # * Lazy: the `_lazy` subscribe and unsubscribe methods return without waiting for the server to confirm
     #   the change; read back {#get_subscriptions} to see the subscriptions the server actually has.
+    #
+    # @example PubSub with callback
+    #   valkey = Valkey.new(
+    #     protocol: :resp3,
+    #     pubsub: {
+    #       subscriptions: { exact: ["news"], pattern: ["news.*"] },
+    #       callback: ->(message, context) { context[:messages] << [message.channel, message.message] },
+    #       context: { messages: [] }
+    #     }
+    #   )
+    #
+    # @note While the callback executes it holds the GVL, blocking the Ruby runtime until it
+    #   returns. A slow callback becomes a bottleneck for the whole application, so avoid
+    #   costly operations in it.
+    #
+    # @note The callback may be invoked during initial connection, before Valkey.new returns.
+    #   Do not reference the client being constructed from inside the callback, and
+    #   any state the callback needs at delivery time should be passed via the context
+    #   instead
     #
     # @see https://valkey.io/docs/topics/pubsub/
     # @see https://valkey.io/commands/#pubsub
