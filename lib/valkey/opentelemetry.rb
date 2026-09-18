@@ -41,6 +41,12 @@ class Valkey
   #       endpoint: "file:///tmp/valkey_metrics.json"
   #     }
   #   )
+  #
+  # @example Attach extra resource attributes (process.* is attached automatically)
+  #   Valkey::OpenTelemetry.init(
+  #     traces: { endpoint: "http://localhost:4318/v1/traces" },
+  #     resource_attributes: { "host.ip" => "10.0.0.1", "host.name" => "web-1" }
+  #   )
   module OpenTelemetry
     @initialized = false
     @config = nil
@@ -72,12 +78,20 @@ class Valkey
       #   the current application span context (see {set_parent_span_context_provider}). Equivalent to
       #   calling {set_parent_span_context_provider} separately; provided here for convenience.
       #
+      # @param resource_attributes [Hash, nil] Extra OpenTelemetry resource attributes (e.g.
+      #   `"host.ip"`, `"host.name"`) to attach to every span/metric, merged with attributes this
+      #   gem auto-detects (`process.pid`, `process.command`, `process.runtime.name`/`.version`/
+      #   `.description`). A key given here wins over the same key already present in
+      #   `OTEL_RESOURCE_ATTRIBUTES` (e.g. `k8s.*` injected by a platform sidecar).
+      #
       # @raise [ArgumentError] if neither traces nor metrics is provided
       # @raise [ArgumentError] if sample_percentage is not between 0-100
+      # @raise [ArgumentError] if resource_attributes is not a Hash
       # @raise [RuntimeError] if initialization fails
       #
       # @return [void]
-      def init(traces: nil, metrics: nil, flush_interval_ms: nil, parent_span_context_provider: nil)
+      def init(traces: nil, metrics: nil, flush_interval_ms: nil, parent_span_context_provider: nil,
+               resource_attributes: nil)
         if @initialized
           warn "Valkey::OpenTelemetry already initialized - ignoring new configuration"
           return
@@ -97,12 +111,16 @@ class Valkey
           raise ArgumentError, "flush_interval_ms must be a positive integer, got: #{flush_interval_ms}"
         end
 
+        unless resource_attributes.nil? || resource_attributes.is_a?(Hash)
+          raise ArgumentError, "resource_attributes must be a Hash, got: #{resource_attributes.class}"
+        end
+
         # Build the configuration
         # keep_alive needs to be referenced so not to be GC'd before init_open_telemetry
         # TODO: Refactor per https://github.com/valkey-io/valkey-glide-ruby/issues/179
         config, keep_alive = build_config(traces, metrics, flush_interval_ms)
 
-        error_ptr = Bindings.init_open_telemetry(config)
+        error_ptr = with_resource_attributes_env(resource_attributes) { Bindings.init_open_telemetry(config) }
         keep_alive.clear # Needed to avoid linter warning.
 
         unless error_ptr.null?
@@ -202,6 +220,46 @@ class Valkey
       end
 
       private
+
+      def auto_detected_resource_attributes
+        {
+          "process.pid" => Process.pid.to_s,
+          "process.command" => $PROGRAM_NAME,
+          "process.runtime.name" => RUBY_ENGINE,
+          "process.runtime.version" => RUBY_VERSION,
+          "process.runtime.description" => RUBY_DESCRIPTION
+        }
+      end
+
+      # opentelemetry-rust's EnvResourceDetector does no percent-decoding, so only the comma (the
+      # pair separator) needs escaping - anything else would leak a literal %XX into the value.
+      def sanitize_otel_resource_component(value)
+        value.to_s.tr(",", "_")
+      end
+
+      # Later entries win on key collision, so caller-supplied attributes override auto-detected
+      # ones, which override whatever OTEL_RESOURCE_ATTRIBUTES already held (e.g. platform-injected
+      # k8s.* attributes).
+      def build_resource_attributes_env(resource_attributes)
+        attrs = auto_detected_resource_attributes.merge(resource_attributes || {})
+        pairs = attrs.map { |k, v| "#{sanitize_otel_resource_component(k)}=#{sanitize_otel_resource_component(v)}" }
+
+        existing = ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", "")
+        (existing.empty? ? pairs : [existing] + pairs).join(",")
+      end
+
+      # Scoped to the single synchronous init_open_telemetry FFI call, not a lasting mutation.
+      def with_resource_attributes_env(resource_attributes)
+        original = ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", nil)
+        ENV["OTEL_RESOURCE_ATTRIBUTES"] = build_resource_attributes_env(resource_attributes)
+        yield
+      ensure
+        if original.nil?
+          ENV.delete("OTEL_RESOURCE_ATTRIBUTES")
+        else
+          ENV["OTEL_RESOURCE_ATTRIBUTES"] = original
+        end
+      end
 
       def validate_parent_span_context!(ctx)
         raise ArgumentError, "parent span context must be a Hash, got: #{ctx.class}" unless ctx.is_a?(Hash)
