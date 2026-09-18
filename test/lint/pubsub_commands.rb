@@ -90,23 +90,12 @@ module Lint
       raise
     end
 
-    def test_spublish
-      # SPUBLISH was introduced in Redis 7.0.
-      # Skipped on Redis 6.2 and earlier versions.
+    def test_publish_sharded
       omit_version("7.0")
+
       result = r.publish("Hello, Shard!", "lint_shard_no_subscribers", sharded: true)
 
       assert_equal 0, result
-    rescue NotImplementedError
-      skip("sharded publish is not implemented yet (Part 4)")
-    rescue Valkey::TimeoutError
-      # In some cluster configurations, shard channels may timeout
-      # This can happen if the cluster is still initializing or routing is not ready
-      skip("Shard channel publish timed out - cluster may be initializing")
-    rescue Valkey::CommandError => e
-      # Skip if shard channels not supported
-      skip("Shard channels not supported") if e.message.include?("unknown command") || e.message.include?("SPUBLISH")
-      raise
     end
   end
 end
