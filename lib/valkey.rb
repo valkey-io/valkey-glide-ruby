@@ -325,7 +325,8 @@ class Valkey
       }
     end
 
-    pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol])
+    pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol],
+                                                           cluster_mode: options[:cluster_mode] ? true : false)
     json_options.merge!(pubsub_config)
 
     @pubsub_receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: options[:pubsub])
@@ -371,6 +372,13 @@ class Valkey
     # Track queued commands during MULTI so `EXEC` can map each reply back to
     # the command that produced it (see #reconvert_queued_replies).
     @queued_commands = []
+  end
+
+  # True if client is in cluster mode.
+  #
+  # @return [Boolean]
+  def cluster_mode?
+    @cluster_mode
   end
 
   # Closes the client and frees the native connection.
@@ -876,19 +884,23 @@ class Valkey
   #     callback: ->(message, context) { ... },  # callback handler
   #     context: my_app_state                   # callback context
   #   }
-  def parse_pubsub_configs(pubsub_configs, protocol: nil)
+  def parse_pubsub_configs(pubsub_configs, protocol: nil, cluster_mode: false)
     subscriptions = (pubsub_configs || {})[:subscriptions] || {}
     return {} if subscriptions.empty?
 
-    validate_pubsub_subscriptions!(subscriptions, protocol: protocol)
+    validate_pubsub_subscriptions!(subscriptions, protocol: protocol, cluster_mode: cluster_mode)
 
     { "pubsub_subscriptions" => pubsub_subscriptions_to_ffi(subscriptions) }
   end
 
-  def validate_pubsub_subscriptions!(subscriptions, protocol:)
+  def validate_pubsub_subscriptions!(subscriptions, protocol:, cluster_mode: false)
     unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
     raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
     raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+
+    return unless Array(subscriptions[:sharded]).any? && !cluster_mode
+
+    raise ArgumentError, "Sharded Pub/Sub subscriptions are only available in cluster mode."
   end
 
   def pubsub_subscriptions_to_ffi(subscriptions)
