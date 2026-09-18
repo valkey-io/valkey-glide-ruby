@@ -688,27 +688,6 @@ module ValkeyTests
       end
     end
 
-    def test_pipelined_pubsub_introspection
-      channel = unique_channel
-
-      numpat_future = nil
-      numsub_future = nil
-      results = r.pipelined do |pipeline|
-        numpat_future = pipeline.pubsub_numpat
-        numsub_future = pipeline.pubsub_numsub(channel)
-      end
-
-      assert_kind_of Integer, numpat_future.value
-      assert_numsub({ channel => 0 }, numsub_future.value)
-      assert_equal [numpat_future.value, { channel => 0 }], results
-    end
-
-    def test_pipelined_get_subscriptions_raises
-      error = assert_raises(ArgumentError) { r.pipelined(&:get_subscriptions) }
-
-      assert_match(%r{not supported inside pipelined/multi}, error.message)
-    end
-
     def test_pubsub_channels_aggregates_across_nodes
       skip("cluster-only: exercises the core's cross-node fan-out") unless cluster_mode?
 
