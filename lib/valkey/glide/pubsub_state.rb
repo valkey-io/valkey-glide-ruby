@@ -6,13 +6,17 @@ class Valkey
     #
     # @!attribute [rw] desired_subscriptions
     #   @return [Hash{Symbol => Array<String>}] the subscriptions the client asked for, keyed
-    #     `:exact`, `:pattern` and `:sharded`. A mode is present only once the client has
-    #     subscribed in it, so this is `{}` on a fresh connection and loses a key again when the
-    #     last subscription of that mode is dropped. Standalone connections never carry `:sharded`.
+    #     `:exact`, `:pattern` and `:sharded`. If empty, then the client has no desired
+    #     subscriptions. Otherwise each mode maps to its channels, for example
+    #     `{ exact: ["channel1"] }`. A targeted unsubscribe may leave `{ exact: [] }`, while
+    #     unsubscribe-all removes `:exact`. Treat these states equivalently, for example with
+    #     `desired_subscriptions.fetch(:exact, [])`.
     # @!attribute [rw] actual_subscriptions
     #   @return [Hash{Symbol => Array<String>}] the subscriptions the server has confirmed, keyed
-    #     the same way but always carrying every mode the connection supports, mapped to `[]` when
-    #     that mode has none: `:exact` and `:pattern` on standalone, plus `:sharded` in cluster mode.
+    #     the same way. Each mode maps to its confirmed channels, for example
+    #     `{ exact: ["channel1"], pattern: [] }`. Every supported mode is present, mapped to `[]`
+    #     when it has no confirmed subscriptions: `:exact` and `:pattern` on standalone, plus
+    #     `:sharded` in cluster mode.
     #
     # @see https://valkey.io/docs/topics/pubsub/
     PubSubState = Struct.new(:desired_subscriptions, :actual_subscriptions) do

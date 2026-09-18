@@ -649,20 +649,13 @@ module ValkeyTests
         assert_empty state.desired_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
         assert_empty state.actual_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
         assert_includes state.desired_subscriptions.fetch(:exact, []), channel
-
-        confirmed = wait_until do
-          subscriber.get_subscriptions.actual_subscriptions.fetch(:exact, []).include?(channel)
-        end
-        assert confirmed, "server never confirmed the subscription to #{channel} in actual_subscriptions"
+        assert_includes state.actual_subscriptions.fetch(:exact, []), channel
 
         subscriber.unsubscribe(channel)
 
-        refute_includes subscriber.get_subscriptions.desired_subscriptions.fetch(:exact, []), channel
-
-        drained = wait_until do
-          !subscriber.get_subscriptions.actual_subscriptions.fetch(:exact, []).include?(channel)
-        end
-        assert drained, "the subscription to #{channel} never drained from actual_subscriptions"
+        state = subscriber.get_subscriptions
+        refute_includes state.desired_subscriptions.fetch(:exact, []), channel
+        refute_includes state.actual_subscriptions.fetch(:exact, []), channel
       end
     end
 
@@ -675,6 +668,23 @@ module ValkeyTests
         assert_includes r.pubsub_channels, channel
         assert_includes r.pubsub_channels("#{channel}*"), channel
         assert_numsub({ channel => 1 }, r.pubsub_numsub(channel))
+      end
+    end
+
+    def test_pubsub_numpat_tracks_pattern_subscriptions
+      pattern = "#{unique_channel}*"
+      initial_count = r.pubsub_numpat
+
+      with_client do |subscriber|
+        subscriber.psubscribe(pattern)
+
+        begin
+          assert_equal initial_count + 1, r.pubsub_numpat
+        ensure
+          subscriber.punsubscribe(pattern)
+        end
+
+        assert_equal initial_count, r.pubsub_numpat
       end
     end
 

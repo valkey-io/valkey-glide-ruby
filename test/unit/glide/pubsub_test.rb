@@ -739,6 +739,17 @@ class TestPubSubCommandsUnit < Minitest::Test
     assert_equal({ exact: [], pattern: [], sharded: [] }, state.actual_subscriptions)
   end
 
+  def test_get_subscriptions_preserves_an_empty_desired_mode
+    reply = ["desired", { "Exact" => [] }, "actual", { "Exact" => [], "Pattern" => [] }]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert state.desired_subscriptions.key?(:exact)
+    assert_empty state.desired_subscriptions[:exact]
+    assert_equal [], state.desired_subscriptions.fetch(:pattern, [])
+  end
+
   def test_get_subscriptions_deduplicates_channels
     reply = [
       "desired", { "Exact" => %w[news news alerts] },
