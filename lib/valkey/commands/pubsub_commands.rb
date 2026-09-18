@@ -398,7 +398,7 @@ class Valkey
       #     # => {}
       #
       # @param [Array<String>] channels the channels to query; omit to query none
-      # @return [Hash{String => Integer}, Array] subscriber counts keyed by channel;
+      # @return [Hash{String => Integer}, Array] subscriber counts keyed by channel
       #
       # @see https://valkey.io/commands/pubsub-numsub/
       def pubsub_numsub(*channels)
