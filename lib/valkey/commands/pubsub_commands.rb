@@ -399,7 +399,6 @@ class Valkey
       #
       # @param [Array<String>] channels the channels to query; omit to query none
       # @return [Hash{String => Integer}, Array] subscriber counts keyed by channel;
-      #   `flatten_map: true` returns a flat `[channel, count, ...]` array
       #
       # @see https://valkey.io/commands/pubsub-numsub/
       def pubsub_numsub(*channels)
@@ -440,7 +439,6 @@ class Valkey
       #
       # @param [Array<String>] channels the shard channels to query; omit to query none
       # @return [Hash{String => Integer}, Array] subscriber counts keyed by shard channel;
-      #   `flatten_map: true` returns a flat `[channel, count, ...]` array
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
       def pubsub_shardnumsub(*channels)
