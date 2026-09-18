@@ -3,41 +3,45 @@
 module Lint
   module PubSubCommands
     def test_publish
-      # Publish to a channel with no subscribers
-      result = r.publish("test_channel", "Hello, World!")
-      assert_kind_of Integer, result
-      assert result >= 0
+      result = r.publish("Hello, World!", "lint_pubsub_no_subscribers")
+
+      assert_equal 0, result
     end
 
     def test_pubsub_channels
       # List all active channels
       channels = r.pubsub_channels
+
       assert_kind_of Array, channels
+      channels.each { |channel| assert_kind_of String, channel }
     end
 
     def test_pubsub_channels_with_pattern
       # List channels matching a pattern
       channels = r.pubsub_channels("test*")
+
       assert_kind_of Array, channels
+      channels.each { |channel| assert_kind_of String, channel }
     end
 
     def test_pubsub_numpat
       # Get number of pattern subscriptions
       count = r.pubsub_numpat
+
       assert_kind_of Integer, count
       assert count >= 0
     end
 
     def test_pubsub_numsub
-      # Get subscriber counts for channels
-      result = r.pubsub_numsub("channel1", "channel2")
-      assert_kind_of Hash, result
+      result = r.pubsub_numsub("lint_numsub_chan1", "lint_numsub_chan2")
+
+      assert_numsub({ "lint_numsub_chan1" => 0, "lint_numsub_chan2" => 0 }, result)
     end
 
     def test_pubsub_numsub_no_channels
-      # Get subscriber counts with no channels specified
       result = r.pubsub_numsub
-      assert_kind_of Hash, result
+
+      assert_numsub({}, result)
     end
 
     def test_pubsub_shardchannels
@@ -46,7 +50,9 @@ module Lint
       omit_version("7.0")
       # List all active shard channels
       channels = r.pubsub_shardchannels
+
       assert_kind_of Array, channels
+      channels.each { |channel| assert_kind_of String, channel }
     rescue Valkey::TimeoutError
       skip("Shard channel command timed out - cluster may be initializing")
     rescue Valkey::CommandError => e
@@ -60,7 +66,9 @@ module Lint
       omit_version("7.0")
       # List shard channels matching a pattern
       channels = r.pubsub_shardchannels("shard*")
+
       assert_kind_of Array, channels
+      channels.each { |channel| assert_kind_of String, channel }
     rescue Valkey::TimeoutError
       skip("Shard channel command timed out - cluster may be initializing")
     rescue Valkey::CommandError => e
@@ -72,9 +80,9 @@ module Lint
       # PUBSUB SHARDNUMSUB was introduced in Redis 7.0.
       # Skipped on Redis 6.2 and earlier versions.
       omit_version("7.0")
-      # Get subscriber counts for shard channels
-      result = r.pubsub_shardnumsub("shard1", "shard2")
-      assert_kind_of Hash, result
+      result = r.pubsub_shardnumsub("lint_shard_chan1", "lint_shard_chan2")
+
+      assert_numsub({ "lint_shard_chan1" => 0, "lint_shard_chan2" => 0 }, result)
     rescue Valkey::TimeoutError
       skip("Shard channel command timed out - cluster may be initializing")
     rescue Valkey::CommandError => e
@@ -82,69 +90,12 @@ module Lint
       raise
     end
 
-    def test_spublish
-      # SPUBLISH was introduced in Redis 7.0.
-      # Skipped on Redis 6.2 and earlier versions.
+    def test_publish_sharded
       omit_version("7.0")
-      # Publish to a shard channel with no subscribers
-      result = r.spublish("test_shard", "Hello, Shard!")
-      assert_kind_of Integer, result
-      assert result >= 0
-    rescue Valkey::TimeoutError
-      # In some cluster configurations, shard channels may timeout
-      # This can happen if the cluster is still initializing or routing is not ready
-      skip("Shard channel publish timed out - cluster may be initializing")
-    rescue Valkey::CommandError => e
-      # Skip if shard channels not supported
-      skip("Shard channels not supported") if e.message.include?("unknown command") || e.message.include?("SPUBLISH")
-      raise
-    end
 
-    def test_pubsub_convenience_method_channels
-      channels = r.pubsub(:channels)
-      assert_kind_of Array, channels
-    end
+      result = r.publish("Hello, Shard!", "lint_shard_no_subscribers", sharded: true)
 
-    def test_pubsub_convenience_method_channels_with_pattern
-      channels = r.pubsub(:channels, "test*")
-      assert_kind_of Array, channels
-    end
-
-    def test_pubsub_convenience_method_numpat
-      count = r.pubsub(:numpat)
-      assert_kind_of Integer, count
-      assert count >= 0
-    end
-
-    def test_pubsub_convenience_method_numsub
-      result = r.pubsub(:numsub, "channel1", "channel2")
-      assert_kind_of Hash, result
-    end
-
-    def test_pubsub_convenience_method_shardchannels
-      # PUBSUB SHARDCHANNELS was introduced in Redis 7.0.
-      # Skipped on Redis 6.2 and earlier versions.
-      omit_version("7.0")
-      channels = r.pubsub(:shardchannels)
-      assert_kind_of Array, channels
-    rescue Valkey::TimeoutError
-      skip("Shard channel command timed out - cluster may be initializing")
-    rescue Valkey::CommandError => e
-      skip("Shard channels not supported") if e.message.include?("unknown command")
-      raise
-    end
-
-    def test_pubsub_convenience_method_shardnumsub
-      # PUBSUB SHARDNUMSUB was introduced in Redis 7.0.
-      # Skipped on Redis 6.2 and earlier versions.
-      omit_version("7.0")
-      result = r.pubsub(:shardnumsub, "shard1", "shard2")
-      assert_kind_of Hash, result
-    rescue Valkey::TimeoutError
-      skip("Shard channel command timed out - cluster may be initializing")
-    rescue Valkey::CommandError => e
-      skip("Shard channels not supported") if e.message.include?("unknown command")
-      raise
+      assert_equal 0, result
     end
   end
 end

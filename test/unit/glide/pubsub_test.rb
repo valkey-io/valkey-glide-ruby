@@ -26,9 +26,9 @@ class TestPubSubCommandsUnit < Minitest::Test
       @pid = Process.pid
     end
 
-    def send_command(request_type, args = [], **_options)
+    def send_command(request_type, args = [], **_options, &block)
       @sent_commands << SentCommand.new(request_type, args)
-      @response
+      block ? block.call(@response) : @response
     end
 
     def last_command
@@ -572,6 +572,228 @@ class TestPubSubCommandsUnit < Minitest::Test
     client.publish("hello", "shard-chan", sharded: true)
 
     assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
+  end
+
+  def test_pubsub_channels_without_pattern_sends_no_arguments
+    client = RecordingClient.new(response: [])
+
+    client.pubsub_channels
+
+    assert_equal Valkey::RequestType::PUBSUB_CHANNELS, client.last_command.request_type
+    assert_equal [], client.last_command.args
+  end
+
+  def test_pubsub_channels_with_pattern
+    client = RecordingClient.new(response: [])
+
+    client.pubsub_channels("news.*")
+
+    assert_equal Valkey::RequestType::PUBSUB_CHANNELS, client.last_command.request_type
+    assert_equal ["news.*"], client.last_command.args
+  end
+
+  def test_pubsub_shardchannels_without_pattern_sends_no_arguments
+    client = RecordingClient.new(response: [])
+
+    client.pubsub_shardchannels
+
+    assert_equal Valkey::RequestType::PUBSUB_SHARD_CHANNELS, client.last_command.request_type
+    assert_equal [], client.last_command.args
+  end
+
+  def test_pubsub_shardchannels_with_pattern
+    client = RecordingClient.new(response: [])
+
+    client.pubsub_shardchannels("shard.*")
+
+    assert_equal Valkey::RequestType::PUBSUB_SHARD_CHANNELS, client.last_command.request_type
+    assert_equal ["shard.*"], client.last_command.args
+  end
+
+  def test_pubsub_numpat
+    client = RecordingClient.new(response: 3)
+
+    assert_equal 3, client.pubsub_numpat
+    assert_equal Valkey::RequestType::PUBSUB_NUM_PAT, client.last_command.request_type
+    assert_equal [], client.last_command.args
+  end
+
+  def test_pubsub_numsub_with_zero_one_and_several_channels
+    [[], ["a"], %w[a b c]].each do |channels|
+      client = RecordingClient.new(response: [])
+
+      client.pubsub_numsub(*channels)
+
+      assert_equal Valkey::RequestType::PUBSUB_NUM_SUB, client.last_command.request_type
+      assert_equal channels, client.last_command.args
+    end
+  end
+
+  def test_pubsub_shardnumsub_with_zero_one_and_several_channels
+    [[], ["a"], %w[a b c]].each do |channels|
+      client = RecordingClient.new(response: [])
+
+      client.pubsub_shardnumsub(*channels)
+
+      assert_equal Valkey::RequestType::PUBSUB_SHARD_NUM_SUB, client.last_command.request_type
+      assert_equal channels, client.last_command.args
+    end
+  end
+
+  def test_numsub_channel_arguments_coerce_to_strings
+    %i[pubsub_numsub pubsub_shardnumsub].each do |name|
+      client = RecordingClient.new(response: [])
+
+      client.public_send(name, :alerts, 42)
+
+      assert_equal %w[alerts 42], client.last_command.args, "#{name} must coerce channel args via to_s"
+    end
+  end
+
+  # The numsub reply is handed back exactly as glide-core produces it, matching the Python client, so the
+  # shape follows the connection: a Hash from a cluster's combined per-node maps or from RESP3, a flat
+  # array from a standalone RESP2 connection.
+  def test_numsub_returns_every_reply_shape_unchanged
+    replies = [
+      ["a", 1, "b", 2],           # standalone RESP2
+      { "a" => 1, "b" => 2 },     # RESP3, or cluster CombineMaps
+      [],
+      {}
+    ]
+
+    %i[pubsub_numsub pubsub_shardnumsub].each do |name|
+      replies.each do |reply|
+        client = RecordingClient.new(response: reply)
+
+        assert_equal reply, client.public_send(name, "a", "b"),
+                     "#{name} must return #{reply.inspect} unchanged"
+      end
+    end
+  end
+
+  def test_introspection_works_without_resp3
+    {
+      pubsub_channels: [],
+      pubsub_numpat: 0,
+      pubsub_numsub: [],
+      pubsub_shardchannels: [],
+      pubsub_shardnumsub: [],
+      get_subscriptions: ["desired", {}, "actual", {}]
+    }.each do |name, response|
+      client = RecordingClient.new(response: response, protocol: nil)
+
+      client.public_send(name)
+
+      refute_empty client.sent_commands, "#{name} must work without RESP3"
+    end
+  end
+
+  def test_get_subscriptions_request
+    client = RecordingClient.new(response: ["desired", {}, "actual", {}])
+
+    client.get_subscriptions
+
+    assert_equal Valkey::RequestType::GET_SUBSCRIPTIONS, client.last_command.request_type
+    assert_equal [], client.last_command.args
+  end
+
+  def test_get_subscriptions_builds_a_state_with_symbol_keys
+    reply = [
+      "desired",
+      { "Exact" => %w[news], "Pattern" => ["news.*"], "Sharded" => %w[shard1] },
+      "actual",
+      { "Exact" => %w[news], "Pattern" => [], "Sharded" => %w[shard1] }
+    ]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert_instance_of Valkey::Glide::PubSubState, state
+    assert_equal({ exact: %w[news], pattern: ["news.*"], sharded: %w[shard1] }, state.desired_subscriptions)
+    assert_equal({ exact: %w[news], pattern: [], sharded: %w[shard1] }, state.actual_subscriptions)
+  end
+
+  def test_get_subscriptions_standalone_reply_omits_sharded
+    reply = [
+      "desired", { "Exact" => %w[news], "Pattern" => ["news.*"] },
+      "actual", { "Exact" => %w[news], "Pattern" => [] }
+    ]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    refute state.desired_subscriptions.key?(:sharded)
+    refute state.actual_subscriptions.key?(:sharded)
+    assert_equal [], state.actual_subscriptions[:pattern]
+  end
+
+  # glide-core seeds every supported mode in `actual` but only records a mode in `desired` once the
+  # client subscribes in it, so the two hashes do not carry the same keys.
+  def test_get_subscriptions_reports_an_empty_desired_hash_before_any_subscribe
+    reply = ["desired", {}, "actual", { "Exact" => [], "Pattern" => [], "Sharded" => [] }]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert_empty state.desired_subscriptions
+    assert_equal({ exact: [], pattern: [], sharded: [] }, state.actual_subscriptions)
+  end
+
+  def test_get_subscriptions_preserves_an_empty_desired_mode
+    reply = ["desired", { "Exact" => [] }, "actual", { "Exact" => [], "Pattern" => [] }]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert state.desired_subscriptions.key?(:exact)
+    assert_empty state.desired_subscriptions[:exact]
+    assert_equal [], state.desired_subscriptions.fetch(:pattern, [])
+  end
+
+  def test_get_subscriptions_deduplicates_channels
+    reply = [
+      "desired", { "Exact" => %w[news news alerts] },
+      "actual", { "Exact" => %w[news news] }
+    ]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert_equal %w[news alerts], state.desired_subscriptions[:exact]
+    assert_equal %w[news], state.actual_subscriptions[:exact]
+  end
+
+  def test_get_subscriptions_accepts_flattened_payloads
+    reply = [
+      "desired", ["Exact", %w[news], "Pattern", ["news.*"]],
+      "actual", ["Exact", %w[news]]
+    ]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    assert_equal({ exact: %w[news], pattern: ["news.*"] }, state.desired_subscriptions)
+    assert_equal({ exact: %w[news] }, state.actual_subscriptions)
+  end
+
+  def test_get_subscriptions_rejects_a_malformed_reply
+    malformed = [
+      ["desired", {}],                                # too short
+      ["desired", {}, "actual", {}, "extra"],         # too long
+      ["actual", {}, "desired", {}],                  # labels swapped
+      ["wanted", {}, "actual", {}],                   # unknown labels
+      "not an array",
+      nil
+    ]
+
+    malformed.each do |reply|
+      client = RecordingClient.new(response: reply)
+
+      error = assert_raises(Valkey::CommandError, "reply #{reply.inspect} must be rejected") do
+        client.get_subscriptions
+      end
+      assert_match(/Unexpected GET_SUBSCRIPTIONS response/, error.message)
+    end
   end
 
   # --- RESP3 requirement ---------------------------------------------------
