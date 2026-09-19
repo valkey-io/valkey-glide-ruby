@@ -160,12 +160,18 @@ class Valkey
       # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the subscription
-      # @raise [ArgumentError] if timeout_ms is negative
+      # @raise [ArgumentError] if the client is not in cluster mode, or if timeout_ms is negative
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/ssubscribe/
-      def ssubscribe(*channels, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def ssubscribe(*channels, timeout_ms: 0)
+        validate_resp3!
+        validate_cluster_mode!(__method__)
+        raise ArgumentError, "No channels provided for subscription" if channels.empty?
+
+        send_command(RequestType::SSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [parse_timeout(timeout_ms)])
+      end
 
       # Unsubscribe from sharded channels, waiting for the server to confirm the change.
       #
@@ -181,12 +187,17 @@ class Valkey
       # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
       # @return [void] returns once the server has confirmed the change
-      # @raise [ArgumentError] if timeout_ms is negative
+      # @raise [ArgumentError] if the client is not in cluster mode, or if timeout_ms is negative
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/sunsubscribe/
-      def sunsubscribe(*channels, timeout_ms: 0) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def sunsubscribe(*channels, timeout_ms: 0)
+        validate_resp3!
+        validate_cluster_mode!(__method__)
+
+        send_command(RequestType::SUNSUBSCRIBE_BLOCKING, channels.map(&:to_s) + [parse_timeout(timeout_ms)])
+      end
 
       # Subscribe to exact channels without waiting for the server to confirm.
       #
@@ -272,10 +283,14 @@ class Valkey
       #
       # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
       # @return [void] returns as soon as the desired subscription state is updated
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [ArgumentError] if the client is not in cluster mode, or if the channel list is empty
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/ssubscribe/
-      def ssubscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def ssubscribe_lazy(*channels)
+        validate_cluster_mode!(__method__)
+        send_lazy_subscription(RequestType::SSUBSCRIBE, channels, reject_empty: true)
+      end
 
       # Unsubscribe from sharded channels without waiting for the server to confirm.
       #
@@ -289,10 +304,14 @@ class Valkey
       # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
       # @return [void] returns as soon as the desired subscription state is updated
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @raise [ArgumentError] if the client is not in cluster mode
+      # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/sunsubscribe/
-      def sunsubscribe_lazy(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def sunsubscribe_lazy(*channels)
+        validate_cluster_mode!(__method__)
+        send_lazy_subscription(RequestType::SUNSUBSCRIBE, channels)
+      end
 
       # Publish a message on a Pub/Sub channel.
       #
@@ -314,14 +333,12 @@ class Valkey
       # @return [Integer] the number of subscriptions that received the message: in cluster mode the
       #   subscriptions on the node the request was routed to, in standalone the subscriptions on the primary
       #   node, which excludes subscriptions configured on replicas
-      # @raise [NotImplementedError] sharded publish is not implemented yet
       #
       # @see https://valkey.io/commands/publish/
       # @see https://valkey.io/commands/spublish/
       def publish(message, channel, sharded: false)
-        raise NotImplementedError, "Sharded publish is not implemented yet" if sharded
-
-        send_command(RequestType::PUBLISH, [channel.to_s, message.to_s])
+        request_type = sharded ? RequestType::SPUBLISH : RequestType::PUBLISH
+        send_command(request_type, [channel.to_s, message.to_s])
       end
 
       # Get this connection's subscription state: what the client asked for and what the server confirmed.
@@ -472,6 +489,12 @@ class Valkey
 
       def validate_resp3!
         raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+      end
+
+      def validate_cluster_mode!(command)
+        return if cluster_mode?
+
+        raise ArgumentError, "#{command} is only available in cluster mode."
       end
 
       def send_lazy_subscription(request_type, channels, reject_empty: false, noun: "channels")

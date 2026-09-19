@@ -51,4 +51,24 @@ class TestPipelineUnit < Minitest::Test
       assert_equal "#{name} is not supported inside pipelined/multi", error.message
     end
   end
+
+  def test_sharded_subscribe_verbs_are_unsupported_in_a_pipeline
+    %i[ssubscribe sunsubscribe ssubscribe_lazy sunsubscribe_lazy].each do |name|
+      assert_includes Valkey::Pipeline::PUBSUB_UNSUPPORTED, name
+    end
+  end
+
+  def test_publish_is_batchable_including_sharded
+    pipeline = Valkey::Pipeline.new
+
+    plain = pipeline.publish("hello", "news")
+    sharded = pipeline.publish("hello", "shard-chan", sharded: true)
+
+    assert_instance_of Valkey::Future, plain
+    assert_instance_of Valkey::Future, sharded
+    assert_equal [
+      [Valkey::RequestType::PUBLISH, %w[news hello], nil],
+      [Valkey::RequestType::SPUBLISH, %w[shard-chan hello], nil]
+    ], pipeline.commands
+  end
 end
