@@ -231,21 +231,29 @@ class Valkey
         }
       end
 
-      # opentelemetry-rust's EnvResourceDetector does no percent-decoding, so only the comma (the
-      # pair separator) needs escaping - anything else would leak a literal %XX into the value.
+      # opentelemetry-rust does no percent-decoding, so only the comma (the pair separator) needs
+      # escaping - anything else would leak a literal %XX into the value.
       def sanitize_otel_resource_component(value)
         value.to_s.tr(",", "_")
       end
 
-      # Later entries win on key collision, so caller-supplied attributes override auto-detected
-      # ones, which override whatever OTEL_RESOURCE_ATTRIBUTES already held (e.g. platform-injected
-      # k8s.* attributes).
-      def build_resource_attributes_env(resource_attributes)
-        attrs = auto_detected_resource_attributes.merge(resource_attributes || {})
-        pairs = attrs.map { |k, v| "#{sanitize_otel_resource_component(k)}=#{sanitize_otel_resource_component(v)}" }
+      # Mirrors opentelemetry-rust's own parsing (split on ",", then the first "="), so precedence
+      # below can be resolved as a Hash merge instead of relying on the Rust side's own handling of
+      # duplicate keys.
+      def parse_otel_resource_attributes(value)
+        value.to_s.split(",").each_with_object({}) do |entry, hash|
+          key, val = entry.split("=", 2)
+          hash[key.strip] = val.strip if key && val
+        end
+      end
 
-        existing = ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", "")
-        (existing.empty? ? pairs : [existing] + pairs).join(",")
+      # Weakest-first: auto-detected attributes must not clobber an operator-set
+      # OTEL_RESOURCE_ATTRIBUTES, and resource_attributes: must win over both.
+      def build_resource_attributes_env(resource_attributes)
+        existing = parse_otel_resource_attributes(ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", ""))
+        attrs = auto_detected_resource_attributes.merge(existing).merge(resource_attributes || {})
+
+        attrs.map { |k, v| "#{sanitize_otel_resource_component(k)}=#{sanitize_otel_resource_component(v)}" }.join(",")
       end
 
       # Scoped to the single synchronous init_open_telemetry FFI call, not a lasting mutation.

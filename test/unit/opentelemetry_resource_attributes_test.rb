@@ -44,13 +44,31 @@ class TestOpenTelemetryResourceAttributes < Minitest::Test
     refute_match(/process\.pid=#{Process.pid}\b/, value)
   end
 
-  def test_existing_otel_resource_attributes_is_preserved_and_prepended
+  def test_existing_otel_resource_attributes_is_preserved
     ENV["OTEL_RESOURCE_ATTRIBUTES"] = "k8s.pod.name=my-pod,k8s.namespace.name=default"
 
     value = ::Valkey::OpenTelemetry.send(:build_resource_attributes_env, nil)
 
-    assert_match(/\Ak8s\.pod\.name=my-pod,k8s\.namespace\.name=default,/, value)
+    assert_match(/k8s\.pod\.name=my-pod,k8s\.namespace\.name=default/, value)
     assert_match(/process\.pid=#{Process.pid}/, value)
+  end
+
+  def test_existing_otel_resource_attributes_wins_over_auto_detected_on_key_collision
+    ENV["OTEL_RESOURCE_ATTRIBUTES"] = "process.command=checkout-worker"
+
+    value = ::Valkey::OpenTelemetry.send(:build_resource_attributes_env, nil)
+
+    assert_match(/process\.command=checkout-worker(,|\z)/, value)
+    refute_match(/process\.command=#{Regexp.escape($PROGRAM_NAME)}/, value)
+  end
+
+  def test_malformed_existing_entries_without_an_equals_sign_are_skipped
+    ENV["OTEL_RESOURCE_ATTRIBUTES"] = "not-a-pair,k8s.pod.name=my-pod"
+
+    value = ::Valkey::OpenTelemetry.send(:build_resource_attributes_env, nil)
+
+    refute_match(/not-a-pair/, value)
+    assert_match(/k8s\.pod\.name=my-pod/, value)
   end
 
   def test_build_resource_attributes_env_with_no_existing_env_var
@@ -81,8 +99,8 @@ class TestOpenTelemetryResourceAttributes < Minitest::Test
       seen_during_block = ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", nil)
     end
 
-    assert_match(/\Apre\.existing=value,/, seen_during_block)
-    assert_match(/host\.name=web-1/, seen_during_block)
+    assert_match(/pre\.existing=value/, seen_during_block)
+    assert_match(/host\.name=web-1\z/, seen_during_block)
     assert_equal "pre.existing=value", ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", nil)
   end
 
