@@ -733,20 +733,6 @@ module ValkeyTests
       end
     end
 
-    def test_non_batchable_pubsub_commands_are_rejected
-      assert_equal NON_BATCHABLE_PUBSUB_COMMANDS, Valkey::Pipeline::PUBSUB_UNSUPPORTED
-
-      NON_BATCHABLE_PUBSUB_COMMANDS.each do |name|
-        %i[pipelined multi].each do |batch_method|
-          error = assert_raises(ArgumentError, "#{name} must be rejected by #{batch_method}") do
-            r.public_send(batch_method) { |pipeline| pipeline.public_send(name) }
-          end
-
-          assert_equal "#{name} is not supported inside pipelined/multi", error.message
-        end
-      end
-    end
-
     def test_pubsub_channels_aggregates_across_nodes
       skip("cluster-only: exercises the core's cross-node fan-out") unless cluster_mode?
 

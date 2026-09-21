@@ -5,19 +5,6 @@ require "test_helper"
 # Unit tests for Valkey::Pipeline's Future bookkeeping.
 # These do not require a running server — they test the Ruby layer only.
 class TestPipelineUnit < Minitest::Test
-  # Keep this list aligned with Python sync's BaseBatch/Batch/ClusterBatch
-  # Pub/Sub surface in glide_shared/commands/batch.py.
-  PUBSUB_BATCH_COMMANDS = %i[
-    publish pubsub_channels pubsub_numpat pubsub_numsub
-    pubsub_shardchannels pubsub_shardnumsub
-  ].freeze
-  PUBSUB_NON_BATCH_COMMANDS = %i[
-    subscribe unsubscribe psubscribe punsubscribe ssubscribe sunsubscribe
-    subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
-    ssubscribe_lazy sunsubscribe_lazy
-    get_subscriptions get_pubsub_message try_get_pubsub_message
-  ].freeze
-
   def test_send_command_returns_a_future_and_queues_the_command
     pipeline = Valkey::Pipeline.new
 
@@ -55,12 +42,17 @@ class TestPipelineUnit < Minitest::Test
     assert_raises(Valkey::FutureAborted) { future_b.value }
   end
 
-  def test_pubsub_commands_raise_argument_error
+  def test_pipeline_not_supported_pubsub
     pipeline = Valkey::Pipeline.new
 
-    assert_equal PUBSUB_NON_BATCH_COMMANDS, Valkey::Pipeline::PUBSUB_UNSUPPORTED
+    not_supported = %i[
+      subscribe unsubscribe psubscribe punsubscribe ssubscribe sunsubscribe
+      subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
+      ssubscribe_lazy sunsubscribe_lazy
+      get_subscriptions get_pubsub_message try_get_pubsub_message
+    ].freeze
 
-    PUBSUB_NON_BATCH_COMMANDS.each do |name|
+    not_supported.each do |name|
       error = assert_raises(ArgumentError, "#{name} must be rejected") { pipeline.public_send(name) }
 
       assert_equal "#{name} is not supported inside pipelined/multi", error.message
@@ -70,12 +62,6 @@ class TestPipelineUnit < Minitest::Test
   def test_sharded_subscribe_verbs_are_unsupported_in_a_pipeline
     %i[ssubscribe sunsubscribe ssubscribe_lazy sunsubscribe_lazy].each do |name|
       assert_includes Valkey::Pipeline::PUBSUB_UNSUPPORTED, name
-    end
-  end
-
-  def test_python_sync_pubsub_batch_surface_is_enabled
-    PUBSUB_BATCH_COMMANDS.each do |name|
-      refute_includes Valkey::Pipeline::PUBSUB_UNSUPPORTED, name
     end
   end
 

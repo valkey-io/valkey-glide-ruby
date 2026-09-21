@@ -206,8 +206,6 @@ class Valkey
       super
     end
 
-    # Subscriptions outlive a batch and pushes arrive out of band, so neither
-    # can be expressed as one queued reply.
     PUBSUB_UNSUPPORTED = %i[
       subscribe unsubscribe psubscribe punsubscribe ssubscribe sunsubscribe
       subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
