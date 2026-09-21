@@ -341,23 +341,18 @@ class Valkey
         send_command(request_type, [channel.to_s, message.to_s])
       end
 
-      # Get this connection's subscription state: what the client asked for and what the server confirmed.
+      # Return this connection's desired and server-confirmed subscriptions.
       #
-      # @example Compare desired and actual subscriptions
-      #   state = valkey.get_subscriptions
-      #   state.desired_subscriptions
-      #     # => {exact: ["channel1"], pattern: ["news.*"], sharded: ["shard1"]}
-      #   state.actual_subscriptions
-      #     # => {exact: ["channel1"], pattern: [], sharded: ["shard1"]}
-      #
-      # @return [Valkey::Glide::PubSubState] both hashes are keyed `:exact`, `:pattern`
-      #   and `:sharded`, mapping to `Array<String>`; standalone connections omit `:sharded`
-      # @raise [NotImplementedError] this method is not implemented yet
-      def get_subscriptions = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      # @return [Valkey::Glide::PubSubState] the connection's subscription state
+      # @raise [ArgumentError] if called inside `pipelined` or `multi`
+      def get_subscriptions
+        Glide::PubSubState.from_reply(send_command(RequestType::GET_SUBSCRIPTIONS))
+      end
 
-      # List the currently active channels, that is, the channels with at least one subscriber.
+      # List active channels, optionally filtered by a glob-style pattern.
       #
-      # In cluster mode the command is routed to all nodes and the responses are combined.
+      # In cluster mode, responses from all nodes are combined. Inside an atomic `multi`,
+      # the result may reflect only one node.
       #
       # @example List all active channels
       #   valkey.pubsub_channels
@@ -366,34 +361,34 @@ class Valkey
       #   valkey.pubsub_channels("news.*")
       #     # => ["news.sports", "news.weather"]
       #
-      # @param [String, nil] pattern a glob-style pattern to match active channels against; if not provided,
-      #   all active channels are returned
-      # @return [Array<String>] the active channels matching the given pattern
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @param [String, nil] pattern the pattern used to filter active channels
+      # @return [Array<String>] matching active channels
       #
       # @see https://valkey.io/commands/pubsub-channels/
-      def pubsub_channels(pattern = nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_channels(pattern = nil)
+        send_command(RequestType::PUBSUB_CHANNELS, [pattern].compact.map(&:to_s))
+      end
 
-      # Get the number of unique patterns that are subscribed to by clients.
+      # Return the number of unique subscribed patterns, not subscribed clients.
       #
-      # In cluster mode the command is routed to all nodes and the counts are summed.
-      #
-      # This is the total number of unique patterns all the clients are subscribed to, not the count of
-      # clients subscribed to patterns.
+      # In cluster mode, per-node counts are summed. Inside an atomic `multi`, the result
+      # may reflect only one node.
       #
       # @example Get the pattern count
       #   valkey.pubsub_numpat
       #     # => 3
       #
       # @return [Integer] the number of unique patterns
-      # @raise [NotImplementedError] this method is not implemented yet
       #
       # @see https://valkey.io/commands/pubsub-numpat/
-      def pubsub_numpat = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_numpat
+        send_command(RequestType::PUBSUB_NUM_PAT)
+      end
 
-      # Get the number of subscribers for the specified channels, exclusive of clients subscribed to patterns.
+      # Return subscriber counts for channels, excluding pattern subscriptions.
       #
-      # In cluster mode the command is routed to all nodes and the counts are combined.
+      # In cluster mode, responses from all nodes are combined. Inside an atomic `multi`,
+      # the result may reflect only one node.
       #
       # @example Get subscriber counts
       #   valkey.pubsub_numsub("channel1", "channel2")
@@ -402,19 +397,18 @@ class Valkey
       #   valkey.pubsub_numsub
       #     # => {}
       #
-      # @param [Array<String>] channels the channels to query for the number of subscribers; an empty list
-      #   returns an empty hash
-      # @return [Hash{String => Integer}] the channel names mapped to their number of subscribers
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @param [Array<String>] channels the channels to query; omit to query none
+      # @return [Hash{String => Integer}, Array] subscriber counts keyed by channel
       #
       # @see https://valkey.io/commands/pubsub-numsub/
-      def pubsub_numsub(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_numsub(*channels)
+        send_command(RequestType::PUBSUB_NUM_SUB, channels.map(&:to_s))
+      end
 
-      # List the currently active sharded channels, that is, the ones with at least one subscriber.
+      # List active shard channels, optionally filtered by a glob-style pattern.
       #
-      # In cluster mode the command is routed to all nodes and the responses are combined.
-      #
-      # Only available in cluster mode (`cluster_mode: true`). Since: Valkey version 7.0.0.
+      # In cluster mode, responses from all nodes are combined. Inside an atomic `multi`,
+      # the result may reflect only one node. Since: Valkey version 7.0.0.
       #
       # @example List all active shard channels
       #   valkey.pubsub_shardchannels
@@ -423,18 +417,18 @@ class Valkey
       #   valkey.pubsub_shardchannels("shard.*")
       #     # => ["shard.1", "shard.2"]
       #
-      # @param [String, nil] pattern a glob-style pattern to match active sharded channels against; if not
-      #   provided, all active sharded channels are returned
-      # @return [Array<String>] the active sharded channels matching the given pattern
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @param [String, nil] pattern the pattern used to filter active shard channels
+      # @return [Array<String>] matching active shard channels
       #
       # @see https://valkey.io/commands/pubsub-shardchannels/
-      def pubsub_shardchannels(pattern = nil) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_shardchannels(pattern = nil)
+        send_command(RequestType::PUBSUB_SHARD_CHANNELS, [pattern].compact.map(&:to_s))
+      end
 
-      # Get the number of subscribers for the specified sharded channels, exclusive of clients subscribed to
-      # patterns.
+      # Return subscriber counts for shard channels, excluding pattern subscriptions.
       #
-      # Only available in cluster mode (`cluster_mode: true`). Since: Valkey version 7.0.0.
+      # In cluster mode, responses from all nodes are combined. Inside an atomic `multi`,
+      # the result may reflect only one node. Since: Valkey version 7.0.0.
       #
       # @example Get shard subscriber counts
       #   valkey.pubsub_shardnumsub("shard1", "shard2")
@@ -443,13 +437,13 @@ class Valkey
       #   valkey.pubsub_shardnumsub
       #     # => {}
       #
-      # @param [Array<String>] channels the sharded channels to query for the number of subscribers; an empty
-      #   list returns an empty hash
-      # @return [Hash{String => Integer}] the sharded channel names mapped to their number of subscribers
-      # @raise [NotImplementedError] this method is not implemented yet
+      # @param [Array<String>] channels the shard channels to query; omit to query none
+      # @return [Hash{String => Integer}, Array] subscriber counts keyed by shard channel;
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
-      def pubsub_shardnumsub(*channels) = raise(NotImplementedError, "#{__method__} is not implemented yet")
+      def pubsub_shardnumsub(*channels)
+        send_command(RequestType::PUBSUB_SHARD_NUM_SUB, channels.map(&:to_s))
+      end
 
       # Get the next Pub/Sub message, blocking until one is available.
       #
