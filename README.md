@@ -14,8 +14,8 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 
 ## Documentation
 
-- **Command coverage**: [Implementation status wiki](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands)
-- **Valkey GLIDE overview**: [glide.valkey.io](https://glide.valkey.io/)
+- **Valkey GLIDE Documentations**: [glide.valkey.io](https://glide.valkey.io/)
+- **Supported Valkey Commands**: [GLIDE supported commands](https://glide.valkey.io/commands/supported-commands/)
 - **Supported engine versions**: [valkey-glide README: Supported Engine Versions](https://github.com/valkey-io/valkey-glide/blob/main/README.md#supported-engine-versions)
 
 ## Supported Engine Versions
