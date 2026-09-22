@@ -47,6 +47,11 @@ class Valkey
   #     traces: { endpoint: "http://localhost:4318/v1/traces" },
   #     resource_attributes: { "host.ip" => "10.0.0.1", "host.name" => "web-1" }
   #   )
+  #
+  # Note: the `file://` trace exporter does not include resource attributes in its output (only
+  # the `file://` metrics exporter does) - this is a limitation of glide-core's file span
+  # exporter, not of {init}'s resource_attributes: handling. Attributes still reach non-file
+  # (HTTP/gRPC) trace exporters normally.
   module OpenTelemetry
     @initialized = false
     @config = nil
@@ -82,7 +87,11 @@ class Valkey
       #   `"host.ip"`, `"host.name"`) to attach to every span/metric, merged with attributes this
       #   gem auto-detects (`process.pid`, `process.command`, `process.runtime.name`/`.version`/
       #   `.description`). A key given here wins over the same key already present in
-      #   `OTEL_RESOURCE_ATTRIBUTES` (e.g. `k8s.*` injected by a platform sidecar).
+      #   `OTEL_RESOURCE_ATTRIBUTES` (e.g. `k8s.*` injected by a platform sidecar). Keys/values are
+      #   transported via `OTEL_RESOURCE_ATTRIBUTES`, which is a comma-separated `key=value` list;
+      #   a `,` in a key or value, or a `=` in a key, is replaced with `_` rather than
+      #   percent-encoded, since the pinned `opentelemetry-rust` does not percent-decode that env
+      #   var. A `=` inside a *value* is preserved.
       #
       # @raise [ArgumentError] if neither traces nor metrics is provided
       # @raise [ArgumentError] if sample_percentage is not between 0-100
@@ -231,9 +240,16 @@ class Valkey
         }
       end
 
-      # opentelemetry-rust does no percent-decoding, so only the comma (the pair separator) needs
-      # escaping - anything else would leak a literal %XX into the value.
-      def sanitize_otel_resource_component(value)
+      # opentelemetry-rust does no percent-decoding, so replacing "," or "=" would leak a literal
+      # %XX into the resource instead of being decoded back - they're replaced outright, which is
+      # lossy for a key/value that legitimately contains one. A value may safely keep "=" (only
+      # the *first* "=" in an entry is the key/value separator), but a key may not - an "=" inside
+      # a key would merge into the value, so both delimiters are replaced there.
+      def sanitize_otel_resource_key(value)
+        value.to_s.tr(",=", "__")
+      end
+
+      def sanitize_otel_resource_value(value)
         value.to_s.tr(",", "_")
       end
 
@@ -253,7 +269,7 @@ class Valkey
         existing = parse_otel_resource_attributes(ENV.fetch("OTEL_RESOURCE_ATTRIBUTES", ""))
         attrs = auto_detected_resource_attributes.merge(existing).merge(resource_attributes || {})
 
-        attrs.map { |k, v| "#{sanitize_otel_resource_component(k)}=#{sanitize_otel_resource_component(v)}" }.join(",")
+        attrs.map { |k, v| "#{sanitize_otel_resource_key(k)}=#{sanitize_otel_resource_value(v)}" }.join(",")
       end
 
       # Scoped to the single synchronous init_open_telemetry FFI call, not a lasting mutation.

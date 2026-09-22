@@ -79,16 +79,48 @@ class TestOpenTelemetryResourceAttributes < Minitest::Test
     refute_match(/\A,/, value)
   end
 
-  def test_commas_are_replaced_since_they_break_the_list_format
+  def test_commas_in_values_are_replaced_since_they_break_the_list_format
     value = ::Valkey::OpenTelemetry.send(:build_resource_attributes_env, { "custom.attr" => "a,b" })
 
     assert_match(/custom\.attr=a_b/, value)
   end
 
-  def test_sanitize_leaves_non_comma_characters_untouched
-    assert_equal "process.pid", ::Valkey::OpenTelemetry.send(:sanitize_otel_resource_component, "process.pid")
+  def test_commas_in_keys_are_replaced_since_they_break_the_list_format
+    value = ::Valkey::OpenTelemetry.send(:build_resource_attributes_env, { "custom,key" => "value" })
+
+    assert_match(/custom_key=value/, value)
+  end
+
+  # A "=" in a key would otherwise be read as the key/value separator, merging part of the key
+  # into the value (e.g. {"deployment=region" => "us-west"} would round-trip as
+  # {"deployment" => "region=us-west"}).
+  def test_equals_signs_in_keys_are_replaced_but_preserved_in_values
+    value = ::Valkey::OpenTelemetry.send(:build_resource_attributes_env, { "deployment=region" => "a=b" })
+
+    assert_match(/deployment_region=a=b/, value)
+  end
+
+  def test_sanitize_key_replaces_commas_and_equals_signs
+    assert_equal "process.pid", ::Valkey::OpenTelemetry.send(:sanitize_otel_resource_key, "process.pid")
+    assert_equal "a_b_c", ::Valkey::OpenTelemetry.send(:sanitize_otel_resource_key, "a,b=c")
+  end
+
+  def test_sanitize_value_replaces_commas_but_keeps_equals_signs
     assert_equal "/usr/bin/ruby (a=b)",
-                 ::Valkey::OpenTelemetry.send(:sanitize_otel_resource_component, "/usr/bin/ruby (a=b)")
+                 ::Valkey::OpenTelemetry.send(:sanitize_otel_resource_value, "/usr/bin/ruby (a=b)")
+    assert_equal "a_b=c", ::Valkey::OpenTelemetry.send(:sanitize_otel_resource_value, "a,b=c")
+  end
+
+  def test_parse_otel_resource_attributes_trims_whitespace_keeps_last_duplicate_and_extra_equals
+    parsed = ::Valkey::OpenTelemetry.send(
+      :parse_otel_resource_attributes,
+      "spaced.key = spaced value,dup=first,dup=last,padded=value=="
+    )
+
+    assert_equal(
+      { "spaced.key" => "spaced value", "dup" => "last", "padded" => "value==" },
+      parsed
+    )
   end
 
   def test_with_resource_attributes_env_sets_and_restores_env_var
