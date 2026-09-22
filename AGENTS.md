@@ -331,6 +331,6 @@ valkey-glide-ruby/
 - **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 - **Examples:** [examples/](./examples/)
 - **Claude-specific rules:** [CLAUDE.md](./CLAUDE.md)
-- **Command coverage:** [Wiki: implementation status](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands)
+- **Command coverage:** [GLIDE supported commands](https://glide.valkey.io/commands/supported-commands/)
 - **GLIDE docs:** [glide.valkey.io](https://glide.valkey.io/)
 - **Upstream FFI:** [valkey-glide/ffi](https://github.com/valkey-io/valkey-glide/tree/main/ffi)
