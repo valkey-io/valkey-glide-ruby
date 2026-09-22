@@ -193,8 +193,6 @@ class Valkey
       subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
       ssubscribe_lazy sunsubscribe_lazy
       get_subscriptions get_pubsub_message try_get_pubsub_message
-      pubsub_channels pubsub_numpat pubsub_numsub
-      pubsub_shardchannels pubsub_shardnumsub
     ].freeze
 
     PUBSUB_UNSUPPORTED.each do |name|

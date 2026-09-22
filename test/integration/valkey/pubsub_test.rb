@@ -636,6 +636,95 @@ module ValkeyTests
       assert_match(/cluster mode/, error.message)
     end
 
+    SUBSCRIPTION_MODE_KEYS = %i[exact pattern sharded].freeze
+
+    def test_get_subscriptions_tracks_subscribe_and_unsubscribe
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.subscribe(channel)
+
+        state = subscriber.get_subscriptions
+        assert_kind_of Valkey::Glide::PubSubState, state
+        assert_empty state.desired_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
+        assert_empty state.actual_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
+        assert_includes state.desired_subscriptions.fetch(:exact, []), channel
+        assert_includes state.actual_subscriptions.fetch(:exact, []), channel
+
+        subscriber.unsubscribe(channel)
+
+        state = subscriber.get_subscriptions
+        refute_includes state.desired_subscriptions.fetch(:exact, []), channel
+        refute_includes state.actual_subscriptions.fetch(:exact, []), channel
+      end
+    end
+
+    def test_introspection_sees_another_clients_subscription
+      channel = unique_channel
+
+      with_client do |subscriber|
+        subscriber.subscribe(channel)
+
+        assert_includes r.pubsub_channels, channel
+        assert_includes r.pubsub_channels("#{channel}*"), channel
+        assert_numsub({ channel => 1 }, r.pubsub_numsub(channel))
+      end
+    end
+
+    def test_pubsub_numpat_tracks_pattern_subscriptions
+      pattern = "#{unique_channel}*"
+      initial_count = r.pubsub_numpat
+
+      with_client do |subscriber|
+        subscriber.psubscribe(pattern)
+
+        begin
+          assert_equal initial_count + 1, r.pubsub_numpat
+        ensure
+          subscriber.punsubscribe(pattern)
+        end
+
+        assert_equal initial_count, r.pubsub_numpat
+      end
+    end
+
+    def test_pubsub_channels_aggregates_across_nodes
+      skip("cluster-only: exercises the core's cross-node fan-out") unless cluster_mode?
+
+      channels = %w[{bar} {key1} {foo}].map { |tag| unique_channel(tag) }
+
+      subscribers = channels.map do |channel|
+        subscriber = _new_client(protocol: :resp3)
+        subscriber.subscribe(channel)
+        subscriber
+      end
+
+      seen = r.pubsub_channels
+
+      channels.each do |channel|
+        assert_includes seen, channel
+        assert_equal 1, seen.count(channel), "expected #{channel} exactly once in #{seen.inspect}"
+      end
+
+      assert_numsub channels.to_h { |channel| [channel, 1] }, r.pubsub_numsub(*channels)
+    ensure
+      subscribers&.each(&:close)
+    end
+
+    def test_shard_introspection_shapes
+      skip("cluster-only: sharded Pub/Sub commands") unless cluster_mode?
+      omit_version("7.0")
+
+      channel = unique_channel
+
+      shard_channels = r.pubsub_shardchannels
+      assert_kind_of Array, shard_channels
+      shard_channels.each { |shard_channel| assert_kind_of String, shard_channel }
+      assert_kind_of Array, r.pubsub_shardchannels("#{channel}*")
+
+      assert_numsub({ channel => 0 }, r.pubsub_shardnumsub(channel))
+    end
+
     private
 
     def skip_unless_sharded_pubsub
