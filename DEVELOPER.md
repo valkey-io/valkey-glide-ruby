@@ -77,6 +77,21 @@ bundle exec rake test:standalone
 python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone
 ```
 
+## Test Coverage
+
+We measure both **line coverage** and **branch coverage** with [SimpleCov](https://github.com/simplecov-ruby/simplecov). Coverage is opt-in via the `COVERAGE` environment variable; when set, the test suite writes an HTML report to `coverage/index.html` and a machine-readable summary to `coverage/.last_run.json`. The `coverage/` directory is gitignored.
+
+```bash
+# Standalone only
+COVERAGE=1 bundle exec rake test:standalone
+
+# Full suite (standalone + cluster)
+COVERAGE=1 bundle exec rake test
+
+# Coverage report (MacOS)
+open coverage/index.html  
+```
+
 ## RuboCop
 
 ```bash

@@ -119,6 +119,12 @@ namespace :test do
     cluster: "integration/cluster"
   }
   groups.each do |group, dir|
+    # Set the COV_GROUP environment variable for the test group task, so that
+    # SimpleCov can use it to determine the coverage group.
+    task "cov_group_#{group}" do
+      ENV["COV_GROUP"] = group.to_s
+    end
+
     Rake::TestTask.new(group) do |t|
       t.libs << "test"
       # Only add local lib to load path when not testing installed gem
@@ -126,6 +132,8 @@ namespace :test do
       t.test_files = FileList["test/#{dir}/**/*_test.rb"]
       t.options = '-v' if ENV['CI'] || ENV['VERBOSE']
     end
+
+    Rake::Task["test:#{group}"].enhance(["test:cov_group_#{group}"])
   end
 
   # Exclude module directories (integration/valkey/, lint/) from lost_tests check
