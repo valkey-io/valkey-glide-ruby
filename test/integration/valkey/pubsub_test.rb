@@ -688,6 +688,68 @@ module ValkeyTests
       end
     end
 
+    # Python sync exercises the Pub/Sub batch surface in both atomic and
+    # non-atomic batches, under RESP2 and RESP3. Keep these two entry points
+    # separate so a regression identifies which Ruby API failed.
+    def test_pubsub_commands_in_pipeline
+      assert_pubsub_batch_commands(:pipelined)
+    end
+
+    def test_pubsub_commands_in_multi
+      assert_pubsub_batch_commands(:multi)
+    end
+
+    def test_empty_pubsub_results_in_pipeline
+      assert_empty_pubsub_batch_results(:pipelined)
+    end
+
+    def test_empty_pubsub_results_in_multi
+      assert_empty_pubsub_batch_results(:multi)
+    end
+
+    def test_sharded_pubsub_batch_commands_require_cluster_mode
+      skip("standalone-only: Python exposes these methods only on ClusterBatch") if cluster_mode?
+
+      %i[pipelined multi].each do |batch_method|
+        calls = {
+          publish: ->(batch) { batch.publish("message", unique_channel, sharded: true) },
+          pubsub_shardchannels: ->(batch) { batch.pubsub_shardchannels(nil) },
+          pubsub_shardnumsub: ->(batch) { batch.pubsub_shardnumsub(unique_channel) }
+        }
+
+        calls.each do |name, call|
+          error = assert_raises(ArgumentError, "#{name} must require cluster mode in #{batch_method}") do
+            r.public_send(batch_method) { |batch| call.call(batch) }
+          end
+
+          assert_match(/cluster mode/, error.message)
+        end
+      end
+    end
+
+    def test_multi_cross_slot_sharded_publish
+      skip_unless_sharded_pubsub
+
+      first = unique_channel("{crossslot-a}")
+      second = unique_channel("{crossslot-b}")
+
+      error = assert_raises(Valkey::CommandError) do
+        r.multi do |batch|
+          batch.publish("first", first, sharded: true)
+          batch.publish("second", second, sharded: true)
+        end
+      end
+
+      assert_match(/CrossSlot/i, error.message)
+
+      results = r.pipelined do |batch|
+        batch.publish("first", first, sharded: true)
+        batch.publish("second", second, sharded: true)
+      end
+
+      assert_equal [0, 0], results
+    end
+
     def test_pubsub_channels_aggregates_across_nodes
       skip("cluster-only: exercises the core's cross-node fan-out") unless cluster_mode?
 
@@ -731,6 +793,95 @@ module ValkeyTests
       skip "sharded Pub/Sub is cluster-only" unless cluster_mode?
 
       omit_version("7.0")
+    end
+
+    def assert_empty_pubsub_batch_results(batch_method)
+      %i[resp2 resp3].each do |protocol|
+        channel = unique_channel("{empty-#{batch_method}-#{protocol}}")
+        supports_sharded = cluster_mode? && version >= "7.0"
+        batch_client = _new_client(protocol: protocol)
+        futures = []
+
+        results = batch_client.public_send(batch_method) do |batch|
+          futures << batch.publish("orphan", channel)
+          futures << batch.pubsub_channels(channel)
+          futures << batch.pubsub_numpat
+          futures << batch.pubsub_numsub
+
+          if supports_sharded
+            futures << batch.publish("sharded-orphan", channel, sharded: true)
+            futures << batch.pubsub_shardchannels(channel)
+            futures << batch.pubsub_shardnumsub
+          end
+        end
+
+        assert_equal results, futures.map(&:value)
+        assert_equal 0, results[0]
+        assert_empty results[1]
+        assert_equal 0, results[2]
+        assert_numsub({}, results[3])
+
+        next unless supports_sharded
+
+        assert_equal 0, results[4]
+        assert_empty results[5]
+        assert_numsub({}, results[6])
+      ensure
+        batch_client&.close
+      end
+    end
+
+    def assert_pubsub_batch_commands(batch_method)
+      %i[resp2 resp3].each do |protocol|
+        assert_pubsub_batch_commands_for_protocol(batch_method, protocol)
+      end
+    end
+
+    def assert_pubsub_batch_commands_for_protocol(batch_method, protocol)
+      # Hash-tagged so an atomic cluster batch stays within one slot; the
+      # cross-slot rejection has its own test.
+      channel = unique_channel("{#{batch_method}-#{protocol}}")
+      regular_message = "regular-#{batch_method}-#{protocol}"
+      sharded_message = "sharded-#{batch_method}-#{protocol}"
+      supports_sharded = cluster_mode? && version >= "7.0"
+      batch_client = nil
+
+      with_client do |subscriber|
+        subscriber.subscribe(channel)
+        subscriber.ssubscribe(channel) if supports_sharded
+        batch_client = _new_client(protocol: protocol)
+
+        results = batch_client.public_send(batch_method) do |batch|
+          batch.publish(regular_message, channel)
+          batch.pubsub_channels(channel)
+          batch.pubsub_numpat
+          batch.pubsub_numsub(channel)
+
+          if supports_sharded
+            batch.publish(sharded_message, channel, sharded: true)
+            batch.pubsub_shardchannels(channel)
+            batch.pubsub_shardnumsub(channel)
+          end
+        end
+
+        assert_equal 1, results[0]
+        assert_equal [channel], results[1]
+        assert_kind_of Integer, results[2]
+        assert_numsub({ channel => 1 }, results[3])
+
+        expected_messages = [regular_message]
+        if supports_sharded
+          assert_equal 1, results[4]
+          assert_equal [channel], results[5]
+          assert_numsub({ channel => 1 }, results[6])
+          expected_messages << sharded_message
+        end
+
+        actual_messages = expected_messages.length.times.map { wait_for_message(subscriber).message }
+        assert_equal expected_messages.sort, actual_messages.sort
+      ensure
+        batch_client&.close
+      end
     end
 
     def with_client(options = {})

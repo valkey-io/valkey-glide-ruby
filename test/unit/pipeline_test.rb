@@ -42,7 +42,7 @@ class TestPipelineUnit < Minitest::Test
     assert_raises(Valkey::FutureAborted) { future_b.value }
   end
 
-  def test_pubsub_commands_raise_argument_error
+  def test_pipeline_not_supported_pubsub
     pipeline = Valkey::Pipeline.new
 
     Valkey::Pipeline::PUBSUB_UNSUPPORTED.each do |name|
@@ -58,17 +58,57 @@ class TestPipelineUnit < Minitest::Test
     end
   end
 
-  def test_publish_is_batchable_including_sharded
+  def test_sharded_pubsub_batch_commands_require_cluster_mode
     pipeline = Valkey::Pipeline.new
+    calls = {
+      publish: -> { pipeline.publish("hello", "shard-chan", sharded: true) },
+      pubsub_shardchannels: -> { pipeline.pubsub_shardchannels },
+      pubsub_shardnumsub: -> { pipeline.pubsub_shardnumsub("shard-chan") }
+    }
 
-    plain = pipeline.publish("hello", "news")
-    sharded = pipeline.publish("hello", "shard-chan", sharded: true)
+    calls.each do |name, call|
+      error = assert_raises(ArgumentError, "#{name} must require cluster mode", &call)
 
-    assert_instance_of Valkey::Future, plain
-    assert_instance_of Valkey::Future, sharded
+      assert_match(/cluster mode/, error.message)
+    end
+
+    assert_empty pipeline.commands
+    assert_empty pipeline.futures
+  end
+
+  def test_pubsub_batch_commands_queue_and_return_futures
+    pipeline = Valkey::Pipeline.new(cluster_mode: true)
+
+    futures = [
+      pipeline.publish("hello", "news"),
+      pipeline.pubsub_channels("news.*"),
+      pipeline.pubsub_numpat,
+      pipeline.pubsub_numsub("news", "alerts"),
+      pipeline.publish("hello", "shard-chan", sharded: true),
+      pipeline.pubsub_shardchannels("shard-*"),
+      pipeline.pubsub_shardnumsub("shard-chan")
+    ]
+
+    futures.each { |future| assert_instance_of Valkey::Future, future }
+    assert_equal futures, pipeline.futures
     assert_equal [
       [Valkey::RequestType::PUBLISH, %w[news hello], nil],
-      [Valkey::RequestType::SPUBLISH, %w[shard-chan hello], nil]
+      [Valkey::RequestType::PUBSUB_CHANNELS, ["news.*"], nil],
+      [Valkey::RequestType::PUBSUB_NUM_PAT, [], nil],
+      [Valkey::RequestType::PUBSUB_NUM_SUB, %w[news alerts], nil],
+      [Valkey::RequestType::SPUBLISH, %w[shard-chan hello], nil],
+      [Valkey::RequestType::PUBSUB_SHARD_CHANNELS, ["shard-*"], nil],
+      [Valkey::RequestType::PUBSUB_SHARD_NUM_SUB, ["shard-chan"], nil]
     ], pipeline.commands
+  end
+
+  def test_get_subscriptions_is_not_batchable
+    pipeline = Valkey::Pipeline.new
+
+    error = assert_raises(ArgumentError) { pipeline.get_subscriptions }
+
+    assert_equal "get_subscriptions is not supported inside pipelined/multi", error.message
+    assert_empty pipeline.commands
+    assert_empty pipeline.futures
   end
 end

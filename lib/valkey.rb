@@ -94,7 +94,7 @@ class Valkey
   #   {CommandError} - other commands' replies stay reachable, matching
   #   the server's "no rollback on a runtime error" semantics.
   def pipelined(exception: true)
-    pipeline = Pipeline.new
+    pipeline = Pipeline.new(cluster_mode: cluster_mode?)
 
     begin
       yield pipeline

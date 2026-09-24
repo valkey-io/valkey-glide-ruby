@@ -8,9 +8,10 @@ class Valkey
 
     attr_reader :commands, :futures
 
-    def initialize
+    def initialize(cluster_mode: false)
       @commands = []
       @futures = []
+      @cluster_mode = cluster_mode
       # Keep transactional state consistent with the main client so that
       # helpers like `multi`/`exec` can safely consult `@in_multi`.
       @in_multi = false
@@ -186,8 +187,23 @@ class Valkey
     end
     # rubocop:enable Lint/UselessMethodDefinition
 
-    # Subscriptions outlive a batch and pushes arrive out of band, so neither
-    # can be expressed as one queued reply.
+    # Mirror Python sync which only allow sharded Pub/Sub in ClusterBatch.
+    def publish(message, channel, sharded: false)
+      raise ArgumentError, "publish with sharded: true is only available in cluster mode." if sharded && !cluster_mode?
+
+      super
+    end
+
+    def pubsub_shardchannels(pattern = nil)
+      validate_cluster_mode!(__method__)
+      super
+    end
+
+    def pubsub_shardnumsub(*channels)
+      validate_cluster_mode!(__method__)
+      super
+    end
+
     PUBSUB_UNSUPPORTED = %i[
       subscribe unsubscribe psubscribe punsubscribe ssubscribe sunsubscribe
       subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
@@ -199,6 +215,12 @@ class Valkey
       define_method(name) do |*, **|
         raise ArgumentError, "#{name} is not supported inside pipelined/multi"
       end
+    end
+
+    private
+
+    def cluster_mode?
+      @cluster_mode
     end
   end
 end
