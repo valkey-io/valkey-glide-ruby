@@ -187,9 +187,7 @@ class Valkey
     end
     # rubocop:enable Lint/UselessMethodDefinition
 
-    # Python sync exposes sharded Pub/Sub operations only on ClusterBatch.
-    # Preserve that topology split even though the shared Ruby command module
-    # also permits direct sharded calls against a standalone server.
+    # Mirror Python sync which only allow sharded Pub/Sub in ClusterBatch.
     def publish(message, channel, sharded: false)
       raise ArgumentError, "publish with sharded: true is only available in cluster mode." if sharded && !cluster_mode?
 
@@ -197,12 +195,12 @@ class Valkey
     end
 
     def pubsub_shardchannels(pattern = nil)
-      validate_cluster_pubsub_batch_command!(__method__)
+      validate_cluster_mode!(__method__)
       super
     end
 
     def pubsub_shardnumsub(*channels)
-      validate_cluster_pubsub_batch_command!(__method__)
+      validate_cluster_mode!(__method__)
       super
     end
 
@@ -223,12 +221,6 @@ class Valkey
 
     def cluster_mode?
       @cluster_mode
-    end
-
-    def validate_cluster_pubsub_batch_command!(command)
-      return if cluster_mode?
-
-      raise ArgumentError, "#{command} is only available in cluster mode."
     end
   end
 end

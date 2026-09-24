@@ -637,12 +637,6 @@ module ValkeyTests
     end
 
     SUBSCRIPTION_MODE_KEYS = %i[exact pattern sharded].freeze
-    NON_BATCHABLE_PUBSUB_COMMANDS = %i[
-      subscribe unsubscribe psubscribe punsubscribe ssubscribe sunsubscribe
-      subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
-      ssubscribe_lazy sunsubscribe_lazy
-      get_subscriptions get_pubsub_message try_get_pubsub_message
-    ].freeze
 
     def test_get_subscriptions_tracks_subscribe_and_unsubscribe
       channel = unique_channel
@@ -733,6 +727,29 @@ module ValkeyTests
       end
     end
 
+    def test_multi_cross_slot_sharded_publish
+      skip_unless_sharded_pubsub
+
+      first = unique_channel("{crossslot-a}")
+      second = unique_channel("{crossslot-b}")
+
+      error = assert_raises(Valkey::CommandError) do
+        r.multi do |batch|
+          batch.publish("first", first, sharded: true)
+          batch.publish("second", second, sharded: true)
+        end
+      end
+
+      assert_match(/CrossSlot/i, error.message)
+
+      results = r.pipelined do |batch|
+        batch.publish("first", first, sharded: true)
+        batch.publish("second", second, sharded: true)
+      end
+
+      assert_equal [0, 0], results
+    end
+
     def test_pubsub_channels_aggregates_across_nodes
       skip("cluster-only: exercises the core's cross-node fan-out") unless cluster_mode?
 
@@ -821,6 +838,8 @@ module ValkeyTests
     end
 
     def assert_pubsub_batch_commands_for_protocol(batch_method, protocol)
+      # Hash-tagged so an atomic cluster batch stays within one slot; the
+      # cross-slot rejection has its own test.
       channel = unique_channel("{#{batch_method}-#{protocol}}")
       regular_message = "regular-#{batch_method}-#{protocol}"
       sharded_message = "sharded-#{batch_method}-#{protocol}"

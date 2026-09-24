@@ -45,14 +45,7 @@ class TestPipelineUnit < Minitest::Test
   def test_pipeline_not_supported_pubsub
     pipeline = Valkey::Pipeline.new
 
-    not_supported = %i[
-      subscribe unsubscribe psubscribe punsubscribe ssubscribe sunsubscribe
-      subscribe_lazy unsubscribe_lazy psubscribe_lazy punsubscribe_lazy
-      ssubscribe_lazy sunsubscribe_lazy
-      get_subscriptions get_pubsub_message try_get_pubsub_message
-    ].freeze
-
-    not_supported.each do |name|
+    Valkey::Pipeline::PUBSUB_UNSUPPORTED.each do |name|
       error = assert_raises(ArgumentError, "#{name} must be rejected") { pipeline.public_send(name) }
 
       assert_equal "#{name} is not supported inside pipelined/multi", error.message
