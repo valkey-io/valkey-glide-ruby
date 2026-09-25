@@ -100,15 +100,11 @@ module Lint
       # Should have at least one shard
       assert result.length >= 1, "Should have at least one shard"
 
-      # Check structure of first shard - Redis 7.0+ returns Array format
       first_shard = result.first
-      assert_instance_of Array, first_shard
-      # The structure is an array like ["slots", [0, 5460], "nodes", [...]]
-      # Should have at least 4 elements (slots key, slots value, nodes key, nodes value)
-      assert first_shard.length >= 4, "Shard should have at least 4 elements"
-      # Check that it contains the expected keys
-      assert first_shard.include?("slots"), "Shard should contain 'slots'"
-      assert first_shard.include?("nodes"), "Shard should contain 'nodes'"
+      assert_instance_of Hash, first_shard
+      assert first_shard.key?("slots"), "Shard should contain 'slots'"
+      assert first_shard.key?("nodes"), "Shard should contain 'nodes'"
+      assert_instance_of Hash, first_shard["nodes"].first
     rescue Valkey::CommandError => e
       # Skip if command not available in this Redis version
       skip("CLUSTER SHARDS not available in this Redis version") if e.message.include?("Unknown subcommand")
