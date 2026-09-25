@@ -251,6 +251,19 @@ class Valkey
 
     json_options["periodic_checks"] = build_periodic_checks(options[:periodic_checks]) if options.key?(:periodic_checks)
 
+    if options.key?(:pubsub_reconciliation_interval_ms)
+      reconciliation_interval = options[:pubsub_reconciliation_interval_ms]
+      unless reconciliation_interval.is_a?(Integer) &&
+             reconciliation_interval.positive? &&
+             reconciliation_interval <= 0xFFFF_FFFF
+        raise ArgumentError,
+              "pubsub_reconciliation_interval_ms must be a positive 32-bit integer, " \
+              "got: #{reconciliation_interval.inspect}"
+      end
+
+      json_options["pubsub_reconciliation_interval_ms"] = reconciliation_interval
+    end
+
     # TLS/SSL certificates
     root_certs = []
     if options[:ssl_params].is_a?(Hash)
@@ -404,7 +417,7 @@ class Valkey
 
   alias disconnect! close
 
-  # Retrieves client statistics including connection and compression metrics.
+  # Retrieves client statistics including connection, compression, and subscription metrics.
   #
   # This method returns detailed statistics about the client's operations,
   # tracked globally across all clients in the process.
@@ -418,6 +431,9 @@ class Valkey
   #   - `:total_bytes_compressed` [Integer] total bytes after compression
   #   - `:total_bytes_decompressed` [Integer] total bytes after decompression
   #   - `:compression_skipped_count` [Integer] number of times compression was skipped
+  #   - `:subscription_out_of_sync_count` [Integer] number of out-of-sync subscription detections
+  #   - `:subscription_last_sync_timestamp` [Integer] timestamp of the last successful subscription sync,
+  #     in milliseconds since the Unix epoch
   #
   # @example Get client statistics
   #   client = Valkey.new(host: 'localhost', port: 6379)
@@ -442,7 +458,9 @@ class Valkey
       total_original_bytes: stats[:total_original_bytes],
       total_bytes_compressed: stats[:total_bytes_compressed],
       total_bytes_decompressed: stats[:total_bytes_decompressed],
-      compression_skipped_count: stats[:compression_skipped_count]
+      compression_skipped_count: stats[:compression_skipped_count],
+      subscription_out_of_sync_count: stats[:subscription_out_of_sync_count],
+      subscription_last_sync_timestamp: stats[:subscription_last_sync_timestamp]
     }
   end
 

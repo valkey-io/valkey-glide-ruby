@@ -122,6 +122,7 @@ client.get("foo")
 | `inflight_requests_limit`  | Maximum concurrent in-flight requests (non-negative integer) |
 | `lazy_connect` | Delay the actual connection until the first command is sent |
 | `periodic_checks` | Cluster topology health checks: `{ manual_interval: { duration_in_sec: N } }` or `{ disabled: true }`. Accepted (as a no-op) on standalone connections. |
+| `pubsub_reconciliation_interval_ms` | Positive unsigned 32-bit integer interval in milliseconds controlling Pub/Sub subscription reconciliation |
 
 ## Forking Support
 
