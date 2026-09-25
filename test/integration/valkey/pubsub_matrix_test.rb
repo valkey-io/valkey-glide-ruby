@@ -15,6 +15,9 @@ module ValkeyTests
     MATRIX_RECONNECT_POLL_SECONDS = 3.0
     MATRIX_RECONNECT_POLL_INTERVAL_SECONDS = 0.1
     MATRIX_RECONNECT_SETTLE_SECONDS = 2.0
+    MATRIX_RECONCILIATION_INTERVAL_MS = 500
+    MATRIX_RECONCILIATION_METRIC_TIMEOUT_SECONDS = 3.0
+    MATRIX_RECONCILIATION_SUBSCRIBE_TIMEOUT_MS = 2000
 
     def self.parameterized_test(name, topologies:, **parameters, &test_body)
       parameter_names = parameters.keys
@@ -307,7 +310,78 @@ module ValkeyTests
       assert_resubscribe_many_exact_channels_after_connection_kill_matrix_case(method, subscription_method)
     end
 
+    parameterized_test(
+      :test_sync_subscription_metrics_repeated_reconciliation_failures,
+      topologies: %i[standalone cluster],
+      subscription_method: %i[lazy blocking]
+    ) do |subscription_method|
+      assert_subscription_metrics_repeated_reconciliation_failures_matrix_case(subscription_method)
+    end
+
     private
+
+    def assert_subscription_metrics_repeated_reconciliation_failures_matrix_case(subscription_method)
+      token = "#{Process.pid}-#{SecureRandom.hex(6)}"
+      channels = [
+        "channel1-repeated-failures-#{token}",
+        "channel2-repeated-failures-#{token}"
+      ]
+      username = "mock-test-user-repeated-#{token}"
+      password = "password-repeated-#{SecureRandom.hex(8)}"
+      admin = nil
+      listener = nil
+
+      begin
+        admin = _new_client
+        matrix_routed_call(
+          admin,
+          ["ACL", "SETUSER", username, "ON", ">#{password}", "~*", "resetchannels", "+@all", "-@pubsub"]
+        )
+
+        listener = _new_client(
+          protocol: :resp3,
+          pubsub_reconciliation_interval_ms: MATRIX_RECONCILIATION_INTERVAL_MS
+        )
+        matrix_routed_call(listener, ["AUTH", username, password])
+
+        initial_out_of_sync = listener.get_statistics.fetch(:subscription_out_of_sync_count, 0).to_i
+
+        channels.each do |channel|
+          if subscription_method == :blocking
+            begin
+              listener.subscribe(channel, timeout_ms: MATRIX_RECONCILIATION_SUBSCRIBE_TIMEOUT_MS)
+            rescue Valkey::TimeoutError
+              nil
+            end
+          else
+            listener.subscribe_lazy(channel)
+          end
+        end
+
+        out_of_sync_count = matrix_wait_for_out_of_sync_count(
+          listener,
+          initial_out_of_sync + 2,
+          timeout: MATRIX_RECONCILIATION_METRIC_TIMEOUT_SECONDS
+        )
+        assert_operator out_of_sync_count, :>=, initial_out_of_sync + 2,
+                        "Expected at least 2 out-of-sync events, got " \
+                        "#{out_of_sync_count - initial_out_of_sync}"
+      ensure
+        if admin
+          begin
+            matrix_routed_call(admin, ["ACL", "DELUSER", username])
+          rescue Valkey::BaseError => e
+            warn "Failed to delete Pub/Sub ACL test user #{username}: #{e.message}"
+          end
+        end
+
+        begin
+          admin&.close
+        ensure
+          listener&.close
+        end
+      end
+    end
 
     def assert_exact_pubsub_matrix_case(subscription_method, read_method)
       channel = unique_channel("matrix-#{subscription_method}-#{read_method}")
@@ -1934,6 +2008,24 @@ module ValkeyTests
         address = Helper::Client.server_address
         Valkey.new(timeout_options.merge(host: address[:host], port: address[:port]))
       end
+    end
+
+    def matrix_routed_call(client, command)
+      return client.call_v(command, route: Valkey::Route.all_nodes) if cluster_mode?
+
+      client.call_v(command)
+    end
+
+    def matrix_wait_for_out_of_sync_count(client, minimum, timeout:)
+      deadline = monotonic_now + timeout
+      observed = client.get_statistics.fetch(:subscription_out_of_sync_count, 0).to_i
+
+      while observed < minimum && monotonic_now < deadline
+        sleep POLL_INTERVAL_SECONDS
+        observed = client.get_statistics.fetch(:subscription_out_of_sync_count, 0).to_i
+      end
+
+      observed
     end
 
     def matrix_subscribe_by_method(subscriber, subscription_method, subscriptions, timeout_ms: 5000)
