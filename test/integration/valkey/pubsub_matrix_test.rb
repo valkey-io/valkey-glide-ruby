@@ -14,6 +14,7 @@ module ValkeyTests
     MATRIX_RECONNECT_PUBLISH_ATTEMPTS = 5
     MATRIX_RECONNECT_POLL_SECONDS = 3.0
     MATRIX_RECONNECT_POLL_INTERVAL_SECONDS = 0.1
+    MATRIX_RECONNECT_SETTLE_SECONDS = 2.0
 
     def self.parameterized_test(name, topologies:, **parameters, &test_body)
       parameter_names = parameters.keys
@@ -491,6 +492,7 @@ module ValkeyTests
         assert_equal channel, message_before.channel
 
         matrix_kill_connections_tolerant(publisher)
+        sleep MATRIX_RECONNECT_SETTLE_SECONDS
         matrix_wait_for_actual_subscription(subscriber, :sharded, channel, timeout: 15.0)
 
         publisher.publish("message_after_kill", channel, sharded: true)
@@ -527,6 +529,7 @@ module ValkeyTests
         state_timeout: 3.0
       ) do |subscriber, publisher|
         matrix_kill_connections_tolerant(publisher)
+        sleep MATRIX_RECONNECT_SETTLE_SECONDS
         matrix_wait_for_actual_subscriptions(
           subscriber,
           :exact,
