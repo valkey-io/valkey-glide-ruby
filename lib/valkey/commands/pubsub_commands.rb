@@ -4,12 +4,12 @@ class Valkey
   module Commands
     # This module contains commands for Valkey Pub/Sub.
     #
-    # Pub/Sub requires the RESP3 protocol. Subscriptions can be declared when the client is created, and are
+    # Pub/Sub requires the RESP3 protocol, the default; a client created with `protocol: :resp2` raises
+    # {Valkey::Resp3RequiredError}. Subscriptions can be declared when the client is created, and are
     # applied via SUBSCRIBE/PSUBSCRIBE/SSUBSCRIBE during connection establishment:
     #
     # @example
     #   valkey = Valkey.new(
-    #     protocol: :resp3,
     #     pubsub: {
     #       subscriptions: {
     #         exact: ["news"],           # channel names
@@ -29,7 +29,6 @@ class Valkey
     #
     # @example PubSub with callback
     #   valkey = Valkey.new(
-    #     protocol: :resp3,
     #     pubsub: {
     #       subscriptions: { exact: ["news"], pattern: ["news.*"] },
     #       callback: ->(message, context) { context[:messages] << [message.channel, message.message] },
@@ -52,9 +51,6 @@ class Valkey
     module PubSubCommands
       # Subscription mode mapped to the integer key glide-core expects
       SUBSCRIPTION_MODES = { exact: 0, pattern: 1, sharded: 2 }.freeze
-
-      # PubSub requires RESP3
-      RESP3_VALUES = [:resp3, "resp3", 3].freeze
 
       # Subscribe to exact channels, waiting for the server to confirm the subscription.
       #
@@ -482,7 +478,7 @@ class Valkey
       private
 
       def validate_resp3!
-        raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+        raise Resp3RequiredError, protocol unless Valkey.resp3_protocol?(protocol)
       end
 
       def validate_cluster_mode!(command)

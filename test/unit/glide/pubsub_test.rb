@@ -102,18 +102,31 @@ class TestPubSubCommandsUnit < Minitest::Test
     assert_match(/RESP3/, error.message)
   end
 
-  def test_pubsub_omitted_protocol_raises
-    error = assert_raises(Valkey::Resp3RequiredError) do
-      parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } })
+  def test_pubsub_resp2_spellings_raise
+    [:resp2, :RESP2, "RESP2", 2].each do |protocol|
+      assert_raises(Valkey::Resp3RequiredError, "protocol #{protocol.inspect} must be rejected") do
+        parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } }, protocol: protocol)
+      end
     end
-    assert_match(/RESP3/, error.message)
   end
 
-  def test_pubsub_explicit_nil_protocol_raises
-    error = assert_raises(Valkey::Resp3RequiredError) do
-      parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } }, protocol: nil)
+  # An omitted protocol leaves glide-core's default, RESP3, in effect.
+  def test_pubsub_omitted_protocol_is_accepted
+    parsed = parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } })
+
+    assert_equal({ "pubsub_subscriptions" => { "0" => ["news"] } }, parsed)
+  end
+
+  def test_pubsub_explicit_nil_protocol_is_accepted
+    parsed = parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } }, protocol: nil)
+
+    assert_equal({ "pubsub_subscriptions" => { "0" => ["news"] } }, parsed)
+  end
+
+  def test_pubsub_unrecognized_protocol_raises_argument_error
+    assert_raises(ArgumentError) do
+      parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } }, protocol: :resp4)
     end
-    assert_match(/RESP3/, error.message)
   end
 
   def test_pubsub_parse_config_ok
@@ -412,7 +425,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   def test_publish_works_without_resp3
-    client = RecordingClient.new(response: 0, protocol: nil)
+    client = RecordingClient.new(response: 0, protocol: :resp2)
 
     client.publish("hello", "news")
 
@@ -441,7 +454,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   def test_publish_sharded_works_without_resp3
-    client = RecordingClient.new(response: 0, protocol: nil, cluster_mode: true)
+    client = RecordingClient.new(response: 0, protocol: :resp2, cluster_mode: true)
 
     client.publish("hello", "shard-chan", sharded: true)
 
@@ -680,7 +693,7 @@ class TestPubSubCommandsUnit < Minitest::Test
       pubsub_shardnumsub: [],
       get_subscriptions: ["desired", {}, "actual", {}]
     }.each do |name, response|
-      client = RecordingClient.new(response: response, protocol: nil)
+      client = RecordingClient.new(response: response, protocol: :resp2)
 
       client.public_send(name)
 
@@ -799,7 +812,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   # --- RESP3 requirement ---------------------------------------------------
 
   def test_subscription_methods_reject_a_non_resp3_protocol
-    [nil, :resp2, "resp2", 2].each do |protocol|
+    [:resp2, "resp2", "RESP2", 2].each do |protocol|
       # Cluster mode so the sharded verbs clear their cluster-only guard and
       # reach the RESP3 check; the non-sharded verbs are unaffected by it.
       client = RecordingClient.new(protocol: protocol, cluster_mode: true)
@@ -815,8 +828,8 @@ class TestPubSubCommandsUnit < Minitest::Test
     end
   end
 
-  def test_subscription_methods_accept_every_resp3_spelling
-    [:resp3, "resp3", 3].each do |protocol|
+  def test_subscription_methods_accept_every_resp3_spelling_and_the_default
+    [nil, :resp3, :RESP3, "resp3", "RESP3", 3].each do |protocol|
       client = RecordingClient.new(protocol: protocol, cluster_mode: true)
 
       client.subscribe("news")

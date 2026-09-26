@@ -112,7 +112,7 @@ client.get("foo")
 | `ssl_params` | TLS options {`ca_file`, `cert`, `key`, `ca_path`, `root_certs`} |
 | `cluster_mode` | Enable cluster client |
 | `nodes` | Array of `{ host:, port: }` hashes |
-| `protocol` | `:resp2` (default) or `:resp3` |
+| `protocol` | `:resp3` or `:resp2` (also `"RESP3"`/`"RESP2"` in any case, or `3`/`2`). Defaults to RESP3 when omitted, as in the other GLIDE clients; any other value raises `ArgumentError`. Pub/Sub requires RESP3. |
 | `client_name` | `CLIENT SETNAME` value |
 | `lib_name` | Full override of the `CLIENT SETINFO LIB-NAME` value (default `GlideRuby`). Accepts a `String`, a `Symbol`, or `nil`. Validated by glide-core: printable ASCII excluding space, `(` and `)`, plus at most one matched trailing `(tag)`; an invalid value raises `Valkey::CannotConnectError` at client creation. An empty value falls back to the default. |
 | `client_info_tag` | Appends a parenthesized tag to the resolved library name while keeping the base token intact — e.g. `GlideRuby(my-framework:1.0)`, or `<lib_name>(<tag>)` when combined with `lib_name`. An empty tag is treated as absent (no suffix). Like `lib_name`, the composed value is validated by glide-core. Note the resolved library name is visible to anyone who can run `CLIENT LIST`/`CLIENT INFO` and may appear in server logs, so do not put secrets or sensitive tenant identifiers in it. Preferred over `lib_name` for framework attribution because it preserves GLIDE adoption visibility. |

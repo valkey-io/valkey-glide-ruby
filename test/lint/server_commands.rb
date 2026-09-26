@@ -336,9 +336,19 @@ module Lint
       assert_equal "OK", r.acl_setuser("testuser", "on", ">testpass", "~*", "+@read")
 
       user_info = r.acl_getuser("testuser")
-      assert_kind_of Array, user_info
-
       r.acl_deluser("testuser")
+      refute_nil user_info
+
+      # Redis 7.0 reworked the ACL GETUSER reply, so its fields can only be asserted
+      # from 7.0 up. target_version skips the remainder of the test on older engines,
+      # which is why the user is deleted before the block rather than after it.
+      target_version "7.0" do
+        assert_kind_of Hash, user_info
+        assert_includes user_info["flags"], "on"
+        assert_includes user_info["commands"], "+@read"
+        assert_equal "~*", user_info["keys"]
+        refute_empty user_info["passwords"]
+      end
     end
 
     def test_acl_deluser
@@ -489,21 +499,29 @@ module Lint
       # Enable latency monitoring first
       r.config_set("latency-monitor-threshold", "100")
 
+      # The server only reports histograms for commands it has actually executed,
+      # so SET and GET would be absent without these probes.
+      r.set("latency-histogram-probe", "value")
+      r.get("latency-histogram-probe")
+
       # LATENCY HISTOGRAM without arguments returns all histograms
-      result = r.latency_histogram
-      if cluster_mode?
-        assert_kind_of Hash, result
-      else
-        assert_kind_of Array, result
-      end
+      all_histograms = r.latency_histogram
+      assert_kind_of Hash, all_histograms
+      refute_empty all_histograms
 
       # LATENCY HISTOGRAM with specific commands
       result = r.latency_histogram("SET", "GET")
-      if cluster_mode?
-        assert_kind_of Hash, result
-      else
-        assert_kind_of Array, result
-      end
+      assert_kind_of Hash, result
+
+      # Cluster mode nests the histograms under a per-node map, so only standalone
+      # can assert the per-command shape.
+      return if cluster_mode?
+
+      assert_includes result.keys, "set"
+      assert_includes result.keys, "get"
+      assert_kind_of Integer, result.dig("set", "calls")
+      assert_kind_of Hash, result.dig("set", "histogram_usec")
+      refute_empty result.dig("set", "histogram_usec")
     rescue Valkey::CommandError => e
       # Skip if latency monitoring is not available
       if e.message.include?("LATENCY") || e.message.include?("unknown")
@@ -734,17 +752,15 @@ module Lint
     def test_command_docs
       # COMMAND DOCS without arguments returns docs for all commands
       result = r.command_docs
-      assert_kind_of Array, result
-      assert !result.empty?, "Expected COMMAND DOCS to return non-empty array"
+      assert_kind_of Hash, result
+      refute_empty result, "Expected COMMAND DOCS to return a non-empty map"
 
-      # COMMAND DOCS with specific commands
-      result = r.command_docs("GET", "SET")
-      assert_kind_of Array, result
-      # Server may return more entries (e.g., with aliases or variations)
-      # Filter out string elements (command names) and only check hash docs
-      docs = result.grep(Hash)
-      assert docs.size >= 2, "Expected at least 2 command docs (hashes)"
-      docs.each do |doc|
+      # COMMAND DOCS with specific commands is keyed by lowercase command name
+      docs = r.command_docs("GET", "SET")
+      assert_kind_of Hash, docs
+      assert_includes docs.keys, "get"
+      assert_includes docs.keys, "set"
+      docs.each_value do |doc|
         assert_kind_of Hash, doc, "Expected each doc to be a Hash"
         assert doc.key?("summary") || doc.key?("since"), "Expected doc to have summary or since"
       end

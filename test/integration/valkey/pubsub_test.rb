@@ -190,23 +190,45 @@ module ValkeyTests
       end
     end
 
+    # An omitted protocol leaves glide-core's default, RESP3, in effect.
     def test_subscribe_on_default_protocol
-      # We currently default to RESP2, so this should raise.
-      error = assert_raises(Valkey::Resp3RequiredError) { r.subscribe(unique_channel) }
+      channel = unique_channel
+      subscriber = _new_client
+
+      subscriber.subscribe(channel)
+
+      assert_equal "default-protocol", publish_until_received("default-protocol", channel, subscriber).message
+    ensure
+      subscriber&.close
+    end
+
+    def test_subscribe_with_explicit_resp2_raises
+      client = _new_client(protocol: :resp2)
+
+      error = assert_raises(Valkey::Resp3RequiredError) { client.subscribe(unique_channel) }
 
       assert_match(/RESP3/, error.message)
+    ensure
+      client&.close
+    end
+
+    def test_connection_time_subscription_on_default_protocol
+      channel = unique_channel
+      subscriber = _new_client(pubsub: { subscriptions: { exact: [channel] } })
+
+      assert_equal "connect-default", publish_until_received("connect-default", channel, subscriber).message
+    ensure
+      subscriber&.close
     end
 
     def test_connection_time_subscription_with_resp2
       subscriptions = { subscriptions: { exact: [unique_channel] } }
 
-      omitted_protocol = assert_raises(Valkey::Resp3RequiredError) { _new_client(pubsub: subscriptions) }
-      explicit_resp2 = assert_raises(Valkey::Resp3RequiredError) do
+      error = assert_raises(Valkey::Resp3RequiredError) do
         _new_client(protocol: :resp2, pubsub: subscriptions)
       end
 
-      assert_match(/RESP3/, omitted_protocol.message)
-      assert_match(/RESP3/, explicit_resp2.message)
+      assert_match(/RESP3/, error.message)
     end
 
     # A GLIDE connection is not confined to subscriber mode the way redis-rb is.
