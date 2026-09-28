@@ -110,7 +110,6 @@ class TestPubSubCommandsUnit < Minitest::Test
     end
   end
 
-  # An omitted protocol leaves glide-core's default, RESP3, in effect.
   def test_pubsub_omitted_protocol_is_accepted
     parsed = parse_pubsub_configs.call({ subscriptions: { exact: ["news"] } })
 

@@ -31,35 +31,11 @@ class Valkey
   # `GLIDE_NAME=GlideRuby`, which is only glide-core's fallback.
   DEFAULT_LIB_NAME = "GlideRuby"
 
-  # Accepted `protocol:` spellings, downcased, mapped to the name glide-core expects.
   PROTOCOL_NAMES = { "resp2" => "RESP2", "2" => "RESP2", "resp3" => "RESP3", "3" => "RESP3" }.freeze
+  private_constant :PROTOCOL_NAMES
 
   # The RESP protocol specified, or nil when left to glide-core's default (RESP3).
   attr_reader :protocol
-
-  # Maps a `protocol:` option to the name glide-core expects.
-  #
-  # @api private
-  # @param protocol [Symbol, String, Integer, nil] `:resp2`/`:resp3`, `"resp2"`/`"resp3"` (any case), or `2`/`3`
-  # @return [String, nil] `"RESP2"`, `"RESP3"`, or nil when not configured
-  # @raise [ArgumentError] if the value is not a recognized protocol
-  def self.protocol_name(protocol)
-    return nil if protocol.nil?
-
-    PROTOCOL_NAMES.fetch(protocol.to_s.downcase) do
-      raise ArgumentError, "protocol must be :resp2, :resp3, 2 or 3, got #{protocol.inspect}"
-    end
-  end
-
-  # Whether the connection speaks RESP3: an explicit RESP3, or unset (glide-core's default).
-  #
-  # @api private
-  # @param protocol [Symbol, String, Integer, nil] the raw `protocol:` option
-  # @return [Boolean]
-  # @raise [ArgumentError] if the value is not a recognized protocol
-  def self.resp3_protocol?(protocol)
-    protocol_name(protocol) != "RESP2"
-  end
 
   # Resolves the effective `CLIENT SETINFO LIB-NAME` value, composing `base(tag)`.
   # An empty override or tag means "not configured" and is omitted. Character
@@ -220,8 +196,8 @@ class Valkey
     # Cluster mode
     json_options["cluster_mode_enabled"] = true if options[:cluster_mode]
 
-    protocol_name = Valkey.protocol_name(options[:protocol])
-    json_options["protocol"] = protocol_name if protocol_name
+    selected_protocol = protocol_name(options[:protocol])
+    json_options["protocol"] = selected_protocol if selected_protocol
 
     # Timeouts
     request_timeout = options[:timeout] || 5.0
@@ -580,6 +556,18 @@ class Valkey
 
   private
 
+  def protocol_name(protocol)
+    return nil if protocol.nil?
+
+    PROTOCOL_NAMES.fetch(protocol.to_s.downcase) do
+      raise ArgumentError, "protocol must be :resp2, :resp3, 2 or 3, got #{protocol.inspect}"
+    end
+  end
+
+  def resp3_protocol?(protocol)
+    protocol_name(protocol) != "RESP2"
+  end
+
   # Returns the live native client handle.
   #
   # A handle cannot cross `fork()`: the runtimes and threads behind it live only
@@ -918,7 +906,7 @@ class Valkey
   def validate_pubsub_subscriptions!(subscriptions, protocol:, cluster_mode: false)
     unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
     raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
-    raise Resp3RequiredError, protocol unless Valkey.resp3_protocol?(protocol)
+    raise Resp3RequiredError, protocol unless resp3_protocol?(protocol)
 
     return unless Array(subscriptions[:sharded]).any? && !cluster_mode
 

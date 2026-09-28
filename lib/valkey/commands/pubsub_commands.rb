@@ -478,7 +478,7 @@ class Valkey
       private
 
       def validate_resp3!
-        raise Resp3RequiredError, protocol unless Valkey.resp3_protocol?(protocol)
+        raise Resp3RequiredError, protocol unless resp3_protocol?(protocol)
       end
 
       def validate_cluster_mode!(command)

@@ -339,9 +339,6 @@ module Lint
       r.acl_deluser("testuser")
       refute_nil user_info
 
-      # Redis 7.0 reworked the ACL GETUSER reply, so its fields can only be asserted
-      # from 7.0 up. target_version skips the remainder of the test on older engines,
-      # which is why the user is deleted before the block rather than after it.
       target_version "7.0" do
         assert_kind_of Hash, user_info
         assert_includes user_info["flags"], "on"
@@ -499,8 +496,6 @@ module Lint
       # Enable latency monitoring first
       r.config_set("latency-monitor-threshold", "100")
 
-      # The server only reports histograms for commands it has actually executed,
-      # so SET and GET would be absent without these probes.
       r.set("latency-histogram-probe", "value")
       r.get("latency-histogram-probe")
 
@@ -513,8 +508,6 @@ module Lint
       result = r.latency_histogram("SET", "GET")
       assert_kind_of Hash, result
 
-      # Cluster mode nests the histograms under a per-node map, so only standalone
-      # can assert the per-command shape.
       return if cluster_mode?
 
       assert_includes result.keys, "set"

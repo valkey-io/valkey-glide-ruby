@@ -190,7 +190,6 @@ module ValkeyTests
       end
     end
 
-    # An omitted protocol leaves glide-core's default, RESP3, in effect.
     def test_subscribe_on_default_protocol
       channel = unique_channel
       subscriber = _new_client
