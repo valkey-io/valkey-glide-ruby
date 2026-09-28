@@ -772,11 +772,11 @@ module ValkeyTests
           end
         end
       ensure
-        next unless subscription_method == :config
-
-        subscriber.unsubscribe(exact_channel, timeout_ms: 10_000)
-        subscriber.punsubscribe(pattern, timeout_ms: 10_000)
-        subscriber.sunsubscribe(sharded_channel, timeout_ms: 10_000) if sharded_channel
+        if subscription_method == :config
+          subscriber.unsubscribe(exact_channel, timeout_ms: 10_000)
+          subscriber.punsubscribe(pattern, timeout_ms: 10_000)
+          subscriber.sunsubscribe(sharded_channel, timeout_ms: 10_000) if sharded_channel
+        end
       end
     end
 
