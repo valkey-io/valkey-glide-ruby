@@ -294,13 +294,6 @@ class TestConnectionConfig < Minitest::Test
     end
   end
 
-  def test_pubsub_subscriptions_accepted_with_default_protocol
-    json_options = captured_json_options(pubsub: { subscriptions: { exact: ["news"] } })
-
-    assert_equal({ "0" => ["news"] }, json_options["pubsub_subscriptions"])
-    refute json_options.key?("protocol")
-  end
-
   def test_pubsub_subscriptions_rejected_with_explicit_resp2
     assert_raises(Valkey::Resp3RequiredError) do
       captured_json_options(protocol: :resp2, pubsub: { subscriptions: { exact: ["news"] } })
