@@ -2247,14 +2247,19 @@ module ValkeyTests
       deadline: nil
     )
       deadline ||= Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
+      remaining_timeout = [deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max
 
       case read_method
       when :callback
+        extra = wait_until(timeout: remaining_timeout) do
+          callback_messages.length if callback_messages.length > expected_callback_count
+        end
+        assert_nil extra
         assert_equal expected_callback_count, callback_messages.length
       when :blocking_get
         matrix_assert_blocking_get_waits(subscriber, deadline: deadline)
       when :polling_try_get
-        assert_nil subscriber.try_get_pubsub_message
+        assert_nil wait_for_message(subscriber, timeout: remaining_timeout)
       else
         raise ArgumentError, "unknown message read method: #{read_method}"
       end
