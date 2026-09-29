@@ -17,6 +17,8 @@ module ValkeyTests
         total_bytes_compressed
         total_bytes_decompressed
         compression_skipped_count
+        subscription_out_of_sync_count
+        subscription_last_sync_timestamp
       ]
 
       expected_fields.each do |field|

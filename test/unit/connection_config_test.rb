@@ -243,6 +243,26 @@ class TestConnectionConfig < Minitest::Test
     refute json_options.key?("periodic_checks")
   end
 
+  def test_pubsub_reconciliation_interval_ms_serializes_positive_u32_values
+    [1, 500, 0xFFFF_FFFF].each do |interval|
+      json_options = captured_json_options(pubsub_reconciliation_interval_ms: interval)
+      assert_equal interval, json_options["pubsub_reconciliation_interval_ms"]
+    end
+  end
+
+  def test_pubsub_reconciliation_interval_ms_is_omitted_when_not_provided
+    refute captured_json_options.key?("pubsub_reconciliation_interval_ms")
+  end
+
+  def test_pubsub_reconciliation_interval_ms_rejects_values_outside_positive_u32_range
+    [nil, 0, -1, 1.5, "500", 0x1_0000_0000].each do |interval|
+      error = assert_raises(ArgumentError) do
+        captured_json_options(pubsub_reconciliation_interval_ms: interval)
+      end
+      assert_match(/must be a positive 32-bit integer/, error.message)
+    end
+  end
+
   def test_periodic_checks_rejects_non_hash
     # Shape check, not value validation -- a non-Hash can't be inspected for
     # :disabled/:manual_interval, so without this it'd be a NoMethodError.
