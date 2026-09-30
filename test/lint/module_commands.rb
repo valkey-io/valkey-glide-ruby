@@ -302,9 +302,7 @@ module Lint
 
     def module_loaded?
       list = r.module_list
-      list.any? do |m|
-        m.is_a?(Array) && m.include?("name") && m[m.index("name") + 1] == MODULE_NAME
-      end
+      list.any? { |entry| Valkey::Utils::Hashify.call(entry)["name"] == MODULE_NAME }
     rescue Valkey::CommandError => e
       # If MODULE commands aren't enabled, assume module is not loaded
       return false if e.message.include?("MODULE command not allowed")
