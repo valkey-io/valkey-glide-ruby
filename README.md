@@ -62,6 +62,13 @@ Verify installation:
 ruby -e 'require "valkey"; puts Valkey::VERSION'
 ```
 
+Verify the gem's build provenance (each release is attested with Sigstore by the release workflow):
+
+```bash
+gem fetch valkey-glide-rb -v <version>
+gh attestation verify valkey-glide-rb-<version>.gem --repo valkey-io/valkey-glide-ruby
+```
+
 ## Basic Examples
 
 ### Standalone Mode
