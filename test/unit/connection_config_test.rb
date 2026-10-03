@@ -28,7 +28,8 @@ class TestConnectionConfig < Minitest::Test
       fake_response.to_ptr
     }) do
       Valkey::Bindings.stub(:free_connection_response, nil) do
-        client = ::Valkey.new({ host: "localhost", port: 6379 }.merge(options))
+        client_options = options.key?(:url) ? options : { host: "localhost", port: 6379 }.merge(options)
+        client = ::Valkey.new(client_options)
         client.instance_variable_set(:@connection, nil) # skip close's real FFI call
       end
     end
@@ -265,6 +266,119 @@ class TestConnectionConfig < Minitest::Test
       ::Valkey.new(host: "localhost", port: 6379, periodic_checks: { manual_interval: "30" })
     end
     assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
+  end
+
+  def test_iam_config_serializes_username_and_json
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1",
+      refresh_interval_seconds: 600
+    )
+
+    captured = captured_client_args(username: "iam-user", iam_config: iam_config)
+
+    assert_equal "redis://iam-user@localhost:6379", captured[:uri]
+    assert_equal(
+      {
+        "cluster_name" => "my-cache",
+        "region" => "us-east-1",
+        "service_type" => "ELASTICACHE",
+        "refresh_interval_seconds" => 600
+      },
+      JSON.parse(captured[:json])["iam_credentials"]
+    )
+  end
+
+  def test_iam_config_omits_default_refresh_interval
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    iam_credentials = captured_json_options(username: "iam-user", iam_config: iam_config)["iam_credentials"]
+
+    assert_equal(
+      {
+        "cluster_name" => "my-cache",
+        "region" => "us-east-1",
+        "service_type" => "ELASTICACHE"
+      },
+      iam_credentials
+    )
+    refute iam_credentials.key?("refresh_interval_seconds")
+  end
+
+  def test_iam_username_is_percent_encoded
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(username: "iam user/@?", iam_config: iam_config)
+
+    assert_equal "redis://iam%20user%2F%40%3F@localhost:6379", captured[:uri]
+  end
+
+  def test_url_username_combines_with_explicit_iam_config
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::MEMORYDB,
+      region: "us-west-2"
+    )
+
+    captured = captured_client_args(
+      url: "rediss://iam%20user@cache.example.com:6380/2",
+      iam_config: iam_config
+    )
+
+    assert_equal "rediss://iam%20user@cache.example.com:6380/2", captured[:uri]
+    assert_equal(
+      {
+        "cluster_name" => "my-cache",
+        "region" => "us-west-2",
+        "service_type" => "MEMORYDB"
+      },
+      JSON.parse(captured[:json])["iam_credentials"]
+    )
+  end
+
+  def test_iam_rejects_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(username: "iam-user", password: "secret", iam_config: iam_config)
+    end
+
+    assert_match(/mutually exclusive/, error.message)
+  end
+
+  def test_iam_rejects_url_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(url: "redis://iam-user:secret@localhost:6379", iam_config: iam_config)
+    end
+
+    assert_match(/mutually exclusive/, error.message)
+  end
+
+  def test_iam_rejects_wrong_config_type
+    error = assert_raises(ArgumentError) do
+      captured_client_args(username: "iam-user", iam_config: {})
+    end
+
+    assert_match(/iam_config must be a Valkey::IamAuthConfig/, error.message)
   end
 
   def test_ssl_boolean_true_enables_tls

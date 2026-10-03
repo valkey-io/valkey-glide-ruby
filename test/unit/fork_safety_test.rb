@@ -158,6 +158,24 @@ class TestForkSafety < Minitest::Test
     assert_empty ffi_calls
   end
 
+  def test_refresh_iam_token_in_child_proc_raises_before_ffi
+    client = child_proc_client
+    ffi_calls = []
+    free_calls = []
+
+    Valkey::Bindings.stub(:refresh_iam_token, lambda { |*args|
+      ffi_calls << args
+      raise FfiReached
+    }) do
+      Valkey::Bindings.stub(:free_command_result, ->(result_ptr) { free_calls << result_ptr }) do
+        assert_raises(Valkey::InheritedError) { client.refresh_iam_token }
+      end
+    end
+
+    assert_empty ffi_calls
+    assert_empty free_calls
+  end
+
   # Pins the decision from the other side: statistics takes no handle, so a
   # guard bolted onto every public method instead of onto `connection!` would
   # break this.

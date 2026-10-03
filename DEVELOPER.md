@@ -66,6 +66,44 @@ Common environment overrides (defaults in `test/test_helper.rb`): `VALKEY_PORT`
 VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
 ```
 
+### IAM Tests
+
+IAM integration tests use mock AWS credentials only to exercise the
+Ruby-to-Core authentication path against local servers.
+
+```bash
+export AWS_ACCESS_KEY_ID=mock-access-key
+export AWS_SECRET_ACCESS_KEY=mock-secret-key
+export AWS_SESSION_TOKEN=mock-session-token
+```
+
+Run the IAM-focused unit tests:
+
+```bash
+bundle exec ruby -Itest -Ilib test/unit/iam_auth_config_test.rb
+bundle exec ruby -Itest -Ilib test/unit/connection_config_test.rb --name /iam/
+bundle exec ruby -Itest -Ilib test/unit/iam_authentication_test.rb
+bundle exec ruby -Itest -Ilib test/unit/fork_safety_test.rb --name /refresh_iam/
+```
+
+Run the standalone IAM tests:
+
+```bash
+python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix iam-standalone
+bundle exec ruby -Itest -Ilib test/integration/standalone/iam_authentication_test.rb
+bundle exec ruby -Itest -Ilib test/integration/standalone/iam_validation_test.rb
+python3 valkey-glide/utils/cluster_manager.py stop --prefix iam-standalone
+```
+
+Run the cluster IAM tests:
+
+```bash
+python3 valkey-glide/utils/cluster_manager.py start --cluster-mode \
+  -p 7000 7001 7002 7003 7004 7005 -n 3 -r 1 --prefix iam-cluster
+bundle exec ruby -Itest -Ilib test/integration/cluster/iam_authentication_test.rb
+python3 valkey-glide/utils/cluster_manager.py stop --prefix iam-cluster
+```
+
 ### TLS Tests (optional)
 
 TLS tests need a TLS server plus `TLS_CERT_DIR`. Skip them with `SKIP_TLS_TESTS=true`.
