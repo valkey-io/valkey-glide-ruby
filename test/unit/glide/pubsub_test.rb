@@ -79,10 +79,11 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   def test_close_wakes_a_blocked_reader_with_nil
+    message_queue = message_queue_for(@pubsub)
     reader = Thread.new { @pubsub.get_pubsub_message }
-    # Observe the reader blocked in Queue#pop instead of assuming a scheduler delay.
-    Timeout.timeout(2) { Thread.pass until reader.status == "sleep" || !reader.alive? }
+    Timeout.timeout(2) { Thread.pass until message_queue.num_waiting.positive? || !reader.alive? }
     flunk("reader returned #{reader.value.inspect} before close") unless reader.alive?
+    assert_equal 1, message_queue.num_waiting
     @pubsub.close
 
     assert_nil Timeout.timeout(2) { reader.value }
@@ -844,6 +845,10 @@ class TestPubSubCommandsUnit < Minitest::Test
     client.instance_variable_get(:@pubsub_receiver)
   end
 
+  def message_queue_for(client)
+    receiver_for(client).instance_variable_get(:@message_queue)
+  end
+
   # Bound via reflection because the parser is private on the client.
   def parse_pubsub_configs
     @pubsub.method(:parse_pubsub_configs)
@@ -857,7 +862,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   def enqueue(client, message)
-    receiver_for(client).instance_variable_get(:@message_queue).push(message)
+    message_queue_for(client).push(message)
   end
 
   def guarded_calls(client)

@@ -1672,8 +1672,22 @@ module ValkeyTests
       assert_nil sharded_message.pattern
 
       ordinary_listeners = [
-        [exact_subscriber, exact_callback_messages, 2, channel, nil, 2],
-        [pattern_subscriber, pattern_callback_messages, 2, channel, channel, 2]
+        {
+          subscriber: exact_subscriber,
+          callback_messages: exact_callback_messages,
+          expected_count: 2,
+          channel: channel,
+          expected_pattern: nil,
+          receiver_count: 2
+        },
+        {
+          subscriber: pattern_subscriber,
+          callback_messages: pattern_callback_messages,
+          expected_count: 2,
+          channel: channel,
+          expected_pattern: channel,
+          receiver_count: 2
+        }
       ]
       matrix_anchor_ordinary_listeners(read_method, pattern_subscriber, ordinary_listeners)
 
@@ -1719,8 +1733,22 @@ module ValkeyTests
       assert_nil sharded_message.pattern
 
       ordinary_listeners = [
-        [exact_subscriber, exact_callback_messages, 2, channel, nil, 2],
-        [pattern_subscriber, pattern_callback_messages, 2, channel, channel, 2]
+        {
+          subscriber: exact_subscriber,
+          callback_messages: exact_callback_messages,
+          expected_count: 2,
+          channel: channel,
+          expected_pattern: nil,
+          receiver_count: 2
+        },
+        {
+          subscriber: pattern_subscriber,
+          callback_messages: pattern_callback_messages,
+          expected_count: 2,
+          channel: channel,
+          expected_pattern: channel,
+          receiver_count: 2
+        }
       ]
       matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
 
@@ -1791,14 +1819,14 @@ module ValkeyTests
 
       ordinary_listeners = [exact, pattern].map do |listener|
         subscriber, callback_messages, channels_and_messages, expected_pattern = listener
-        [
-          subscriber,
-          callback_messages,
-          channels_and_messages.length,
-          channels_and_messages.keys.first,
-          expected_pattern,
-          1
-        ]
+        {
+          subscriber: subscriber,
+          callback_messages: callback_messages,
+          expected_count: channels_and_messages.length,
+          channel: channels_and_messages.keys.first,
+          expected_pattern: expected_pattern,
+          receiver_count: 1
+        }
       end
       matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
 
@@ -1806,7 +1834,7 @@ module ValkeyTests
     end
 
     def matrix_check_combined_three_listeners_empty(read_method, listeners, anchored_listeners)
-      anchored_subscribers = anchored_listeners.map(&:first)
+      anchored_subscribers = anchored_listeners.map { |listener| listener.fetch(:subscriber) }
       listener_checks = listeners.map do |listener|
         subscriber, callback_messages, channels_and_messages, _expected_pattern = listener
         sentinel_count = anchored_subscribers.include?(subscriber) ? 1 : 0
@@ -1818,10 +1846,10 @@ module ValkeyTests
 
     def matrix_anchor_ordinary_listeners(read_method, publisher, listeners)
       sentinel_by_channel = listeners.each_with_object({}) do |listener, sentinels|
-        channel = listener.fetch(3)
+        channel = listener.fetch(:channel)
         sentinels[channel] ||= {
           payload: "sentinel-#{SecureRandom.hex(8)}",
-          receiver_count: listener.fetch(5)
+          receiver_count: listener.fetch(:receiver_count)
         }
       end
 
@@ -1829,7 +1857,12 @@ module ValkeyTests
         assert_equal sentinel.fetch(:receiver_count), publisher.publish(sentinel.fetch(:payload), channel)
       end
 
-      listeners.each do |subscriber, callback_messages, expected_count, channel, expected_pattern, _receiver_count|
+      listeners.each do |listener|
+        subscriber = listener.fetch(:subscriber)
+        callback_messages = listener.fetch(:callback_messages)
+        expected_count = listener.fetch(:expected_count)
+        channel = listener.fetch(:channel)
+        expected_pattern = listener.fetch(:expected_pattern)
         sentinel_message = matrix_get_message_by_method(
           read_method,
           subscriber,
