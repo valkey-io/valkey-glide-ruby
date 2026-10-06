@@ -1,8 +1,23 @@
 # frozen_string_literal: true
 
 module ValkeyTests
-  # IAM authentication against a server without IAM enforcement, relying on the
-  # placeholder credentials installed by Helper::MockAwsCredentials.
+  # IAM authentication tests. These are NOT run against AWS. They run against a local
+  # server without IAM enforcement, using the placeholder credentials installed by
+  # Helper::MockAwsCredentials.
+  #
+  # What they confirm:
+  # - `iam_config:` and `username:` reach GLIDE Core, which resolves credentials,
+  #   signs a token, and authenticates with it in standalone and cluster mode.
+  # - `refresh_iam_token` round-trips through FFI for every ServiceType.
+  # - Core's IAM validation errors surface as Valkey::CannotConnectError, and
+  #   refreshing a client without IAM raises Valkey::CommandError.
+  #
+  # What they do not confirm:
+  # - That the token is valid: the server accepts any AUTH password, so the
+  #   signature, cluster name, region, service, and expiry are never checked.
+  # - Real AWS credential resolution (profiles, instance metadata, STS).
+  # - Automatic refresh at the configured interval.
+  # - Behavior against real ElastiCache or MemoryDB, including required TLS.
   module IamAuthentication
     IAM_USERNAME = "default"
     IAM_CLUSTER_NAME = "test-cluster"

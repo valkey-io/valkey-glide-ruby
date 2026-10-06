@@ -98,50 +98,6 @@ client.get("foo")
 # => "bar"
 ```
 
-### IAM Authentication
-
-IAM authentication uses credentials from the standard AWS credential chain.
-Supply the IAM user with `username:`; `password:` and `iam_config:` cannot be
-used together.
-
-Standalone ElastiCache:
-
-```ruby
-iam_config = Valkey::IamAuthConfig.new(
-  cluster_name: "my-cache",
-  service: Valkey::ServiceType::ELASTICACHE,
-  region: "us-east-1"
-)
-
-client = Valkey.new(
-  host: "my-cache.cache.amazonaws.com",
-  port: 6379,
-  ssl: true,
-  username: "iam-user",
-  iam_config: iam_config
-)
-
-client.refresh_iam_token # => "OK"
-```
-
-Cluster-mode MemoryDB:
-
-```ruby
-iam_config = Valkey::IamAuthConfig.new(
-  cluster_name: "my-memorydb",
-  service: Valkey::ServiceType::MEMORYDB,
-  region: "us-east-1"
-)
-
-client = Valkey.new(
-  nodes: [{ host: "clustercfg.my-memorydb.amazonaws.com", port: 6379 }],
-  cluster_mode: true,
-  ssl: true,
-  username: "iam-user",
-  iam_config: iam_config
-)
-```
-
 ### Connection Options
 
 | Option | Description |
