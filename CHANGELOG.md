@@ -18,7 +18,7 @@
 
 ### Changes
 
-* Ruby: Authentication: added support for `Valkey::IamAuthConfig.new(cluster_name:, service:, region:, refresh_interval_seconds: nil)`, `Valkey.new(..., iam_config:)`, `Valkey#refresh_iam_token`, `Valkey::ServiceType::ELASTICACHE`, and `Valkey::ServiceType::MEMORYDB`. ([#TBD](https://github.com/valkey-io/valkey-glide-ruby/pull/TBD))
+* Ruby: Authentication: added support for `Valkey::IamAuthConfig.new(cluster_name:, service:, region:, refresh_interval_seconds: nil)`, `Valkey.new(..., iam_config:)`, `Valkey#refresh_iam_token`, `Valkey::ServiceType::ELASTICACHE`, and `Valkey::ServiceType::MEMORYDB`. ([#342](https://github.com/valkey-io/valkey-glide-ruby/pull/342))
 
 * feat(ruby): add `resource_attributes:` to `Valkey::OpenTelemetry.init`, letting callers attach arbitrary OpenTelemetry resource attributes (e.g. `host.ip`, `host.name`) to Valkey spans/metrics. `process.pid`, `process.command`, and `process.runtime.name`/`.version`/`.description` are now auto-detected and attached without any config, closing the gap with `opentelemetry-ruby`'s `Resource.default`. Implemented by merging into `OTEL_RESOURCE_ATTRIBUTES` for the duration of the native `init_open_telemetry` call, so existing `k8s.*`-style attributes injected by a platform sidecar are preserved rather than clobbered ([#323](https://github.com/valkey-io/valkey-glide-ruby/issues/323))
 
