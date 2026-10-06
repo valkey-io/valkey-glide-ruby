@@ -409,12 +409,14 @@ module ValkeyTests
         assert_equal "message_after_kill", message_after.message
         assert_equal channel, message_after.channel
 
-        matrix_check_no_late_messages(
+        # Old and restored subscriptions can briefly overlap after reconnect,
+        # so retain a bounded window that catches duplicate delivery.
+        matrix_assert_no_delivery(
           read_method,
           subscriber,
           callback_messages,
           2,
-          wait_seconds: MATRIX_RECONNECT_POLL_SECONDS
+          timeout: MATRIX_RECONNECT_POLL_SECONDS
         )
       end
     end
@@ -462,12 +464,14 @@ module ValkeyTests
         assert_equal channel, message_after.channel
         assert_equal pattern, message_after.pattern
 
-        matrix_check_no_late_messages(
+        # Old and restored subscriptions can briefly overlap after reconnect,
+        # so retain a bounded window that catches duplicate delivery.
+        matrix_assert_no_delivery(
           read_method,
           subscriber,
           callback_messages,
           2,
-          wait_seconds: MATRIX_RECONNECT_POLL_SECONDS
+          timeout: MATRIX_RECONNECT_POLL_SECONDS
         )
       end
     end
@@ -500,11 +504,14 @@ module ValkeyTests
         assert_equal "message_after_kill", message_after.message
         assert_equal channel, message_after.channel
 
-        matrix_check_no_messages_left(
+        # The instant queue check cannot catch a duplicate that arrives from an
+        # overlapping restored subscription after message_after_kill.
+        matrix_assert_no_delivery(
           read_method,
           subscriber,
           callback_messages,
-          2
+          2,
+          timeout: MATRIX_NO_MESSAGE_WAIT_SECONDS
         )
       ensure
         subscriber.sunsubscribe(channel, timeout_ms: 5000) if subscription_method == :config
@@ -558,11 +565,14 @@ module ValkeyTests
         end
 
         assert_empty remaining_messages, "not all restored exact channels received messages"
-        matrix_check_no_messages_left(
+        # These channels span node connections, so retain a bounded window for
+        # duplicate delivery from overlapping restored subscriptions.
+        matrix_assert_no_delivery(
           read_method,
           subscriber,
           callback_messages,
-          expected_messages.length
+          expected_messages.length,
+          timeout: MATRIX_NO_MESSAGE_WAIT_SECONDS
         )
       end
     end
@@ -589,7 +599,7 @@ module ValkeyTests
         refute_equal blocking_message.message, polling_message.message
 
         matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
-        assert_nil subscriber.try_get_pubsub_message
+        matrix_assert_blocking_get_waits(subscriber, wait_seconds: 0.1)
       end
     end
 
@@ -930,7 +940,6 @@ module ValkeyTests
 
         assert_equal({}, remaining_channels_and_messages)
         matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
-        assert_nil subscriber.try_get_pubsub_message
       end
     end
 
@@ -987,7 +996,6 @@ module ValkeyTests
         refute_equal blocking_message.message, polling_message.message
 
         matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
-        assert_nil subscriber.try_get_pubsub_message
       ensure
         subscriber.sunsubscribe(channel, timeout_ms: 5000) if subscription_method == :config
       end
@@ -1241,7 +1249,6 @@ module ValkeyTests
 
         assert_equal({}, remaining_channels_and_messages)
         matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
-        assert_nil subscriber.try_get_pubsub_message
       ensure
         subscriber.punsubscribe(pattern, timeout_ms: 5000) if subscription_method == :config
       end
@@ -1662,10 +1669,16 @@ module ValkeyTests
       assert_equal channel, sharded_message.channel
       assert_nil sharded_message.pattern
 
+      ordinary_listeners = [
+        [exact_subscriber, exact_callback_messages, 2, channel, nil],
+        [pattern_subscriber, pattern_callback_messages, 2, channel, channel]
+      ]
+      matrix_anchor_ordinary_listeners(read_method, pattern_subscriber, ordinary_listeners)
+
       matrix_check_no_messages_left_for_listeners(
         [
-          [read_method, pattern_subscriber, pattern_callback_messages, 2],
-          [read_method, exact_subscriber, exact_callback_messages, 2],
+          [read_method, pattern_subscriber, pattern_callback_messages, 3],
+          [read_method, exact_subscriber, exact_callback_messages, 3],
           [read_method, sharded_subscriber, sharded_callback_messages, 1]
         ]
       )
@@ -1703,10 +1716,16 @@ module ValkeyTests
       assert_equal channel, sharded_message.channel
       assert_nil sharded_message.pattern
 
+      ordinary_listeners = [
+        [exact_subscriber, exact_callback_messages, 2, channel, nil],
+        [pattern_subscriber, pattern_callback_messages, 2, channel, channel]
+      ]
+      matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
+
       matrix_check_no_messages_left_for_listeners(
         [
-          [read_method, exact_subscriber, exact_callback_messages, 2],
-          [read_method, pattern_subscriber, pattern_callback_messages, 2],
+          [read_method, exact_subscriber, exact_callback_messages, 3],
+          [read_method, pattern_subscriber, pattern_callback_messages, 3],
           [read_method, sharded_subscriber, sharded_callback_messages, 1]
         ]
       )
@@ -1768,15 +1787,57 @@ module ValkeyTests
         )
       end
 
+      ordinary_listeners = [exact, pattern].map do |listener|
+        subscriber, callback_messages, channels_and_messages, expected_pattern = listener
+        [
+          subscriber,
+          callback_messages,
+          channels_and_messages.length,
+          channels_and_messages.keys.first,
+          expected_pattern
+        ]
+      end
+      matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
+
       matrix_check_combined_three_listeners_empty(read_method, listeners)
     end
 
     def matrix_check_combined_three_listeners_empty(read_method, listeners)
-      listener_checks = listeners.map do |subscriber, callback_messages, channels_and_messages, _expected_pattern|
-        [read_method, subscriber, callback_messages, channels_and_messages.length]
+      listener_checks = listeners.map.with_index do |listener, index|
+        subscriber, callback_messages, channels_and_messages, _expected_pattern = listener
+        sentinel_count = index < 2 ? 1 : 0
+        [read_method, subscriber, callback_messages, channels_and_messages.length + sentinel_count]
       end
 
       matrix_check_no_messages_left_for_listeners(listener_checks)
+    end
+
+    def matrix_anchor_ordinary_listeners(read_method, publisher, listeners)
+      sentinel_by_channel = listeners.each_with_object({}) do |listener, sentinels|
+        channel = listener.fetch(3)
+        sentinels[channel] ||= "sentinel-#{SecureRandom.hex(8)}"
+      end
+
+      sentinel_by_channel.each do |channel, sentinel|
+        publisher.publish(sentinel, channel)
+      end
+
+      listeners.each do |subscriber, callback_messages, expected_count, channel, expected_pattern|
+        sentinel_message = matrix_get_message_by_method(
+          read_method,
+          subscriber,
+          callback_messages,
+          expected_count
+        )
+
+        assert_equal sentinel_by_channel.fetch(channel), sentinel_message.message
+        assert_equal channel, sentinel_message.channel
+        if expected_pattern
+          assert_equal expected_pattern, sentinel_message.pattern
+        else
+          assert_nil sentinel_message.pattern
+        end
+      end
     end
 
     def matrix_publish_combined_channels_once(publisher, *channel_message_maps)
@@ -2235,11 +2296,13 @@ module ValkeyTests
       callback_messages,
       expected_callback_count
     )
-      # Callers have consumed their final expected message on this connection,
-      # so every earlier server delivery is already ahead of that ordering anchor.
+      # This upstream-parity check only rejects messages already queued. On each
+      # node connection, the final expected message anchors strays published
+      # before it; a later duplicate of that anchor remains a deliberate trade-off.
+      # The multi-tag combined case at assert_combined_exact_pattern_sharded_one_client_matrix_case
+      # consumes an anchor from every involved node before checking the shared queue.
       case read_method
       when :callback
-        assert_nil callback_messages[expected_callback_count]
         assert_equal expected_callback_count, callback_messages.length
       when :blocking_get, :polling_try_get
         assert_nil subscriber.try_get_pubsub_message
@@ -2250,39 +2313,7 @@ module ValkeyTests
 
     def matrix_check_no_messages_left_for_listeners(listeners)
       listeners.each do |read_method, subscriber, callback_messages, expected_callback_count|
-        if read_method == :blocking_get
-          unexpected = subscriber.try_get_pubsub_message
-          flunk("blocking reader unexpectedly received #{unexpected.inspect}") if unexpected
-        else
-          matrix_check_no_messages_left(read_method, subscriber, callback_messages, expected_callback_count)
-        end
-      end
-    end
-
-    def matrix_check_no_late_messages(
-      read_method,
-      subscriber,
-      callback_messages,
-      expected_callback_count,
-      wait_seconds:
-    )
-      # Reconnect retries can publish again after the copy we consumed, so these
-      # callers still need an observation window for a later in-flight copy.
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
-
-      case read_method
-      when :callback
-        extra = wait_until(timeout: wait_seconds) do
-          callback_messages.length if callback_messages.length > expected_callback_count
-        end
-        assert_nil extra
-        assert_equal expected_callback_count, callback_messages.length
-      when :blocking_get
-        matrix_assert_blocking_get_waits(subscriber, deadline: deadline)
-      when :polling_try_get
-        assert_nil wait_for_message(subscriber, timeout: wait_seconds)
-      else
-        raise ArgumentError, "unknown message read method: #{read_method}"
+        matrix_check_no_messages_left(read_method, subscriber, callback_messages, expected_callback_count)
       end
     end
 
