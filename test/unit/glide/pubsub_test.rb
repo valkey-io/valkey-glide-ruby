@@ -81,7 +81,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   def test_close_wakes_a_blocked_reader_with_nil
     reader = Thread.new { @pubsub.get_pubsub_message }
     # Observe the reader blocked in Queue#pop instead of assuming a scheduler delay.
-    Timeout.timeout(2) { Thread.pass until reader.status == "sleep" }
+    Timeout.timeout(2) { Thread.pass until reader.status == "sleep" || !reader.alive? }
     @pubsub.close
 
     assert_nil Timeout.timeout(2) { reader.value }

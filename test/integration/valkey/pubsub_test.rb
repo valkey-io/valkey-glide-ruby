@@ -8,6 +8,7 @@ module ValkeyTests
   module PubSub
     MESSAGE_WAIT_SECONDS = 5.0
     POLL_INTERVAL_SECONDS = 0.01
+    PUBLISH_RETRY_WAIT_SECONDS = 0.05
 
     # Wait time for unsubscribe tests.
     UNSUB_WAIT_TIME = 0.5
@@ -904,7 +905,7 @@ module ValkeyTests
 
       loop do
         r.publish(message, channel)
-        received = wait_for_message(subscriber, timeout: POLL_INTERVAL_SECONDS)
+        received = wait_for_message(subscriber, timeout: PUBLISH_RETRY_WAIT_SECONDS)
         return received if received
 
         flunk("no message on #{channel} within #{timeout}s") if monotonic_now >= deadline
@@ -916,7 +917,7 @@ module ValkeyTests
 
       loop do
         r.publish(message, channel, sharded: true)
-        received = wait_for_message(subscriber, timeout: POLL_INTERVAL_SECONDS)
+        received = wait_for_message(subscriber, timeout: PUBLISH_RETRY_WAIT_SECONDS)
         return received if received
 
         flunk("no sharded message on #{channel} within #{timeout}s") if monotonic_now >= deadline
