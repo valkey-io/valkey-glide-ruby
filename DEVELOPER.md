@@ -86,7 +86,7 @@ Run the standalone IAM tests:
 
 ```bash
 python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix iam-standalone
-bundle exec ruby -Itest -Ilib test/integration/standalone/iam_authentication_test.rb
+bundle exec ruby -Itest -Ilib test/integration/standalone/valkey_test.rb --name /iam/
 python3 valkey-glide/utils/cluster_manager.py stop --prefix iam-standalone
 ```
 
@@ -95,7 +95,7 @@ Run the cluster IAM tests:
 ```bash
 python3 valkey-glide/utils/cluster_manager.py start --cluster-mode \
   -p 7000 7001 7002 7003 7004 7005 -n 3 -r 1 --prefix iam-cluster
-bundle exec ruby -Itest -Ilib test/integration/cluster/iam_authentication_test.rb
+bundle exec ruby -Itest -Ilib test/integration/cluster/cluster_commands_test.rb --name /iam/
 python3 valkey-glide/utils/cluster_manager.py stop --prefix iam-cluster
 ```
 

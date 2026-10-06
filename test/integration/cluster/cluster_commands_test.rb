@@ -33,6 +33,7 @@ class TestClusterCommands < Minitest::Test
   include ValkeyTests::Call
   include ValkeyTests::ClientInfoTag
   include ValkeyTests::GenericCommands
+  include ValkeyTests::IamAuthentication
   include ValkeyTests::Scanning
   include ValkeyTests::ScriptingCommands
   include ValkeyTests::ScriptingCommandsIntegration
