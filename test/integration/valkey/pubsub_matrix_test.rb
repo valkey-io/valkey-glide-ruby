@@ -408,15 +408,16 @@ module ValkeyTests
                    "no message received after #{MATRIX_RECONNECT_PUBLISH_ATTEMPTS} post-reconnection publishes"
         assert_match(/\Amessage_after_kill-\d+\z/, message_after.message)
         assert_equal channel, message_after.channel
+        assert_nil message_after.pattern
 
-        # Retry attempts use distinct payloads, so only another copy of the
-        # consumed attempt indicates overlapping restored subscriptions.
+        # Retry attempts use distinct payloads, so any repeated valid retry
+        # identifies duplicate delivery from overlapping restored subscriptions.
         matrix_assert_no_reconnect_duplicate(
           read_method,
           subscriber,
           callback_messages,
           2,
-          message_after.message,
+          message_after,
           timeout: MATRIX_RECONNECT_POLL_SECONDS
         )
       end
@@ -465,14 +466,14 @@ module ValkeyTests
         assert_equal channel, message_after.channel
         assert_equal pattern, message_after.pattern
 
-        # Retry attempts use distinct payloads, so only another copy of the
-        # consumed attempt indicates overlapping restored subscriptions.
+        # Retry attempts use distinct payloads, so any repeated valid retry
+        # identifies duplicate delivery from overlapping restored subscriptions.
         matrix_assert_no_reconnect_duplicate(
           read_method,
           subscriber,
           callback_messages,
           2,
-          message_after.message,
+          message_after,
           timeout: MATRIX_RECONNECT_POLL_SECONDS
         )
       end
@@ -1677,16 +1678,14 @@ module ValkeyTests
           callback_messages: exact_callback_messages,
           expected_count: 2,
           channel: channel,
-          expected_pattern: nil,
-          receiver_count: 2
+          expected_pattern: nil
         },
         {
           subscriber: pattern_subscriber,
           callback_messages: pattern_callback_messages,
           expected_count: 2,
           channel: channel,
-          expected_pattern: channel,
-          receiver_count: 2
+          expected_pattern: channel
         }
       ]
       matrix_anchor_ordinary_listeners(read_method, pattern_subscriber, ordinary_listeners)
@@ -1738,16 +1737,14 @@ module ValkeyTests
           callback_messages: exact_callback_messages,
           expected_count: 2,
           channel: channel,
-          expected_pattern: nil,
-          receiver_count: 2
+          expected_pattern: nil
         },
         {
           subscriber: pattern_subscriber,
           callback_messages: pattern_callback_messages,
           expected_count: 2,
           channel: channel,
-          expected_pattern: channel,
-          receiver_count: 2
+          expected_pattern: channel
         }
       ]
       matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
@@ -1824,8 +1821,7 @@ module ValkeyTests
           callback_messages: callback_messages,
           expected_count: channels_and_messages.length,
           channel: channels_and_messages.keys.first,
-          expected_pattern: expected_pattern,
-          receiver_count: 1
+          expected_pattern: expected_pattern
         }
       end
       matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
@@ -1847,14 +1843,12 @@ module ValkeyTests
     def matrix_anchor_ordinary_listeners(read_method, publisher, listeners)
       sentinel_by_channel = listeners.each_with_object({}) do |listener, sentinels|
         channel = listener.fetch(:channel)
-        sentinels[channel] ||= {
-          payload: "sentinel-#{SecureRandom.hex(8)}",
-          receiver_count: listener.fetch(:receiver_count)
-        }
+        sentinels[channel] ||= "sentinel-#{SecureRandom.hex(8)}"
       end
 
       sentinel_by_channel.each do |channel, sentinel|
-        assert_equal sentinel.fetch(:receiver_count), publisher.publish(sentinel.fetch(:payload), channel)
+        expected_receivers = listeners.count { |listener| listener.fetch(:channel) == channel }
+        assert_equal expected_receivers, publisher.publish(sentinel, channel)
       end
 
       listeners.each do |listener|
@@ -1870,7 +1864,7 @@ module ValkeyTests
           expected_count
         )
 
-        assert_equal sentinel_by_channel.fetch(channel).fetch(:payload), sentinel_message.message
+        assert_equal sentinel_by_channel.fetch(channel), sentinel_message.message
         assert_equal channel, sentinel_message.channel
         if expected_pattern
           assert_equal expected_pattern, sentinel_message.pattern
@@ -2197,11 +2191,7 @@ module ValkeyTests
         deadline = monotonic_now + MATRIX_RECONNECT_POLL_SECONDS
 
         loop do
-          message = if read_method == :callback
-                      callback_messages[callback_index]
-                    else
-                      subscriber.try_get_pubsub_message
-                    end
+          message = matrix_try_next_message(read_method, subscriber, callback_messages, callback_index)
           return message if message
           break if monotonic_now >= deadline
 
@@ -2386,29 +2376,45 @@ module ValkeyTests
       subscriber,
       callback_messages,
       expected_callback_count,
-      consumed_payload,
+      consumed_message,
       timeout:
     )
       deadline = monotonic_now + timeout
       callback_index = expected_callback_count
+      extra_count = 0
+      seen_payloads = { consumed_message.message => true }
 
       loop do
-        extra = if read_method == :callback
-                  callback_messages[callback_index]
-                else
-                  subscriber.try_get_pubsub_message
-                end
+        extra = matrix_try_next_message(read_method, subscriber, callback_messages, callback_index)
 
-        if extra
-          refute_equal consumed_payload, extra.message, "received duplicate reconnect payload"
-          callback_index += 1 if read_method == :callback
+        unless extra
+          break if monotonic_now >= deadline
+
+          sleep MATRIX_RECONNECT_POLL_INTERVAL_SECONDS
           next
         end
 
-        break if monotonic_now >= deadline
+        extra_count += 1
+        flunk "received too many reconnect retry messages" if extra_count > MATRIX_RECONNECT_PUBLISH_ATTEMPTS - 1
 
-        sleep MATRIX_RECONNECT_POLL_INTERVAL_SECONDS
+        assert_match(/\Amessage_after_kill-\d+\z/, extra.message)
+        assert_equal consumed_message.channel, extra.channel
+        if consumed_message.pattern
+          assert_equal consumed_message.pattern, extra.pattern
+        else
+          assert_nil extra.pattern
+        end
+        refute seen_payloads.key?(extra.message), "received repeated reconnect payload #{extra.message.inspect}"
+
+        seen_payloads[extra.message] = true
+        callback_index += 1 if read_method == :callback
       end
+    end
+
+    def matrix_try_next_message(read_method, subscriber, callback_messages, callback_index)
+      return callback_messages[callback_index] if read_method == :callback
+
+      subscriber.try_get_pubsub_message
     end
 
     def matrix_assert_blocking_get_waits(
