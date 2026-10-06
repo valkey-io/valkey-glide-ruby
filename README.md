@@ -82,6 +82,10 @@ client.close
 
 ### Cluster Mode
 
+Cluster mode is opt-in and requires at least one explicit seed supplied through
+`host:`/`port:`, `url:`, or `nodes:`. It does not use the standalone
+`127.0.0.1:6379` default.
+
 ```ruby
 nodes = [
   { host: "127.0.0.1", port: 7000 },
@@ -102,7 +106,7 @@ client.get("foo")
 
 | Option | Description |
 |--------|-------------|
-| `host`, `port` | Server address (default `127.0.0.1:6379`) |
+| `host`, `port` | Server address (default `127.0.0.1:6379` in standalone mode; at least one must be explicit in cluster mode unless using `url` or `nodes`) |
 | `url` | `redis://`, `rediss://`, `valkey://`, or `valkeys://` URI (merged with explicit options) |
 | `db` | Database index (standalone only) |
 | `password`, `username` | Authentication |
@@ -110,7 +114,7 @@ client.get("foo")
 | `connect_timeout` | Connection timeout in seconds |
 | `ssl`| Enable TLS if true |
 | `ssl_params` | TLS options {`ca_file`, `cert`, `key`, `ca_path`, `root_certs`} |
-| `cluster_mode` | Enable cluster client |
+| `cluster_mode` | Enable cluster client; requires an explicit seed through `host`/`port`, `url`, or `nodes` |
 | `nodes` | Array of `{ host:, port: }` hashes |
 | `protocol` | `:resp2` (default) or `:resp3` |
 | `client_name` | `CLIENT SETNAME` value |
