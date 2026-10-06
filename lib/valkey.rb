@@ -442,11 +442,11 @@ class Valkey
   # @return [String] `OK` on success
   # @raise [CommandError] if the client was not configured for IAM authentication
   def refresh_iam_token
-    conn = connection!
-    res = Bindings.refresh_iam_token(conn, 0)
-    convert_response(res)
+    connection_handle = connection!
+    result_pointer = Bindings.refresh_iam_token(connection_handle, 0)
+    convert_response(result_pointer)
   ensure
-    Bindings.free_command_result(res) if res && !res.null?
+    Bindings.free_command_result(result_pointer) if result_pointer && !result_pointer.null?
   end
 
   # Retrieves client statistics including connection and compression metrics.

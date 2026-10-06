@@ -44,11 +44,11 @@ class TestIamAuthentication < Minitest::Test
     ffi_calls = []
     free_calls = []
 
-    Valkey::Bindings.stub(:refresh_iam_token, lambda { |conn, request_id|
-      ffi_calls << [conn, request_id]
+    Valkey::Bindings.stub(:refresh_iam_token, lambda { |connection_handle, request_id|
+      ffi_calls << [connection_handle, request_id]
       result.to_ptr
     }) do
-      Valkey::Bindings.stub(:free_command_result, ->(result_ptr) { free_calls << result_ptr }) do
+      Valkey::Bindings.stub(:free_command_result, ->(result_pointer) { free_calls << result_pointer }) do
         assert_equal "OK", client.refresh_iam_token
       end
     end
@@ -64,11 +64,11 @@ class TestIamAuthentication < Minitest::Test
     ffi_calls = []
     free_calls = []
 
-    error = Valkey::Bindings.stub(:refresh_iam_token, lambda { |conn, request_id|
-      ffi_calls << [conn, request_id]
+    error = Valkey::Bindings.stub(:refresh_iam_token, lambda { |connection_handle, request_id|
+      ffi_calls << [connection_handle, request_id]
       result.to_ptr
     }) do
-      Valkey::Bindings.stub(:free_command_result, ->(result_ptr) { free_calls << result_ptr }) do
+      Valkey::Bindings.stub(:free_command_result, ->(result_pointer) { free_calls << result_pointer }) do
         assert_raises(Valkey::CommandError) { client.refresh_iam_token }
       end
     end
@@ -85,7 +85,7 @@ class TestIamAuthentication < Minitest::Test
     free_calls = []
 
     Valkey::Bindings.stub(:refresh_iam_token, ->(*args) { ffi_calls << args }) do
-      Valkey::Bindings.stub(:free_command_result, ->(result_ptr) { free_calls << result_ptr }) do
+      Valkey::Bindings.stub(:free_command_result, ->(result_pointer) { free_calls << result_pointer }) do
         assert_raises(Valkey::ConnectionError) { client.refresh_iam_token }
       end
     end

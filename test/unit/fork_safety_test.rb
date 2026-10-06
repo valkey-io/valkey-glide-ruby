@@ -167,7 +167,7 @@ class TestForkSafety < Minitest::Test
       ffi_calls << args
       raise FfiReached
     }) do
-      Valkey::Bindings.stub(:free_command_result, ->(result_ptr) { free_calls << result_ptr }) do
+      Valkey::Bindings.stub(:free_command_result, ->(result_pointer) { free_calls << result_pointer }) do
         assert_raises(Valkey::InheritedError) { client.refresh_iam_token }
       end
     end
