@@ -7,7 +7,7 @@ require "timeout"
 module ValkeyTests
   module PubSub
     MESSAGE_WAIT_SECONDS = 5.0
-    POLL_INTERVAL_SECONDS = 0.02
+    POLL_INTERVAL_SECONDS = 0.01
 
     # Wait time for unsubscribe tests.
     UNSUB_WAIT_TIME = 0.5

@@ -13,7 +13,7 @@ module ValkeyTests
     MATRIX_NO_MESSAGE_WAIT_SECONDS = 0.5
     MATRIX_RECONNECT_PUBLISH_ATTEMPTS = 5
     MATRIX_RECONNECT_POLL_SECONDS = 3.0
-    MATRIX_RECONNECT_POLL_INTERVAL_SECONDS = 0.1
+    MATRIX_RECONNECT_POLL_INTERVAL_SECONDS = 0.01
     MATRIX_RECONNECT_SETTLE_SECONDS = 2.0
 
     def self.parameterized_test(name, topologies:, **parameters, &test_body)
@@ -409,7 +409,7 @@ module ValkeyTests
         assert_equal "message_after_kill", message_after.message
         assert_equal channel, message_after.channel
 
-        matrix_check_no_messages_left(
+        matrix_check_no_late_messages(
           read_method,
           subscriber,
           callback_messages,
@@ -462,7 +462,7 @@ module ValkeyTests
         assert_equal channel, message_after.channel
         assert_equal pattern, message_after.pattern
 
-        matrix_check_no_messages_left(
+        matrix_check_no_late_messages(
           read_method,
           subscriber,
           callback_messages,
@@ -504,8 +504,7 @@ module ValkeyTests
           read_method,
           subscriber,
           callback_messages,
-          2,
-          wait_seconds: MATRIX_RECONNECT_POLL_SECONDS
+          2
         )
       ensure
         subscriber.sunsubscribe(channel, timeout_ms: 5000) if subscription_method == :config
@@ -563,8 +562,7 @@ module ValkeyTests
           read_method,
           subscriber,
           callback_messages,
-          expected_messages.length,
-          wait_seconds: MATRIX_RECONNECT_POLL_SECONDS
+          expected_messages.length
         )
       end
     end
@@ -590,8 +588,7 @@ module ValkeyTests
         end
         refute_equal blocking_message.message, polling_message.message
 
-        no_message_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MATRIX_NO_MESSAGE_WAIT_SECONDS
-        matrix_assert_blocking_get_waits(subscriber, deadline: no_message_deadline)
+        matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
         assert_nil subscriber.try_get_pubsub_message
       end
     end
@@ -842,10 +839,7 @@ module ValkeyTests
         assert_equal channel, received.channel
         assert_nil received.pattern
 
-        assert_nil matrix_pop_callback_notification(
-          callback_notifications,
-          timeout: MATRIX_NO_MESSAGE_WAIT_SECONDS
-        ), "callback received an unexpected extra sharded Pub/Sub message"
+        assert callback_notifications.empty?, "callback received an unexpected extra sharded Pub/Sub message"
         assert_equal 1, callback_messages.length
       end
     end
@@ -935,8 +929,7 @@ module ValkeyTests
         end
 
         assert_equal({}, remaining_channels_and_messages)
-        no_message_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MATRIX_NO_MESSAGE_WAIT_SECONDS
-        matrix_assert_blocking_get_waits(subscriber, deadline: no_message_deadline)
+        matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
         assert_nil subscriber.try_get_pubsub_message
       end
     end
@@ -993,8 +986,7 @@ module ValkeyTests
         end
         refute_equal blocking_message.message, polling_message.message
 
-        no_message_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MATRIX_NO_MESSAGE_WAIT_SECONDS
-        matrix_assert_blocking_get_waits(subscriber, deadline: no_message_deadline)
+        matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
         assert_nil subscriber.try_get_pubsub_message
       ensure
         subscriber.sunsubscribe(channel, timeout_ms: 5000) if subscription_method == :config
@@ -1248,8 +1240,7 @@ module ValkeyTests
         end
 
         assert_equal({}, remaining_channels_and_messages)
-        no_message_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + MATRIX_NO_MESSAGE_WAIT_SECONDS
-        matrix_assert_blocking_get_waits(subscriber, deadline: no_message_deadline)
+        matrix_check_no_messages_left(:blocking_get, subscriber, [], 0)
         assert_nil subscriber.try_get_pubsub_message
       ensure
         subscriber.punsubscribe(pattern, timeout_ms: 5000) if subscription_method == :config
@@ -2242,16 +2233,46 @@ module ValkeyTests
       read_method,
       subscriber,
       callback_messages,
-      expected_callback_count,
-      wait_seconds: MATRIX_NO_MESSAGE_WAIT_SECONDS,
-      deadline: nil
+      expected_callback_count
     )
-      deadline ||= Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
-      remaining_timeout = [deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max
+      # Callers have consumed their final expected message on this connection,
+      # so every earlier server delivery is already ahead of that ordering anchor.
+      case read_method
+      when :callback
+        assert_nil callback_messages[expected_callback_count]
+        assert_equal expected_callback_count, callback_messages.length
+      when :blocking_get, :polling_try_get
+        assert_nil subscriber.try_get_pubsub_message
+      else
+        raise ArgumentError, "unknown message read method: #{read_method}"
+      end
+    end
+
+    def matrix_check_no_messages_left_for_listeners(listeners)
+      listeners.each do |read_method, subscriber, callback_messages, expected_callback_count|
+        if read_method == :blocking_get
+          unexpected = subscriber.try_get_pubsub_message
+          flunk("blocking reader unexpectedly received #{unexpected.inspect}") if unexpected
+        else
+          matrix_check_no_messages_left(read_method, subscriber, callback_messages, expected_callback_count)
+        end
+      end
+    end
+
+    def matrix_check_no_late_messages(
+      read_method,
+      subscriber,
+      callback_messages,
+      expected_callback_count,
+      wait_seconds:
+    )
+      # Reconnect retries can publish again after the copy we consumed, so these
+      # callers still need an observation window for a later in-flight copy.
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
 
       case read_method
       when :callback
-        extra = wait_until(timeout: remaining_timeout) do
+        extra = wait_until(timeout: wait_seconds) do
           callback_messages.length if callback_messages.length > expected_callback_count
         end
         assert_nil extra
@@ -2259,126 +2280,10 @@ module ValkeyTests
       when :blocking_get
         matrix_assert_blocking_get_waits(subscriber, deadline: deadline)
       when :polling_try_get
-        assert_nil wait_for_message(subscriber, timeout: remaining_timeout)
+        assert_nil wait_for_message(subscriber, timeout: wait_seconds)
       else
         raise ArgumentError, "unknown message read method: #{read_method}"
       end
-    end
-
-    def matrix_check_no_messages_left_for_listeners(
-      listeners,
-      wait_seconds: MATRIX_NO_MESSAGE_WAIT_SECONDS
-    )
-      blocking_readers = []
-      barrier_mutex = Mutex.new
-      barrier_condition = ConditionVariable.new
-      ready_reader_count = 0
-      release_readers = false
-
-      listeners.each do |read_method, subscriber, _callback_messages, _expected_callback_count|
-        next unless read_method == :blocking_get
-
-        reader = Thread.new do
-          barrier_mutex.synchronize do
-            ready_reader_count += 1
-            barrier_condition.broadcast
-            barrier_condition.wait(barrier_mutex) until release_readers
-          end
-
-          begin
-            Timeout.timeout(wait_seconds) { [:returned, subscriber.get_pubsub_message] }
-          rescue Timeout::Error
-            [:timed_out]
-          rescue Exception => e # rubocop:disable Lint/RescueException
-            [:error, e]
-          end
-        end
-        reader.report_on_exception = false
-        blocking_readers << reader
-      end
-
-      unless blocking_readers.empty?
-        setup_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
-
-        barrier_mutex.synchronize do
-          until ready_reader_count == blocking_readers.length
-            remaining_timeout = setup_deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC)
-            flunk "timed out waiting for blocking readers to become ready" unless remaining_timeout.positive?
-
-            barrier_condition.wait(barrier_mutex, remaining_timeout)
-          end
-
-          release_readers = true
-          barrier_condition.broadcast
-        end
-      end
-
-      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
-
-      listeners.each do |read_method, subscriber, callback_messages, expected_callback_count|
-        next if read_method == :blocking_get
-
-        matrix_check_no_messages_left(
-          read_method,
-          subscriber,
-          callback_messages,
-          expected_callback_count,
-          deadline: deadline
-        )
-      end
-
-      reader_failures = []
-      reader_wait_deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds + 1.0
-
-      blocking_readers.each_with_index do |reader, index|
-        remaining_timeout = [reader_wait_deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max
-        joined_within_deadline = reader.join(remaining_timeout)
-
-        unless joined_within_deadline
-          begin
-            reader.kill if reader.alive?
-          rescue StandardError => e
-            reader_failures << "blocking reader #{index} cleanup failed with #{e.class}: #{e.message}"
-          ensure
-            begin
-              reader.join
-            rescue StandardError => e
-              reader_failures << "blocking reader #{index} cleanup failed with #{e.class}: #{e.message}"
-            end
-          end
-        end
-
-        result = reader.value
-        if !joined_within_deadline && result.nil?
-          reader_failures << "blocking reader #{index} did not finish its #{wait_seconds}-second observation"
-          next
-        end
-
-        outcome, detail = result
-        case outcome
-        when :timed_out
-          next
-        when :returned
-          reader_failures << "blocking reader #{index} unexpectedly returned #{detail.inspect}"
-        when :error
-          reader_failures << "blocking reader #{index} failed with #{detail.class}: #{detail.message}"
-        else
-          reader_failures << "blocking reader #{index} produced unexpected result #{result.inspect}"
-        end
-      end
-
-      flunk reader_failures.join("\n") unless reader_failures.empty?
-    ensure
-      original_error = $ERROR_INFO
-      cleanup_error = nil
-
-      blocking_readers&.each do |reader|
-        matrix_cleanup_reader_thread(reader, original_error: original_error)
-      rescue StandardError => e
-        cleanup_error ||= e
-      end
-
-      raise cleanup_error if cleanup_error && !original_error
     end
 
     def matrix_assert_no_delivery(
