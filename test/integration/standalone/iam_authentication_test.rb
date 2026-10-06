@@ -5,10 +5,4 @@ require "test_helper"
 class TestStandaloneIamAuthentication < Minitest::Test
   include Helper::Client
   include ValkeyTests::IamAuthentication
-
-  private
-
-  def iam_service
-    Valkey::ServiceType::ELASTICACHE
-  end
 end

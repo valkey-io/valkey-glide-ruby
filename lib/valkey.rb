@@ -130,7 +130,9 @@ class Valkey
     unless iam_config.nil? || iam_config.is_a?(IamAuthConfig)
       raise ArgumentError, "iam_config must be a Valkey::IamAuthConfig"
     end
-    raise ArgumentError, "password and iam_config are mutually exclusive" if iam_config && !options[:password].nil?
+    if iam_config && !options[:password].to_s.empty?
+      raise ArgumentError, "password and iam_config are mutually exclusive"
+    end
 
     @protocol = options[:protocol]
 
@@ -180,9 +182,8 @@ class Valkey
     # FFI side then rejects with "Invalid connection URI". Encoding more is
     # always safe because the FFI decodes uniformly.
     userinfo_unsafe = /[^\-_.!~*'()a-zA-Z0-9]/
-    if iam_config && options[:username]
-      uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe)
-      uri_parts << "@"
+    if iam_config
+      uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe) << "@" if options[:username]
     elsif options[:username] && options[:password]
       uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe)
       uri_parts << ":"

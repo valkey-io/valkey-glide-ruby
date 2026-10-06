@@ -373,6 +373,42 @@ class TestConnectionConfig < Minitest::Test
     assert_match(/mutually exclusive/, error.message)
   end
 
+  def test_iam_accepts_empty_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(username: "iam-user", password: "", iam_config: iam_config)
+
+    assert_equal "redis://iam-user@localhost:6379", captured[:uri]
+  end
+
+  def test_iam_accepts_empty_url_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(url: "redis://iam-user:@localhost:6379", iam_config: iam_config)
+
+    assert_equal "redis://iam-user@localhost:6379", captured[:uri]
+  end
+
+  def test_iam_without_username_omits_userinfo
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(password: "", iam_config: iam_config)
+
+    assert_equal "redis://localhost:6379", captured[:uri]
+  end
+
   def test_iam_rejects_wrong_config_type
     error = assert_raises(ArgumentError) do
       captured_client_args(username: "iam-user", iam_config: {})

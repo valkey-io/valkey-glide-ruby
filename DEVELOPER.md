@@ -69,13 +69,9 @@ VALKEY_PORT=6379 TIMEOUT=10 bundle exec rake test:standalone
 ### IAM Tests
 
 IAM integration tests use mock AWS credentials only to exercise the
-Ruby-to-Core authentication path against local servers.
-
-```bash
-export AWS_ACCESS_KEY_ID=mock-access-key
-export AWS_SECRET_ACCESS_KEY=mock-secret-key
-export AWS_SESSION_TOKEN=mock-session-token
-```
+Ruby-to-Core authentication path against local servers. `test/test_helper.rb`
+sets them once at load time, before any client exists, unless
+`AWS_ACCESS_KEY_ID` is already set; no export is needed.
 
 Run the IAM-focused unit tests:
 
@@ -91,7 +87,6 @@ Run the standalone IAM tests:
 ```bash
 python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix iam-standalone
 bundle exec ruby -Itest -Ilib test/integration/standalone/iam_authentication_test.rb
-bundle exec ruby -Itest -Ilib test/integration/standalone/iam_validation_test.rb
 python3 valkey-glide/utils/cluster_manager.py stop --prefix iam-standalone
 ```
 
