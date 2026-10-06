@@ -406,16 +406,17 @@ module ValkeyTests
         )
         refute_nil message_after,
                    "no message received after #{MATRIX_RECONNECT_PUBLISH_ATTEMPTS} post-reconnection publishes"
-        assert_equal "message_after_kill", message_after.message
+        assert_match(/\Amessage_after_kill-\d+\z/, message_after.message)
         assert_equal channel, message_after.channel
 
-        # Old and restored subscriptions can briefly overlap after reconnect,
-        # so retain a bounded window that catches duplicate delivery.
-        matrix_assert_no_delivery(
+        # Retry attempts use distinct payloads, so only another copy of the
+        # consumed attempt indicates overlapping restored subscriptions.
+        matrix_assert_no_reconnect_duplicate(
           read_method,
           subscriber,
           callback_messages,
           2,
+          message_after.message,
           timeout: MATRIX_RECONNECT_POLL_SECONDS
         )
       end
@@ -460,17 +461,18 @@ module ValkeyTests
         )
         refute_nil message_after,
                    "no message received after #{MATRIX_RECONNECT_PUBLISH_ATTEMPTS} post-reconnection publishes"
-        assert_equal "message_after_kill", message_after.message
+        assert_match(/\Amessage_after_kill-\d+\z/, message_after.message)
         assert_equal channel, message_after.channel
         assert_equal pattern, message_after.pattern
 
-        # Old and restored subscriptions can briefly overlap after reconnect,
-        # so retain a bounded window that catches duplicate delivery.
-        matrix_assert_no_delivery(
+        # Retry attempts use distinct payloads, so only another copy of the
+        # consumed attempt indicates overlapping restored subscriptions.
+        matrix_assert_no_reconnect_duplicate(
           read_method,
           subscriber,
           callback_messages,
           2,
+          message_after.message,
           timeout: MATRIX_RECONNECT_POLL_SECONDS
         )
       end
@@ -1670,8 +1672,8 @@ module ValkeyTests
       assert_nil sharded_message.pattern
 
       ordinary_listeners = [
-        [exact_subscriber, exact_callback_messages, 2, channel, nil],
-        [pattern_subscriber, pattern_callback_messages, 2, channel, channel]
+        [exact_subscriber, exact_callback_messages, 2, channel, nil, 2],
+        [pattern_subscriber, pattern_callback_messages, 2, channel, channel, 2]
       ]
       matrix_anchor_ordinary_listeners(read_method, pattern_subscriber, ordinary_listeners)
 
@@ -1717,8 +1719,8 @@ module ValkeyTests
       assert_nil sharded_message.pattern
 
       ordinary_listeners = [
-        [exact_subscriber, exact_callback_messages, 2, channel, nil],
-        [pattern_subscriber, pattern_callback_messages, 2, channel, channel]
+        [exact_subscriber, exact_callback_messages, 2, channel, nil, 2],
+        [pattern_subscriber, pattern_callback_messages, 2, channel, channel, 2]
       ]
       matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
 
@@ -1794,18 +1796,20 @@ module ValkeyTests
           callback_messages,
           channels_and_messages.length,
           channels_and_messages.keys.first,
-          expected_pattern
+          expected_pattern,
+          1
         ]
       end
       matrix_anchor_ordinary_listeners(read_method, publisher, ordinary_listeners)
 
-      matrix_check_combined_three_listeners_empty(read_method, listeners)
+      matrix_check_combined_three_listeners_empty(read_method, listeners, ordinary_listeners)
     end
 
-    def matrix_check_combined_three_listeners_empty(read_method, listeners)
-      listener_checks = listeners.map.with_index do |listener, index|
+    def matrix_check_combined_three_listeners_empty(read_method, listeners, anchored_listeners)
+      anchored_subscribers = anchored_listeners.map(&:first)
+      listener_checks = listeners.map do |listener|
         subscriber, callback_messages, channels_and_messages, _expected_pattern = listener
-        sentinel_count = index < 2 ? 1 : 0
+        sentinel_count = anchored_subscribers.include?(subscriber) ? 1 : 0
         [read_method, subscriber, callback_messages, channels_and_messages.length + sentinel_count]
       end
 
@@ -1815,14 +1819,17 @@ module ValkeyTests
     def matrix_anchor_ordinary_listeners(read_method, publisher, listeners)
       sentinel_by_channel = listeners.each_with_object({}) do |listener, sentinels|
         channel = listener.fetch(3)
-        sentinels[channel] ||= "sentinel-#{SecureRandom.hex(8)}"
+        sentinels[channel] ||= {
+          payload: "sentinel-#{SecureRandom.hex(8)}",
+          receiver_count: listener.fetch(5)
+        }
       end
 
       sentinel_by_channel.each do |channel, sentinel|
-        publisher.publish(sentinel, channel)
+        assert_equal sentinel.fetch(:receiver_count), publisher.publish(sentinel.fetch(:payload), channel)
       end
 
-      listeners.each do |subscriber, callback_messages, expected_count, channel, expected_pattern|
+      listeners.each do |subscriber, callback_messages, expected_count, channel, expected_pattern, _receiver_count|
         sentinel_message = matrix_get_message_by_method(
           read_method,
           subscriber,
@@ -1830,7 +1837,7 @@ module ValkeyTests
           expected_count
         )
 
-        assert_equal sentinel_by_channel.fetch(channel), sentinel_message.message
+        assert_equal sentinel_by_channel.fetch(channel).fetch(:payload), sentinel_message.message
         assert_equal channel, sentinel_message.channel
         if expected_pattern
           assert_equal expected_pattern, sentinel_message.pattern
@@ -2144,14 +2151,15 @@ module ValkeyTests
 
     def matrix_publish_after_reconnection(
       publisher,
-      payload,
+      payload_prefix,
       channel,
       subscriber,
       read_method,
       callback_messages,
       callback_index
     )
-      MATRIX_RECONNECT_PUBLISH_ATTEMPTS.times do
+      MATRIX_RECONNECT_PUBLISH_ATTEMPTS.times do |attempt|
+        payload = "#{payload_prefix}-#{attempt + 1}"
         publisher.publish(payload, channel)
         deadline = monotonic_now + MATRIX_RECONNECT_POLL_SECONDS
 
@@ -2299,8 +2307,8 @@ module ValkeyTests
       # This upstream-parity check only rejects messages already queued. On each
       # node connection, the final expected message anchors strays published
       # before it; a later duplicate of that anchor remains a deliberate trade-off.
-      # The multi-tag combined case at assert_combined_exact_pattern_sharded_one_client_matrix_case
-      # consumes an anchor from every involved node before checking the shared queue.
+      # Multi-tag callers consume every node's final expected message before
+      # checking the shared queue.
       case read_method
       when :callback
         assert_equal expected_callback_count, callback_messages.length
@@ -2340,12 +2348,41 @@ module ValkeyTests
       end
     end
 
+    def matrix_assert_no_reconnect_duplicate(
+      read_method,
+      subscriber,
+      callback_messages,
+      expected_callback_count,
+      consumed_payload,
+      timeout:
+    )
+      deadline = monotonic_now + timeout
+      callback_index = expected_callback_count
+
+      loop do
+        extra = if read_method == :callback
+                  callback_messages[callback_index]
+                else
+                  subscriber.try_get_pubsub_message
+                end
+
+        if extra
+          refute_equal consumed_payload, extra.message, "received duplicate reconnect payload"
+          callback_index += 1 if read_method == :callback
+          next
+        end
+
+        break if monotonic_now >= deadline
+
+        sleep MATRIX_RECONNECT_POLL_INTERVAL_SECONDS
+      end
+    end
+
     def matrix_assert_blocking_get_waits(
       subscriber,
-      wait_seconds: MATRIX_NO_MESSAGE_WAIT_SECONDS,
-      deadline: nil
+      wait_seconds: MATRIX_NO_MESSAGE_WAIT_SECONDS
     )
-      deadline ||= Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + wait_seconds
       reader = Thread.new { subscriber.get_pubsub_message }
 
       remaining_timeout = [deadline - Process.clock_gettime(Process::CLOCK_MONOTONIC), 0].max

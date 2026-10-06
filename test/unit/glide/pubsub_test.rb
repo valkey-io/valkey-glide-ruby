@@ -82,6 +82,7 @@ class TestPubSubCommandsUnit < Minitest::Test
     reader = Thread.new { @pubsub.get_pubsub_message }
     # Observe the reader blocked in Queue#pop instead of assuming a scheduler delay.
     Timeout.timeout(2) { Thread.pass until reader.status == "sleep" || !reader.alive? }
+    flunk("reader returned #{reader.value.inspect} before close") unless reader.alive?
     @pubsub.close
 
     assert_nil Timeout.timeout(2) { reader.value }
