@@ -1,0 +1,364 @@
+name: PubSub Flake Matrix v2
+
+run-name: PubSub flake matrix v2 @ ${{ github.ref_name }} ${{ github.sha }}
+
+permissions:
+  contents: read
+  actions: read
+
+on:
+  push:
+    branches:
+      - "flake/**"
+  workflow_dispatch:
+
+concurrency:
+  group: pubsub-flake-v2-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-native-library:
+    name: Build Native / ${{ matrix.host.name }}
+    runs-on: ${{ matrix.host.runner }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        host:
+          - name: linux-x64
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            os: ubuntu
+            extension: so
+          - name: linux-arm64
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            os: ubuntu
+            extension: so
+          - name: darwin-arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+            os: macos
+            extension: dylib
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@02cb101ec7c40f2c49e1d9714d64511d8e1b74de # v1
+        with:
+          toolchain: "1.98.0"
+          targets: ${{ matrix.host.target }}
+
+      - name: Install protoc
+        uses: ./valkey-glide/.github/actions/install-protoc
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Cargo
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            valkey-glide/ffi/target/
+          key: pubsub-flake-${{ matrix.host.target }}-cargo-${{ hashFiles('valkey-glide/ffi/Cargo.lock') }}
+          restore-keys: |
+            ${{ matrix.host.target }}-cargo-
+
+      - name: Install zig and cargo-zigbuild
+        if: matrix.host.os == 'ubuntu'
+        uses: ./.github/actions/install-zigbuild
+
+      - name: Build native library
+        working-directory: valkey-glide/ffi
+        env:
+          GLIDE_NAME: GlideRuby
+          GLIDE_VERSION: ${{ github.ref_name }}
+        run: |
+          if [[ "${{ matrix.host.os }}" == "ubuntu" ]]; then
+            cargo zigbuild --release --target ${{ matrix.host.target }}.2.17
+          else
+            cargo build --release
+          fi
+
+      - name: Upload native library
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-lib-${{ matrix.host.name }}
+          path: valkey-glide/ffi/target/${{ matrix.host.os == 'ubuntu' && format('{0}/release', matrix.host.target) || 'release' }}/libglide_ffi.${{ matrix.host.extension }}
+          if-no-files-found: error
+
+  selector-proof:
+    name: Selector Proof / linux-x64-ruby-3.4-valkey-9.0
+    needs: build-native-library
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Download native library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-lib-linux-x64
+          path: valkey-glide/ffi/target/release/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install Valkey engine
+        uses: ./valkey-glide/.github/actions/install-engine
+        with:
+          engine-version: "9.0"
+          target: x86_64-unknown-linux-gnu
+
+      - name: Start standalone server
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1
+        with:
+          ruby-version: "3.4"
+          bundler-cache: true
+
+      - name: Run and verify corrected selector
+        env:
+          CI: "1"
+        shell: bash
+        run: |
+          mkdir -p tmp/test-results
+          set +e
+          TESTOPTS='--name=/pubsub\|subscri\|publish\|shard\|callback\|messages_arrive_in_order\|binary_payload\|lazy_verbs/i' bundle exec rake test:standalone 2>&1 | tee tmp/test-results/selector-proof-standalone.log
+          standalone_status=${PIPESTATUS[0]}
+          TESTOPTS='--name=/pubsub\|subscri\|publish\|shard\|callback\|messages_arrive_in_order\|binary_payload\|lazy_verbs/i' bundle exec rake test:cluster 2>&1 | tee tmp/test-results/selector-proof-cluster.log
+          cluster_status=${PIPESTATUS[0]}
+          set -e
+
+          if [[ "$standalone_status" -ne 0 || "$cluster_status" -ne 0 ]]; then
+            exit 1
+          fi
+
+          grep -E 'resubscribe_after_connection_kill.*PASS' tmp/test-results/selector-proof-standalone.log tmp/test-results/selector-proof-cluster.log
+          grep -E 'unsubscribe.*PASS' tmp/test-results/selector-proof-standalone.log tmp/test-results/selector-proof-cluster.log
+          grep -E 'ssubscribe_channels_different_slots.*PASS' tmp/test-results/selector-proof-cluster.log
+
+      - name: Upload selector proof logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: selector-proof-logs
+          path: tmp/test-results/
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Stop standalone server
+        if: always()
+        run: python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+
+  pubsub-tests:
+    name: PubSub / ${{ matrix.case.name }} / attempt-${{ matrix.attempt }}
+    needs: [build-native-library, selector-proof]
+    runs-on: ${{ matrix.case.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        attempt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        case:
+          - name: linux-x64-ruby-3.0-valkey-7.2-stress-off
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.0"
+            engine: "7.2"
+            stress: "off"
+          - name: linux-x64-ruby-3.0-valkey-7.2-stress-on
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.0"
+            engine: "7.2"
+            stress: "on"
+          - name: linux-x64-ruby-3.0-valkey-9.0-stress-off
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.0"
+            engine: "9.0"
+            stress: "off"
+          - name: linux-x64-ruby-3.0-valkey-9.0-stress-on
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.0"
+            engine: "9.0"
+            stress: "on"
+          - name: linux-x64-ruby-3.4-valkey-7.2-stress-off
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.4"
+            engine: "7.2"
+            stress: "off"
+          - name: linux-x64-ruby-3.4-valkey-7.2-stress-on
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.4"
+            engine: "7.2"
+            stress: "on"
+          - name: linux-x64-ruby-3.4-valkey-9.0-stress-off
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.4"
+            engine: "9.0"
+            stress: "off"
+          - name: linux-x64-ruby-3.4-valkey-9.0-stress-on
+            runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host: linux-x64
+            os: ubuntu
+            ruby: "3.4"
+            engine: "9.0"
+            stress: "on"
+          - name: linux-arm64-ruby-3.4-valkey-9.0-stress-off
+            runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            host: linux-arm64
+            os: ubuntu
+            ruby: "3.4"
+            engine: "9.0"
+            stress: "off"
+          - name: darwin-arm64-ruby-3.4-valkey-9.0-stress-off
+            runner: macos-14
+            target: aarch64-apple-darwin
+            host: darwin-arm64
+            os: macos
+            ruby: "3.4"
+            engine: "9.0"
+            stress: "off"
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Download native library
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-lib-${{ matrix.case.host }}
+          path: valkey-glide/ffi/target/release/
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+
+      - name: Install Valkey engine
+        uses: ./valkey-glide/.github/actions/install-engine
+        with:
+          engine-version: ${{ matrix.case.engine }}
+          target: ${{ matrix.case.target }}
+
+      - name: Start standalone server
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py start -r 0 -p 6379 --prefix standalone
+          echo "Standalone server started on port 6379"
+
+      - name: Start TLS server
+        if: matrix.case.os != 'macos'
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py --tls start -r 0 -p 6380 --prefix tls-standalone
+          echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> "$GITHUB_ENV"
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@e8944e80fb94b20106697132f8c20c665fab29e9 # v1
+        with:
+          ruby-version: ${{ matrix.case.ruby }}
+          bundler-cache: true
+
+      - name: Install stress-ng
+        if: matrix.case.stress == 'on'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y stress-ng
+
+      - name: Run PubSub tests
+        env:
+          CI: "1"
+          SKIP_TLS_TESTS: ${{ matrix.case.os == 'macos' && 'true' || '' }}
+        shell: bash
+        run: |
+          mkdir -p tmp/test-results
+          if [[ "${{ matrix.case.stress }}" == "on" ]]; then
+            stress-ng --cpu "$(nproc)" --timeout 0 > tmp/test-results/stress.log 2>&1 &
+            echo "$!" > tmp/test-results/stress.pid
+          fi
+
+          set +e
+          standalone_start=$(date +%s)
+          TESTOPTS='--name=/pubsub\|subscri\|publish\|shard\|callback\|messages_arrive_in_order\|binary_payload\|lazy_verbs/i' bundle exec rake test:standalone 2>&1 | tee tmp/test-results/pubsub-standalone.log
+          standalone_status=${PIPESTATUS[0]}
+          standalone_end=$(date +%s)
+          echo "PUBSUB_WALL_TIME standalone_seconds=$((standalone_end - standalone_start))"
+
+          cluster_start=$(date +%s)
+          TESTOPTS='--name=/pubsub\|subscri\|publish\|shard\|callback\|messages_arrive_in_order\|binary_payload\|lazy_verbs/i' bundle exec rake test:cluster 2>&1 | tee tmp/test-results/pubsub-cluster.log
+          cluster_status=${PIPESTATUS[0]}
+          cluster_end=$(date +%s)
+          echo "PUBSUB_WALL_TIME cluster_seconds=$((cluster_end - cluster_start))"
+          set -e
+
+          if [[ "$standalone_status" -ne 0 || "$cluster_status" -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Stop stress
+        if: always() && matrix.case.stress == 'on'
+        shell: bash
+        run: |
+          if [[ -f tmp/test-results/stress.pid ]]; then
+            kill "$(cat tmp/test-results/stress.pid)" || true
+          fi
+
+      - name: Upload failure logs
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pubsub-failure-${{ matrix.case.name }}-attempt-${{ matrix.attempt }}
+          path: |
+            tmp/test-results/
+            test/reports/
+            valkey-glide/utils/clusters/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Stop servers
+        if: always()
+        shell: bash
+        run: |
+          python3 valkey-glide/utils/cluster_manager.py stop --prefix standalone || true
+          if [[ "${{ matrix.case.os }}" != "macos" ]]; then
+            python3 valkey-glide/utils/cluster_manager.py --tls stop --prefix tls-standalone || true
+          fi
