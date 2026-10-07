@@ -121,7 +121,7 @@ class Valkey
     options = merge_url_options(options)
 
     if options[:cluster_mode] && options.values_at(:host, :port, :nodes).none?
-      raise ArgumentError, "`cluster_mode explicit nodes."
+      raise ArgumentError, "cluster mode requires explicit nodes configuration."
     end
 
     @protocol = options[:protocol]
