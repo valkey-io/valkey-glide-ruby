@@ -397,16 +397,32 @@ class TestConnectionConfig < Minitest::Test
     assert_equal "redis://iam-user@localhost:6379", captured[:uri]
   end
 
-  def test_iam_without_username_omits_userinfo
+  def test_iam_rejects_missing_username
     iam_config = Valkey::IamAuthConfig.new(
       cluster_name: "my-cache",
       service: Valkey::ServiceType::ELASTICACHE,
       region: "us-east-1"
     )
 
-    captured = captured_client_args(password: "", iam_config: iam_config)
+    error = assert_raises(ArgumentError) do
+      captured_client_args(iam_config: iam_config)
+    end
 
-    assert_equal "redis://localhost:6379", captured[:uri]
+    assert_match(/username is required for iam_config/, error.message)
+  end
+
+  def test_iam_rejects_empty_username
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(username: "", iam_config: iam_config)
+    end
+
+    assert_match(/username is required for iam_config/, error.message)
   end
 
   def test_iam_rejects_wrong_config_type

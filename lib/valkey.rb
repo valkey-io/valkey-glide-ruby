@@ -130,6 +130,7 @@ class Valkey
     unless iam_config.nil? || iam_config.is_a?(IamAuthConfig)
       raise ArgumentError, "iam_config must be a Valkey::IamAuthConfig"
     end
+    raise ArgumentError, "username is required for iam_config" if iam_config && options[:username].to_s.empty?
     if iam_config && !options[:password].to_s.empty?
       raise ArgumentError, "password and iam_config are mutually exclusive"
     end

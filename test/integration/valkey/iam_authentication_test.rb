@@ -9,8 +9,9 @@ module ValkeyTests
   # - `iam_config:` and `username:` reach GLIDE Core, which resolves credentials,
   #   signs a token, and authenticates with it in standalone and cluster mode.
   # - `refresh_iam_token` round-trips through FFI for every ServiceType.
-  # - Core's IAM validation errors surface as Valkey::CannotConnectError, and
-  #   refreshing a client without IAM raises Valkey::CommandError.
+  # - Ruby rejects IAM configuration without a username, Core's IAM interval
+  #   validation errors surface as Valkey::CannotConnectError, and refreshing
+  #   a client without IAM raises Valkey::CommandError.
   #
   # What they do not confirm:
   # - That the token is valid: the server accepts any AUTH password, so the
@@ -39,9 +40,9 @@ module ValkeyTests
     end
 
     def test_iam_requires_username
-      error = assert_iam_creation_fails(iam_config: iam_config)
+      error = assert_raises(ArgumentError) { _new_client(iam_config: iam_config) }
 
-      assert_includes error.message, "IAM authentication requires a username"
+      assert_includes error.message, "username is required for iam_config"
     end
 
     def test_invalid_iam_refresh_interval_fails_creation
