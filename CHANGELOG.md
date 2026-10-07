@@ -8,7 +8,7 @@
 
 ### Fixes
 
-* fix(ruby): reject `cluster_mode: true` without an explicit seed instead of silently connecting to the standalone `127.0.0.1:6379` default ([#265](https://github.com/valkey-io/valkey-glide-ruby/issues/265))
+* fix(ruby): reject `cluster_mode: true` without an explicit seed instead of silently connecting to the standalone `127.0.0.1:6379` default ([#344](https://github.com/valkey-io/valkey-glide-ruby/pull/344))
 
 * fix(ruby): treat an empty `lib_name` or `client_info_tag` as "not configured". Previously `lib_name: ""` plus a tag composed `(tag)` instead of `GlideRuby(tag)`, which glide-core rejects, surfacing as `Valkey::CannotConnectError` at client creation ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 
