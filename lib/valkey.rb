@@ -116,22 +116,12 @@ class Valkey
   # the standalone localhost default.
   #
   # @param options [Hash] connection and client options
-  # @raise [InvalidClientOptionError] if cluster mode has no seed source
+  # @raise [ArgumentError] if cluster mode has no seed source
   def initialize(options = {})
-    if options[:cluster_mode] && !cluster_seed_configured?(options)
-      raise InvalidClientOptionError,
-            "`cluster_mode: true` requires seed nodes. Pass `host:`/`port:`, `url:`, or `nodes:`."
-    end
+    options = merge_url_options(options)
 
-    # In cluster mode, an empty host is absent rather than a usable seed. Drop
-    # it so a supplied port can use the existing complementary host default.
-    options = options.except(:host) if options[:cluster_mode] && options[:host] == ""
-
-    # Parse URL if provided
-    if options[:url]
-      url_options = Utils.parse_redis_url(options[:url])
-      # Merge URL options, but explicit options take precedence
-      options = url_options.merge(options.except(:url))
+    if options[:cluster_mode] && options.values_at(:host, :port, :nodes).none?
+      raise ArgumentError, "`cluster_mode: true` requires seed nodes. Pass `host:`/`port:`, `url:`, or `nodes:`."
     end
 
     @protocol = options[:protocol]
@@ -574,15 +564,15 @@ class Valkey
 
   private
 
-  # Cluster mode must not inherit the standalone localhost default. An empty
-  # nodes array still counts as explicitly configured so it reaches the
-  # existing, more specific "Nodes array cannot be empty" validation.
-  def cluster_seed_configured?(options)
-    return true if options[:host] && options[:host] != ""
-    return true if options[:port]
-    return true if options[:url].is_a?(String) && !options[:url].empty?
+  # Merges `url:` components under the explicit options. An explicit nil (or an
+  # empty host) counts as unset, so it cannot mask the URL value, as in redis-client.
+  def merge_url_options(options)
+    explicit = options.except(:url)
+    explicit = explicit.merge(host: nil) if explicit[:host] == ""
 
-    !options[:nodes].nil? && options[:nodes] != false
+    Utils.parse_redis_url(options[:url]).merge(explicit) do |_key, url_value, explicit_value|
+      explicit_value.nil? ? url_value : explicit_value
+    end
   end
 
   # Returns the live native client handle.
