@@ -327,7 +327,7 @@ class TestConnectionConfig < Minitest::Test
     assert_equal({ "disabled" => true }, json_options["periodic_checks"])
   end
 
-  MISSING_SEED_MESSAGE = "`cluster_mode: true` requires seed nodes. Pass `host:`/`port:`, `url:`, or `nodes:`."
+  MISSING_SEED_MESSAGE = "`cluster_mode explicit nodes."
 
   def assert_missing_seed_rejected(options)
     Valkey::Bindings.stub(:create_client_from_uri, ->(*) { flunk "FFI reached without a cluster seed" }) do
