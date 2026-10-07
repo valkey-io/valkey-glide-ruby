@@ -70,26 +70,30 @@ module ValkeyTests
 
     # Cases transcribed from glide-core's library-name regex (upstream #6891);
     # the accepted grammar is documented in README's Connection Options.
+    # Core 42d3d35 distinguishes invalid bytes from malformed tag parentheses.
     CORE_REJECTED_LIB_NAMES = {
-      "space" => "Glide Ruby",
-      "tab" => "Glide\tRuby",
-      "newline" => "Glide\nRuby",
-      "non_ascii" => "café",
-      "del_control_char" => "GlideRuby\x7F",
-      "unclosed_paren" => "GlideRuby(",
-      "empty_parens" => "GlideRuby()",
-      "paren_only" => "(tag)",
-      "double_tag" => "GlideRuby(tag)(second)",
-      "trailing_suffix_after_tag" => "GlideRuby(tag)suffix"
+      "space" => ["Glide Ruby", /library name must contain only printable ASCII/],
+      "tab" => ["Glide\tRuby", /library name must contain only printable ASCII/],
+      "newline" => ["Glide\nRuby", /library name must contain only printable ASCII/],
+      "non_ascii" => ["café", /library name must contain only printable ASCII/],
+      "del_control_char" => ["GlideRuby\x7F", /library name must contain only printable ASCII/],
+      "unclosed_paren" => ["GlideRuby(", /library name parentheses must form a non-empty trailing '\(tag\)'/],
+      "empty_parens" => ["GlideRuby()", /library name parentheses must form a non-empty trailing '\(tag\)'/],
+      "paren_only" => ["(tag)", /library name parentheses must form a non-empty trailing '\(tag\)'/],
+      "double_tag" => ["GlideRuby(tag)(second)", /library name parentheses must form a non-empty trailing '\(tag\)'/],
+      "trailing_suffix_after_tag" => [
+        "GlideRuby(tag)suffix",
+        /library name parentheses must form a non-empty trailing '\(tag\)'/
+      ]
     }.freeze
 
-    CORE_REJECTED_LIB_NAMES.each do |label, value|
+    CORE_REJECTED_LIB_NAMES.each do |label, (value, error_pattern)|
       define_method(:"test_core_rejects_lib_name_#{label}") do
         client = nil
         error = assert_raises(Valkey::CannotConnectError) do
           client = _new_client(lib_name: value)
         end
-        assert_match(/library name must contain only printable ASCII/, error.message)
+        assert_match(error_pattern, error.message)
       ensure
         client&.close
       end
