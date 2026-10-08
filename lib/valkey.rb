@@ -114,16 +114,13 @@ class Valkey
 
   # Creates a standalone or cluster client.
   #
-  # @param options [Hash] connection options
-  # @option options [String, nil] :username authentication username; required for IAM
-  # @option options [IamAuthConfig, nil] :iam_config IAM authentication configuration;
-  #   mutually exclusive with `password:`
+  # @param options [Hash] connection and client options
+  # @raise [ArgumentError] if cluster mode has no seed source
   def initialize(options = {})
-    # Parse URL if provided
-    if options[:url]
-      url_options = Utils.parse_redis_url(options[:url])
-      # Merge URL options, but explicit options take precedence
-      options = url_options.merge(options.except(:url))
+    options = merge_url_options(options)
+
+    if options[:cluster_mode] && options.values_at(:host, :port, :nodes).none?
+      raise ArgumentError, "cluster mode requires explicit nodes configuration."
     end
 
     iam_config = options[:iam_config]
@@ -603,6 +600,17 @@ class Valkey
   end
 
   private
+
+  # Merges `url:` components under the explicit options. An explicit nil (or an
+  # empty host) counts as unset, so it cannot mask the URL value, as in redis-client.
+  def merge_url_options(options)
+    explicit = options.except(:url)
+    explicit = explicit.merge(host: nil) if explicit[:host] == ""
+
+    Utils.parse_redis_url(options[:url]).merge(explicit) do |_key, url_value, explicit_value|
+      explicit_value.nil? ? url_value : explicit_value
+    end
+  end
 
   # Returns the live native client handle.
   #
