@@ -16,8 +16,7 @@ class TestClusterCommands < Minitest::Test
   include Lint::HashCommands
   include Lint::HyperLogLog
   include Lint::Lists
-  # TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/135
-  # include Lint::PubSubCommands
+  include Lint::PubSubCommands
   include Lint::ScriptingCommands
   include Lint::ServerCommands
   include Lint::SetCommands
@@ -34,6 +33,7 @@ class TestClusterCommands < Minitest::Test
   include ValkeyTests::Call
   include ValkeyTests::ClientInfoTag
   include ValkeyTests::GenericCommands
+  include ValkeyTests::IamAuthentication
   include ValkeyTests::Scanning
   include ValkeyTests::ScriptingCommands
   include ValkeyTests::ScriptingCommandsIntegration
@@ -59,6 +59,14 @@ end
 class TestClusterFunctionCommands < Minitest::Test
   include Helper::Cluster
   include ValkeyTests::FunctionCommands
+end
+
+# Pub/Sub gets its own class: the tests open extra RESP3 clients and spawn reader
+# threads, so keeping them out of the big shared class limits the blast radius of
+# a leaked subscriber.
+class TestClusterPubSub < Minitest::Test
+  include Helper::Cluster
+  include ValkeyTests::PubSub
 end
 
 # Cluster variant of the fork-safety suite (issue #255). Own class so the forked

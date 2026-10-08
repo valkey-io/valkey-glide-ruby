@@ -48,6 +48,14 @@ module Helper
       assert range.include?(value), "expected #{value} to be in #{range.inspect}"
     end
 
+    # PUBSUB NUMSUB replies are returned unconverted, so the shape follows the connection: a Hash in
+    # cluster mode and on RESP3, a flat [channel, count, ...] Array on a standalone RESP2 connection.
+    # Normalize before comparing so one expectation covers every suite.
+    def assert_numsub(expected, actual)
+      actual = actual.each_slice(2).to_h unless actual.is_a?(Hash)
+      assert_equal expected, actual
+    end
+
     def target_version(target)
       if version < target
         skip("Requires Valkey > #{target}") if respond_to?(:skip)

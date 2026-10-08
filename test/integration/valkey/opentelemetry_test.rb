@@ -136,6 +136,26 @@ module ValkeyTests
       spans
     end
 
+    # Polls the metrics file's "resource" object, so tests assert what glide-core's OpenTelemetry
+    # SDK actually resolved, not just the OTEL_RESOURCE_ATTRIBUTES env var this gem builds.
+    def wait_for_metrics_resource(timeout: DEFAULT_TIMEOUT)
+      start_time = Time.now
+      loop do
+        if File.exist?(METRICS_FILE) && File.size(METRICS_FILE).positive?
+          begin
+            resource = File.readlines(METRICS_FILE).map { |line| JSON.parse(line)["resource"] }.compact.last
+            return resource if resource
+          rescue JSON::ParserError
+            # File might be partially written, continue waiting
+          end
+        end
+
+        raise "Timeout waiting for metrics export to #{METRICS_FILE}" if Time.now - start_time >= timeout
+
+        sleep POLL_INTERVAL
+      end
+    end
+
     # Test 1: Initialization with file exporter
     def test_initialization_with_file_exporter
       skip("OpenTelemetry tests only run on standalone mode") if cluster_mode?
@@ -389,6 +409,25 @@ module ValkeyTests
       refute_nil span, "expected a Batch span to be exported"
       assert_equal trace_id, span["trace_id"]
       assert_equal span_id, span["parent_span_id"]
+    end
+
+    # Test 11: auto-detected process.* attributes reach the exported metrics resource -
+    # exercising the real glide-core OpenTelemetry SDK, not a stubbed FFI call.
+    def test_auto_detected_resource_attributes_appear_in_exported_metrics
+      skip("OpenTelemetry tests only run on standalone mode") if cluster_mode?
+      assert ::Valkey::OpenTelemetry.initialized?
+
+      client = ::Valkey.new(host: "localhost", port: 6379)
+      client.set("otel_resource_test_key", "value")
+      client.close
+
+      resource = wait_for_metrics_resource
+
+      assert_equal Process.pid.to_s, resource["process.pid"]
+      assert_equal $PROGRAM_NAME, resource["process.command"]
+      assert_equal RUBY_ENGINE, resource["process.runtime.name"]
+      assert_equal RUBY_VERSION, resource["process.runtime.version"]
+      assert_equal RUBY_DESCRIPTION, resource["process.runtime.description"]
     end
   end
 end

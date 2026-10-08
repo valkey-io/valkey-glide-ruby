@@ -217,16 +217,26 @@ Every user-facing change MUST add an entry to `CHANGELOG.md` under the top
 
 ### Fixes
 
-* fix(ruby): <what changed and the user-visible effect> ([#123](https://github.com/valkey-io/valkey-glide-ruby/issues/123))
+* fix(ruby): <what changed and the user-visible effect> ([#123](https://github.com/valkey-io/valkey-glide-ruby/pull/123))
 
 ### Changes
 
-* feat(ruby): <what changed and the user-visible effect> ([#124](https://github.com/valkey-io/valkey-glide-ruby/pull/124))
+* Ruby: <Area>: added support for `method_a(sig)`, `method_b(sig)` and the `option:` option. <One short constraint if there is one> ([#124](https://github.com/valkey-io/valkey-glide-ruby/pull/124))
 ```
 
-Each entry follows the same Conventional Commits format as commit messages
-(`<type>(<scope>): <description>`, scope `ruby`), states the behavior change,
-and links the related issue or PR.
+Rules for an entry:
+
+- **One line.** No sub-bullets. If it needs paragraphs to explain, it belongs in
+  the README or the method's YARD docs, not here.
+- **New APIs: list them, don't narrate them.** `added support for` followed by
+  the public method names with their signatures. Do not restate what each method
+  does; the names and docs already say it.
+- **List only what this PR shipped.** Methods that raise `NotImplementedError`,
+  future plans, and internal refactors do not belong in the entry.
+- **Link the PR that made the change**, not the issue it closes. Readers want the
+  diff.
+- Fixes use the Conventional Commits prefix (`fix(ruby):`); Changes use
+  `Ruby: <Area>:`. Both state the user-visible effect, not the implementation.
 
 ### Code Quality Requirements
 
@@ -259,11 +269,11 @@ cargo fmt --manifest-path ./Cargo.toml --all
 
 - **Ruby 3.0+ Required:** Minimum per `valkey.gemspec`
 - **FFI dependency:** `ffi ~> 1.17.0`; do not break ABI without rebuilding native lib
+- **Blocking FFI bindings MUST pass `blocking: true`:** any `attach_function` in `lib/valkey/bindings.rb` that can wait — connect, command, batch, script, close. Ruby-FFI defaults to `blocking: false`, holding the GVL for the whole call: that stalls every other Ruby thread, and deadlocks if the call waits on something needing the GVL (a Pub/Sub callback). `create_client`/`create_client_from_uri` still need it. The `free_*`/`drop_*` and OTel span helpers don't — they never wait.
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
 - **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
 - **Command args:** All FFI args are strings; convert types in Ruby before `send_command`
 - **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback; do not remove without fixing FFI batch stability
-- **Pub/Sub:** The public API is currently disabled (`include PubSubCommands` is commented out in `lib/valkey/commands.rb`); Pub/Sub is only partially implemented (see issue #135). Do not re-enable without completing it.
 - **OpenTelemetry:** Init once per process via `Valkey::OpenTelemetry.init`; spans created in FFI layer
 
 ### Command Implementation Guidelines
@@ -277,7 +287,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
+- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
 
 ## Project Structure (Essential)
 
@@ -287,7 +297,7 @@ valkey-glide-ruby/
 ├── lib/valkey/
 │   ├── bindings.rb
 │   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
-│   ├── glide/pubsub.rb   # all Pub/Sub logic; internal, wired into Valkey
+│   ├── glide/pubsub_receiver.rb   # internal; Pub/Sub message queue + FFI push handler
 │   ├── commands.rb       # requires + includes all command modules
 │   ├── commands/*.rb     # 20 command-family modules
 │   ├── opentelemetry.rb
@@ -321,6 +331,6 @@ valkey-glide-ruby/
 - **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md)
 - **Examples:** [examples/](./examples/)
 - **Claude-specific rules:** [CLAUDE.md](./CLAUDE.md)
-- **Command coverage:** [Wiki: implementation status](https://github.com/valkey-io/valkey-glide-ruby/wiki/The-implementation-status-of-the-Valkey-commands)
+- **Command coverage:** [GLIDE supported commands](https://glide.valkey.io/commands/supported-commands/)
 - **GLIDE docs:** [glide.valkey.io](https://glide.valkey.io/)
 - **Upstream FFI:** [valkey-glide/ffi](https://github.com/valkey-io/valkey-glide/tree/main/ffi)

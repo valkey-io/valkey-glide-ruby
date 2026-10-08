@@ -63,7 +63,7 @@ class Valkey
       # @see #unwatch
       def multi(exception: true)
         if block_given?
-          pipeline = Pipeline.new
+          pipeline = Pipeline.new(cluster_mode: cluster_mode?)
 
           begin
             yield pipeline

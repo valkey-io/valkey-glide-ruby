@@ -15,10 +15,14 @@ require "valkey/search"
 require "valkey/commands"
 require "valkey/errors"
 require "valkey/future"
-require "valkey/glide/pubsub"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
+require "valkey/service_type"
+require "valkey/iam_auth_config"
+require "valkey/glide/pubsub_message"
+require "valkey/glide/pubsub_state"
+require "valkey/glide/pubsub_receiver"
 
 class Valkey
   include Utils
@@ -28,6 +32,9 @@ class Valkey
   # reported name does not depend on the native artifact having been compiled with
   # `GLIDE_NAME=GlideRuby`, which is only glide-core's fallback.
   DEFAULT_LIB_NAME = "GlideRuby"
+
+  # The RESP protocol specified.
+  attr_reader :protocol
 
   # Resolves the effective `CLIENT SETINFO LIB-NAME` value, composing `base(tag)`.
   # An empty override or tag means "not configured" and is omitted. Character
@@ -89,7 +96,7 @@ class Valkey
   #   {CommandError} - other commands' replies stay reachable, matching
   #   the server's "no rollback on a runtime error" semantics.
   def pipelined(exception: true)
-    pipeline = Pipeline.new
+    pipeline = Pipeline.new(cluster_mode: cluster_mode?)
 
     begin
       yield pipeline
@@ -105,6 +112,12 @@ class Valkey
     end
   end
 
+  # Creates a standalone or cluster client.
+  #
+  # @param options [Hash] connection options
+  # @option options [String, nil] :username authentication username; required for IAM
+  # @option options [IamAuthConfig, nil] :iam_config IAM authentication configuration;
+  #   mutually exclusive with `password:`
   def initialize(options = {})
     # Parse URL if provided
     if options[:url]
@@ -112,6 +125,17 @@ class Valkey
       # Merge URL options, but explicit options take precedence
       options = url_options.merge(options.except(:url))
     end
+
+    iam_config = options[:iam_config]
+    unless iam_config.nil? || iam_config.is_a?(IamAuthConfig)
+      raise ArgumentError, "iam_config must be a Valkey::IamAuthConfig"
+    end
+    raise ArgumentError, "username is required for iam_config" if iam_config && options[:username].to_s.empty?
+    if iam_config && !options[:password].to_s.empty?
+      raise ArgumentError, "password and iam_config are mutually exclusive"
+    end
+
+    @protocol = options[:protocol]
 
     # Extract connection parameters
     host = options[:host] || "127.0.0.1"
@@ -159,7 +183,9 @@ class Valkey
     # FFI side then rejects with "Invalid connection URI". Encoding more is
     # always safe because the FFI decodes uniformly.
     userinfo_unsafe = /[^\-_.!~*'()a-zA-Z0-9]/
-    if options[:username] && options[:password]
+    if iam_config
+      uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe) << "@" if options[:username]
+    elsif options[:username] && options[:password]
       uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe)
       uri_parts << ":"
       uri_parts << URI::DEFAULT_PARSER.escape(options[:password], userinfo_unsafe)
@@ -182,6 +208,18 @@ class Valkey
 
     # Build JSON options for additional configuration
     json_options = {}
+
+    if iam_config
+      iam_credentials = {
+        "cluster_name" => iam_config.cluster_name,
+        "region" => iam_config.region,
+        "service_type" => iam_config.service
+      }
+      unless iam_config.refresh_interval_seconds.nil?
+        iam_credentials["refresh_interval_seconds"] = iam_config.refresh_interval_seconds
+      end
+      json_options["iam_credentials"] = iam_credentials
+    end
 
     # Cluster mode
     json_options["cluster_mode_enabled"] = true if options[:cluster_mode]
@@ -318,12 +356,13 @@ class Valkey
       }
     end
 
-    pubsub_config = Glide::PubSub.parse_config(options[:pubsub], protocol: options[:protocol])
+    pubsub_config = parse_pubsub_configs(options[:pubsub], protocol: options[:protocol],
+                                                           cluster_mode: options[:cluster_mode] ? true : false)
     json_options.merge!(pubsub_config)
 
-    @pubsub = Glide::PubSub.new(self, cluster_mode: options[:cluster_mode] ? true : false)
-    json_str = json_options.empty? ? nil : JSON.generate(json_options)
+    @pubsub_receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: options[:pubsub])
 
+    json_str = json_options.empty? ? nil : JSON.generate(json_options)
     # Create client using URI-based FFI function
     client_type = Bindings::ClientType.new
     client_type[:tag] = 1 # SyncClient
@@ -332,7 +371,7 @@ class Valkey
       uri_str,
       json_str,
       client_type,
-      @pubsub.ffi_handler
+      @pubsub_receiver.ffi_handler
     )
 
     res = Bindings::ConnectionResponse.new(response_ptr)
@@ -366,6 +405,13 @@ class Valkey
     @queued_commands = []
   end
 
+  # True if client is in cluster mode.
+  #
+  # @return [Boolean]
+  def cluster_mode?
+    @cluster_mode
+  end
+
   # Closes the client and frees the native connection.
   def close
     return unless @close_lock&.try_lock
@@ -376,7 +422,7 @@ class Valkey
 
       # Closed before the native handle goes away, so a thread blocked in
       # get_message wakes with nil instead of hanging on a dead client.
-      @pubsub&.close
+      @pubsub_receiver&.close
       # Fork safety: freeing a handle owned by another process aborts this one.
       # The parent still frees it on its own close.
       return if @pid != Process.pid
@@ -388,6 +434,21 @@ class Valkey
   end
 
   alias disconnect! close
+
+  # Refreshes the IAM authentication token immediately.
+  #
+  # Tokens otherwise refresh automatically at the interval configured by
+  # {IamAuthConfig}.
+  #
+  # @return [String] `OK` on success
+  # @raise [CommandError] if the client was not configured for IAM authentication
+  def refresh_iam_token
+    connection_handle = connection!
+    result_pointer = Bindings.refresh_iam_token(connection_handle, 0)
+    convert_response(result_pointer)
+  ensure
+    Bindings.free_command_result(result_pointer) if result_pointer && !result_pointer.null?
+  end
 
   # Retrieves client statistics including connection and compression metrics.
   #
@@ -855,5 +916,47 @@ class Valkey
     else
       response
     end
+  end
+
+  # Parses and validates the `pubsub:` option into the connection JSON.
+  #
+  # @example pubsub_configs:
+  #   {
+  #     subscriptions: {
+  #       exact:   ["news", "alerts"],  # exact matches
+  #       pattern: ["news.*"],          # glob patterns
+  #       sharded: ["shard-chan"]       # cluster mode
+  #     },
+  #     callback: ->(message, context) { ... },  # callback handler
+  #     context: my_app_state                   # callback context
+  #   }
+  def parse_pubsub_configs(pubsub_configs, protocol: nil, cluster_mode: false)
+    subscriptions = (pubsub_configs || {})[:subscriptions] || {}
+    return {} if subscriptions.empty?
+
+    validate_pubsub_subscriptions!(subscriptions, protocol: protocol, cluster_mode: cluster_mode)
+
+    { "pubsub_subscriptions" => pubsub_subscriptions_to_ffi(subscriptions) }
+  end
+
+  def validate_pubsub_subscriptions!(subscriptions, protocol:, cluster_mode: false)
+    unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
+    raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
+    raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+
+    return unless Array(subscriptions[:sharded]).any? && !cluster_mode
+
+    raise ArgumentError, "Sharded Pub/Sub subscriptions are only available in cluster mode."
+  end
+
+  def pubsub_subscriptions_to_ffi(subscriptions)
+    subscriptions
+      .transform_keys { |mode| SUBSCRIPTION_MODES.fetch(mode).to_s }
+      .transform_values { |channels| Array(channels).map(&:to_s) }
+  end
+
+  def unknown_pubsub_mode_message(unknown_modes)
+    "Unknown Pub/Sub subscription mode(s): #{unknown_modes.join(', ')}. " \
+      "Valid modes are: #{SUBSCRIPTION_MODES.keys.join(', ')}"
   end
 end
