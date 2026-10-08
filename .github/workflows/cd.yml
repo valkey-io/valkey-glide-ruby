@@ -181,6 +181,7 @@ jobs:
         uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1
         with:
           ruby-version: "3.3"
+          rubygems: "3.7.2" # `gem push --attestation` needs RubyGems >= 3.6; Ruby 3.3 ships 3.5
           bundler-cache: true
 
       - name: Download all native library artifacts
@@ -258,9 +259,11 @@ jobs:
           find gem-contents -name "libglide_ffi.*" -exec ls -lh {} \;
 
       # Generate a Sigstore-backed SLSA build-provenance attestation for the gem.
-      # Uses OIDC + a short-lived Sigstore cert (no stored signing key). Consumers
-      # verify with: gh attestation verify <gem> --repo valkey-io/valkey-glide-ruby
+      # Uses OIDC + a short-lived Sigstore cert (no stored signing key). The bundle is
+      # stored on GitHub and attached to the RubyGems.org release at push time.
+      # Consumers verify with: gh attestation verify <gem> --repo valkey-io/valkey-glide-ruby
       - name: Attest gem build provenance
+        id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.build-gem.outputs.GEM_FILE }}
@@ -279,11 +282,16 @@ jobs:
         if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
         uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
 
+      # RubyGems.org verifies the bundle against the trusted publisher's workflow
+      # identity and rejects the push if it does not match.
       - name: Publish to RubyGems
         id: publish
         if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
+        env:
+          GEM_FILE: ${{ steps.build-gem.outputs.GEM_FILE }}
+          ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
         run: |
-          gem push ${{ steps.build-gem.outputs.GEM_FILE }}
+          gem push "$GEM_FILE" --attestation "$ATTESTATION_BUNDLE"
           echo "published=true" >> $GITHUB_OUTPUT
 
     outputs:

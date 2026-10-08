@@ -823,7 +823,7 @@ class Valkey
       buf = FFI::MemoryPointer.from_string(arg)
       buffers << buf # prevent garbage collection
       arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
-      arg_lens.put_ulong(i * 8, arg.bytesize)
+      arg_lens.put_ulong(i * FFI.type_size(:ulong), arg.bytesize)
     end
 
     [arg_ptrs, arg_lens, buffers, command_args]
