@@ -47,6 +47,24 @@ class Valkey
         send_command(RequestType::HGET, [key, field])
       end
 
+      # Get and delete the values of one or more hash fields.
+      #
+      # @example
+      #   valkey.hgetdel("hash", "field1", "field2")
+      #     # => ["value1", "value2"]
+      #
+      # @param [String] key
+      # @param [String, Array<String>] fields one or more fields, or array of fields
+      # @return [Array<String, nil>] values in request order; nil for each missing field
+      #
+      # @see https://valkey.io/commands/hgetdel/
+      #
+      # Since Valkey 9.1.
+      def hgetdel(key, *fields)
+        fields.flatten!(1)
+        send_command(RequestType::HGETDEL, [key, "FIELDS", fields.length, *fields])
+      end
+
       # Get all the fields and values in a hash.
       #
       # @example
