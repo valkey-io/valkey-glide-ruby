@@ -274,6 +274,11 @@ class Valkey
       :pointer # client_adapter_ptr
     ], :void, blocking: true
 
+    attach_function :refresh_iam_token, [
+      :pointer, # client_adapter_ptr
+      :ulong    # request_id
+    ], :pointer, blocking: true # returns *mut CommandResult, releases GVL during I/O
+
     attach_function :command, [
       :pointer,     # client_adapter_ptr
       :ulong,       # request_id

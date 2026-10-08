@@ -4,6 +4,9 @@
 # This is useful for CD testing to verify the published gem works correctly
 $LOAD_PATH.unshift File.expand_path("../lib", __dir__) unless ENV["TEST_INSTALLED_GEM"]
 
+require_relative "support/helper/mock_aws_credentials"
+Helper::MockAwsCredentials.install
+
 require "valkey"
 require_relative "support/test_cluster"
 
@@ -16,6 +19,7 @@ require_relative 'support/helper/version'
 require_relative 'support/helper/client'
 require_relative 'support/helper/cluster'
 require_relative 'support/helper/fork'
+require_relative 'support/helper/parameterized'
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 
