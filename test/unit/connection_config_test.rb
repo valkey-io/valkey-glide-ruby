@@ -96,7 +96,7 @@ class TestConnectionConfig < Minitest::Test
   end
 
   def test_read_from_accepts_canonical_strings
-    %w[Primary PreferReplica AZAffinity AZAffinityReplicasAndPrimary].each do |value|
+    %w[Primary PreferReplica AZAffinity AZAffinityReplicasAndPrimary AZAffinityAllNodes].each do |value|
       json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
       assert_equal value, json_options["read_from"]
     end
@@ -109,7 +109,8 @@ class TestConnectionConfig < Minitest::Test
       Valkey::ReadFrom::PRIMARY,
       Valkey::ReadFrom::PREFER_REPLICA,
       Valkey::ReadFrom::AZ_AFFINITY,
-      Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
+      Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY,
+      Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES
     ].each do |value|
       json_options = captured_json_options(read_from: value, client_az: "us-west-2a")
       assert_equal value, json_options["read_from"]
@@ -142,18 +143,19 @@ class TestConnectionConfig < Minitest::Test
     assert_equal "us-west-2a", json_options["client_az"]
   end
 
-  def test_read_from_az_affinity_without_client_az_raises
-    error = assert_raises(ArgumentError) do
-      ::Valkey.new(host: "localhost", port: 6379, read_from: Valkey::ReadFrom::AZ_AFFINITY)
-    end
-    assert_match(/client_az must be set/, error.message)
-  end
+  def test_az_read_strategies_require_nonblank_client_az
+    strategies = [
+      Valkey::ReadFrom::AZ_AFFINITY,
+      Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY,
+      Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES
+    ]
 
-  def test_read_from_az_affinity_replicas_and_primary_without_client_az_raises
-    error = assert_raises(ArgumentError) do
-      ::Valkey.new(host: "localhost", port: 6379, read_from: Valkey::ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY)
+    strategies.product([nil, false, "", " \t\n "]).each do |read_from, client_az|
+      error = assert_raises(ArgumentError) do
+        ::Valkey.new(host: "localhost", port: 6379, read_from: read_from, client_az: client_az)
+      end
+      assert_equal "client_az must be set when read_from is #{read_from}", error.message
     end
-    assert_match(/client_az must be set/, error.message)
   end
 
   def test_read_from_unknown_string_is_passed_through_unchanged
@@ -171,9 +173,24 @@ class TestConnectionConfig < Minitest::Test
     assert_equal "us-west-2a", json_options["client_az"]
   end
 
-  def test_client_az_omitted_when_not_provided
-    json_options = captured_json_options
-    refute json_options.key?("client_az")
+  def test_client_az_strings_are_trimmed
+    json_options = captured_json_options(client_az: " us-east-1a ")
+    assert_equal "us-east-1a", json_options["client_az"]
+  end
+
+  def test_absent_and_blank_client_az_values_are_omitted_without_az_strategy
+    [nil, false, "", " \t\n "].each do |client_az|
+      json_options = captured_json_options(client_az: client_az)
+      refute json_options.key?("client_az")
+    end
+  end
+
+  def test_truthy_non_string_client_az_is_passed_through
+    json_options = captured_json_options(
+      read_from: Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES,
+      client_az: 123
+    )
+    assert_equal 123, json_options["client_az"]
   end
 
   def test_inflight_requests_limit_is_passed_through
