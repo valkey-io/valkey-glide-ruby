@@ -8,6 +8,7 @@ class Valkey
     PREFER_REPLICA = "PreferReplica"
     AZ_AFFINITY = "AZAffinity"
     AZ_AFFINITY_REPLICAS_AND_PRIMARY = "AZAffinityReplicasAndPrimary"
+    AZ_AFFINITY_ALL_NODES = "AZAffinityAllNodes"
 
     # "LowestLatency" is a valid GLIDE value but not yet usable via the vendored
     # native library (panics in ConnectionRequest::from, see types.rs) -- not
