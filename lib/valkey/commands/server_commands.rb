@@ -9,16 +9,18 @@ class Valkey
     module ServerCommands
       # Asynchronously rewrite the append-only file.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String]
+      # @param route [Valkey::Route, nil] cluster routing. On cluster the default is all primaries,
+      #   so the reply is a per-node Hash even with no route. A single-node route returns a String.
+      # @return [String, Hash{String => String}]
       def bgrewriteaof(route: nil)
         send_command(RequestType::BG_REWRITE_AOF, [], route: route)
       end
 
       # Asynchronously save the dataset to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String]
+      # @param route [Valkey::Route, nil] cluster routing. On cluster the default is all primaries,
+      #   so the reply is a per-node Hash even with no route. A single-node route returns a String.
+      # @return [String, Hash{String => String}]
       def bgsave(route: nil)
         send_command(RequestType::BG_SAVE, [], route: route)
       end
@@ -173,8 +175,9 @@ class Valkey
 
       # Get the UNIX time stamp of the last successful save to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Integer]
+      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => Integer`.
+      # @return [Integer, Hash{String => Integer}]
       def lastsave(route: nil)
         send_command(RequestType::LAST_SAVE, [], route: route)
       end
@@ -532,8 +535,9 @@ class Valkey
       # Display some computer art and the Valkey version.
       #
       # @param version [Integer, nil] optional version number for different art
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String] ASCII art and version information
+      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => String`.
+      # @return [String, Hash{String => String}] ASCII art and version information
       #
       # @example
       #   valkey.lolwut
