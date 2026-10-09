@@ -268,6 +268,39 @@ class TestConnectionConfig < Minitest::Test
     assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
   end
 
+  def test_protocol_omitted_when_not_provided
+    refute captured_json_options.key?("protocol")
+  end
+
+  def test_protocol_nil_is_omitted
+    refute captured_json_options(protocol: nil).key?("protocol")
+  end
+
+  def test_protocol_resp2_spellings_select_resp2
+    [:resp2, :RESP2, "resp2", "RESP2", 2].each do |value|
+      assert_equal "RESP2", captured_json_options(protocol: value)["protocol"], "protocol: #{value.inspect}"
+    end
+  end
+
+  def test_protocol_resp3_spellings_select_resp3
+    [:resp3, :RESP3, "resp3", "RESP3", "Resp3", 3].each do |value|
+      assert_equal "RESP3", captured_json_options(protocol: value)["protocol"], "protocol: #{value.inspect}"
+    end
+  end
+
+  def test_protocol_unrecognized_value_raises
+    [:resp4, "resp", 1, 3.0, true, ""].each do |value|
+      error = assert_raises(ArgumentError, "protocol: #{value.inspect}") { captured_json_options(protocol: value) }
+      assert_match(/protocol must be/, error.message)
+    end
+  end
+
+  def test_pubsub_subscriptions_rejected_with_explicit_resp2
+    assert_raises(Valkey::Resp3RequiredError) do
+      captured_json_options(protocol: :resp2, pubsub: { subscriptions: { exact: ["news"] } })
+    end
+  end
+
   def test_iam_config_serializes_username_and_json
     iam_config = Valkey::IamAuthConfig.new(
       cluster_name: "my-cache",
