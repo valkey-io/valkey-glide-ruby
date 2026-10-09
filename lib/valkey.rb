@@ -18,6 +18,8 @@ require "valkey/future"
 require "valkey/pipeline"
 require "valkey/opentelemetry"
 require "valkey/route"
+require "valkey/service_type"
+require "valkey/iam_auth_config"
 require "valkey/glide/pubsub_message"
 require "valkey/glide/pubsub_state"
 require "valkey/glide/pubsub_receiver"
@@ -113,12 +115,24 @@ class Valkey
     end
   end
 
+  # Creates a standalone or cluster client.
+  #
+  # @param options [Hash] connection and client options
+  # @raise [ArgumentError] if cluster mode has no seed source
   def initialize(options = {})
-    # Parse URL if provided
-    if options[:url]
-      url_options = Utils.parse_redis_url(options[:url])
-      # Merge URL options, but explicit options take precedence
-      options = url_options.merge(options.except(:url))
+    options = merge_url_options(options)
+
+    if options[:cluster_mode] && options.values_at(:host, :port, :nodes).none?
+      raise ArgumentError, "cluster mode requires explicit nodes configuration."
+    end
+
+    iam_config = options[:iam_config]
+    unless iam_config.nil? || iam_config.is_a?(IamAuthConfig)
+      raise ArgumentError, "iam_config must be a Valkey::IamAuthConfig"
+    end
+    raise ArgumentError, "username is required for iam_config" if iam_config && options[:username].to_s.empty?
+    if iam_config && !options[:password].to_s.empty?
+      raise ArgumentError, "password and iam_config are mutually exclusive"
     end
 
     @protocol = options[:protocol]
@@ -169,7 +183,9 @@ class Valkey
     # FFI side then rejects with "Invalid connection URI". Encoding more is
     # always safe because the FFI decodes uniformly.
     userinfo_unsafe = /[^\-_.!~*'()a-zA-Z0-9]/
-    if options[:username] && options[:password]
+    if iam_config
+      uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe) << "@" if options[:username]
+    elsif options[:username] && options[:password]
       uri_parts << URI::DEFAULT_PARSER.escape(options[:username], userinfo_unsafe)
       uri_parts << ":"
       uri_parts << URI::DEFAULT_PARSER.escape(options[:password], userinfo_unsafe)
@@ -192,6 +208,18 @@ class Valkey
 
     # Build JSON options for additional configuration
     json_options = {}
+
+    if iam_config
+      iam_credentials = {
+        "cluster_name" => iam_config.cluster_name,
+        "region" => iam_config.region,
+        "service_type" => iam_config.service
+      }
+      unless iam_config.refresh_interval_seconds.nil?
+        iam_credentials["refresh_interval_seconds"] = iam_config.refresh_interval_seconds
+      end
+      json_options["iam_credentials"] = iam_credentials
+    end
 
     # Cluster mode
     json_options["cluster_mode_enabled"] = true if options[:cluster_mode]
@@ -402,6 +430,21 @@ class Valkey
 
   alias disconnect! close
 
+  # Refreshes the IAM authentication token immediately.
+  #
+  # Tokens otherwise refresh automatically at the interval configured by
+  # {IamAuthConfig}.
+  #
+  # @return [String] `OK` on success
+  # @raise [CommandError] if the client was not configured for IAM authentication
+  def refresh_iam_token
+    connection_handle = connection!
+    result_pointer = Bindings.refresh_iam_token(connection_handle, 0)
+    convert_response(result_pointer)
+  ensure
+    Bindings.free_command_result(result_pointer) if result_pointer && !result_pointer.null?
+  end
+
   # Retrieves client statistics including connection and compression metrics.
   #
   # This method returns detailed statistics about the client's operations,
@@ -566,6 +609,17 @@ class Valkey
 
   def resp3_protocol?(protocol)
     protocol_name(protocol) != "RESP2"
+  end
+
+  # Merges `url:` components under the explicit options. An explicit nil (or an
+  # empty host) counts as unset, so it cannot mask the URL value, as in redis-client.
+  def merge_url_options(options)
+    explicit = options.except(:url)
+    explicit = explicit.merge(host: nil) if explicit[:host] == ""
+
+    Utils.parse_redis_url(options[:url]).merge(explicit) do |_key, url_value, explicit_value|
+      explicit_value.nil? ? url_value : explicit_value
+    end
   end
 
   # Returns the live native client handle.
@@ -779,7 +833,7 @@ class Valkey
       buf = FFI::MemoryPointer.from_string(arg)
       buffers << buf # prevent garbage collection
       arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
-      arg_lens.put_ulong(i * 8, arg.bytesize)
+      arg_lens.put_ulong(i * FFI.type_size(:ulong), arg.bytesize)
     end
 
     [arg_ptrs, arg_lens, buffers, command_args]

@@ -28,7 +28,8 @@ class TestConnectionConfig < Minitest::Test
       fake_response.to_ptr
     }) do
       Valkey::Bindings.stub(:free_connection_response, nil) do
-        client = ::Valkey.new({ host: "localhost", port: 6379 }.merge(options))
+        client_options = options.key?(:url) ? options : { host: "localhost", port: 6379 }.merge(options)
+        client = ::Valkey.new(client_options)
         client.instance_variable_set(:@connection, nil) # skip close's real FFI call
       end
     end
@@ -300,6 +301,171 @@ class TestConnectionConfig < Minitest::Test
     end
   end
 
+  def test_iam_config_serializes_username_and_json
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1",
+      refresh_interval_seconds: 600
+    )
+
+    captured = captured_client_args(username: "iam-user", iam_config: iam_config)
+
+    assert_equal "redis://iam-user@localhost:6379", captured[:uri]
+    assert_equal(
+      {
+        "cluster_name" => "my-cache",
+        "region" => "us-east-1",
+        "service_type" => "ELASTICACHE",
+        "refresh_interval_seconds" => 600
+      },
+      JSON.parse(captured[:json])["iam_credentials"]
+    )
+  end
+
+  def test_iam_config_omits_default_refresh_interval
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    iam_credentials = captured_json_options(username: "iam-user", iam_config: iam_config)["iam_credentials"]
+
+    assert_equal(
+      {
+        "cluster_name" => "my-cache",
+        "region" => "us-east-1",
+        "service_type" => "ELASTICACHE"
+      },
+      iam_credentials
+    )
+    refute iam_credentials.key?("refresh_interval_seconds")
+  end
+
+  def test_iam_username_is_percent_encoded
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(username: "iam user/@?", iam_config: iam_config)
+
+    assert_equal "redis://iam%20user%2F%40%3F@localhost:6379", captured[:uri]
+  end
+
+  def test_url_username_combines_with_explicit_iam_config
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::MEMORYDB,
+      region: "us-west-2"
+    )
+
+    captured = captured_client_args(
+      url: "rediss://iam%20user@cache.example.com:6380/2",
+      iam_config: iam_config
+    )
+
+    assert_equal "rediss://iam%20user@cache.example.com:6380/2", captured[:uri]
+    assert_equal(
+      {
+        "cluster_name" => "my-cache",
+        "region" => "us-west-2",
+        "service_type" => "MEMORYDB"
+      },
+      JSON.parse(captured[:json])["iam_credentials"]
+    )
+  end
+
+  def test_iam_rejects_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(username: "iam-user", password: "secret", iam_config: iam_config)
+    end
+
+    assert_match(/mutually exclusive/, error.message)
+  end
+
+  def test_iam_rejects_url_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(url: "redis://iam-user:secret@localhost:6379", iam_config: iam_config)
+    end
+
+    assert_match(/mutually exclusive/, error.message)
+  end
+
+  def test_iam_accepts_empty_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(username: "iam-user", password: "", iam_config: iam_config)
+
+    assert_equal "redis://iam-user@localhost:6379", captured[:uri]
+  end
+
+  def test_iam_accepts_empty_url_password
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    captured = captured_client_args(url: "redis://iam-user:@localhost:6379", iam_config: iam_config)
+
+    assert_equal "redis://iam-user@localhost:6379", captured[:uri]
+  end
+
+  def test_iam_rejects_missing_username
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(iam_config: iam_config)
+    end
+
+    assert_match(/username is required for iam_config/, error.message)
+  end
+
+  def test_iam_rejects_empty_username
+    iam_config = Valkey::IamAuthConfig.new(
+      cluster_name: "my-cache",
+      service: Valkey::ServiceType::ELASTICACHE,
+      region: "us-east-1"
+    )
+
+    error = assert_raises(ArgumentError) do
+      captured_client_args(username: "", iam_config: iam_config)
+    end
+
+    assert_match(/username is required for iam_config/, error.message)
+  end
+
+  def test_iam_rejects_wrong_config_type
+    error = assert_raises(ArgumentError) do
+      captured_client_args(username: "iam-user", iam_config: {})
+    end
+
+    assert_match(/iam_config must be a Valkey::IamAuthConfig/, error.message)
+  end
+
   def test_ssl_boolean_true_enables_tls
     assert_equal "rediss", scheme_for(ssl: true)
   end
@@ -358,5 +524,66 @@ class TestConnectionConfig < Minitest::Test
     assert_equal 500, json_options["inflight_requests_limit"]
     assert_equal true, json_options["lazy_connect"]
     assert_equal({ "disabled" => true }, json_options["periodic_checks"])
+  end
+
+  MISSING_SEED_MESSAGE = "cluster mode requires explicit nodes configuration."
+
+  def assert_missing_seed_rejected(options)
+    Valkey::Bindings.stub(:create_client_from_uri, ->(*) { flunk "FFI reached without a cluster seed" }) do
+      error = assert_raises(ArgumentError) { ::Valkey.new(options) }
+      assert_equal MISSING_SEED_MESSAGE, error.message
+    end
+  end
+
+  def test_cluster_mode_without_seed_is_rejected
+    assert_missing_seed_rejected(cluster_mode: true)
+  end
+
+  def test_cluster_mode_with_unset_seed_options_is_rejected
+    assert_missing_seed_rejected(cluster_mode: true, host: nil, port: nil, url: nil, nodes: nil)
+    assert_missing_seed_rejected(cluster_mode: true, host: "", url: "", nodes: false)
+  end
+
+  def test_cluster_mode_seed_check_precedes_other_validation
+    assert_missing_seed_rejected(cluster_mode: true, db: -1)
+  end
+
+  def test_cluster_mode_with_empty_nodes_keeps_existing_error
+    error = assert_raises(ArgumentError) { ::Valkey.new(cluster_mode: true, nodes: []) }
+    assert_equal "Nodes array cannot be empty", error.message
+  end
+
+  def test_cluster_mode_host_only_uses_default_port
+    uri = captured_client_args(cluster_mode: true, host: "cluster.example", port: nil)[:uri]
+    assert_equal "redis://cluster.example:6379", uri
+  end
+
+  def test_cluster_mode_port_only_uses_default_host
+    assert_equal "redis://127.0.0.1:7000", captured_client_args(cluster_mode: true, host: nil, port: 7000)[:uri]
+    assert_equal "redis://127.0.0.1:7000", captured_client_args(cluster_mode: true, host: "", port: 7000)[:uri]
+  end
+
+  def test_cluster_mode_accepts_nodes
+    uri = captured_client_args(cluster_mode: true, nodes: [{ host: "cluster.example", port: 7001 }])[:uri]
+    assert_equal "redis://cluster.example:7001", uri
+  end
+
+  def test_cluster_mode_url_is_not_masked_by_unset_host_and_port
+    uri = captured_client_args(cluster_mode: true, url: "redis://cluster.example:7000", host: nil, port: nil)[:uri]
+    assert_equal "redis://cluster.example:7000", uri
+  end
+
+  def test_standalone_url_is_not_masked_by_empty_host
+    uri = captured_client_args(url: "redis://standalone.example:7000", host: "", port: nil)[:uri]
+    assert_equal "redis://standalone.example:7000", uri
+  end
+
+  def test_explicit_host_still_overrides_url
+    uri = captured_client_args(url: "redis://url.example:7000", host: "explicit.example", port: nil)[:uri]
+    assert_equal "redis://explicit.example:7000", uri
+  end
+
+  def test_standalone_without_seed_keeps_localhost_default
+    assert_equal "redis://127.0.0.1:6379", captured_client_args(host: nil, port: nil)[:uri]
   end
 end

@@ -8,6 +8,8 @@
 
 ### Fixes
 
+* fix(ruby): reject `cluster_mode: true` without an explicit seed instead of silently connecting to the standalone `127.0.0.1:6379` default ([#344](https://github.com/valkey-io/valkey-glide-ruby/pull/344))
+
 * fix(ruby): treat an empty `lib_name` or `client_info_tag` as "not configured". Previously `lib_name: ""` plus a tag composed `(tag)` instead of `GlideRuby(tag)`, which glide-core rejects, surfacing as `Valkey::CannotConnectError` at client creation ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 
 * Ruby: Fix `xpending`'s `idle:` option, which was emitted after `start`/`end`/`count` instead of before them. The Valkey `XPENDING` grammar is `XPENDING key group [IDLE ms] start end count [consumer]`, so the trailing `IDLE <ms>` was parsed by the server as the optional `consumer` argument, causing `xpending(key, group, start, end, count, idle: ms)` to silently return an empty result set instead of the idle-filtered entries. Also, `idle: false` was previously indistinguishable from `idle: nil` (both are falsy in Ruby) and silently dropped the filter instead of forwarding it to the server; `idle:` is now only omitted when explicitly `nil` ([#270](https://github.com/valkey-io/valkey-glide-ruby/issues/270), [#241](https://github.com/valkey-io/valkey-glide-ruby/issues/241)).
@@ -16,8 +18,11 @@
 * Ruby: Fix `blpop`, `brpop`, `blmove`, `rpoplpush` and `brpoplpush`, all of which were non-functional. `blpop`/`brpop` called a non-existent `send_blocking_command` helper, `blmove` leaked the command name into argv, and `rpoplpush`/`brpoplpush` dispatched `RequestType::RPOPLPUSH`/`BRPOPLPUSH`, for which glide-core has no command mapping. Since Valkey defines `RPOPLPUSH src dst` as exactly `LMOVE src dst RIGHT LEFT` (and `BRPOPLPUSH src dst timeout` as `BLMOVE src dst RIGHT LEFT timeout`), `rpoplpush`/`brpoplpush` are now fixed-argument facades over `lmove`/`blmove`. Both remain deprecated as of Redis 6.2; prefer `lmove`/`blmove` in new code. The unusable `RequestType::RPOPLPUSH`/`BRPOPLPUSH` constants were removed.
 * fix(ruby): release the GVL while a client connects. `create_client` and `create_client_from_uri` were declared without `blocking: true`, so client creation held the GVL for the whole call and stalled every other Ruby thread until it returned; this affects all clients, not only Pub/Sub ones ([#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316))
 * fix(ruby): resp now defaults to core behavior, which is resp3. This is the same as other GLIDE clients ([#331](https://github.com/valkey-io/valkey-glide-ruby/pull/331))
+* fix(ruby): size the per-argument length buffer passed to glide-ffi by the platform's `unsigned long` width instead of a hardcoded 8 bytes, which wrote past the buffer on platforms with a 4-byte `unsigned long` ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
 
 ### Changes
+
+* Ruby: Authentication: added support for `Valkey::IamAuthConfig.new(cluster_name:, service:, region:, refresh_interval_seconds: nil)`, `Valkey.new(..., iam_config:)`, `Valkey#refresh_iam_token`, `Valkey::ServiceType::ELASTICACHE`, and `Valkey::ServiceType::MEMORYDB`. ([#342](https://github.com/valkey-io/valkey-glide-ruby/pull/342))
 
 * feat(ruby): add `resource_attributes:` to `Valkey::OpenTelemetry.init`, letting callers attach arbitrary OpenTelemetry resource attributes (e.g. `host.ip`, `host.name`) to Valkey spans/metrics. `process.pid`, `process.command`, and `process.runtime.name`/`.version`/`.description` are now auto-detected and attached without any config, closing the gap with `opentelemetry-ruby`'s `Resource.default`. Implemented by merging into `OTEL_RESOURCE_ATTRIBUTES` for the duration of the native `init_open_telemetry` call, so existing `k8s.*`-style attributes injected by a platform sidecar are preserved rather than clobbered ([#323](https://github.com/valkey-io/valkey-glide-ruby/issues/323))
 
@@ -39,6 +44,7 @@
   * `evalsha` on a flushed or never-loaded SHA now raises `Valkey::CommandError` (NOSCRIPT) instead of silently re-uploading the script and succeeding, so `script_flush` is no longer quietly undone. Callers relying on the old auto-reload must load the script again after a flush, or use `eval`.
 * Ruby: Add Alpine Linux (musl libc) support for x86_64 and aarch64 — runtime detection of musl libc, CI/CD pipeline for native builds, and prebuilt `libglide_ffi.so` for musl targets ([#143](https://github.com/valkey-io/valkey-glide-ruby/pull/143))
 * Ruby: Add distributed tracing support — `Valkey::OpenTelemetry.set_parent_span_context_provider` (and `init(parent_span_context_provider:)`) let an app propagate its current W3C trace context into command/pipeline spans, so they become children of the app's trace instead of independent root spans, matching the Node.js client's `parentSpanContextProvider` behavior.
+* Ruby: Release: released gems now publish their Sigstore build-provenance attestation to RubyGems.org as well as GitHub; verify a downloaded gem with `gh attestation verify <gem> --repo valkey-io/valkey-glide-ruby` ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
 
 ## 1.0.0
 

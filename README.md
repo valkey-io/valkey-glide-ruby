@@ -106,6 +106,7 @@ client.get("foo")
 | `url` | `redis://`, `rediss://`, `valkey://`, or `valkeys://` URI (merged with explicit options) |
 | `db` | Database index (standalone only) |
 | `password`, `username` | Authentication |
+| `iam_config` | A `Valkey::IamAuthConfig` for AWS IAM authentication. Requires `username` and cannot be combined with `password`. |
 | `timeout` | Request timeout in seconds (default `5.0`) |
 | `connect_timeout` | Connection timeout in seconds |
 | `ssl`| Enable TLS if true |
