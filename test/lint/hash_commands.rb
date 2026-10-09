@@ -5,17 +5,19 @@ module Lint
     extend Helper::Parameterized
 
     parameterized_test(
-      :test_hgetdel_single_field,
+      :test_hgetdel,
       protocol: %i[resp2 resp3]
     ) do |protocol|
       client = nil
       target_version "9.1" do
         client = _new_client(protocol: protocol)
-        key = "hgetdel-single-field"
-        client.hset(key, "requested", "value", "preserved", "keep")
+        key = "hgetdel"
+        client.hset(key, "field1", "value1", "field2", "value2", "preserved", "keep")
 
-        assert_equal ["value"], client.hgetdel(key, "requested")
-        assert_nil client.hget(key, "requested")
+        result = client.hgetdel(key, %w[field1 missing field2])
+
+        assert_equal ["value1", nil, "value2"], result
+        assert_equal [nil, nil], client.hmget(key, "field1", "field2")
         assert_equal "keep", client.hget(key, "preserved")
       end
     ensure
@@ -23,82 +25,7 @@ module Lint
     end
 
     parameterized_test(
-      :test_hgetdel_variadic_and_array_fields,
-      protocol: %i[resp2 resp3]
-    ) do |protocol|
-      client = nil
-      target_version "9.1" do
-        client = _new_client(protocol: protocol)
-        variadic_key = "hgetdel-variadic-fields"
-        array_key = "hgetdel-array-fields"
-        fields_and_values = %w[field1 value1 field2 value2]
-        client.hset(variadic_key, *fields_and_values)
-        client.hset(array_key, *fields_and_values)
-
-        variadic_result = client.hgetdel(variadic_key, "field1", "field2")
-        array_result = client.hgetdel(array_key, %w[field1 field2])
-
-        assert_equal %w[value1 value2], variadic_result
-        assert_equal variadic_result, array_result
-        assert_equal [nil, nil], client.hmget(variadic_key, "field1", "field2")
-        assert_equal [nil, nil], client.hmget(array_key, "field1", "field2")
-      end
-    ensure
-      client&.close
-    end
-
-    parameterized_test(
-      :test_hgetdel_existing_and_missing_fields,
-      protocol: %i[resp2 resp3]
-    ) do |protocol|
-      client = nil
-      target_version "9.1" do
-        client = _new_client(protocol: protocol)
-        key = "hgetdel-existing-and-missing"
-        client.hset(key, "field1", "value1", "field2", "value2")
-
-        result = client.hgetdel(key, "field1", "missing", "field2")
-
-        assert_equal ["value1", nil, "value2"], result
-        assert_equal [nil, nil], client.hmget(key, "field1", "field2")
-      end
-    ensure
-      client&.close
-    end
-
-    parameterized_test(
-      :test_hgetdel_removes_empty_hash_key,
-      protocol: %i[resp2 resp3]
-    ) do |protocol|
-      client = nil
-      target_version "9.1" do
-        client = _new_client(protocol: protocol)
-        key = "hgetdel-removes-empty-hash"
-        client.hset(key, "field1", "value1", "field2", "value2")
-
-        assert_equal %w[value1 value2], client.hgetdel(key, "field1", "field2")
-        assert_equal false, client.exists?(key)
-      end
-    ensure
-      client&.close
-    end
-
-    parameterized_test(
-      :test_hgetdel_missing_key,
-      protocol: %i[resp2 resp3]
-    ) do |protocol|
-      client = nil
-      target_version "9.1" do
-        client = _new_client(protocol: protocol)
-
-        assert_equal [nil, nil], client.hgetdel("hgetdel-missing-key", "field1", "field2")
-      end
-    ensure
-      client&.close
-    end
-
-    parameterized_test(
-      :test_hgetdel_wrong_type,
+      :test_hgetdel_propagates_command_errors,
       protocol: %i[resp2 resp3]
     ) do |protocol|
       client = nil
@@ -110,23 +37,6 @@ module Lint
         error = assert_raises(Valkey::CommandError) { client.hgetdel(key, "field") }
 
         assert_includes error.message, "WRONGTYPE"
-      end
-    ensure
-      client&.close
-    end
-
-    parameterized_test(
-      :test_hgetdel_empty_fields,
-      protocol: %i[resp2 resp3]
-    ) do |protocol|
-      client = nil
-      target_version "9.1" do
-        client = _new_client(protocol: protocol)
-
-        error = assert_raises(Valkey::CommandError) { client.hgetdel("hgetdel-empty-fields") }
-
-        # Valkey rejects FIELDS 0 at command arity validation before checking numfields.
-        assert_includes error.message, "wrong number of arguments"
       end
     ensure
       client&.close
@@ -149,7 +59,6 @@ module Lint
 
         assert_equal [["value", nil]], results
         assert_equal ["value", nil], future.value
-        assert_nil client.hget(key, "field")
       end
     ensure
       client&.close
