@@ -33,6 +33,12 @@ class Valkey
   # `GLIDE_NAME=GlideRuby`, which is only glide-core's fallback.
   DEFAULT_LIB_NAME = "GlideRuby"
 
+  AZ_READ_STRATEGIES = [
+    ReadFrom::AZ_AFFINITY,
+    ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY,
+    ReadFrom::AZ_AFFINITY_ALL_NODES
+  ].freeze
+
   # The RESP protocol specified.
   attr_reader :protocol
 
@@ -257,18 +263,17 @@ class Valkey
     )
 
     # read_from parsing.
-    json_options["read_from"] = options[:read_from] if options[:read_from]
+    read_from = options[:read_from]
+    json_options["read_from"] = read_from if read_from
 
     # client_az
-    json_options["client_az"] = options[:client_az] if options[:client_az]
+    client_az = options[:client_az]
+    client_az = client_az.strip if client_az.is_a?(String)
+    json_options["client_az"] = client_az unless client_az.nil? || client_az == ""
 
-    unless json_options["client_az"]
-      case json_options["read_from"]
-      when ReadFrom::AZ_AFFINITY
-        raise ArgumentError, "client_az must be set when read_from is AZAffinity"
-      when ReadFrom::AZ_AFFINITY_REPLICAS_AND_PRIMARY
-        raise ArgumentError, "client_az must be set when read_from is AZAffinityReplicasAndPrimary"
-      end
+    # TODO: This check should be done at the core. See https://github.com/valkey-io/valkey-glide/issues/7315
+    if AZ_READ_STRATEGIES.include?(read_from) && !json_options.key?("client_az")
+      raise ArgumentError, "client_az must be set when read_from is #{read_from}"
     end
 
     if options.key?(:inflight_requests_limit)
