@@ -2,6 +2,68 @@
 
 module Lint
   module HashCommands
+    extend Helper::Parameterized
+
+    parameterized_test(
+      :test_hgetdel,
+      protocol: %i[resp2 resp3]
+    ) do |protocol|
+      client = nil
+      target_version "9.1" do
+        client = _new_client(protocol: protocol)
+        key = "hgetdel"
+        client.hset(key, "field1", "value1", "field2", "value2", "preserved", "keep")
+
+        result = client.hgetdel(key, %w[field1 missing field2])
+
+        assert_equal ["value1", nil, "value2"], result
+        assert_equal [nil, nil], client.hmget(key, "field1", "field2")
+        assert_equal "keep", client.hget(key, "preserved")
+      end
+    ensure
+      client&.close
+    end
+
+    parameterized_test(
+      :test_hgetdel_propagates_command_errors,
+      protocol: %i[resp2 resp3]
+    ) do |protocol|
+      client = nil
+      target_version "9.1" do
+        client = _new_client(protocol: protocol)
+        key = "hgetdel-wrong-type"
+        client.set(key, "value")
+
+        error = assert_raises(Valkey::CommandError) { client.hgetdel(key, "field") }
+
+        assert_includes error.message, "WRONGTYPE"
+      end
+    ensure
+      client&.close
+    end
+
+    parameterized_test(
+      :test_hgetdel_in_pipeline,
+      protocol: %i[resp2 resp3]
+    ) do |protocol|
+      client = nil
+      target_version "9.1" do
+        client = _new_client(protocol: protocol)
+        key = "hgetdel-pipeline"
+        client.hset(key, "field", "value")
+        future = nil
+
+        results = client.pipelined do |pipeline|
+          future = pipeline.hgetdel(key, "field", "missing")
+        end
+
+        assert_equal [["value", nil]], results
+        assert_equal ["value", nil], future.value
+      end
+    ensure
+      client&.close
+    end
+
     def test_hset_and_hget
       r.hset("foo", "f1", "s1")
 

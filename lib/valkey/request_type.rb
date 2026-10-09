@@ -151,6 +151,7 @@ class Valkey
     HPTTL = 625
     HEXPIRETIME = 626
     HPEXPIRETIME = 627
+    HGETDEL = 628
 
     # HyperLogLog commands
     PFADD = 701
