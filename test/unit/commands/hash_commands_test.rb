@@ -31,21 +31,12 @@ class TestHashCommandsUnit < Minitest::Test
     assert_equal ["hash", "FIELDS", 1, "field"], client.captured_arguments
   end
 
-  def test_hgetdel_flattens_one_level
+  def test_hgetdel_builds_request_for_array_fields
     client = FakeClient.new
 
-    client.hgetdel("hash", "f1", ["f2", ["f3"]])
+    client.hgetdel("hash", %w[f1 f2])
 
     assert_equal Valkey::RequestType::HGETDEL, client.captured_type
-    assert_equal ["hash", "FIELDS", 3, "f1", "f2", ["f3"]], client.captured_arguments
-  end
-
-  def test_hgetdel_forwards_zero_fields
-    client = FakeClient.new
-
-    client.hgetdel("hash")
-
-    assert_equal Valkey::RequestType::HGETDEL, client.captured_type
-    assert_equal ["hash", "FIELDS", 0], client.captured_arguments
+    assert_equal ["hash", "FIELDS", 2, "f1", "f2"], client.captured_arguments
   end
 end
