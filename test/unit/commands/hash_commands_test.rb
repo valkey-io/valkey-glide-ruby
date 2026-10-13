@@ -27,7 +27,7 @@ class TestHashCommandsUnit < Minitest::Test
     client = FakeClient.new(["value"])
 
     assert_equal ["value"], client.hgetdel("hash", "field")
-    assert_equal 628, client.captured_type
+    assert_equal Valkey::RequestType::HGETDEL, client.captured_type
     assert_equal ["hash", "FIELDS", 1, "field"], client.captured_arguments
   end
 

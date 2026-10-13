@@ -19,6 +19,8 @@ module Lint
         assert_equal ["value1", nil, "value2"], result
         assert_equal [nil, nil], client.hmget(key, "field1", "field2")
         assert_equal "keep", client.hget(key, "preserved")
+        assert_equal ["keep"], client.hgetdel(key, "preserved")
+        assert_equal 0, client.exists(key)
       end
     ensure
       client&.close
