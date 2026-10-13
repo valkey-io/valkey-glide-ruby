@@ -31,7 +31,7 @@ jobs:
       PLATFORM_MATRIX: ${{ steps.load-platform-matrix.outputs.PLATFORM_MATRIX }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Load platform matrix
         id: load-platform-matrix
@@ -85,7 +85,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
@@ -96,7 +96,7 @@ jobs:
           targets: ${{ matrix.host.TARGET }}
 
       - name: Install protoc (protobuf)
-        uses: arduino/setup-protoc@v3.0.0
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b # v3.0.0
         with:
           version: "29.1"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
@@ -158,7 +158,7 @@ jobs:
           fi
 
       - name: Upload native library artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: native-lib-${{ matrix.host.TARGET }}
           path: valkey-glide/ffi/target/${{ matrix.host.OS == 'macos' && 'release' || format('{0}/release', matrix.host.TARGET) }}/libglide_ffi.${{ matrix.host.OS == 'macos' && 'dylib' || 'so' }}
@@ -173,19 +173,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1.327.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: "3.3"
           rubygems: "3.7.2" # `gem push --attestation` needs RubyGems >= 3.6; Ruby 3.3 ships 3.5
           bundler-cache: true
 
       - name: Download all native library artifacts
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: native-lib-*
           path: native-libs
@@ -264,12 +264,12 @@ jobs:
       # Consumers verify with: gh attestation verify <gem> --repo valkey-io/valkey-glide-ruby
       - name: Attest gem build provenance
         id: attest
-        uses: actions/attest-build-provenance@v4.2.2
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: ${{ steps.build-gem.outputs.GEM_FILE }}
 
       - name: Upload gem artifact
-        uses: actions/upload-artifact@v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ruby-gem
           path: "*.gem"
@@ -280,7 +280,7 @@ jobs:
       # Publishes to https://rubygems.org/gems/valkey-glide-rb
       - name: Configure RubyGems credentials (OIDC trusted publishing)
         if: ${{ github.event_name == 'push' || inputs.publish_gem == true }}
-        uses: rubygems/configure-rubygems-credentials@v2.1.0
+        uses: rubygems/configure-rubygems-credentials@dc5a8d8553e6ee01fc26761a49e99e733d17954a # v2.1.0
 
       # RubyGems.org verifies the bundle against the trusted publisher's workflow
       # identity and rejects the push if it does not match.
@@ -315,17 +315,17 @@ jobs:
 
     steps:
       - name: Checkout (for test files)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1.327.0
+        uses: ruby/setup-ruby@14594264cd68ce8a2345dd349bc3d138a4ef85c8 # v1.327.0
         with:
           ruby-version: "3.3"
           bundler-cache: false  # We'll install gems manually
 
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ruby-gem
           path: .
@@ -376,11 +376,11 @@ jobs:
         run: apk add --no-cache build-base git bash
 
       - name: Checkout (for test files)
-        uses: actions/checkout@v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download gem artifact (unpublished)
         if: ${{ needs.build-and-publish-gem.outputs.published != 'true' }}
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: ruby-gem
           path: .
