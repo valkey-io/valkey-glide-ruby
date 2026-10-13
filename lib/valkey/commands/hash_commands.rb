@@ -55,7 +55,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] fields one or more fields, or array of fields
-      # @return [Array<String, nil>] values in request order; nil for each missing field
+      # @return [Array<String, nil>] the value of the field, or nil if the field does not exist
       #
       # @see https://valkey.io/commands/hgetdel/
       #
