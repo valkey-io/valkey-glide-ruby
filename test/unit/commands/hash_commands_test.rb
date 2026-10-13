@@ -23,20 +23,25 @@ class TestHashCommandsUnit < Minitest::Test
     end
   end
 
-  def test_hgetdel_builds_request_and_keeps_single_result_array
+  def test_hgetdel
     client = FakeClient.new(["value"])
+    expected_hash = "hash"
+    expected_field = "field"
+    expected_fields_count = 1
 
-    assert_equal ["value"], client.hgetdel("hash", "field")
+    assert_equal ["value"], client.hgetdel(expected_hash, expected_field)
     assert_equal Valkey::RequestType::HGETDEL, client.captured_type
-    assert_equal ["hash", "FIELDS", 1, "field"], client.captured_arguments
+    assert_equal [expected_hash, "FIELDS", expected_fields_count, expected_field], client.captured_arguments
   end
 
-  def test_hgetdel_builds_request_for_array_fields
+  def test_hgetdel_array_fields
     client = FakeClient.new
+    expected_hash = "hash"
+    expected_fields = %w[f1 f2]
 
-    client.hgetdel("hash", %w[f1 f2])
+    client.hgetdel(expected_hash, expected_fields)
 
     assert_equal Valkey::RequestType::HGETDEL, client.captured_type
-    assert_equal ["hash", "FIELDS", 2, "f1", "f2"], client.captured_arguments
+    assert_equal [expected_hash, "FIELDS", expected_fields.length, *expected_fields], client.captured_arguments
   end
 end
