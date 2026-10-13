@@ -6,6 +6,9 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   semgrep:
-    uses: valkey-io/valkey-glide/.github/workflows/semgrep.yml@main
+    uses: valkey-io/valkey-glide/.github/workflows/semgrep.yml@0a3bd5429dec9ce4263c48b35f9c5e1755d9b420 # main

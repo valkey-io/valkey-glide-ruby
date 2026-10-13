@@ -319,10 +319,11 @@ class Valkey
       #
       # @example Get user rules
       #   valkey.acl_getuser("alice")
-      #     # => ["flags" => ["on", "allkeys"], "passwords" => [...], ...]
+      #     # => {"flags" => ["on", "allkeys"], "passwords" => [...], ...}
       #
       # @param [String] username the username to query
-      # @return [Array, nil] array of user properties, or nil if user doesn't exist
+      # @return [Hash, Array, nil] user properties (a flat name/value Array on a RESP2 connection),
+      #   or nil if the user doesn't exist
       #
       # @see https://valkey.io/commands/acl-getuser/
       def acl_getuser(username)
@@ -690,14 +691,15 @@ class Valkey
       # Return a latency histogram for the specified commands.
       #
       # @param [Array<String>] commands optional command names to get histograms for
-      # @return [Array] array of latency histogram entries
+      # @return [Hash, Array] histograms keyed by lowercase command name (a flat Array on a RESP2
+      #   connection)
       #
       # @example Get histogram for all commands
       #   valkey.latency_histogram
-      #     # => [["SET", [["0-1", 100], ["2-3", 50], ...]], ...]
+      #     # => {"set" => {"calls" => 150, "histogram_usec" => {1 => 100, 2 => 150}}, ...}
       # @example Get histogram for specific commands
       #   valkey.latency_histogram("SET", "GET")
-      #     # => [["SET", [["0-1", 100], ...]], ["GET", [["0-1", 200], ...]]]
+      #     # => {"set" => {"calls" => 150, ...}, "get" => {"calls" => 200, ...}}
       #
       # @see https://valkey.io/commands/latency-histogram/
       def latency_histogram(*commands)
@@ -873,14 +875,15 @@ class Valkey
       # Return documentary information about one or more commands.
       #
       # @param [Array<String>] commands command names to get documentation for
-      # @return [Array] array of command documentation hashes
+      # @return [Hash{String => Hash}, Array] docs keyed by lowercase command name (on a RESP2
+      #   connection, an Array alternating command names and doc Hashes)
       #
       # @example Get docs for specific commands
       #   valkey.command_docs("GET", "SET")
-      #     # => [{"summary" => "...", "since" => "1.0.0", ...}, ...]
+      #     # => {"get" => {"summary" => "...", "since" => "1.0.0", ...}, "set" => {...}}
       # @example Get docs for all commands
       #   valkey.command_docs
-      #     # => [{"summary" => "...", ...}, ...]
+      #     # => {"get" => {"summary" => "...", ...}, ...}
       #
       # @see https://valkey.io/commands/command-docs/
       def command_docs(*commands)

@@ -33,7 +33,10 @@ class Valkey
   # `GLIDE_NAME=GlideRuby`, which is only glide-core's fallback.
   DEFAULT_LIB_NAME = "GlideRuby"
 
-  # The RESP protocol specified.
+  PROTOCOL_NAMES = { "resp2" => "RESP2", "2" => "RESP2", "resp3" => "RESP3", "3" => "RESP3" }.freeze
+  private_constant :PROTOCOL_NAMES
+
+  # The RESP protocol specified, or nil when left to glide-core's default (RESP3).
   attr_reader :protocol
 
   # Resolves the effective `CLIENT SETINFO LIB-NAME` value, composing `base(tag)`.
@@ -114,16 +117,13 @@ class Valkey
 
   # Creates a standalone or cluster client.
   #
-  # @param options [Hash] connection options
-  # @option options [String, nil] :username authentication username; required for IAM
-  # @option options [IamAuthConfig, nil] :iam_config IAM authentication configuration;
-  #   mutually exclusive with `password:`
+  # @param options [Hash] connection and client options
+  # @raise [ArgumentError] if cluster mode has no seed source
   def initialize(options = {})
-    # Parse URL if provided
-    if options[:url]
-      url_options = Utils.parse_redis_url(options[:url])
-      # Merge URL options, but explicit options take precedence
-      options = url_options.merge(options.except(:url))
+    options = merge_url_options(options)
+
+    if options[:cluster_mode] && options.values_at(:host, :port, :nodes).none?
+      raise ArgumentError, "cluster mode requires explicit nodes configuration."
     end
 
     iam_config = options[:iam_config]
@@ -224,13 +224,8 @@ class Valkey
     # Cluster mode
     json_options["cluster_mode_enabled"] = true if options[:cluster_mode]
 
-    # Protocol
-    json_options["protocol"] = case options[:protocol]
-                               when :resp3, "resp3", 3
-                                 "RESP3"
-                               else
-                                 "RESP2"
-                               end
+    selected_protocol = protocol_name(options[:protocol])
+    json_options["protocol"] = selected_protocol if selected_protocol
 
     # Timeouts
     request_timeout = options[:timeout] || 5.0
@@ -604,6 +599,29 @@ class Valkey
 
   private
 
+  def protocol_name(protocol)
+    return nil if protocol.nil?
+
+    PROTOCOL_NAMES.fetch(protocol.to_s.downcase) do
+      raise ArgumentError, "protocol must be :resp2, :resp3, 2 or 3, got #{protocol.inspect}"
+    end
+  end
+
+  def resp3_protocol?(protocol)
+    protocol_name(protocol) != "RESP2"
+  end
+
+  # Merges `url:` components under the explicit options. An explicit nil (or an
+  # empty host) counts as unset, so it cannot mask the URL value, as in redis-client.
+  def merge_url_options(options)
+    explicit = options.except(:url)
+    explicit = explicit.merge(host: nil) if explicit[:host] == ""
+
+    Utils.parse_redis_url(options[:url]).merge(explicit) do |_key, url_value, explicit_value|
+      explicit_value.nil? ? url_value : explicit_value
+    end
+  end
+
   # Returns the live native client handle.
   #
   # A handle cannot cross `fork()`: the runtimes and threads behind it live only
@@ -815,7 +833,7 @@ class Valkey
       buf = FFI::MemoryPointer.from_string(arg)
       buffers << buf # prevent garbage collection
       arg_ptrs.put_pointer(i * FFI::Pointer.size, buf)
-      arg_lens.put_ulong(i * 8, arg.bytesize)
+      arg_lens.put_ulong(i * FFI.type_size(:ulong), arg.bytesize)
     end
 
     [arg_ptrs, arg_lens, buffers, command_args]
@@ -942,7 +960,7 @@ class Valkey
   def validate_pubsub_subscriptions!(subscriptions, protocol:, cluster_mode: false)
     unknown_modes = subscriptions.keys - SUBSCRIPTION_MODES.keys
     raise ArgumentError, unknown_pubsub_mode_message(unknown_modes) if unknown_modes.any?
-    raise Resp3RequiredError, protocol unless RESP3_VALUES.include?(protocol)
+    raise Resp3RequiredError, protocol unless resp3_protocol?(protocol)
 
     return unless Array(subscriptions[:sharded]).any? && !cluster_mode
 
