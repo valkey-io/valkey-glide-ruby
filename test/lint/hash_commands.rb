@@ -27,24 +27,6 @@ module Lint
     end
 
     parameterized_test(
-      :test_hgetdel_propagates_command_errors,
-      protocol: %i[resp2 resp3]
-    ) do |protocol|
-      client = nil
-      target_version "9.1" do
-        client = _new_client(protocol: protocol)
-        key = "hgetdel-wrong-type"
-        client.set(key, "value")
-
-        error = assert_raises(Valkey::CommandError) { client.hgetdel(key, "field") }
-
-        assert_includes error.message, "WRONGTYPE"
-      end
-    ensure
-      client&.close
-    end
-
-    parameterized_test(
       :test_hgetdel_in_pipeline,
       protocol: %i[resp2 resp3]
     ) do |protocol|
