@@ -268,6 +268,39 @@ class TestConnectionConfig < Minitest::Test
     assert_match(/periodic_checks must contain :manual_interval or :disabled/, error.message)
   end
 
+  def test_protocol_omitted_when_not_provided
+    refute captured_json_options.key?("protocol")
+  end
+
+  def test_protocol_nil_is_omitted
+    refute captured_json_options(protocol: nil).key?("protocol")
+  end
+
+  def test_protocol_resp2_spellings_select_resp2
+    [:resp2, :RESP2, "resp2", "RESP2", 2].each do |value|
+      assert_equal "RESP2", captured_json_options(protocol: value)["protocol"], "protocol: #{value.inspect}"
+    end
+  end
+
+  def test_protocol_resp3_spellings_select_resp3
+    [:resp3, :RESP3, "resp3", "RESP3", "Resp3", 3].each do |value|
+      assert_equal "RESP3", captured_json_options(protocol: value)["protocol"], "protocol: #{value.inspect}"
+    end
+  end
+
+  def test_protocol_unrecognized_value_raises
+    [:resp4, "resp", 1, 3.0, true, ""].each do |value|
+      error = assert_raises(ArgumentError, "protocol: #{value.inspect}") { captured_json_options(protocol: value) }
+      assert_match(/protocol must be/, error.message)
+    end
+  end
+
+  def test_pubsub_subscriptions_rejected_with_explicit_resp2
+    assert_raises(Valkey::Resp3RequiredError) do
+      captured_json_options(protocol: :resp2, pubsub: { subscriptions: { exact: ["news"] } })
+    end
+  end
+
   def test_iam_config_serializes_username_and_json
     iam_config = Valkey::IamAuthConfig.new(
       cluster_name: "my-cache",
@@ -491,5 +524,66 @@ class TestConnectionConfig < Minitest::Test
     assert_equal 500, json_options["inflight_requests_limit"]
     assert_equal true, json_options["lazy_connect"]
     assert_equal({ "disabled" => true }, json_options["periodic_checks"])
+  end
+
+  MISSING_SEED_MESSAGE = "cluster mode requires explicit nodes configuration."
+
+  def assert_missing_seed_rejected(options)
+    Valkey::Bindings.stub(:create_client_from_uri, ->(*) { flunk "FFI reached without a cluster seed" }) do
+      error = assert_raises(ArgumentError) { ::Valkey.new(options) }
+      assert_equal MISSING_SEED_MESSAGE, error.message
+    end
+  end
+
+  def test_cluster_mode_without_seed_is_rejected
+    assert_missing_seed_rejected(cluster_mode: true)
+  end
+
+  def test_cluster_mode_with_unset_seed_options_is_rejected
+    assert_missing_seed_rejected(cluster_mode: true, host: nil, port: nil, url: nil, nodes: nil)
+    assert_missing_seed_rejected(cluster_mode: true, host: "", url: "", nodes: false)
+  end
+
+  def test_cluster_mode_seed_check_precedes_other_validation
+    assert_missing_seed_rejected(cluster_mode: true, db: -1)
+  end
+
+  def test_cluster_mode_with_empty_nodes_keeps_existing_error
+    error = assert_raises(ArgumentError) { ::Valkey.new(cluster_mode: true, nodes: []) }
+    assert_equal "Nodes array cannot be empty", error.message
+  end
+
+  def test_cluster_mode_host_only_uses_default_port
+    uri = captured_client_args(cluster_mode: true, host: "cluster.example", port: nil)[:uri]
+    assert_equal "redis://cluster.example:6379", uri
+  end
+
+  def test_cluster_mode_port_only_uses_default_host
+    assert_equal "redis://127.0.0.1:7000", captured_client_args(cluster_mode: true, host: nil, port: 7000)[:uri]
+    assert_equal "redis://127.0.0.1:7000", captured_client_args(cluster_mode: true, host: "", port: 7000)[:uri]
+  end
+
+  def test_cluster_mode_accepts_nodes
+    uri = captured_client_args(cluster_mode: true, nodes: [{ host: "cluster.example", port: 7001 }])[:uri]
+    assert_equal "redis://cluster.example:7001", uri
+  end
+
+  def test_cluster_mode_url_is_not_masked_by_unset_host_and_port
+    uri = captured_client_args(cluster_mode: true, url: "redis://cluster.example:7000", host: nil, port: nil)[:uri]
+    assert_equal "redis://cluster.example:7000", uri
+  end
+
+  def test_standalone_url_is_not_masked_by_empty_host
+    uri = captured_client_args(url: "redis://standalone.example:7000", host: "", port: nil)[:uri]
+    assert_equal "redis://standalone.example:7000", uri
+  end
+
+  def test_explicit_host_still_overrides_url
+    uri = captured_client_args(url: "redis://url.example:7000", host: "explicit.example", port: nil)[:uri]
+    assert_equal "redis://explicit.example:7000", uri
+  end
+
+  def test_standalone_without_seed_keeps_localhost_default
+    assert_equal "redis://127.0.0.1:6379", captured_client_args(host: nil, port: nil)[:uri]
   end
 end
