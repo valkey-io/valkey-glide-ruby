@@ -57,6 +57,52 @@ class TestPubSubReceiverUnit < Minitest::Test
     assert_equal payload, @receiver.try_pop.message
   end
 
+  def test_ffi_handler_writes_nothing_to_stdout_or_stderr
+    assert_output("", "") do
+      push(Kind::MESSAGE, message: "secret-payload", channel: "news")
+      push(Kind::PMESSAGE, message: "secret-payload", channel: "news.tech", pattern: "news.*")
+      push(Kind::SUBSCRIBE, message: "secret-payload", channel: "news")
+    end
+  end
+
+  def test_ffi_handler_reads_zero_length_payload_as_empty_string
+    push(Kind::MESSAGE, message: "", channel: "news")
+
+    assert_equal ["", "news", nil], @receiver.try_pop.to_a
+  end
+
+  def test_ffi_handler_survives_null_pointers_with_zero_length
+    @receiver.ffi_handler.call(0, Kind::MESSAGE, FFI::Pointer::NULL, 0, FFI::Pointer::NULL, 0, FFI::Pointer::NULL, 0)
+
+    assert_equal ["", "", nil], @receiver.try_pop.to_a
+  end
+
+  def test_ffi_handler_drops_message_with_null_payload_pointer_and_nonzero_length
+    channel_pointer, channel_length = buffer_for("news")
+
+    assert_output("", "") do
+      @receiver.ffi_handler.call(0, Kind::MESSAGE, FFI::Pointer::NULL, 8, channel_pointer, channel_length,
+                                 FFI::Pointer::NULL, 0)
+    end
+    assert_nil @receiver.try_pop
+  end
+
+  def test_ffi_handler_drops_message_with_null_channel_pointer_and_nonzero_length
+    message_pointer, message_length = buffer_for("payload")
+
+    @receiver.ffi_handler.call(0, Kind::SMESSAGE, message_pointer, message_length, FFI::Pointer::NULL, 4,
+                               FFI::Pointer::NULL, 0)
+
+    assert_nil @receiver.try_pop
+  end
+
+  def test_ffi_handler_keeps_delivering_after_a_null_pointer_message
+    @receiver.ffi_handler.call(0, Kind::MESSAGE, FFI::Pointer::NULL, 8, FFI::Pointer::NULL, 4, FFI::Pointer::NULL, 0)
+    push(Kind::MESSAGE, message: "next", channel: "news")
+
+    assert_equal "next", @receiver.try_pop.message
+  end
+
   # This is a sanity check ensuring that FFI handler is not recreated, otherwise it won't work across the FFI.
   def test_ffi_handler_is_retained
     assert_same @receiver.ffi_handler, @receiver.ffi_handler
