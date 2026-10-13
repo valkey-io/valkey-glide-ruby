@@ -23,3 +23,17 @@ updates:
     labels:
       - "dependencies"
       - "github-actions"
+
+  # Keep the valkey-glide submodule current with its main branch
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 1
+    cooldown:
+      default-days: 7
+    labels:
+      - "dependencies"
+      - "submodules"
