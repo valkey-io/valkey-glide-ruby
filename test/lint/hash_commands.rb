@@ -27,21 +27,22 @@ module Lint
     end
 
     parameterized_test(
-      :test_hgetdel_in_pipeline,
+      :test_hgetdel_with_other_hash_commands_in_pipeline,
       protocol: %i[resp2 resp3]
     ) do |protocol|
       client = nil
       target_version "9.1" do
         client = _new_client(protocol: protocol)
         key = "hgetdel-pipeline"
-        client.hset(key, "field", "value")
         future = nil
 
         results = client.pipelined do |pipeline|
+          pipeline.hset(key, "field", "value", "preserved", "keep")
           future = pipeline.hgetdel(key, "field", "missing")
+          pipeline.hmget(key, "field", "preserved")
         end
 
-        assert_equal [["value", nil]], results
+        assert_equal [2, ["value", nil], [nil, "keep"]], results
         assert_equal ["value", nil], future.value
       end
     ensure
