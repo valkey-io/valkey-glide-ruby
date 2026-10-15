@@ -2,6 +2,22 @@
 
 module Lint
   module ServerCommands
+    # Valid values for the "rdb_*_bgsave_type" INFO persistence fields.
+    # Since Valkey 9.2.
+    BGSAVE_TYPES = %w[fork forkless none].freeze
+
+    # One field from each default INFO section.
+    INFO_FIELDS = {
+      "server" => "redis_version",
+      "clients" => "connected_clients",
+      "memory" => "used_memory",
+      "persistence" => "rdb_changes_since_last_save",
+      "stats" => "total_commands_processed",
+      "replication" => "role",
+      "cpu" => "used_cpu_sys",
+      "cluster" => "cluster_enabled"
+    }.freeze
+
     def test_bgrewriteaof
       skip("BGREWRITEAOF command not implemented in backend yet")
 
@@ -24,6 +40,35 @@ module Lint
       r.set("key_1", "value_1")
       r.set("key_2", "value_2")
       assert_equal 2, r.dbsize
+    end
+
+    def test_info
+      # All sections
+      info = get_info
+      INFO_FIELDS.each_value { |field| assert info.key?(field) }
+
+      # Command stats
+      info = get_info("commandstats")
+      refute_empty info
+      info.each do |command, stats|
+        refute command.start_with?("cmdstat_")
+        assert stats.key?("calls")
+      end
+
+      # Valkey 9.2+ only information
+      return if version < "9.2"
+
+      info = get_info("persistence")
+      assert_includes BGSAVE_TYPES, info["rdb_current_bgsave_type"]
+      assert_includes BGSAVE_TYPES, info["rdb_last_bgsave_type"]
+
+      remaining = info["forkless_estimated_seconds_remaining"]
+      assert_operator remaining.to_i, :>=, -1
+
+      return unless cluster_mode?
+
+      info = get_info("cluster_info")
+      assert_operator info["cluster_io_main_thread_fallbacks"].to_i, :>=, 0
     end
 
     def test_time
@@ -1099,6 +1144,17 @@ module Lint
         skip("SWAPDB not available or not supported in cluster mode: #{e.message}")
       end
       raise
+    end
+
+    private
+
+    # Returns the INFO command response for the given section,
+    # or for the default sections if not specified.
+    # In cluster mode, returns only the first node's reply.
+    def get_info(section = nil)
+      result = r.info(section)
+      assert_kind_of Hash, result
+      cluster_mode? ? result.values.first : result
     end
   end
 end
