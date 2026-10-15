@@ -55,7 +55,7 @@ module Lint
         assert stats.key?("calls")
       end
 
-      # Valkey 9.2+
+      # Valkey 9.2+ only information
       return if version < "9.2"
 
       info = get_info("persistence")
