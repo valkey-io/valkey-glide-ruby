@@ -1148,7 +1148,8 @@ module Lint
 
     private
 
-    # Executes and returns the results from an INFO command.
+    # Returns the INFO command response for the given section,
+    # or for the default sections if not specified.
     # In cluster mode, returns only the first node's reply.
     def get_info(section = nil)
       result = r.info(section)
