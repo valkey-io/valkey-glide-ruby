@@ -2,6 +2,30 @@
 
 module Lint
   module HashCommands
+    extend Helper::Parameterized
+
+    parameterized_test(
+      :test_hgetdel,
+      protocol: %i[resp2 resp3]
+    ) do |protocol|
+      client = nil
+      target_version "9.1" do
+        client = _new_client(protocol: protocol)
+        key = "hgetdel"
+        client.hset(key, "field1", "value1", "field2", "value2", "preserved", "keep")
+
+        result = client.hgetdel(key, %w[field1 missing field2])
+
+        assert_equal ["value1", nil, "value2"], result
+        assert_equal [nil, nil], client.hmget(key, "field1", "field2")
+        assert_equal "keep", client.hget(key, "preserved")
+        assert_equal ["keep"], client.hgetdel(key, "preserved")
+        assert_equal 0, client.exists(key)
+      end
+    ensure
+      client&.close
+    end
+
     def test_hset_and_hget
       r.hset("foo", "f1", "s1")
 
