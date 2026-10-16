@@ -398,7 +398,8 @@ class Valkey
 
       # Return a random key from the keyspace.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param route [Valkey::Route, nil] cluster routing. Never returns a per-node Hash: glide-core
+      #   collapses multi-node replies to the first non-empty key, or `nil` if every shard is empty.
       # @return [String, nil]
       def randomkey(route: nil)
         send_command(RequestType::RANDOM_KEY, [], route: route)
