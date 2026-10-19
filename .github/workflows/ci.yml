@@ -11,6 +11,7 @@ on:
     paths:
       - lib/**
       - test/**
+      - valkey-glide
       - valkey-glide/ffi/**
       - .github/actions/**
       - .github/workflows/**
