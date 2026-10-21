@@ -22,6 +22,8 @@
 
 ### Changes
 
+* Ruby: Strings: added support for `delifeq(key, value)`. Requires Valkey 9.0. ([#NNN](https://github.com/valkey-io/valkey-glide-ruby/pull/NNN))
+
 * Ruby: Connection: added support for `Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES`; String `client_az` values are trimmed, and all AZ-affinity strategies require a nonblank effective value. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
 
 * Ruby: Hashes: added support for `hgetdel(key, *fields)`. Requires Valkey 9.1. ([#348](https://github.com/valkey-io/valkey-glide-ruby/pull/348))
