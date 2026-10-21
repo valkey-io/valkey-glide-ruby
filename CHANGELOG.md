@@ -22,7 +22,7 @@
 
 ### Changes
 
-* Ruby: Strings: added support for `delifeq(key, value)`. Requires Valkey 9.0. ([#NNN](https://github.com/valkey-io/valkey-glide-ruby/pull/NNN))
+* Ruby: Strings: added support for `delifeq(key, value)`. Requires Valkey 9.0. ([#382](https://github.com/valkey-io/valkey-glide-ruby/pull/382))
 
 * Ruby: Connection: added support for `Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES`; String `client_az` values are trimmed, and all AZ-affinity strategies require a nonblank effective value. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
 
