@@ -631,6 +631,23 @@ module Lint
       end
     end
 
+    def test_exec_sismember_if_exists_with_wrong_type
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      target_version "9.2" do
+        key = "someset"
+        r.set(key, "value")
+
+        r.multi
+        assert_equal "QUEUED", r.sismember_if_exists(key, "member")
+
+        result = r.exec
+        assert_instance_of Array, result
+        assert_instance_of Valkey::CommandError, result[0]
+        assert_includes result[0].message, "WRONGTYPE"
+      end
+    end
+
     def test_multi_with_setnx
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
