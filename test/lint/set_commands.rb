@@ -159,6 +159,17 @@ module Lint
       assert_equal false, r.sismember("foo", "s2")
     end
 
+    def test_sismember_if_exists
+      target_version "9.2" do
+        key = "sismember_if_exists"
+        r.sadd(key, "s1")
+
+        assert_equal 1, r.sismember_if_exists(key, "s1")
+        assert_equal 0, r.sismember_if_exists(key, "s2")
+        assert_equal(-1, r.sismember_if_exists("non_existing_set", "s1"))
+      end
+    end
+
     def test_smismember
       target_version("6.2") do
         assert_equal [false], r.smismember("foo", "s1")

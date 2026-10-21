@@ -586,6 +586,51 @@ module Lint
       assert_equal [false, true, false], result
     end
 
+    def test_multi_with_sismember_if_exists
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      target_version "9.2" do
+        key = "someset"
+        r.del(key)
+
+        future = nil
+        result = r.multi do |multi|
+          future = multi.sismember_if_exists(key, "member")
+        end
+
+        assert_equal [-1], result
+        assert_equal(-1, future.value)
+      end
+    end
+
+    def test_pipelined_with_sismember_if_exists
+      target_version "9.2" do
+        key = "someset"
+        r.del(key)
+
+        result = r.pipelined do |pipeline|
+          pipeline.sismember_if_exists(key, "member")
+        end
+
+        assert_equal [-1], result
+      end
+    end
+
+    def test_exec_sismember_if_exists_keeps_status_code
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+
+      target_version "9.2" do
+        key = "someset"
+        r.del(key)
+
+        r.multi
+        assert_equal "QUEUED", r.sismember(key, "member")
+        assert_equal "QUEUED", r.sismember_if_exists(key, "member")
+
+        assert_equal [false, -1], r.exec
+      end
+    end
+
     def test_multi_with_setnx
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
