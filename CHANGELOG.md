@@ -19,6 +19,7 @@
 * fix(ruby): release the GVL while a client connects. `create_client` and `create_client_from_uri` were declared without `blocking: true`, so client creation held the GVL for the whole call and stalled every other Ruby thread until it returned; this affects all clients, not only Pub/Sub ones ([#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316))
 * fix(ruby): resp now defaults to core behavior, which is resp3. This is the same as other GLIDE clients ([#331](https://github.com/valkey-io/valkey-glide-ruby/pull/331))
 * fix(ruby): size the per-argument length buffer passed to glide-ffi by the platform's `unsigned long` width instead of a hardcoded 8 bytes, which wrote past the buffer on platforms with a 4-byte `unsigned long` ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
+* chore(ruby): remove the unused `Valkey::Bindings.create_client` FFI binding (clients are created only through `create_client_from_uri`) and add a server-free regression test asserting that `Valkey.new` releases the GVL while connecting ([#309](https://github.com/valkey-io/valkey-glide-ruby/issues/309))
 
 ### Changes
 
