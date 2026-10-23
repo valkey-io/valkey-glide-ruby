@@ -22,6 +22,27 @@ will be rejected and asked for a resubmit.
 
 All commits require a DCO signoff and are cryptographically signed: `git commit -S -s -m "message"`. You should follow the Conventional Commits format: <type>(<scope>): <description>.
 
+## API documentation
+
+Every new or modified public API method must have a YARD docstring directly above its definition. Follow the format enforced by [`.yard-lint.yml`](./.yard-lint.yml) and YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md).
+
+The documentation linter checks `lib/valkey.rb` and Ruby files under `lib/valkey/commands/`. It validates existing docstrings but does not require documentation on methods that have none.
+
+Writing guidelines:
+
+- Format parameter descriptions as `@param [Type] name - description`. Omit the separator when no description is needed.
+- Use `@return [void]` when a method has no meaningful return value.
+- Add `@raise` for errors that callers are expected to handle, not all possible errors.
+- Add `@since` with the minimum Valkey version.
+- Add `@see` with link to `https://valkey.io/commands/` for the command.
+- Use YARD tags instead of handwritten `Parameters` or `Returns` sections.
+
+Before opening a pull request, run the documentation linter with Ruby 3.3 or newer:
+
+```bash
+bundle exec rake lint:yard
+```
+
 ## AI-Assisted Development
 
 If you use Cursor, Claude Code, or similar tools, agent context files are available:

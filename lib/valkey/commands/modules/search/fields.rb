@@ -9,6 +9,7 @@ class Valkey
   module Search
     # Base class for a SCHEMA field. Subclasses implement #type_args; #to_args
     # prepends the identifier and optional `AS <alias>` (Java FieldInfo ordering).
+    #
     # @abstract
     class Field
       # @return [String] the field identifier
@@ -40,9 +41,11 @@ class Valkey
     # @example
     #   Valkey::Search::TextField.new("title", sortable: true, weight: 2.0)
     class TextField < Field
-      # @param sortable [Boolean] emit SORTABLE
-      # @param no_stem [Boolean] emit NOSTEM
-      # @param weight [Numeric, nil] emit `WEIGHT <weight>`
+      # @param [String] name - the field identifier
+      # @param [String, nil] as - optional attribute alias
+      # @param [Boolean] sortable - emit SORTABLE
+      # @param [Boolean] no_stem - emit NOSTEM
+      # @param [Numeric, nil] weight - emit `WEIGHT <weight>`
       def initialize(name, as: nil, sortable: false, no_stem: false, weight: nil)
         super(name, as: as)
         @sortable = sortable
@@ -64,9 +67,11 @@ class Valkey
     # @example
     #   Valkey::Search::TagField.new("category", separator: ",", case_sensitive: true)
     class TagField < Field
-      # @param separator [String, nil] emit `SEPARATOR <sep>`
-      # @param case_sensitive [Boolean] emit CASESENSITIVE
-      # @param sortable [Boolean] emit SORTABLE
+      # @param [String] name - the field identifier
+      # @param [String, nil] as - optional attribute alias
+      # @param [String, nil] separator - emit `SEPARATOR <sep>`
+      # @param [Boolean] case_sensitive - emit CASESENSITIVE
+      # @param [Boolean] sortable - emit SORTABLE
       def initialize(name, as: nil, separator: nil, case_sensitive: false, sortable: false)
         super(name, as: as)
         @separator = separator
@@ -88,7 +93,9 @@ class Valkey
     # @example
     #   Valkey::Search::NumericField.new("price", sortable: true)
     class NumericField < Field
-      # @param sortable [Boolean] emit SORTABLE
+      # @param [String] name - the field identifier
+      # @param [String, nil] as - optional attribute alias
+      # @param [Boolean] sortable - emit SORTABLE
       def initialize(name, as: nil, sortable: false)
         super(name, as: as)
         @sortable = sortable
@@ -108,18 +115,30 @@ class Valkey
     # @example
     #   Valkey::Search::VectorField.hnsw("embedding", dim: 1536, metric: :cosine, m: 40)
     class VectorField < Field
-      # @param dim [Integer] vector dimensionality
-      # @param metric [Symbol, String] :l2, :ip, or :cosine (case-insensitive)
-      # @param initial_cap [Integer, nil] emit `INITIAL_CAP <n>`
+      # @param [String] name - the field identifier
+      # @param [Integer] dim - vector dimensionality
+      # @param [Symbol, String] metric - :l2, :ip, or :cosine (case-insensitive)
+      # @param [String] type - vector element type
+      # @param [Integer, nil] initial_cap - emit `INITIAL_CAP <n>`
+      # @param [String, nil] as - optional attribute alias
+      #
+      # @return [VectorField] the configured FLAT vector field
       def self.flat(name, dim:, metric:, type: "FLOAT32", initial_cap: nil, as: nil)
         new(name, algorithm: "FLAT", dim: dim, metric: metric, type: type,
                   initial_cap: initial_cap, as: as)
       end
 
-      # @param m [Integer, nil] emit `M <n>`
-      # @param ef_construction [Integer, nil] emit `EF_CONSTRUCTION <n>`
-      # @param ef_runtime [Integer, nil] emit `EF_RUNTIME <n>`
-      # (plus the {.flat} params)
+      # @param [String] name - the field identifier
+      # @param [Integer] dim - vector dimensionality
+      # @param [Symbol, String] metric - :l2, :ip, or :cosine (case-insensitive)
+      # @param [String] type - vector element type
+      # @param [Integer, nil] initial_cap - emit `INITIAL_CAP <n>`
+      # @param [Integer, nil] m - emit `M <n>`
+      # @param [Integer, nil] ef_construction - emit `EF_CONSTRUCTION <n>`
+      # @param [Integer, nil] ef_runtime - emit `EF_RUNTIME <n>`
+      # @param [String, nil] as - optional attribute alias
+      #
+      # @return [VectorField] the configured HNSW vector field
       def self.hnsw(name, dim:, metric:, type: "FLOAT32", initial_cap: nil,
                     m: nil, ef_construction: nil, ef_runtime: nil, as: nil)
         new(name, algorithm: "HNSW", dim: dim, metric: metric, type: type,
@@ -127,7 +146,20 @@ class Valkey
                   ef_runtime: ef_runtime, as: as)
       end
 
-      # @api private — prefer {.flat} / {.hnsw}.
+      # Prefer {.flat} or {.hnsw}.
+      #
+      # @param [String] name - the field identifier
+      # @param [String] algorithm - vector index algorithm
+      # @param [Integer] dim - vector dimensionality
+      # @param [Symbol, String] metric - distance metric
+      # @param [String] type - vector element type
+      # @param [Integer, nil] initial_cap - initial vector capacity
+      # @param [Integer, nil] m - HNSW maximum outgoing edges
+      # @param [Integer, nil] ef_construction - HNSW construction search width
+      # @param [Integer, nil] ef_runtime - HNSW runtime search width
+      # @param [String, nil] as - optional attribute alias
+      #
+      # @api private
       def initialize(name, algorithm:, dim:, metric:, type: "FLOAT32",
                      initial_cap: nil, m: nil, ef_construction: nil, ef_runtime: nil, as: nil)
         super(name, as: as)

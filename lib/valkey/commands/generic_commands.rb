@@ -5,14 +5,8 @@ class Valkey
     # this module contains generic commands that are not specific to any data type
     #
     # @see https://valkey.io/commands/#generic
-    #
     module GenericCommands
       # Scan the keyspace
-      #
-      # @note Standalone mode only. In cluster mode this returns `["0", []]`
-      #   (a finished cursor and no keys) rather than iterating a single shard
-      #   with an undefined route. A cluster-aware scan API is tracked in
-      #   TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/133
       #
       # @example Retrieve the first batch of keys
       #   valkey.scan(0)
@@ -24,14 +18,17 @@ class Valkey
       #   valkey.scan(92, :type => "zset")
       #     # => ["173", ["sortedset:14", "sortedset:78"]]
       #
-      # @param [String, Integer] cursor the cursor of the iteration
-      # @param [Hash] options
-      #   - `:match => String`: only return keys matching the pattern
+      # @param [String, Integer] cursor - the cursor of the iteration
+      # @param [Hash] options - #   - `:match => String`: only return keys matching the pattern
       #   - `:count => Integer`: return count keys at most per iteration
       #   - `:type => String`: return keys only of the given type
       #
       # @return [String, Array<String>] the next cursor and all found keys
       #
+      # @note Standalone mode only. In cluster mode this returns `["0", []]`
+      #   (a finished cursor and no keys) rather than iterating a single shard
+      #   with an undefined route. A cluster-aware scan API is tracked in
+      #   TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/133
       def scan(cursor, **options)
         return ["0", []] if @cluster_mode
 
@@ -39,10 +36,6 @@ class Valkey
       end
 
       # Scan the keyspace
-      #
-      # @note Standalone mode only. In cluster mode this yields nothing and
-      #   returns immediately, matching {#scan}'s cluster behavior. See
-      #   TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/133
       #
       # @example Retrieve all of the keys (with possible duplicates)
       #   valkey.scan_each.to_a
@@ -56,13 +49,15 @@ class Valkey
       #     # => "hash"
       #     # => "hash"
       #
-      # @param [Hash] options
-      #   - `:match => String`: only return keys matching the pattern
+      # @param [Hash] options - #   - `:match => String`: only return keys matching the pattern
       #   - `:count => Integer`: return count keys at most per iteration
       #   - `:type => String`: return keys only of the given type
       #
       # @return [Enumerator] an enumerator for all found keys
       #
+      # @note Standalone mode only. In cluster mode this yields nothing and
+      #   returns immediately, matching {#scan}'s cluster behavior. See
+      #   TODO: https://github.com/valkey-io/valkey-glide-ruby/issues/133
       def scan_each(**options, &block)
         return to_enum(:scan_each, **options) unless block_given?
         return if @cluster_mode
@@ -78,6 +73,7 @@ class Valkey
       # Remove the expiration from a key.
       #
       # @param [String] key
+      #
       # @return [Boolean] whether the timeout was removed or not
       def persist(key)
         send_command(RequestType::PERSIST, [key])
@@ -86,12 +82,12 @@ class Valkey
       # Set a key's time to live in seconds.
       #
       # @param [String] key
-      # @param [Integer] seconds time to live
-      # @param [Hash] options
-      #   - `:nx => true`: Set expiry only when the key has no expiry.
-      #   - `:xx => true`: Set expiry only when the key has an existing expiry.
-      #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
-      #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
+      # @param [Integer] seconds - time to live
+      # @param [Boolean, nil] nx - set expiry only when the key has no expiry
+      # @param [Boolean, nil] xx - set expiry only when the key has an existing expiry
+      # @param [Boolean, nil] gt - set expiry only when the new expiry is greater than the current one
+      # @param [Boolean, nil] lt - set expiry only when the new expiry is less than the current one
+      #
       # @return [Boolean] whether the timeout was set or not
       def expire(key, seconds, nx: nil, xx: nil, gt: nil, lt: nil)
         args = [key, Integer(seconds)]
@@ -106,12 +102,12 @@ class Valkey
       # Set the expiration for a key as a UNIX timestamp.
       #
       # @param [String] key
-      # @param [Integer] unix_time expiry time specified as a UNIX timestamp
-      # @param [Hash] options
-      #   - `:nx => true`: Set expiry only when the key has no expiry.
-      #   - `:xx => true`: Set expiry only when the key has an existing expiry.
-      #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
-      #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
+      # @param [Integer] unix_time - expiry time specified as a UNIX timestamp
+      # @param [Boolean, nil] nx - set expiry only when the key has no expiry
+      # @param [Boolean, nil] xx - set expiry only when the key has an existing expiry
+      # @param [Boolean, nil] gt - set expiry only when the new expiry is greater than the current one
+      # @param [Boolean, nil] lt - set expiry only when the new expiry is less than the current one
+      #
       # @return [Boolean] whether the timeout was set or not
       def expireat(key, unix_time, nx: nil, xx: nil, gt: nil, lt: nil)
         args = [key, Integer(unix_time)]
@@ -126,6 +122,7 @@ class Valkey
       # Get a key's expiry time specified as number of seconds from UNIX Epoch
       #
       # @param  [String] key
+      #
       # @return [Integer] expiry time specified as number of seconds from UNIX Epoch
       def expiretime(key)
         send_command(RequestType::EXPIRE_TIME, [key])
@@ -134,6 +131,7 @@ class Valkey
       # Get the time to live (in seconds) for a key.
       #
       # @param [String] key
+      #
       # @return [Integer] remaining time to live in seconds.
       #
       # In valkey 2.6 or older the command returns -1 if the key does not exist or if
@@ -150,12 +148,12 @@ class Valkey
       # Set a key's time to live in milliseconds.
       #
       # @param [String] key
-      # @param [Integer] milliseconds time to live
-      # @param [Hash] options
-      #   - `:nx => true`: Set expiry only when the key has no expiry.
-      #   - `:xx => true`: Set expiry only when the key has an existing expiry.
-      #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
-      #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
+      # @param [Integer] milliseconds - time to live
+      # @param [Boolean, nil] nx - set expiry only when the key has no expiry
+      # @param [Boolean, nil] xx - set expiry only when the key has an existing expiry
+      # @param [Boolean, nil] gt - set expiry only when the new expiry is greater than the current one
+      # @param [Boolean, nil] lt - set expiry only when the new expiry is less than the current one
+      #
       # @return [Boolean] whether the timeout was set or not
       def pexpire(key, milliseconds, nx: nil, xx: nil, gt: nil, lt: nil)
         args = [key, Integer(milliseconds)]
@@ -170,12 +168,12 @@ class Valkey
       # Set the expiration for a key as number of milliseconds from UNIX Epoch.
       #
       # @param [String] key
-      # @param [Integer] ms_unix_time expiry time specified as number of milliseconds from UNIX Epoch.
-      # @param [Hash] options
-      #   - `:nx => true`: Set expiry only when the key has no expiry.
-      #   - `:xx => true`: Set expiry only when the key has an existing expiry.
-      #   - `:gt => true`: Set expiry only when the new expiry is greater than current one.
-      #   - `:lt => true`: Set expiry only when the new expiry is less than current one.
+      # @param [Integer] ms_unix_time - expiry time specified as number of milliseconds from UNIX Epoch.
+      # @param [Boolean, nil] nx - set expiry only when the key has no expiry
+      # @param [Boolean, nil] xx - set expiry only when the key has an existing expiry
+      # @param [Boolean, nil] gt - set expiry only when the new expiry is greater than the current one
+      # @param [Boolean, nil] lt - set expiry only when the new expiry is less than the current one
+      #
       # @return [Boolean] whether the timeout was set or not
       def pexpireat(key, ms_unix_time, nx: nil, xx: nil, gt: nil, lt: nil)
         args = [key, Integer(ms_unix_time)]
@@ -190,6 +188,7 @@ class Valkey
       # Get a key's expiry time specified as number of milliseconds from UNIX Epoch
       #
       # @param  [String] key
+      #
       # @return [Integer] expiry time specified as number of milliseconds from UNIX Epoch
       def pexpiretime(key)
         send_command(RequestType::PEXPIRE_TIME, [key])
@@ -198,6 +197,7 @@ class Valkey
       # Get the time to live (in milliseconds) for a key.
       #
       # @param [String] key
+      #
       # @return [Integer] remaining time to live in milliseconds
       # In valkey 2.6 or older the command returns -1 if the key does not exist or if
       # the key exist but has no associated expire.
@@ -213,6 +213,7 @@ class Valkey
       # Return a serialized version of the value stored at a key.
       #
       # @param [String] key
+      #
       # @return [String] serialized_value
       def dump(key)
         send_command(RequestType::DUMP, [key])
@@ -223,10 +224,11 @@ class Valkey
       # @param [String] key
       # @param [String] ttl
       # @param [String] serialized_value
-      # @param [Hash] options
-      #   - `:replace => Boolean`: if false, raises an error if key already exists
-      # @raise [valkey::CommandError]
+      # @param [Boolean, nil] replace - replace the key if it already exists
+      #
       # @return [String] `"OK"`
+      #
+      # @raise [valkey::CommandError] if the key exists and `replace` is not set
       def restore(key, ttl, serialized_value, replace: nil)
         args = [key, ttl, serialized_value]
         args << 'REPLACE' if replace
@@ -246,14 +248,14 @@ class Valkey
       #   valkey.migrate(["key1", "key2"], host: "127.0.0.1", port: 6380)
       #     # => "OK"
       #
-      # @param [String, Array<String>] key single key or array of keys to migrate
-      # @param [Hash] options
-      #   - `:host => String`: host of instance to migrate to (required)
+      # @param [String, Array<String>] key - single key or array of keys to migrate
+      # @param [Hash] options - #   - `:host => String`: host of instance to migrate to (required)
       #   - `:port => Integer`: port of instance to migrate to (required)
       #   - `:db => Integer`: database to migrate to (default: 0)
       #   - `:timeout => Integer`: timeout in milliseconds (default: 0)
       #   - `:copy => Boolean`: do not remove the key from the local instance
       #   - `:replace => Boolean`: replace existing key on the remote instance
+      #
       # @return [String] `"OK"`
       #
       # @see https://valkey.io/commands/migrate/
@@ -280,7 +282,8 @@ class Valkey
       #   valkey.keys("user:*")
       #     # => ["user:1", "user:2"]
       #
-      # @param [String] pattern glob-style pattern (default: "*")
+      # @param [String] pattern - glob-style pattern (default: "*")
+      #
       # @return [Array<String>] array of matching keys
       #
       # @see https://valkey.io/commands/keys/
@@ -297,6 +300,7 @@ class Valkey
       # Delete one or more keys.
       #
       # @param [String, Array<String>] keys
+      #
       # @return [Integer] number of keys that were deleted
       def del(*keys)
         keys.flatten!(1)
@@ -308,6 +312,7 @@ class Valkey
       # Unlink one or more keys.
       #
       # @param [String, Array<String>] keys
+      #
       # @return [Integer] number of keys that were unlinked
       def unlink(*keys)
         send_command(RequestType::UNLINK, keys.flatten)
@@ -316,6 +321,7 @@ class Valkey
       # Determine how many of the keys exists.
       #
       # @param [String, Array<String>] keys
+      #
       # @return [Integer]
       def exists(*keys)
         send_command(RequestType::EXISTS, keys.flatten)
@@ -324,6 +330,7 @@ class Valkey
       # Determine if any of the keys exists.
       #
       # @param [String, Array<String>] keys
+      #
       # @return [Boolean]
       def exists?(*keys)
         send_command(RequestType::EXISTS, keys.flatten, &:positive?)
@@ -347,6 +354,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] db
+      #
       # @return [Boolean] whether the key was moved or not
       def move(key, db)
         send_command(RequestType::MOVE, [key, db])
@@ -375,7 +383,8 @@ class Valkey
       # @param [String] source
       # @param [String] destination
       # @param [Integer] db
-      # @param [Boolean] replace removes the `destination` key before copying value to it
+      # @param [Boolean] replace - removes the `destination` key before copying value to it
+      #
       # @return [Boolean] whether the key was copied or not
       def copy(source, destination, db: nil, replace: false)
         args = [source, destination]
@@ -398,7 +407,9 @@ class Valkey
 
       # Return a random key from the keyspace.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param [Valkey::Route, nil] route - cluster routing. Never returns a per-node Hash because glide-core
+      #   collapses multi-node replies to the first non-empty key, or `nil` if every shard is empty.
+      #
       # @return [String, nil]
       def randomkey(route: nil)
         send_command(RequestType::RANDOM_KEY, [], route: route)
@@ -408,6 +419,7 @@ class Valkey
       #
       # @param [String] old_name
       # @param [String] new_name
+      #
       # @return [String] `OK`
       def rename(old_name, new_name)
         send_command(RequestType::RENAME, [old_name, new_name])
@@ -417,6 +429,7 @@ class Valkey
       #
       # @param [String] old_name
       # @param [String] new_name
+      #
       # @return [Boolean] whether the key was renamed or not
       def renamenx(old_name, new_name)
         send_command(RequestType::RENAME_NX, [old_name, new_name])
@@ -432,14 +445,11 @@ class Valkey
       #     # => 26
       #
       # @param [String] key
-      # @param [Hash] options
-      #   - `:by => String`: use external key to sort elements by
-      #   - `:limit => [offset, count]`: skip `offset` elements, return a maximum
-      #   of `count` elements
-      #   - `:get => [String, Array<String>]`: single key or array of keys to
-      #   retrieve per element in the result
-      #   - `:order => String`: combination of `ASC`, `DESC` and optionally `ALPHA`
-      #   - `:store => String`: key to store the result at
+      # @param [String, nil] by - external key to sort elements by
+      # @param [Array<Integer>, nil] limit - offset and maximum number of elements
+      # @param [String, Array<String>, nil] get - keys to retrieve per result element
+      # @param [String, nil] order - combination of `ASC`, `DESC`, and optionally `ALPHA`
+      # @param [String, nil] store - key to store the result at
       #
       # @return [Array<String>, Array<Array<String>>, Integer]
       #   - when `:get` is not specified, or holds a single element, an array of elements
@@ -480,13 +490,14 @@ class Valkey
       # Block until all the previous write commands are successfully transferred
       # and acknowledged by at least the specified number of replicas.
       #
-      # @param [Integer] numreplicas minimum number of replicas to acknowledge
-      # @param [Integer] timeout timeout in milliseconds (0 means block forever)
-      # @return [Integer] number of replicas that acknowledged
-      #
       # @example Wait for 1 replica with 1 second timeout
       #   valkey.wait(1, 1000)
       #     # => 1
+      #
+      # @param [Integer] numreplicas - minimum number of replicas to acknowledge
+      # @param [Integer] timeout - timeout in milliseconds (0 means block forever)
+      #
+      # @return [Integer] number of replicas that acknowledged
       #
       # @see https://valkey.io/commands/wait/
       def wait(numreplicas, timeout)
@@ -496,19 +507,20 @@ class Valkey
       # Block until all previous write commands are fsynced to the AOF of the
       # local server and/or at least the specified number of replicas.
       #
-      # @param [Integer] numlocal number of local fsyncs required (0 or 1)
-      # @param [Integer] numreplicas minimum number of replicas to fsync
-      # @param [Integer] timeout timeout in milliseconds (0 means block forever)
-      # @return [Array<Integer>] array of two integers:
-      #   - number of local servers (0 or 1) that fsynced
-      #   - number of replicas that fsynced
-      #
       # @example Wait for local AOF fsync with no timeout
       #   valkey.waitaof(1, 0, 0)
       #     # => [1, 0]
       # @example Wait for 1 replica fsync with 1 second timeout
       #   valkey.waitaof(0, 1, 1000)
       #     # => [0, 0]
+      #
+      # @param [Integer] numlocal - number of local fsyncs required (0 or 1)
+      # @param [Integer] numreplicas - minimum number of replicas to fsync
+      # @param [Integer] timeout - timeout in milliseconds (0 means block forever)
+      #
+      # @return [Array<Integer>] array of two integers:
+      #   - number of local servers (0 or 1) that fsynced
+      #   - number of replicas that fsynced
       #
       # @see https://valkey.io/commands/waitaof/
       def waitaof(numlocal, numreplicas, timeout)
@@ -518,6 +530,7 @@ class Valkey
       # Determine the type stored at key.
       #
       # @param [String] key
+      #
       # @return [String] `string`, `list`, `set`, `zset`, `hash` or `none`
       def type(key)
         send_command(RequestType::TYPE, [key])
@@ -554,10 +567,11 @@ class Valkey
       #   valkey.call("SET", "k", "v", nx: true, ex: 60)
       #     # equivalent to call("SET", "k", "v", "NX", "EX", "60")
       #
-      # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
-      # @param [Hash] kwargs trailing command flags; truthy values emit the upcased flag name,
+      # @param [Array<String, Integer, Float, Array, Hash>] argv - command name and its arguments
+      # @param [Hash] kwargs - trailing command flags; truthy values emit the upcased flag name,
       #   non-boolean values also emit the stringified value; falsy/nil values are dropped
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param [Valkey::Route, nil] route - cluster routing. When routed, may return a Hash of node => value.
+      #
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/
@@ -573,8 +587,9 @@ class Valkey
       # @example
       #   valkey.call_v(["MGET"] + keys)
       #
-      # @param [Array<String, Integer, Float, Array, Hash>] argv command name and its arguments
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
+      # @param [Array<String, Integer, Float, Array, Hash>] argv - command name and its arguments
+      # @param [Valkey::Route, nil] route - cluster routing. When routed, may return a Hash of node => value.
+      #
       # @return [Object] the raw reply, with no type-casting based on the command name
       #
       # @see https://valkey.io/commands/

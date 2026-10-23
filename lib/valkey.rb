@@ -46,12 +46,15 @@ class Valkey
   # An empty override or tag means "not configured" and is omitted. Character
   # validity is glide-core's (see valkey-io/valkey-glide#6891).
   #
-  # @api private
-  # @param lib_name [String, Symbol, nil] raw `lib_name` override, may be empty
-  # @param client_info_tag [String, Symbol, nil] raw `client_info_tag`, may be empty
+  # @param [String, Symbol, nil] lib_name - raw `lib_name` override, may be empty
+  # @param [String, Symbol, nil] client_info_tag - raw `client_info_tag`, may be empty
+  #
   # @return [String] the effective library name
+  #
   # @raise [ArgumentError] if either value is not a String, Symbol or nil, or is a String
   #   whose bytes are invalid or not convertible to UTF-8
+  #
+  # @api private
   def self.resolve_lib_name(lib_name: nil, client_info_tag: nil)
     base = coerce_client_metadata("lib_name", lib_name)
     tag = coerce_client_metadata("client_info_tag", client_info_tag)
@@ -64,7 +67,9 @@ class Valkey
   #
   # @param field [String] option name, used in the error message
   # @param value [String, Symbol, nil] the raw configured value
+  #
   # @return [String, nil] the value, or nil when absent/empty
+  #
   # @raise [ArgumentError] if the value is not a String, Symbol or nil, or is a String
   #   whose bytes are invalid or not convertible to UTF-8
   def self.coerce_client_metadata(field, value)
@@ -95,12 +100,14 @@ class Valkey
   end
   private_class_method :coerce_client_metadata
 
-  # @param exception [Boolean] when `true` (the default), a runtime error
+  # @param [Boolean] exception - when `true` (the default), a runtime error
   #   from a queued command (e.g. WRONGTYPE) raises the first such error
   #   and aborts the pipeline's futures (see {Future#value}). Pass `false`
   #   to instead leave it in its slot of the returned Array as a
   #   {CommandError} - other commands' replies stay reachable, matching
   #   the server's "no rollback on a runtime error" semantics.
+  #
+  # @return [Array] command results in pipeline order
   def pipelined(exception: true)
     pipeline = Pipeline.new(cluster_mode: cluster_mode?)
 
@@ -120,7 +127,8 @@ class Valkey
 
   # Creates a standalone or cluster client.
   #
-  # @param options [Hash] connection and client options
+  # @param [Hash] options - connection and client options
+  #
   # @raise [ArgumentError] if cluster mode has no seed source
   def initialize(options = {})
     options = merge_url_options(options)
@@ -410,6 +418,8 @@ class Valkey
   end
 
   # Closes the client and frees the native connection.
+  #
+  # @return [void]
   def close
     return unless @close_lock&.try_lock
 
@@ -438,6 +448,7 @@ class Valkey
   # {IamAuthConfig}.
   #
   # @return [String] `OK` on success
+  #
   # @raise [CommandError] if the client was not configured for IAM authentication
   def refresh_iam_token
     connection_handle = connection!
@@ -452,26 +463,23 @@ class Valkey
   # This method returns detailed statistics about the client's operations,
   # tracked globally across all clients in the process.
   #
-  # @return [Hash] a hash containing statistics with the following keys:
-  #   - `:total_connections` [Integer] total number of connections opened to Valkey
-  #   - `:total_clients` [Integer] total number of GLIDE clients
-  #   - `:total_values_compressed` [Integer] total number of values compressed
-  #   - `:total_values_decompressed` [Integer] total number of values decompressed
-  #   - `:total_original_bytes` [Integer] total original bytes before compression
-  #   - `:total_bytes_compressed` [Integer] total bytes after compression
-  #   - `:total_bytes_decompressed` [Integer] total bytes after decompression
-  #   - `:compression_skipped_count` [Integer] number of times compression was skipped
-  #
   # @example Get client statistics
   #   client = Valkey.new(host: 'localhost', port: 6379)
-  #   stats = client.get_statistics
-  #   puts "Total connections: #{stats[:total_connections]}"
-  #   puts "Total clients: #{stats[:total_clients]}"
-  #   puts "Values compressed: #{stats[:total_values_compressed]}"
+  #   client.statistics
+  #   # => {
+  #     total_connections: 1,
+  #     total_clients: 1,
+  #     total_values_compressed: 0,
+  #     total_values_decompressed: 0,
+  #     total_original_bytes: 0,
+  #     total_bytes_compressed: 0,
+  #     total_bytes_decompressed: 0,
+  #     compression_skipped_count: 0
+  #   }
   #
-  # @note Statistics are tracked globally and shared across all clients
+  # @return [Hash] statistics with connection and compression counters
   #
-  # @return [Hash] statistics hash with integer values
+  # @note Statistics are tracked globally and shared across all clients.
   def statistics
     # Call FFI function to get statistics (returns by value)
     stats = Bindings.get_statistics
@@ -498,6 +506,15 @@ class Valkey
   # `test/integration/valkey/connection_lifecycle_test.rb`) call it directly with an
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).
+  #
+  # @param [Integer] command_type - request type identifier
+  # @param [Array] command_args - command arguments
+  # @param [Valkey::Route, nil] route - optional cluster route
+  #
+  # @yieldparam [Object] response converted Ruby response
+  # @yieldreturn [Object] transformed response
+  #
+  # @return [Object] converted or block-transformed command response
   def send_command(command_type, command_args = [], route: nil, &block)
     conn = connection!
 

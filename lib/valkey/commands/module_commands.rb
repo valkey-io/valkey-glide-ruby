@@ -5,7 +5,6 @@ class Valkey
     # This module contains commands related to Valkey Modules.
     #
     # @see https://valkey.io/commands/#module
-    #
     module ModuleCommands
       # List all loaded modules.
       #
@@ -29,8 +28,9 @@ class Valkey
       #   valkey.module_load("/path/to/mymodule.so", "arg1", "arg2")
       #     # => "OK"
       #
-      # @param [String] path the path to the module file
-      # @param [Array<String>] args optional arguments to pass to the module
+      # @param [String] path - the path to the module file
+      # @param [Array<String>] args - optional arguments to pass to the module
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/module-load/
@@ -45,7 +45,8 @@ class Valkey
       #   valkey.module_unload("mymodule")
       #     # => "OK"
       #
-      # @param [String] name the module name to unload
+      # @param [String] name - the module name to unload
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/module-unload/
@@ -65,9 +66,10 @@ class Valkey
       #   valkey.module_loadex("/path/to/mymodule.so", configs: {"param1" => "value1"}, args: ["arg1"])
       #     # => "OK"
       #
-      # @param [String] path the path to the module file
-      # @param [Hash] configs configuration parameters as key-value pairs
-      # @param [Array<String>] args optional arguments to pass to the module
+      # @param [String] path - the path to the module file
+      # @param [Hash] configs - configuration parameters as key-value pairs
+      # @param [Array<String>] args - optional arguments to pass to the module
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/module-loadex/
@@ -105,9 +107,10 @@ class Valkey
       #   valkey.module(:loadex, "/path/to/mymodule.so", configs: {"param1" => "value1"})
       #     # => "OK"
       #
-      # @param [String, Symbol] subcommand the subcommand (list, load, unload, loadex)
-      # @param [Array] args arguments for the subcommand
-      # @param [Hash] options options for the subcommand
+      # @param [String, Symbol] subcommand - the subcommand (list, load, unload, loadex)
+      # @param [Array] args - arguments for the subcommand
+      # @param [Hash] options - options for the subcommand
+      #
       # @return [Object] depends on subcommand
       def module(subcommand, *args, **options)
         subcommand = subcommand.to_s.downcase

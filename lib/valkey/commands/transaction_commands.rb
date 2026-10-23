@@ -5,7 +5,6 @@ class Valkey
     # This module contains commands related to transactions.
     #
     # @see https://valkey.io/commands/#transactions
-    #
     module TransactionCommands
       # Mark the start of a transaction block.
       #
@@ -14,16 +13,6 @@ class Valkey
       #     multi.set("key", "value")
       #     multi.incr("counter")
       #   end # => ["OK", 6]
-      #
-      # @yield [multi] the commands that are called inside this block are cached
-      #   locally (no server round-trip per command) and sent to the server as a
-      #   single atomic batch once the block returns - GLIDE wraps them in a real
-      #   MULTI/EXEC transaction internally. If the block raises, nothing has been
-      #   sent to the server yet, so the exception simply propagates - there is no
-      #   transaction to discard. Each in-block command call returns a
-      #   {Valkey::Future} immediately; capture it and call `#value` on it once
-      #   the block has returned to read that command's own reply:
-      #
       #   @example Capturing a per-command reply
       #     future = nil
       #     valkey.multi do |multi|
@@ -41,7 +30,6 @@ class Valkey
       #   {Valkey::ExecAbortError}, since nothing ran in that case. This
       #   kwarg only applies to the block form - the imperative `multi` (no
       #   block) / `#exec` pair has no equivalent control.
-      #
       # @example Without a block
       #   valkey.multi          # sends a real MULTI to the server now
       #   valkey.set("key", "value")   # each command is queued server-side
@@ -53,10 +41,20 @@ class Valkey
       #   `#exec` sends the actual `EXEC`. Calling `multi` this way with no
       #   pending commands to run afterward simply leaves the transaction
       #   open until `#exec` or `#discard` closes it.
-      # @yieldparam [Valkey::Pipeline] multi collects the block's commands
-      # @param exception [Boolean] see above
       #
-      # @return [Array<...>]
+      # @param [Boolean] exception - see above
+      #
+      # @yield [multi] the commands that are called inside this block are cached
+      #   locally (no server round-trip per command) and sent to the server as a
+      #   single atomic batch once the block returns - GLIDE wraps them in a real
+      #   MULTI/EXEC transaction internally. If the block raises, nothing has been
+      #   sent to the server yet, so the exception simply propagates - there is no
+      #   transaction to discard. Each in-block command call returns a
+      #   {Valkey::Future} immediately; capture it and call `#value` on it once
+      #   the block has returned to read that command's own reply:
+      # @yieldparam [Valkey::Pipeline] multi collects the block's commands
+      #
+      # @return [Array<Object>]
       #   - an array with replies
       #
       # @see #watch
@@ -102,12 +100,12 @@ class Valkey
       #     end
       #   end
       #     # => ["OK", 6]
-      #
       # @example Without a block
       #   valkey.watch("key")
       #     # => "OK"
       #
-      # @param [String, Array<String>] keys one or more keys to watch
+      # @param [String, Array<String>] keys - one or more keys to watch
+      #
       # @return [Object] if using a block, returns the return value of the block
       # @return [String] if not using a block, returns `"OK"`
       #
@@ -146,7 +144,7 @@ class Valkey
       #
       # Only call this method when `#multi` was called **without** a block.
       #
-      # @return [nil, Array<...>]
+      # @return [nil, Array<Object>]
       #   - when commands were not executed, `nil`
       #   - when commands were executed, an array with their replies
       #
