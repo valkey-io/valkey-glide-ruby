@@ -11,7 +11,6 @@ require "valkey/read_from"
 require "valkey/request_error_type"
 require "valkey/bindings"
 require "valkey/utils"
-require "valkey/search"
 require "valkey/commands"
 require "valkey/errors"
 require "valkey/future"
@@ -20,9 +19,7 @@ require "valkey/opentelemetry"
 require "valkey/route"
 require "valkey/service_type"
 require "valkey/iam_auth_config"
-require "valkey/glide/pubsub_message"
-require "valkey/glide/pubsub_state"
-require "valkey/glide/pubsub_receiver"
+require "valkey/pubsub_receiver"
 
 class Valkey
   include Utils
@@ -360,7 +357,7 @@ class Valkey
                                                            cluster_mode: options[:cluster_mode] ? true : false)
     json_options.merge!(pubsub_config)
 
-    @pubsub_receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: options[:pubsub])
+    @pubsub_receiver = Valkey::PubSubReceiver.make(pubsub_configs: options[:pubsub])
 
     json_str = json_options.empty? ? nil : JSON.generate(json_options)
     # Create client using URI-based FFI function
@@ -496,8 +493,8 @@ class Valkey
 
   # Sends a single low-level command to the server, converting the response to
   # a Ruby value. This is the primitive every command method in
-  # `lib/valkey/commands/*.rb` is built on. Public (rather than private) because
-  # some test helpers (e.g. `test/lint/vector_search_commands.rb`,
+  # `lib/valkey/commands/**/*.rb` is built on. Public (rather than private) because
+  # some test helpers (e.g. `test/lint/search_commands.rb`,
   # `test/integration/valkey/connection_lifecycle_test.rb`) call it directly with an
   # explicit receiver to issue commands with no dedicated wrapper method yet
   # (e.g. `DEBUG SLEEP`, raw `HSET` in vector search fixtures).

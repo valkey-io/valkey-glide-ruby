@@ -9,9 +9,8 @@ $LOAD_PATH.unshift File.expand_path("../../../lib", __dir__)
 
 require "minitest/autorun"
 require "valkey/request_type"
-require "valkey/search"
 require "valkey/route"
-require "valkey/commands/vector_search_commands"
+require "valkey/commands/modules/search"
 
 # Pure unit tests for the Phase 1 Valkey::Search builder API — field/option
 # serialization and the ft_create builder dispatch path.
@@ -23,7 +22,7 @@ class TestSearchBuilder < Minitest::Test
   # Minimal stand-in that mixes in the command module and records the
   # (request_type, args) pair instead of dispatching over FFI.
   class FakeClient
-    include Valkey::Commands::VectorSearchCommands
+    include Valkey::Commands::SearchCommands
 
     attr_reader :captured_type, :captured_args, :captured_route
 

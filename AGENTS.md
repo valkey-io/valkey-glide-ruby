@@ -51,7 +51,7 @@ When working on a feature, read these paths first:
 | Topic | Read first |
 |-------|------------|
 | Connection / options | `lib/valkey.rb` (`#initialize`), `test/lint/connection_options.rb` |
-| New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/*.rb`, `test/lint/*` |
+| New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/**/*.rb`, `test/lint/*` |
 | Pipelining / batch | `lib/valkey.rb` (`pipelined`, `send_batch_commands`), `lib/valkey/pipeline.rb` |
 | OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/integration/valkey/opentelemetry_test.rb` |
 | FFI / errors | `lib/valkey/bindings.rb`, `lib/valkey/errors.rb` |
@@ -279,7 +279,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 ### Command Implementation Guidelines
 
 1. Check `RequestType` in `lib/valkey/request_type.rb` against glide-core `request_type.rs`
-2. Add method to appropriate `lib/valkey/commands/*.rb` module
+2. Add method to the appropriate `lib/valkey/commands/**/*.rb` module
 3. Use `send_command(RequestType::..., args)` 
 4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable
 5. Document with YARD comments + Valkey command link
@@ -287,7 +287,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
+- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
 
 ## Project Structure (Essential)
 
@@ -297,13 +297,19 @@ valkey-glide-ruby/
 ├── lib/valkey/
 │   ├── bindings.rb
 │   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
-│   ├── glide/pubsub_receiver.rb   # internal; Pub/Sub message queue + FFI push handler
 │   ├── commands.rb       # requires + includes all command modules
-│   ├── commands/*.rb     # 20 command-family modules
+│   ├── commands/*.rb     # command-family modules
+│   ├── commands/modules/search.rb
+│   ├── commands/modules/search/*.rb   # Valkey Search commands, builders, and response types
+│   ├── commands/pubsub_commands.rb
+│   ├── commands/pubsub_commands/*.rb   # public Pub/Sub message and subscription-state types
 │   ├── opentelemetry.rb
 │   ├── pipeline.rb
+│   ├── pubsub_receiver.rb   # internal Pub/Sub message queue + FFI push handler
+│   ├── request_error_type.rb
 │   ├── request_type.rb
-│   └── response_type.rb
+│   ├── response_type.rb
+│   └── route.rb
 ├── test/unit/            # server-free unit tests
 ├── test/integration/
 │   ├── standalone/       # standalone tests

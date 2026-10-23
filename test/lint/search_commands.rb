@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 module Lint
-  module VectorSearchCommands
+  module SearchCommands
     # Use the same path structure as RedisBloom for consistency
     # In CI, modules are mounted to /tmp/modules
     REDISEARCH_MODULE_PATH = "/tmp/modules/redisearch.so"

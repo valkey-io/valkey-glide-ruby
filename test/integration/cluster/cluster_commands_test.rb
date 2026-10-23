@@ -101,7 +101,7 @@ end
 # valkey-search 1.2.1 (module ver 66049) on a 3-primary cluster:
 #
 #   * Index definitions are per-node. ft_create/ft_drop_index now broadcast to
-#     all primaries (see Route.all_primaries in vector_search_commands.rb), so
+#     all primaries (see Route.all_primaries in commands/modules/search/commands.rb), so
 #     index creation/removal works cluster-wide. That half is fixed client-side.
 #   * Result aggregation across shards is absent. Documents distribute by slot
 #     (6 seeded docs indexed 1/3/2 across three nodes), and a query returns only
@@ -117,9 +117,9 @@ end
 #
 #   env -u CLUSTER_ENDPOINTS CLUSTER_MODULES=/abs/path/libsearch.dylib \
 #     bundle exec ruby -Itest -Ilib test/integration/cluster/cluster_commands_test.rb \
-#       -n '/TestClusterVectorSearchCommands/'
+#       -n '/TestClusterSearchCommands/'
 #
-#   class TestClusterVectorSearchCommands < Minitest::Test
+#   class TestClusterSearchCommands < Minitest::Test
 #     include Helper::Cluster
-#     include Lint::VectorSearchCommands
+#     include Lint::SearchCommands
 #   end

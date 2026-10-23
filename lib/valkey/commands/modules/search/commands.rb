@@ -7,7 +7,7 @@ class Valkey
     # the search module to be loaded on the server.
     #
     # @see https://valkey.io/commands/#search
-    module VectorSearchCommands
+    module SearchCommands
       # List all available indexes.
       #
       # @example List all indexes
