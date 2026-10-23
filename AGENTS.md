@@ -209,34 +209,17 @@ in the body you pass.
 
 ### Changelog REQUIRED
 
-Every user-facing change MUST add an entry to `CHANGELOG.md` under the top
-`## 1.x.x (Pending)` section, in the correct subsections.
+Follow the [changelog guidelines](./CONTRIBUTING.md#changelog).
 
-```markdown
-## 1.x.x (Pending)
+General guidelines are:
 
-### Fixes
-
-* fix(ruby): <what changed and the user-visible effect> ([#123](https://github.com/valkey-io/valkey-glide-ruby/pull/123))
-
-### Changes
-
-* Ruby: <Area>: added support for `method_a(sig)`, `method_b(sig)` and the `option:` option. <One short constraint if there is one> ([#124](https://github.com/valkey-io/valkey-glide-ruby/pull/124))
-```
-
-Rules for an entry:
-
-- **One line.** No sub-bullets. If it needs paragraphs to explain, it belongs in
-  the README or the method's YARD docs, not here.
-- **New APIs: list them, don't narrate them.** `added support for` followed by
-  the public method names with their signatures. Do not restate what each method
-  does; the names and docs already say it.
-- **List only what this PR shipped.** Methods that raise `NotImplementedError`,
-  future plans, and internal refactors do not belong in the entry.
-- **Link the PR that made the change**, not the issue it closes. Readers want the
-  diff.
-- Fixes use the Conventional Commits prefix (`fix(ruby):`); Changes use
-  `Ruby: <Area>:`. Both state the user-visible effect, not the implementation.
+- For each PR, add every user-facing change to the appropriate changelog section.
+- Start each item with a verb.
+- For new APIs, use `Added support for <API>`. Do not restate what each method does; the names and docs already say it.
+- Future plans and internal refactors do not belong in the entry.
+- Each change should be a concise one-sentence description of the change.
+- Each change must be followed by a link to its PR.
+- Do not retroactively change other changelog entries unless explicitly told to.
 
 ### Code Quality Requirements
 
