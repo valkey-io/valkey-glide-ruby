@@ -64,7 +64,7 @@ Metrics/ModuleLength:
   Exclude:
     - 'lib/valkey/request_type.rb'
     - 'lib/valkey/utils.rb'
-    - 'lib/valkey/commands/*.rb'
+    - 'lib/valkey/commands/**/*.rb'
     - 'lib/valkey/bindings.rb'
     - 'lib/valkey/opentelemetry.rb'
     - 'test/**/*.rb'

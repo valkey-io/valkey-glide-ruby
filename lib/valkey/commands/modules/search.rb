@@ -83,8 +83,9 @@ class Valkey
   end
 end
 
-require "valkey/search/fields"
-require "valkey/search/create_options"
-require "valkey/search/query"
-require "valkey/search/aggregate"
-require "valkey/search/info"
+require "valkey/commands/modules/search/fields"
+require "valkey/commands/modules/search/create_options"
+require "valkey/commands/modules/search/query"
+require "valkey/commands/modules/search/aggregate"
+require "valkey/commands/modules/search/info"
+require "valkey/commands/modules/search/commands"

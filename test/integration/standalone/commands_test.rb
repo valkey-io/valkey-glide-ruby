@@ -53,7 +53,7 @@ end
 #     include Lint::ModuleCommands
 #   end
 #
-class TestStandaloneVectorSearchCommands < Minitest::Test
+class TestStandaloneSearchCommands < Minitest::Test
   include Helper::Client
-  include Lint::VectorSearchCommands
+  include Lint::SearchCommands
 end

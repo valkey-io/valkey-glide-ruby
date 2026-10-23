@@ -10,12 +10,11 @@ $LOAD_PATH.unshift File.expand_path("../../../lib", __dir__)
 
 require "minitest/autorun"
 require "valkey/request_type"
-require "valkey/search"
-require "valkey/commands/vector_search_commands"
+require "valkey/commands/modules/search"
 
 class TestSearchInfo < Minitest::Test
   class FakeClient
-    include Valkey::Commands::VectorSearchCommands
+    include Valkey::Commands::SearchCommands
 
     attr_reader :captured_type, :captured_args, :captured_route
     attr_accessor :canned_reply
