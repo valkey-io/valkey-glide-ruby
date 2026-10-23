@@ -1,14 +1,13 @@
 # frozen_string_literal: true
 
 class Valkey
+  # Pipeline clauses and options for FT.AGGREGATE. Clauses (GroupBy, SortBy,
+  # Filter, Limit, Apply) serialize in the order the user supplies them, since
+  # FT.AGGREGATE is an ordered pipeline. Flat top-level options (verbatim, load,
+  # params, dialect, timeout) are keyword arguments on {AggregateOptions}.
+  #
+  # @see https://valkey.io/commands/ft.aggregate/
   module Search
-    # Pipeline clauses and options for FT.AGGREGATE. Clauses (GroupBy, SortBy,
-    # Filter, Limit, Apply) serialize in the order the user supplies them, since
-    # FT.AGGREGATE is an ordered pipeline. Flat top-level options (verbatim, load,
-    # params, dialect, timeout) are keyword arguments on {AggregateOptions}.
-    #
-    # @see https://valkey.io/commands/ft.aggregate/
-
     # A single REDUCE within a GROUPBY. Emits `REDUCE <function> <nargs> <arg...>
     # [AS <name>]`. The nargs count is the number of argument tokens that follow
     # the function name.
@@ -24,16 +23,20 @@ class Valkey
       # @return [String, nil] optional result alias (AS clause)
       attr_reader :alias_name
 
-      # @param function [String, Symbol] reducer function name
-      # @param args [Array] argument tokens following the function
-      # @param as [String, nil] optional AS alias
+      # @param [String, Symbol] function - reducer function name
+      # @param [Array] args - argument tokens following the function
+      # @param [String, nil] as - optional AS alias
       def initialize(function, *args, as: nil)
         @function = function.to_s.upcase
         @args = args
         @alias_name = as
       end
 
-      # COUNT — number of records in the group. Takes no property.
+      # COUNT reducer for the number of records in the group. Takes no property.
+      #
+      # @param [String, nil] as - optional AS alias
+      #
+      # @return [Reducer] the configured reducer
       def self.count(as: nil)
         new("COUNT", as: as)
       end
@@ -58,6 +61,7 @@ class Valkey
     end
 
     # Base class for an aggregate pipeline clause. Subclasses implement #to_args.
+    #
     # @abstract
     class AggregateClause
       # @return [Array] the flat FT.AGGREGATE token array for this clause
@@ -74,9 +78,9 @@ class Valkey
     #   Valkey::Search::GroupBy.new(["@category"],
     #     reducers: [Valkey::Search::Reducer.count(as: "total")])
     class GroupBy < AggregateClause
-      # @param properties [Array<String>] grouping properties (may be empty for a
+      # @param [Array<String>] properties - grouping properties (may be empty for a
       #   global aggregation, matching `GROUPBY 0`)
-      # @param reducers [Array<Reducer>] reducers applied to each group
+      # @param [Array<Reducer>] reducers - reducers applied to each group
       def initialize(properties = [], reducers: [])
         super()
         @properties = Array(properties)
@@ -106,9 +110,9 @@ class Valkey
       # Accepts either a single `(property, order)` pair or an ordered Hash /
       # Array-of-pairs of `property => order`.
       #
-      # @param keys [String, Hash, Array] a property, or `{ property => order }`
-      # @param order [Symbol] order for the single-property form (default :asc)
-      # @param max [Integer, nil] emit `MAX <count>`
+      # @param [String, Hash, Array] keys - a property, or `{ property => order }`
+      # @param [Symbol] order - order for the single-property form (default :asc)
+      # @param [Integer, nil] max - emit `MAX <count>`
       def initialize(keys, order = :asc, max: nil)
         super()
         @pairs = normalize_keys(keys, order)
@@ -150,7 +154,7 @@ class Valkey
     # @example
     #   Valkey::Search::Filter.new("@total > 5")
     class Filter < AggregateClause
-      # @param expression [String] the filter expression
+      # @param [String] expression - the filter expression
       def initialize(expression)
         super()
         @expression = expression
@@ -167,8 +171,8 @@ class Valkey
     # @example
     #   Valkey::Search::Apply.new("@price * @qty", as: "line_total")
     class Apply < AggregateClause
-      # @param expression [String] the projection expression
-      # @param as [String] result field name (APPLY requires the AS clause)
+      # @param [String] expression - the projection expression
+      # @param [String] as - result field name (APPLY requires the AS clause)
       def initialize(expression, as:)
         super()
         @expression = expression
@@ -185,8 +189,8 @@ class Valkey
     # @example
     #   Valkey::Search::Limit.new(0, 10)
     class Limit < AggregateClause
-      # @param offset [Integer] number of rows to skip
-      # @param count [Integer] number of rows to return
+      # @param [Integer] offset - number of rows to skip
+      # @param [Integer] count - number of rows to return
       def initialize(offset, count)
         super()
         @offset = offset
@@ -218,14 +222,14 @@ class Valkey
     #
     # @see https://valkey.io/commands/ft.aggregate/
     class AggregateOptions
-      # @param clauses [Array<AggregateClause>] ordered pipeline clauses
-      # @param load [Array<String>, :all, nil] LOAD fields, or :all for `LOAD *`
-      # @param params [Hash, nil] query parameters (PARAMS)
-      # @param verbatim [Boolean] emit VERBATIM
-      # @param in_order [Boolean] emit INORDER
-      # @param slop [Integer, nil] emit `SLOP <n>`
-      # @param dialect [Integer, nil] emit `DIALECT <n>` (only 2 is valid)
-      # @param timeout [Integer, nil] emit `TIMEOUT <ms>`
+      # @param [Array<AggregateClause>] clauses - ordered pipeline clauses
+      # @param [Array<String>, :all, nil] load - LOAD fields, or :all for `LOAD *`
+      # @param [Hash, nil] params - query parameters (PARAMS)
+      # @param [Boolean] verbatim - emit VERBATIM
+      # @param [Boolean] in_order - emit INORDER
+      # @param [Integer, nil] slop - emit `SLOP <n>`
+      # @param [Integer, nil] dialect - emit `DIALECT <n>` (only 2 is valid)
+      # @param [Integer, nil] timeout - emit `TIMEOUT <ms>`
       def initialize(clauses: nil, load: nil, params: nil, verbatim: false,
                      in_order: false, slop: nil, dialect: nil, timeout: nil)
         @clauses = clauses || []

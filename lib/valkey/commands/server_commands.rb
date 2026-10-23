@@ -5,27 +5,31 @@ class Valkey
     # this module contains commands related to server management.
     #
     # @see https://valkey.io/commands/#server
-    #
     module ServerCommands
       # Asynchronously rewrite the append-only file.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String]
+      # @param [Valkey::Route, nil] route - cluster routing. On cluster the default is all primaries,
+      #   so the reply is a per-node Hash even with no route. A single-node route returns a String.
+      #
+      # @return [String, Hash{String => String}]
       def bgrewriteaof(route: nil)
         send_command(RequestType::BG_REWRITE_AOF, [], route: route)
       end
 
       # Asynchronously save the dataset to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String]
+      # @param [Valkey::Route, nil] route - cluster routing. On cluster the default is all primaries,
+      #   so the reply is a per-node Hash even with no route. A single-node route returns a String.
+      #
+      # @return [String, Hash{String => String}]
       def bgsave(route: nil)
         send_command(RequestType::BG_SAVE, [], route: route)
       end
 
       # Get or set server configuration parameters.
       #
-      # @param [Symbol] action e.g. `:get`, `:set`, `:resetstat`
+      # @param [Symbol] action - e.g. `:get`, `:set`, `:resetstat`
+      #
       # @return [String, Hash] string reply, or hash when retrieving more than one
       #   property with `CONFIG GET`
       def config(action, *args)
@@ -36,17 +40,17 @@ class Valkey
       #
       # Sends the CONFIG GET command with the given arguments.
       #
-      # @param [Array<String>] args Configuration parameters to get
-      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
-      #   A multi-node route returns a `Hash` of `"host:port" => { parameter => value }`.
-      # @return [Hash] a flat `{ parameter => value }` Hash, or a per-node Hash under a
-      #   multi-node route.
-      #
       # @example Get all configuration parameters
       #   config_get('*')
-      #
       # @example Get a specific parameter
       #   config_get('maxmemory')
+      #
+      # @param [Array<String>] args - Configuration parameters to get
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => { parameter => value }`.
+      #
+      # @return [Hash] a flat `{ parameter => value }` Hash, or a per-node Hash under a
+      #   multi-node route.
       def config_get(*args, route: nil)
         send_command(RequestType::CONFIG_GET, args, route: route) do |reply|
           if reply.is_a?(Array)
@@ -61,12 +65,13 @@ class Valkey
       #
       # Sends the CONFIG SET command with the given key-value pairs.
       #
-      # @param [Array<String>] args Key-value pairs to set configuration
-      # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String] Returns "OK" if successful
-      #
       # @example Set maxmemory to 100mb
       #   config_set('maxmemory', '100mb')
+      #
+      # @param [Array<String>] args - Key-value pairs to set configuration
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
+      # @return [String] Returns "OK" if successful
       def config_set(*args, route: nil)
         send_command(RequestType::CONFIG_SET, args, route: route)
       end
@@ -75,11 +80,12 @@ class Valkey
       #
       # Sends the CONFIG RESETSTAT command.
       #
-      # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String] Returns "OK" if successful
-      #
       # @example
       #   config_resetstat
+      #
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
+      # @return [String] Returns "OK" if successful
       def config_resetstat(route: nil)
         send_command(RequestType::CONFIG_RESET_STAT, [], route: route)
       end
@@ -88,19 +94,21 @@ class Valkey
       #
       # Sends the CONFIG REWRITE command.
       #
-      # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String] Returns "OK" if successful
-      #
       # @example
       #   config_rewrite
+      #
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
+      # @return [String] Returns "OK" if successful
       def config_rewrite(route: nil)
         send_command(RequestType::CONFIG_REWRITE, [], route: route)
       end
 
       # Return the number of keys in the selected database.
       #
-      # @param route [Valkey::Route, nil] cluster routing. Multi-node routes return the
+      # @param [Valkey::Route, nil] route - cluster routing. Multi-node routes return the
       #   aggregated sum across nodes, not a per-node Hash.
+      #
       # @return [Integer]
       def dbsize(route: nil)
         send_command(RequestType::DB_SIZE, [], route: route)
@@ -108,9 +116,9 @@ class Valkey
 
       # Remove all keys from all databases.
       #
-      # @param [Hash] options
-      #   - `:async => Boolean`: async flush (default: false)
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [Hash] options - #   - `:async => Boolean`: async flush (default: false)
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] `OK`
       def flushall(options = nil, route: nil)
         if options && options[:async]
@@ -122,9 +130,9 @@ class Valkey
 
       # Remove all keys from the current database.
       #
-      # @param [Hash] options
-      #   - `:async => Boolean`: async flush (default: false)
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [Hash] options - #   - `:async => Boolean`: async flush (default: false)
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] `OK`
       def flushdb(options = nil, route: nil)
         if options && options[:async]
@@ -136,10 +144,11 @@ class Valkey
 
       # Get information and statistics about the server.
       #
-      # @param cmd [String, Symbol, nil] section name (e.g. "commandstats")
-      # @param route [Valkey::Route, nil] cluster routing. On cluster the default is all primaries,
+      # @param [String, Symbol, nil] cmd - section name (e.g. "commandstats")
+      # @param [Valkey::Route, nil] route - cluster routing. On cluster the default is all primaries,
       #   so the reply is a per-node Hash even with no route. Standalone (or a single-node route)
       #   returns a flat Hash.
+      #
       # @return [Hash] a flat `{ field => value }` Hash, or a per-node
       #   `{ "host:port" => { field => value } }` Hash under a multi-node route.
       def info(cmd = nil, route: nil)
@@ -173,21 +182,29 @@ class Valkey
 
       # Get the UNIX time stamp of the last successful save to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Integer]
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => Integer`.
+      #
+      # @return [Integer, Hash{String => Integer}]
       def lastsave(route: nil)
         send_command(RequestType::LAST_SAVE, [], route: route)
       end
 
       # Synchronously save the dataset to disk.
       #
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String]
       def save(route: nil)
         send_command(RequestType::SAVE, [], route: route)
       end
 
       # Make the server a slave of another instance, or promote it as master.
+      #
+      # @param [String] host - the master host
+      # @param [Integer, String] port - the master port
+      #
+      # @return [String] `"OK"`
       def slaveof(host, port)
         send_command(RequestType::SLAVE_OF, [host, port])
       end
@@ -199,9 +216,11 @@ class Valkey
       # @example Get the most recent entries
       #   valkey.slowlog(:get, 2)
       #
-      # @param [String, Symbol] subcommand one of `get`, `len`, `reset`
-      # @param [Integer] length maximum number of entries to return (`get` only)
+      # @param [String, Symbol] subcommand - one of `get`, `len`, `reset`
+      # @param [Integer] length - maximum number of entries to return (`get` only)
+      #
       # @return [Array<Array>, Integer, String] depends on subcommand
+      #
       # @raise [ArgumentError] if the subcommand is not one of `get`, `len`, `reset`
       #
       # @see https://valkey.io/commands/slowlog/
@@ -230,8 +249,9 @@ class Valkey
       # @example
       #   r.time # => ["1333093196", "606806"]
       #
-      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
       #   A multi-node route returns a `Hash` of `"host:port" => [seconds, microseconds]`.
+      #
       # @return [Array<String>, Hash{String => Array<String>}] a two-element array of
       #   seconds since UNIX epoch and microseconds in the current second (both as
       #   strings), or a per-node Hash under a multi-node route. Call `.map(&:to_i)` on
@@ -251,7 +271,8 @@ class Valkey
       #   valkey.acl_cat("dangerous")
       #     # => ["flushdb", "flushall", ...]
       #
-      # @param [String] category optional category name to list commands
+      # @param [String] category - optional category name to list commands
+      #
       # @return [Array<String>] array of categories or commands
       #
       # @see https://valkey.io/commands/acl-cat/
@@ -269,7 +290,8 @@ class Valkey
       #   valkey.acl_deluser("alice", "bob")
       #     # => 2
       #
-      # @param [Array<String>] usernames one or more usernames to delete
+      # @param [Array<String>] usernames - one or more usernames to delete
+      #
       # @return [Integer] number of users deleted
       #
       # @see https://valkey.io/commands/acl-deluser/
@@ -286,9 +308,10 @@ class Valkey
       #   valkey.acl_dryrun("alice", "set", "key1", "value")
       #     # => "This user has no permissions to run the 'set' command"
       #
-      # @param [String] username the username to test
-      # @param [String] command the command to test
-      # @param [Array<String>] args command arguments
+      # @param [String] username - the username to test
+      # @param [String] command - the command to test
+      # @param [Array<String>] args - command arguments
+      #
       # @return [String] "OK" if allowed, or error message if denied
       #
       # @see https://valkey.io/commands/acl-dryrun/
@@ -306,7 +329,8 @@ class Valkey
       #   valkey.acl_genpass(32)
       #     # => "355ef3dd"
       #
-      # @param [Integer] bits optional number of bits (default: 256)
+      # @param [Integer] bits - optional number of bits (default: 256)
+      #
       # @return [String] the generated password
       #
       # @see https://valkey.io/commands/acl-genpass/
@@ -321,7 +345,8 @@ class Valkey
       #   valkey.acl_getuser("alice")
       #     # => {"flags" => ["on", "allkeys"], "passwords" => [...], ...}
       #
-      # @param [String] username the username to query
+      # @param [String] username - the username to query
+      #
       # @return [Hash, Array, nil] user properties (a flat name/value Array on a RESP2 connection),
       #   or nil if the user doesn't exist
       #
@@ -368,7 +393,8 @@ class Valkey
       #   valkey.acl_log("RESET")
       #     # => "OK"
       #
-      # @param [Integer, String] count_or_reset number of entries or "RESET" to clear the log
+      # @param [Integer, String] count_or_reset - number of entries or "RESET" to clear the log
+      #
       # @return [Array<Hash>, String] array of log entries, or "OK" if reset
       #
       # @see https://valkey.io/commands/acl-log/
@@ -402,8 +428,9 @@ class Valkey
       #   valkey.acl_setuser("alice", "off")
       #     # => "OK"
       #
-      # @param [String] username the username to modify or create
-      # @param [Array<String>] rules ACL rules to apply
+      # @param [String] username - the username to modify or create
+      # @param [Array<String>] rules - ACL rules to apply
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/acl-setuser/
@@ -477,9 +504,10 @@ class Valkey
       #   valkey.acl(:whoami)
       #     # => "default"
       #
-      # @param [String, Symbol] subcommand the subcommand
+      # @param [String, Symbol] subcommand - the subcommand
       #   (cat, deluser, dryrun, genpass, getuser, list, load, log, save, setuser, users, whoami)
-      # @param [Array] args arguments for the subcommand
+      # @param [Array] args - arguments for the subcommand
+      #
       # @return [Object] depends on subcommand
       def acl(subcommand, *args)
         subcommand = subcommand.to_s.downcase
@@ -487,13 +515,6 @@ class Valkey
       end
 
       # Perform a manual failover of a master to one of its replicas.
-      #
-      # @param [Hash] options optional parameters
-      #   - `:to => String`: host and port of the replica to promote (e.g., "host port")
-      #   - `:force => Boolean`: force failover even if master is reachable
-      #   - `:abort => Boolean`: abort an ongoing failover
-      #   - `:timeout => Integer`: timeout in milliseconds
-      # @return [String] "OK"
       #
       # @example Perform a failover
       #   valkey.failover
@@ -510,6 +531,13 @@ class Valkey
       # @example Failover with timeout
       #   valkey.failover(timeout: 5000)
       #     # => "OK"
+      #
+      # @param [String, nil] to - host and port of the replica to promote
+      # @param [Boolean] force - force failover even if the master is reachable
+      # @param [Boolean] abort - abort an ongoing failover
+      # @param [Integer, nil] timeout - timeout in milliseconds
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/failover/
       def failover(to: nil, force: false, abort: false, timeout: nil)
@@ -532,16 +560,18 @@ class Valkey
 
       # Display some computer art and the Valkey version.
       #
-      # @param version [Integer, nil] optional version number for different art
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String] ASCII art and version information
-      #
       # @example
       #   valkey.lolwut
       #     # => "Valkey ver. 7.0.0\n..."
       # @example With version
       #   valkey.lolwut(5)
       #     # => "Valkey ver. 7.0.0\n..."
+      #
+      # @param [Integer, nil] version - optional version number for different art
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => String`.
+      #
+      # @return [String, Hash{String => String}] ASCII art and version information
       #
       # @see https://valkey.io/commands/lolwut/
       def lolwut(version = nil, route: nil)
@@ -551,13 +581,14 @@ class Valkey
 
       # Internal command used for replication (partial resynchronization).
       #
-      # @param [String] replication_id the replication ID
-      # @param [Integer] offset the replication offset
-      # @return [String] replication stream data
-      #
       # @example
       #   valkey.psync("?", -1)
       #     # => "+FULLRESYNC ..."
+      #
+      # @param [String] replication_id - the replication ID
+      # @param [Integer] offset - the replication offset
+      #
+      # @return [String] replication stream data
       #
       # @see https://valkey.io/commands/psync/
       def psync(replication_id, offset)
@@ -566,15 +597,16 @@ class Valkey
 
       # Internal command used for replication configuration.
       #
-      # @param [Array<String>] args configuration arguments
-      # @return [String, Array] depends on the configuration command
-      #
       # @example Set listening port
       #   valkey.replconf("listening-port", "6380")
       #     # => "OK"
       # @example Send ACK
       #   valkey.replconf("ACK", "1000")
       #     # => "OK"
+      #
+      # @param [Array<String>] args - configuration arguments
+      #
+      # @return [String, Array] depends on the configuration command
       #
       # @see https://valkey.io/commands/replconf/
       def replconf(*args)
@@ -583,16 +615,17 @@ class Valkey
 
       # Make the server a replica of another instance, or promote it as master.
       #
-      # @param [String] host the master host (use "NO" with "ONE" to promote to master)
-      # @param [String, Integer] port the master port (use "ONE" with "NO" to promote to master)
-      # @return [String] "OK"
-      #
       # @example Make server a replica
       #   valkey.replicaof("127.0.0.1", 6379)
       #     # => "OK"
       # @example Promote to master
       #   valkey.replicaof("NO", "ONE")
       #     # => "OK"
+      #
+      # @param [String] host - the master host (use "NO" with "ONE" to promote to master)
+      # @param [String, Integer] port - the master port (use "ONE" with "NO" to promote to master)
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/replicaof/
       def replicaof(host, port)
@@ -601,22 +634,22 @@ class Valkey
 
       # Internal command used in cluster mode for key migration with ASKING flag.
       #
-      # @param [String] key the key to restore
-      # @param [Integer] ttl time to live in milliseconds (0 for no expiry)
-      # @param [String] serialized_value the serialized value from DUMP
-      # @param [Hash] options optional parameters
-      #   - `:replace => Boolean`: replace existing key
-      #   - `:absttl => Boolean`: ttl is an absolute timestamp
-      #   - `:idletime => Integer`: set idle time in seconds
-      #   - `:freq => Integer`: set LFU frequency
-      # @return [String] "OK"
-      #
       # @example Restore a key with ASKING
       #   valkey.restore_asking("mykey", 0, serialized_data)
       #     # => "OK"
       # @example Restore with replace
       #   valkey.restore_asking("mykey", 0, serialized_data, replace: true)
       #     # => "OK"
+      #
+      # @param [String] key - the key to restore
+      # @param [Integer] ttl - time to live in milliseconds (0 for no expiry)
+      # @param [String] serialized_value - the serialized value from DUMP
+      # @param [Boolean] replace - replace an existing key
+      # @param [Boolean] absttl - interpret ttl as an absolute timestamp
+      # @param [Integer, nil] idletime - idle time in seconds
+      # @param [Integer, nil] freq - LFU frequency
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/restore-asking/
       def restore_asking(key, ttl, serialized_value, replace: false, absttl: false, idletime: nil, freq: nil)
@@ -630,16 +663,16 @@ class Valkey
 
       # Return the role of the instance in the context of replication.
       #
-      # @return [Array] role information
-      #   - For master: ["master", replication_offset, [replica1, replica2, ...]]
-      #   - For replica: ["slave", master_host, master_port, replication_state, replication_offset]
-      #
       # @example Get role on master
       #   valkey.role
       #     # => ["master", 3129659, [["127.0.0.1", "6380", "3129659"]]]
       # @example Get role on replica
       #   valkey.role
       #     # => ["slave", "127.0.0.1", 6379, "connected", 3129659]
+      #
+      # @return [Array] role information
+      #   - For master: ["master", replication_offset, [replica1, replica2, ...]]
+      #   - For replica: ["slave", master_host, master_port, replication_state, replication_offset]
       #
       # @see https://valkey.io/commands/role/
       def role
@@ -648,13 +681,14 @@ class Valkey
 
       # Swap two databases.
       #
-      # @param [Integer] index1 first database index
-      # @param [Integer] index2 second database index
-      # @return [String] "OK"
-      #
       # @example Swap database 0 and 1
       #   valkey.swapdb(0, 1)
       #     # => "OK"
+      #
+      # @param [Integer] index1 - first database index
+      # @param [Integer] index2 - second database index
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/swapdb/
       def swapdb(index1, index2)
@@ -663,11 +697,11 @@ class Valkey
 
       # Return a human-readable latency analysis report.
       #
-      # @return [String] human-readable latency analysis
-      #
       # @example
       #   valkey.latency_doctor
       #     # => "Dave, I observed latency events in this Redis instance..."
+      #
+      # @return [String] human-readable latency analysis
       #
       # @see https://valkey.io/commands/latency-doctor/
       def latency_doctor
@@ -676,12 +710,13 @@ class Valkey
 
       # Return an ASCII-art graph of the latency samples for the specified event.
       #
-      # @param [String] event the event name to graph
-      # @return [String] ASCII-art graph of latency samples
-      #
       # @example
       #   valkey.latency_graph("command")
       #     # => "command - high 500 ms, low 501 ms (all time high 500 ms)\n..."
+      #
+      # @param [String] event - the event name to graph
+      #
+      # @return [String] ASCII-art graph of latency samples
       #
       # @see https://valkey.io/commands/latency-graph/
       def latency_graph(event)
@@ -690,16 +725,17 @@ class Valkey
 
       # Return a latency histogram for the specified commands.
       #
-      # @param [Array<String>] commands optional command names to get histograms for
-      # @return [Hash, Array] histograms keyed by lowercase command name (a flat Array on a RESP2
-      #   connection)
-      #
       # @example Get histogram for all commands
       #   valkey.latency_histogram
       #     # => {"set" => {"calls" => 150, "histogram_usec" => {1 => 100, 2 => 150}}, ...}
       # @example Get histogram for specific commands
       #   valkey.latency_histogram("SET", "GET")
       #     # => {"set" => {"calls" => 150, ...}, "get" => {"calls" => 200, ...}}
+      #
+      # @param [Array<String>] commands - optional command names to get histograms for
+      #
+      # @return [Hash, Array] histograms keyed by lowercase command name (a flat Array on a RESP2
+      #   connection)
       #
       # @see https://valkey.io/commands/latency-histogram/
       def latency_histogram(*commands)
@@ -709,12 +745,13 @@ class Valkey
 
       # Return the latency time series for the specified event.
       #
-      # @param [String] event the event name to get history for
-      # @return [Array] array of [timestamp, latency] pairs
-      #
       # @example
       #   valkey.latency_history("command")
       #     # => [[1234567890, 100], [1234567891, 150], ...]
+      #
+      # @param [String] event - the event name to get history for
+      #
+      # @return [Array] array of [timestamp, latency] pairs
       #
       # @see https://valkey.io/commands/latency-history/
       def latency_history(event)
@@ -723,12 +760,12 @@ class Valkey
 
       # Return the latest latency samples for all events.
       #
-      # @return [Array] array of event information arrays
-      #   Each entry is [event_name, timestamp, latest_latency, max_latency]
-      #
       # @example
       #   valkey.latency_latest
       #     # => [["command", 1234567890, 100, 200], ["fast-command", 1234567891, 50, 100]]
+      #
+      # @return [Array] array of event information arrays
+      #   Each entry is [event_name, timestamp, latest_latency, max_latency]
       #
       # @see https://valkey.io/commands/latency-latest/
       def latency_latest
@@ -737,16 +774,17 @@ class Valkey
 
       # Reset latency data for all events or specific events.
       #
-      # @param [Array<String>] events optional event names to reset
-      #   If no events are specified, resets all latency data
-      # @return [Integer] number of events reset
-      #
       # @example Reset all latency data
       #   valkey.latency_reset
       #     # => 3
       # @example Reset specific events
       #   valkey.latency_reset("command", "fast-command")
       #     # => 2
+      #
+      # @param [Array<String>] events - optional event names to reset
+      #   If no events are specified, resets all latency data
+      #
+      # @return [Integer] number of events reset
       #
       # @see https://valkey.io/commands/latency-reset/
       def latency_reset(*events)
@@ -756,11 +794,11 @@ class Valkey
 
       # Return a human-readable memory problems report.
       #
-      # @return [String] human-readable memory analysis report
-      #
       # @example
       #   valkey.memory_doctor
       #     # => "Hi Sam, this is the Valkey memory doctor..."
+      #
+      # @return [String] human-readable memory analysis report
       #
       # @see https://valkey.io/commands/memory-doctor/
       def memory_doctor
@@ -769,11 +807,11 @@ class Valkey
 
       # Return memory allocator statistics.
       #
-      # @return [String] memory allocator statistics
-      #
       # @example
       #   valkey.memory_malloc_stats
       #     # => "___ Begin jemalloc statistics ___..."
+      #
+      # @return [String] memory allocator statistics
       #
       # @see https://valkey.io/commands/memory-malloc-stats/
       def memory_malloc_stats
@@ -782,11 +820,11 @@ class Valkey
 
       # Ask the allocator to release memory back to the operating system.
       #
-      # @return [String] "OK"
-      #
       # @example
       #   valkey.memory_purge
       #     # => "OK"
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/memory-purge/
       def memory_purge
@@ -795,11 +833,11 @@ class Valkey
 
       # Return memory usage statistics.
       #
-      # @return [Hash] memory usage statistics
-      #
       # @example
       #   valkey.memory_stats
       #     # => {"peak.allocated" => "1048576", "total.allocated" => "524288", ...}
+      #
+      # @return [Hash] memory usage statistics
       #
       # @see https://valkey.io/commands/memory-stats/
       def memory_stats
@@ -814,17 +852,17 @@ class Valkey
 
       # Return the memory usage in bytes of a key and its value.
       #
-      # @param [String] key the key to check
-      # @param [Hash] options optional parameters
-      #   - `:samples => Integer`: number of samples for nested data structures (default: 5)
-      # @return [Integer, nil] memory usage in bytes, or nil if key doesn't exist
-      #
       # @example Get memory usage for a key
       #   valkey.memory_usage("mykey")
       #     # => 1024
       # @example Get memory usage with custom samples
       #   valkey.memory_usage("mykey", samples: 10)
       #     # => 2048
+      #
+      # @param [String] key - the key to check
+      # @param [Integer, nil] samples - number of samples for nested data structures
+      #
+      # @return [Integer, nil] memory usage in bytes, or nil if key doesn't exist
       #
       # @see https://valkey.io/commands/memory-usage/
       def memory_usage(key, samples: nil)
@@ -835,24 +873,26 @@ class Valkey
 
       # Send a generic COMMAND subcommand.
       #
-      # @param [Symbol, String] subcommand The COMMAND subcommand to run, e.g. :count, :docs, :info, :list
-      # @param [Array] args Arguments for the subcommand
-      # @return [Object] Depends on subcommand
       # @example
       #   command(:count)                    # => 234
       #   command(:list)                     # => ["GET", "SET", ...]
       #   command(:info, "GET", "SET")       # => [[...], [...]]
+      #
+      # @param [Symbol, String] subcommand - The COMMAND subcommand to run, e.g. :count, :docs, :info, :list
+      # @param [Array] args - Arguments for the subcommand
+      #
+      # @return [Object] Depends on subcommand
       def command(subcommand, *args)
         send("command_#{subcommand.to_s.downcase}", *args)
       end
 
       # Return details about every Redis command.
       #
-      # @return [Array] array of command information arrays
-      #
       # @example
       #   valkey.command
       #     # => [["GET", 2, ["readonly", "fast"], 1, 1, 1], ...]
+      #
+      # @return [Array] array of command information arrays
       #
       # @see https://valkey.io/commands/command/
       def command_
@@ -861,11 +901,11 @@ class Valkey
 
       # Return the total number of commands in the server.
       #
-      # @return [Integer] total number of commands
-      #
       # @example
       #   valkey.command_count
       #     # => 234
+      #
+      # @return [Integer] total number of commands
       #
       # @see https://valkey.io/commands/command-count/
       def command_count
@@ -874,16 +914,17 @@ class Valkey
 
       # Return documentary information about one or more commands.
       #
-      # @param [Array<String>] commands command names to get documentation for
-      # @return [Hash{String => Hash}, Array] docs keyed by lowercase command name (on a RESP2
-      #   connection, an Array alternating command names and doc Hashes)
-      #
       # @example Get docs for specific commands
       #   valkey.command_docs("GET", "SET")
       #     # => {"get" => {"summary" => "...", "since" => "1.0.0", ...}, "set" => {...}}
       # @example Get docs for all commands
       #   valkey.command_docs
       #     # => {"get" => {"summary" => "...", ...}, ...}
+      #
+      # @param [Array<String>] commands - command names to get documentation for
+      #
+      # @return [Hash{String => Hash}, Array] docs keyed by lowercase command name (on a RESP2
+      #   connection, an Array alternating command names and doc Hashes)
       #
       # @see https://valkey.io/commands/command-docs/
       def command_docs(*commands)
@@ -906,14 +947,15 @@ class Valkey
 
       # Extract keys from a full Redis command.
       #
-      # @param [String, Array<String>] command the command and its arguments
-      # @return [Array] array of key positions
-      #
       # @example
       #   valkey.command_get_keys("GET", "mykey")
       #     # => [0]
       #   valkey.command_get_keys("MSET", "key1", "val1", "key2", "val2")
       #     # => [0, 2]
+      #
+      # @param [String, Array<String>] command - the command and its arguments
+      #
+      # @return [Array] array of key positions
       #
       # @see https://valkey.io/commands/command-getkeys/
       def command_get_keys(*command)
@@ -922,12 +964,13 @@ class Valkey
 
       # Extract keys and their flags from a full Redis command.
       #
-      # @param [String, Array<String>] command the command and its arguments
-      # @return [Array] array of [key_position, flags] pairs
-      #
       # @example
       #   valkey.command_get_keys_and_flags("GET", "mykey")
       #     # => [[0, ["RW", "access"]], ...]
+      #
+      # @param [String, Array<String>] command - the command and its arguments
+      #
+      # @return [Array] array of [key_position, flags] pairs
       #
       # @see https://valkey.io/commands/command-getkeysandflags/
       def command_get_keys_and_flags(*command)
@@ -936,15 +979,16 @@ class Valkey
 
       # Return information about one or more commands.
       #
-      # @param [Array<String>] commands command names to get information for
-      # @return [Array] array of command information arrays
-      #
       # @example Get info for specific commands
       #   valkey.command_info("GET", "SET")
       #     # => [[...], [...]]
       # @example Get info for all commands
       #   valkey.command_info
       #     # => [[...], ...]
+      #
+      # @param [Array<String>] commands - command names to get information for
+      #
+      # @return [Array] array of command information arrays
       #
       # @see https://valkey.io/commands/command-info/
       def command_info(*commands)
@@ -953,12 +997,6 @@ class Valkey
       end
 
       # Return an array of command names.
-      #
-      # @param [Hash] options optional filters
-      #   - `:filterby => String`: filter by module name (e.g., "json")
-      #   - `:aclcat => String`: filter by ACL category
-      #   - `:pattern => String`: pattern to match (used with filterby)
-      # @return [Array<String>] array of command names
       #
       # @example Get all commands
       #   valkey.command_list
@@ -969,6 +1007,12 @@ class Valkey
       # @example Filter by ACL category
       #   valkey.command_list(aclcat: "read")
       #     # => ["GET", "MGET", ...]
+      #
+      # @param [String, nil] filterby - module name to filter by
+      # @param [String, nil] aclcat - ACL category to filter by
+      # @param [String, nil] pattern - pattern to match with filterby
+      #
+      # @return [Array<String>] array of command names
       #
       # @see https://valkey.io/commands/command-list/
       def command_list(filterby: nil, aclcat: nil, pattern: nil)

@@ -4,6 +4,7 @@ class Valkey
   # A connection's subscriptions
   #
   # @!attribute [r] desired_subscriptions
+  #
   #   @return [Hash{Symbol => Array<String>}] the subscriptions the client asked for, keyed
   #     `:exact`, `:pattern` and `:sharded`. If empty, then the client has no desired
   #     subscriptions. Otherwise each mode maps to its channels, for example
@@ -21,8 +22,8 @@ class Valkey
   class PubSubState
     attr_reader :desired_subscriptions, :actual_subscriptions
 
-    # @param [Hash{Symbol => Array<String>}] desired_subscriptions
-    # @param [Hash{Symbol => Array<String>}] actual_subscriptions
+    # @param [Hash{Symbol => Array<String>}] desired_subscriptions - the subscriptions requested by the client
+    # @param [Hash{Symbol => Array<String>}] actual_subscriptions - the subscriptions confirmed by the server
     def initialize(desired_subscriptions:, actual_subscriptions:)
       @desired_subscriptions = desired_subscriptions
       @actual_subscriptions = actual_subscriptions
@@ -39,8 +40,10 @@ class Valkey
     #   state.desired_subscriptions # => { exact: ["news"] }
     #   state.actual_subscriptions  # => { exact: ["news"], pattern: [], sharded: [] }
     #
-    # @param [Array] reply the raw reply
+    # @param [Array] reply - the raw reply
+    #
     # @return [PubSubState]
+    #
     # @raise [Valkey::CommandError] if the reply is not the expected labelled 4-element array
     def self.from_reply(reply)
       reject_reply(reply) unless reply.is_a?(Array) && reply.size == 4

@@ -5,12 +5,12 @@ class Valkey
     # This module contains commands related to connection management.
     #
     # @see https://valkey.io/commands/#connection
-    #
     module ConnectionCommands
       # Authenticate to the server.
       #
-      # @param [Array<String>] args includes both username and password
+      # @param [Array<String>] args - includes both username and password
       #   or only password
+      #
       # @return [String] `OK`
       def auth(*args)
         send_command(RequestType::AUTH, args)
@@ -18,23 +18,25 @@ class Valkey
 
       # Ping the server.
       #
-      # @param message [String, nil] optional message to echo back
-      # @param route [Valkey::Route, nil] cluster routing.
-      # @return [String] `"PONG"`, or the echoed `message` if given.
-      #
       # @example
       #   ping                                  #=> "PONG"
       #   ping("hello")                         #=> "hello"
       #   ping(route: Valkey::Route.all_nodes)  #=> "PONG"
+      #
+      # @param [String, nil] message - optional message to echo back
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
+      # @return [String] `"PONG"`, or the echoed `message` if given.
       def ping(message = nil, route: nil)
         send_command(RequestType::PING, [message].compact, route: route)
       end
 
       # Echo the given string.
       #
-      # @param value [String]
-      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      # @param [String] value
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
       #   A multi-node route returns a `Hash` of `"host:port" => reply`.
+      #
       # @return [String, Hash{String => String}]
       def echo(value, route: nil)
         send_command(RequestType::ECHO, [value], route: route)
@@ -42,7 +44,8 @@ class Valkey
 
       # Change the selected database for the current connection.
       #
-      # @param [Integer] db zero-based index of the DB to use (0 to 15)
+      # @param [Integer] db - zero-based index of the DB to use (0 to 15)
+      #
       # @return [String] `OK`
       def select(db)
         send_command(RequestType::SELECT, [db])
@@ -50,8 +53,9 @@ class Valkey
 
       # Switch to a different protocol version and handshake with the server.
       #
-      # @param [Integer] protover Protocol version (2 or 3)
-      # @param [Hash] options Optional parameters like AUTH, SETNAME
+      # @param [Integer] protover - Protocol version (2 or 3)
+      # @param [Hash] options - Optional parameters like AUTH, SETNAME
+      #
       # @return [Hash] Server information (server, version, proto, id, mode, role, modules)
       def hello(protover = 3, **options)
         args = [protover]
@@ -75,21 +79,24 @@ class Valkey
 
       # Send a generic CLIENT subcommand.
       #
-      # @param [Symbol, String] subcommand The CLIENT subcommand to run, e.g. :list, :id, :kill, etc.
-      # @param [Array] args Arguments for the subcommand
-      # @return [Object] Depends on subcommand
       # @example
       #   client(:id)                  # => 12345
       #   client(:set_name, "my_app")  # => "OK"
       #   client(:list)                # => [{"id" => "1", ...}, ...]
+      #
+      # @param [Symbol, String] subcommand - The CLIENT subcommand to run, e.g. :list, :id, :kill, etc.
+      # @param [Array] args - Arguments for the subcommand
+      #
+      # @return [Object] Depends on subcommand
       def client(subcommand, *args)
         public_send("client_#{subcommand.to_s.downcase}", *args)
       end
 
       # Get the current client's ID.
       #
-      # @param route [Valkey::Route, nil] cluster routing. Default is a single random node.
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
       #   A multi-node route returns a `Hash` of `"host:port" => Integer`.
+      #
       # @return [Integer, Hash{String => Integer}]
       def client_id(route: nil)
         send_command(RequestType::CLIENT_ID, [], route: route)
@@ -104,7 +111,8 @@ class Valkey
 
       # Set the current client's name.
       #
-      # @param [String] name New name for the client connection
+      # @param [String] name - New name for the client connection
+      #
       # @return [String] `OK`
       def client_set_name(name)
         send_command(RequestType::CLIENT_SET_NAME, [name])
@@ -112,8 +120,9 @@ class Valkey
 
       # Get a list of client connections.
       #
-      # @param [String] type Optional filter by client type (normal, master, slave, pubsub)
-      # @param [Array<String>] ids Optional filter by client IDs
+      # @param [String] type - Optional filter by client type (normal, master, slave, pubsub)
+      # @param [Array<String>] ids - Optional filter by client IDs
+      #
       # @return [Array<Hash>] List of clients, each represented as a Hash of attributes
       def client_list(type: nil, ids: nil)
         args = []
@@ -144,8 +153,9 @@ class Valkey
 
       # Kill client connections.
       #
-      # @param [String] addr Client address (ip:port)
-      # @param [Hash] options Optional filters (id, type, user, addr, laddr, skipme)
+      # @param [String] addr - Client address (ip:port)
+      # @param [Hash] options - Optional filters (id, type, user, addr, laddr, skipme)
+      #
       # @return [Integer] Number of clients killed
       def client_kill(addr = nil, **options)
         if addr && options.empty?
@@ -157,7 +167,8 @@ class Valkey
 
       # Kill a client connection by address (simple form).
       #
-      # @param [String] addr Client address (ip:port)
+      # @param [String] addr - Client address (ip:port)
+      #
       # @return [String] `OK`
       def client_kill_simple(addr)
         send_command(RequestType::CLIENT_KILL_SIMPLE, [addr])
@@ -165,8 +176,9 @@ class Valkey
 
       # Pause client processing.
       #
-      # @param [Integer] timeout Pause duration in milliseconds
-      # @param [String] mode Optional mode (WRITE, ALL)
+      # @param [Integer] timeout - Pause duration in milliseconds
+      # @param [String] mode - Optional mode (WRITE, ALL)
+      #
       # @return [String] `OK`
       def client_pause(timeout, mode = nil)
         args = [timeout]
@@ -176,7 +188,8 @@ class Valkey
 
       # Unpause client processing.
       #
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] `OK`
       def client_unpause(route: nil)
         send_command(RequestType::CLIENT_UNPAUSE, [], route: route)
@@ -184,8 +197,9 @@ class Valkey
 
       # Set client connection information.
       #
-      # @param [String] attr Attribute to set (lib-name, lib-ver)
-      # @param [String] value Value to set for the attribute
+      # @param [String] attr - Attribute to set (lib-name, lib-ver)
+      # @param [String] value - Value to set for the attribute
+      #
       # @return [String] `OK`
       def client_set_info(attr, value)
         send_command(RequestType::CLIENT_SET_INFO, [attr, value])
@@ -193,7 +207,8 @@ class Valkey
 
       # Enable/disable client caching.
       #
-      # @param [String] mode Caching mode (YES, NO)
+      # @param [String] mode - Caching mode (YES, NO)
+      #
       # @return [String] `OK`
       def client_caching(mode)
         send_command(RequestType::CLIENT_CACHING, [mode])
@@ -201,14 +216,16 @@ class Valkey
 
       # Configure client tracking.
       #
-      # @param [String] status Tracking status (ON, OFF)
-      # @param [Array] args Additional positional arguments (REDIRECT, PREFIX, BCAST, OPTIN, OPTOUT, NOLOOP)
-      # @param [Hash] options Optional parameters (for keyword argument style)
-      # @return [String] `OK`
       # @example Positional style
       #   client_tracking("ON", "OPTIN")
       # @example Keyword style
       #   client_tracking("ON", optin: true, redirect: 123)
+      #
+      # @param [String] status - Tracking status (ON, OFF)
+      # @param [Array] args - Additional positional arguments (REDIRECT, PREFIX, BCAST, OPTIN, OPTOUT, NOLOOP)
+      # @param [Hash] options - Optional parameters (for keyword argument style)
+      #
+      # @return [String] `OK`
       def client_tracking(status, *args, **options)
         cmd_args = [status]
         cmd_args.concat(args.any? ? args : build_client_tracking_args(options))
@@ -231,7 +248,8 @@ class Valkey
 
       # Enable/disable client no-evict mode.
       #
-      # @param [String] mode Mode (ON, OFF)
+      # @param [String] mode - Mode (ON, OFF)
+      #
       # @return [String] `OK`
       def client_no_evict(mode)
         send_command(RequestType::CLIENT_NO_EVICT, [mode.to_s.upcase])
@@ -239,7 +257,8 @@ class Valkey
 
       # Enable/disable client no-touch mode.
       #
-      # @param [String] mode Mode (ON, OFF)
+      # @param [String] mode - Mode (ON, OFF)
+      #
       # @return [String] `OK`
       def client_no_touch(mode)
         send_command(RequestType::CLIENT_NO_TOUCH, [mode.to_s.upcase])

@@ -9,24 +9,29 @@ class Valkey
     #   Valkey::Search::SearchOptions.new(limit: { offset: 0, count: 10 },
     #     return_fields: ["title", { name: "loc", as: "location" }], dialect: 2)
     #
-    # @see https://redis.io/commands/ft.search/
+    # @see https://valkey.io/commands/ft.search/
     class SearchOptions
       # @return [Boolean] NOCONTENT requested (the parser needs this)
       attr_reader :no_content
       # @return [Boolean] WITHSORTKEYS requested (the parser needs this)
       attr_reader :with_sort_keys
 
-      # @param limit [Hash, Array, nil] { offset:, count: } or [offset, count]
-      # @param return_fields [Array, nil] field name String/Symbol or { name:, as: } Hash
-      # @param params [Hash, nil] query parameters (PARAMS)
-      # @param sort_by [String, nil] field to sort by
-      # @param sort_order [Symbol, nil] :asc or :desc (requires sort_by)
-      # @param with_sort_keys [Boolean] emit WITHSORTKEYS (requires sort_by; cannot
+      # @param [Hash, Array, nil] limit - { offset:, count: } or [offset, count]
+      # @param [Array, nil] return_fields - field name String/Symbol or { name:, as: } Hash
+      # @param [Hash, nil] params - query parameters (PARAMS)
+      # @param [String, nil] sort_by - field to sort by
+      # @param [Symbol, nil] sort_order - :asc or :desc (requires sort_by)
+      # @param [Boolean] with_sort_keys - emit WITHSORTKEYS (requires sort_by; cannot
       #   be combined with no_content — the server discards the sort keys when
       #   NOCONTENT is set, which desynchronizes the reply parser)
-      # @param no_content [Boolean] emit NOCONTENT (keys only)
-      # @param shard_scope [Symbol, nil] :all_shards or :some_shards
-      # @param consistency [Symbol, nil] :consistent or :inconsistent
+      # @param [Boolean] no_content - emit NOCONTENT (keys only)
+      # @param [Boolean] verbatim - emit VERBATIM
+      # @param [Boolean] in_order - emit INORDER
+      # @param [Integer, nil] slop - emit `SLOP <n>`
+      # @param [Integer, nil] dialect - emit `DIALECT <n>`
+      # @param [Integer, nil] timeout - emit `TIMEOUT <ms>`
+      # @param [Symbol, nil] shard_scope - :all_shards or :some_shards
+      # @param [Symbol, nil] consistency - :consistent or :inconsistent
       def initialize(limit: nil, return_fields: nil, params: nil, sort_by: nil,
                      sort_order: nil, with_sort_keys: false, no_content: false,
                      verbatim: false, in_order: false, slop: nil, dialect: nil,
@@ -130,7 +135,7 @@ class Valkey
     # Structured FT.SEARCH result: a total count plus a list of documents. The
     # raw-args path still returns the unwrapped reply. Mirrors Go/C#.
     #
-    # @see https://redis.io/commands/ft.search/
+    # @see https://valkey.io/commands/ft.search/
     class SearchResult
       Document = Struct.new(:key, :fields, :sort_key)
 
@@ -147,6 +152,10 @@ class Valkey
       # Parse a raw FT.SEARCH reply. Handles both the GLIDE normalized map form
       # ([count, { key => { field => value } }]) and the flat RESP2 array form,
       # honoring no_content and with_sort_keys.
+      #
+      # @param [Array] raw - raw FT.SEARCH reply
+      # @param [Boolean] no_content - whether NOCONTENT was requested
+      # @param [Boolean] with_sort_keys - whether WITHSORTKEYS was requested
       #
       # @return [SearchResult]
       def self.from_raw(raw, no_content: false, with_sort_keys: false)

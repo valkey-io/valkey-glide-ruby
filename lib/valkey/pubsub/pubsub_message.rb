@@ -4,6 +4,7 @@ class Valkey
   # A Pub/Sub message delivered on a subscribed channel.
   #
   # @!attribute [r] message
+  #
   #   @return [String] the published payload. Binary safe: embedded NUL bytes
   #     are preserved.
   # @!attribute [r] channel
@@ -18,9 +19,9 @@ class Valkey
   class PubSubMessage
     attr_reader :message, :channel, :pattern
 
-    # @param [String] message the published payload
-    # @param [String] channel the channel the message was published to
-    # @param [String, nil] pattern the matched pattern for a `PMESSAGE`
+    # @param [String] message - the published payload
+    # @param [String] channel - the channel the message was published to
+    # @param [String, nil] pattern - the matched pattern for a `PMESSAGE`
     def initialize(message:, channel:, pattern: nil)
       @message = message
       @channel = channel
