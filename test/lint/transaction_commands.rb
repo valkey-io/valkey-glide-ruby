@@ -600,6 +600,35 @@ module Lint
       assert_equal [false, true], result
     end
 
+    def test_multi_with_delifeq
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      target_version("9.0")
+
+      r.set("foo", "value")
+      mismatch_future = nil
+      match_future = nil
+      result = r.multi do |multi|
+        mismatch_future = multi.delifeq("foo", "other")
+        match_future = multi.delifeq("foo", "value")
+      end
+
+      assert_equal [false, true], result
+      assert_equal false, mismatch_future.value
+      assert_equal true, match_future.value
+    end
+
+    def test_exec_boolean_coercion_matches_direct_call
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      target_version("9.0")
+
+      r.set("foo", "value")
+      r.multi
+      r.delifeq("foo", "other")
+      r.delifeq("foo", "value")
+
+      assert_equal [false, true], r.exec
+    end
+
     def test_multi_with_block_returns_futures_that_resolve_after_the_block
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 

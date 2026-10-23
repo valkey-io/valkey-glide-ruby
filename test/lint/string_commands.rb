@@ -140,6 +140,45 @@ module Lint
       end
     end
 
+    def test_delifeq
+      target_version("9.0")
+
+      assert_equal false, r.delifeq("foo", "value")
+
+      r.set("foo", "value")
+      assert_equal false, r.delifeq("foo", "other")
+      assert_equal "value", r.get("foo")
+
+      assert_equal true, r.delifeq("foo", "value")
+      assert_nil r.get("foo")
+    end
+
+    def test_delifeq_with_non_string_value
+      target_version("9.0")
+
+      value = %w[a b]
+      r.set("foo", value)
+
+      assert_equal true, r.delifeq("foo", value)
+      assert_nil r.get("foo")
+    end
+
+    def test_delifeq_in_pipeline
+      target_version("9.0")
+
+      mismatch_future = nil
+      match_future = nil
+      result = r.pipelined do |pipeline|
+        pipeline.set("foo", "value")
+        mismatch_future = pipeline.delifeq("foo", "other")
+        match_future = pipeline.delifeq("foo", "value")
+      end
+
+      assert_equal ["OK", false, true], result
+      assert_equal false, mismatch_future.value
+      assert_equal true, match_future.value
+    end
+
     def test_getset
       r.set("foo", "bar")
 
