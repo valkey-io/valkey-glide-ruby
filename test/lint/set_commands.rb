@@ -160,26 +160,26 @@ module Lint
     end
 
     def test_sismember_if_exists
-      target_version "9.2" do
-        key = "sismember_if_exists"
-        r.sadd(key, "s1")
+      omit_version("9.2")
 
-        assert_equal 1, r.sismember_if_exists(key, "s1")
-        assert_equal 0, r.sismember_if_exists(key, "s2")
-        assert_equal(-1, r.sismember_if_exists("non_existing_set", "s1"))
-      end
+      key = "sismember_if_exists"
+      r.sadd(key, "s1")
+
+      assert_equal 1, r.sismember_if_exists(key, "s1")
+      assert_equal 0, r.sismember_if_exists(key, "s2")
+      assert_equal(-1, r.sismember_if_exists("non_existing_set", "s1"))
     end
 
     def test_sismember_if_exists_wrong_type
-      target_version "9.2" do
-        key = "sismember_if_exists_string"
-        r.set(key, "value")
+      omit_version("9.2")
 
-        error = assert_raises(Valkey::CommandError) do
-          r.sismember_if_exists(key, "member")
-        end
-        assert_includes error.message, "WRONGTYPE"
+      key = "sismember_if_exists_string"
+      r.set(key, "value")
+
+      error = assert_raises(Valkey::CommandError) do
+        r.sismember_if_exists(key, "member")
       end
+      assert_includes error.message, "WRONGTYPE"
     end
 
     def test_smismember

@@ -588,64 +588,61 @@ module Lint
 
     def test_multi_with_sismember_if_exists
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      omit_version("9.2")
 
-      target_version "9.2" do
-        key = "someset"
-        r.del(key)
+      key = "someset"
+      r.del(key)
 
-        future = nil
-        result = r.multi do |multi|
-          future = multi.sismember_if_exists(key, "member")
-        end
-
-        assert_equal [-1], result
-        assert_equal(-1, future.value)
+      future = nil
+      result = r.multi do |multi|
+        future = multi.sismember_if_exists(key, "member")
       end
+
+      assert_equal [-1], result
+      assert_equal(-1, future.value)
     end
 
     def test_pipelined_with_sismember_if_exists
-      target_version "9.2" do
-        key = "someset"
-        r.del(key)
+      omit_version("9.2")
 
-        result = r.pipelined do |pipeline|
-          pipeline.sismember_if_exists(key, "member")
-        end
+      key = "someset"
+      r.del(key)
 
-        assert_equal [-1], result
+      result = r.pipelined do |pipeline|
+        pipeline.sismember_if_exists(key, "member")
       end
+
+      assert_equal [-1], result
     end
 
     def test_exec_sismember_if_exists_keeps_status_code
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      omit_version("9.2")
 
-      target_version "9.2" do
-        key = "someset"
-        r.del(key)
+      key = "someset"
+      r.del(key)
 
-        r.multi
-        assert_equal "QUEUED", r.sismember(key, "member")
-        assert_equal "QUEUED", r.sismember_if_exists(key, "member")
+      r.multi
+      assert_equal "QUEUED", r.sismember(key, "member")
+      assert_equal "QUEUED", r.sismember_if_exists(key, "member")
 
-        assert_equal [false, -1], r.exec
-      end
+      assert_equal [false, -1], r.exec
     end
 
     def test_exec_sismember_if_exists_with_wrong_type
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      omit_version("9.2")
 
-      target_version "9.2" do
-        key = "someset"
-        r.set(key, "value")
+      key = "someset"
+      r.set(key, "value")
 
-        r.multi
-        assert_equal "QUEUED", r.sismember_if_exists(key, "member")
+      r.multi
+      assert_equal "QUEUED", r.sismember_if_exists(key, "member")
 
-        result = r.exec
-        assert_instance_of Array, result
-        assert_instance_of Valkey::CommandError, result[0]
-        assert_includes result[0].message, "WRONGTYPE"
-      end
+      result = r.exec
+      assert_instance_of Array, result
+      assert_instance_of Valkey::CommandError, result[0]
+      assert_includes result[0].message, "WRONGTYPE"
     end
 
     def test_multi_with_setnx
