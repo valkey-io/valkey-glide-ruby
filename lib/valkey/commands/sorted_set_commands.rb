@@ -10,6 +10,7 @@ class Valkey
       #     # => 4
       #
       # @param [String] key
+      #
       # @return [Integer]
       def zcard(key)
         send_command(RequestType::Z_CARD, [key])
@@ -24,24 +25,15 @@ class Valkey
       #   valkey.zadd("zset", [[32.0, "a"], [64.0, "b"]])
       #
       # @param [String] key
-      # @param [[Float, String], Array<[Float, String]>] args
+      # @param [Array] args - score/member pairs
       #   - a single `[score, member]` pair
       #   - an array of `[score, member]` pairs
-      # @param [Hash] options
-      #   - `:xx => true`: Only update elements that already exist (never
-      #   add elements)
-      #   - `:nx => true`: Don't update already existing elements (always
-      #   add new elements)
-      #   - `:lt => true`: Only update existing elements if the new score
-      #   is less than the current score
-      #   - `:gt => true`: Only update existing elements if the new score
-      #   is greater than the current score
-      #   - `:ch => true`: Modify the return value from the number of new
-      #   elements added, to the total number of elements changed (CH is an
-      #   abbreviation of changed); changed elements are new elements added
-      #   and elements already existing for which the score was updated
-      #   - `:incr => true`: When this option is specified ZADD acts like
-      #   ZINCRBY; only one score-element pair can be specified in this mode
+      # @param [Boolean, nil] nx - add new elements only
+      # @param [Boolean, nil] xx - update existing elements only
+      # @param [Boolean, nil] lt - update only when the new score is lower
+      # @param [Boolean, nil] gt - update only when the new score is higher
+      # @param [Boolean, nil] ch - return the number of changed elements
+      # @param [Boolean, nil] incr - increment the score of one member
       #
       # @return [Boolean, Integer, Float]
       #   - `Boolean` when a single pair is specified, holding whether or not it was
@@ -82,6 +74,7 @@ class Valkey
       # @param [String] key
       # @param [Float] increment
       # @param [String] member
+      #
       # @return [Float] score of the member after incrementing it
       def zincrby(key, increment, member)
         send_command(RequestType::Z_INCR_BY, [key, increment, member], &Utils::Floatify)
@@ -129,8 +122,8 @@ class Valkey
       #   valkey.zpopmax('zset', 2)
       #   #=> [['b', 2.0], ['a', 1.0]]
       #
-      # @params key [String] a key of the sorted set
-      # @params count [Integer] a number of members
+      # @param [String] key - a key of the sorted set
+      # @param [Integer] count - a number of members
       #
       # @return [Array<String, Float>] element and score pair if count is not specified
       # @return [Array<Array<String, Float>>] list of popped elements and scores
@@ -152,8 +145,8 @@ class Valkey
       #   valkey.zpopmin('zset', 2)
       #   #=> [['a', 1.0], ['b', 2.0]]
       #
-      # @params key [String] a key of the sorted set
-      # @params count [Integer] a number of members
+      # @param [String] key - a key of the sorted set
+      # @param [Integer] count - a number of members
       #
       # @return [Array<String, Float>] element and score pair if count is not specified
       # @return [Array<Array<String, Float>>] list of popped elements and scores
@@ -174,6 +167,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String] member
+      #
       # @return [Float] score of the member
       def zscore(key, member)
         send_command(RequestType::Z_SCORE, [key, member], &Utils::Floatify)
@@ -187,6 +181,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] members
+      #
       # @return [Array<Float>] scores of the members
       def zmscore(key, *members)
         send_command(RequestType::Z_MSCORE, [key, *members]) do |reply|
@@ -204,17 +199,18 @@ class Valkey
       #     # => [["a", 32.0], ["b", 64.0]]
       #
       # @param [String] key
-      # @param [Integer] start start index
-      # @param [Integer] stop stop index
-      # @param [Hash] options
-      #   - `:by_score => false`: return members by score
-      #   - `:by_lex => false`: return members by lexicographical ordering
-      #   - `:rev => false`: reverse the ordering, from highest to lowest
-      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of
-      #   `count` members
-      #   - `:with_scores => true`: include scores in output
+      # @param [Integer] start - start index
+      # @param [Integer] stop - stop index
+      # @param [Boolean] byscore - alias for by_score
+      # @param [Boolean] by_score - return members by score
+      # @param [Boolean] bylex - alias for by_lex
+      # @param [Boolean] by_lex - return members by lexicographical ordering
+      # @param [Boolean] rev - reverse the ordering
+      # @param [Array<Integer>, nil] limit - offset and maximum count
+      # @param [Boolean] withscores - alias for with_scores
+      # @param [Boolean] with_scores - include scores in the result
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       def zrange(key, start, stop, byscore: false, by_score: byscore, bylex: false, by_lex: bylex,
@@ -254,7 +250,19 @@ class Valkey
       #   valkey.zrange("bar", 0, -1)
       #     # => ["s1", "s2"]
       #
+      # @param [String] dest_key - destination key
+      # @param [String] src_key - source key
+      # @param [Integer, String] start - range start
+      # @param [Integer, String] stop - range end
+      # @param [Boolean] byscore - alias for by_score
+      # @param [Boolean] by_score - select the range by score
+      # @param [Boolean] bylex - alias for by_lex
+      # @param [Boolean] by_lex - select the range lexicographically
+      # @param [Boolean] rev - reverse the ordering
+      # @param [Array<Integer>, nil] limit - offset and maximum count
+      #
       # @return [Integer] the number of elements in the resulting sorted set
+      #
       # @see #zrange
       def zrangestore(dest_key, src_key, start, stop, byscore: false, by_score: byscore,
                       bylex: false, by_lex: bylex, rev: false, limit: nil)
@@ -289,8 +297,10 @@ class Valkey
       #
       # @param [String] key
       # @param [String] member
+      # @param [Boolean] withscore - alias for with_score
+      # @param [Boolean] with_score - include the member's score
       #
-      # @return [Integer, [Integer, Float]]
+      # @return [Integer, Array]
       #   - when `:with_score` is not specified, an Integer
       #   - when `:with_score` is specified, a `[rank, score]` pair
       def zrank(key, member, withscore: false, with_score: withscore)
@@ -316,8 +326,10 @@ class Valkey
       #
       # @param [String] key
       # @param [String] member
+      # @param [Boolean] withscore - alias for with_score
+      # @param [Boolean] with_score - include the member's score
       #
-      # @return [Integer, [Integer, Float]]
+      # @return [Integer, Array]
       #   - when `:with_score` is not specified, an Integer
       #   - when `:with_score` is specified, a `[rank, score]` pair
       def zrevrank(key, member, withscore: false, with_score: withscore)
@@ -341,8 +353,9 @@ class Valkey
       #     # => 5
       #
       # @param [String] key
-      # @param [Integer] start start index
-      # @param [Integer] stop stop index
+      # @param [Integer] start - start index
+      # @param [Integer] stop - stop index
+      #
       # @return [Integer] number of members that were removed
       def zremrangebyrank(key, start, stop)
         send_command(RequestType::Z_REM_RANGE_BY_RANK, [key, start, stop])
@@ -361,8 +374,7 @@ class Valkey
       # @param [String] min
       #   - inclusive minimum is specified by prefixing `(`
       #   - exclusive minimum is specified by prefixing `[`
-      # @param [String] max
-      #   - inclusive maximum is specified by prefixing `(`
+      # @param [String] max - #   - inclusive maximum is specified by prefixing `(`
       #   - exclusive maximum is specified by prefixing `[`
       #
       # @return [Integer] number of members within the specified lexicographical range
@@ -383,9 +395,9 @@ class Valkey
       # @param [String] min
       #   - inclusive minimum score is specified verbatim
       #   - exclusive minimum score is specified by prefixing `(`
-      # @param [String] max
-      #   - inclusive maximum score is specified verbatim
+      # @param [String] max - #   - inclusive maximum score is specified verbatim
       #   - exclusive maximum score is specified by prefixing `(`
+      #
       # @return [Integer] number of members that were removed
       def zremrangebyscore(key, min, max)
         send_command(RequestType::Z_REM_RANGE_BY_SCORE, [key, min, max])
@@ -404,9 +416,9 @@ class Valkey
       # @param [String] min
       #   - inclusive minimum score is specified verbatim
       #   - exclusive minimum score is specified by prefixing `(`
-      # @param [String] max
-      #   - inclusive maximum score is specified verbatim
+      # @param [String] max - #   - inclusive maximum score is specified verbatim
       #   - exclusive maximum score is specified by prefixing `(`
+      #
       # @return [Integer] number of members in within the specified range
       def zcount(key, min, max)
         send_command(RequestType::Z_COUNT, [key, min, max])
@@ -421,14 +433,13 @@ class Valkey
       #   valkey.zinter("zsetA", "zsetB", :weights => [2.0, 1.0], :with_scores => true)
       #     # => [["v1", 3.0], ["v2", 6.0]]
       #
-      # @param [String, Array<String>] keys one or more keys to intersect
-      # @param [Hash] options
+      # @param [Array] args - keys followed by optional operation options
       #   - `:weights => [Float, Float, ...]`: weights to associate with source
       #   sorted sets
       #   - `:aggregate => String`: aggregate function to use (sum, min, max, ...)
       #   - `:with_scores => true`: include scores in output
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       def zinter(*args)
@@ -443,12 +454,11 @@ class Valkey
       #   valkey.zinterstore("zsetC", ["zsetA", "zsetB"], :weights => [2.0, 1.0], :aggregate => "sum")
       #     # => 4
       #
-      # @param [String] destination destination key
-      # @param [Array<String>] keys source keys
-      # @param [Hash] options
+      # @param [Array] args - destination, source keys, and optional operation options
       #   - `:weights => [Array<Float>]`: weights to associate with source
       #   sorted sets
       #   - `:aggregate => String`: aggregate function to use (sum, min, max)
+      #
       # @return [Integer] number of elements in the resulting sorted set
       def zinterstore(*args)
         _zsets_operation_store(RequestType::Z_INTER_STORE, *args)
@@ -464,14 +474,13 @@ class Valkey
       #   valkey.zunion("zsetA", "zsetB", :weights => [2.0, 1.0], :with_scores => true)
       #     # => [["v1", 3.0], ["v2", 6.0]]
       #
-      # @param [String, Array<String>] keys one or more keys to union
-      # @param [Hash] options
+      # @param [Array] args - keys followed by optional operation options
       #   - `:weights => [Array<Float>]`: weights to associate with source
       #   sorted sets
       #   - `:aggregate => String`: aggregate function to use (sum, min, max)
       #   - `:with_scores => true`: include scores in output
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       def zunion(*args)
@@ -485,12 +494,11 @@ class Valkey
       #   valkey.zunionstore("zsetC", ["zsetA", "zsetB"], :weights => [2.0, 1.0], :aggregate => "sum")
       #     # => 8
       #
-      # @param [String] destination destination key
-      # @param [Array<String>] keys source keys
-      # @param [Hash] options
+      # @param [Array] args - destination, source keys, and optional operation options
       #   - `:weights => [Float, Float, ...]`: weights to associate with source
       #   sorted sets
       #   - `:aggregate => String`: aggregate function to use (sum, min, max, ...)
+      #
       # @return [Integer] number of elements in the resulting sorted set
       def zunionstore(*args)
         _zsets_operation_store(RequestType::Z_UNION_STORE, *args)
@@ -510,11 +518,10 @@ class Valkey
       #   valkey.zdiff("zsetA", "zsetB", :with_scores => true)
       #     => [["v1", 1.0]]
       #
-      # @param [String, Array<String>] keys one or more keys to compute the difference
-      # @param [Hash] options
-      #   - `:with_scores => true`: include scores in output
+      # @param [String, Array<String>] keys - one or more keys to compute the difference
+      # @param [Boolean] with_scores - include scores in the result
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       def zdiff(*keys, with_scores: false)
@@ -530,8 +537,8 @@ class Valkey
       #   valkey.zdiffstore("zsetA", "zsetB")
       #     # => 1
       #
-      # @param [String] destination destination key
-      # @param [Array<String>] keys source keys
+      # @param [Array] args - destination followed by source keys
+      #
       # @return [Integer] number of elements in the resulting sorted set
       def zdiffstore(*args)
         _zsets_operation_store(RequestType::Z_DIFF_STORE, *args)
@@ -543,12 +550,12 @@ class Valkey
       # @example Retrieve the first batch of key/value pairs in a hash
       #   valkey.zscan("zset", 0)
       #
-      # @param [String, Integer] cursor the cursor of the iteration
-      # @param [Hash] options
-      #   - `:match => String`: only return keys matching the pattern
+      # @param [String] key - sorted set key
+      # @param [String, Integer] cursor - the cursor of the iteration
+      # @param [Hash] options - #   - `:match => String`: only return keys matching the pattern
       #   - `:count => Integer`: return count keys at most per iteration
       #
-      # @return [String, Array<[String, Float]>] the next cursor and all found
+      # @return [String, Array<Array>] the next cursor and all found
       #   members and scores
       #
       # See the [Valkey Server ZSCAN documentation](https://valkey.io/docs/latest/commands/zscan/) for further details
@@ -564,10 +571,11 @@ class Valkey
       #   valkey.bzmpop(1.0, "key1", "key2", modifier: "MAX", count: 2)
       #     # => ["key1", [["member1", 3.0], ["member2", 2.0]]]
       #
-      # @param [Float] timeout timeout in seconds
-      # @param [Array<String>] keys sorted set keys
-      # @param [String] modifier "MIN" or "MAX"
-      # @param [Integer] count number of elements to pop
+      # @param [Float] timeout - timeout in seconds
+      # @param [Array<String>] keys - sorted set keys
+      # @param [String] modifier - "MIN" or "MAX"
+      # @param [Integer] count - number of elements to pop
+      #
       # @return [Array, nil] key and array of [member, score] pairs, or nil if timeout
       #
       # @see https://valkey.io/commands/bzmpop/
@@ -587,8 +595,9 @@ class Valkey
       #   valkey.bzpopmax("key1", "key2", timeout: 1.0)
       #     # => ["key2", "member", 2.0]
       #
-      # @param [Array<String>] keys sorted set keys
-      # @param [Float] timeout timeout in seconds
+      # @param [Array<String>] keys - sorted set keys
+      # @param [Float] timeout - timeout in seconds
+      #
       # @return [Array, nil] key, member, and score, or nil if timeout
       #
       # @see https://valkey.io/commands/bzpopmax/
@@ -608,8 +617,9 @@ class Valkey
       #   valkey.bzpopmin("key1", "key2", timeout: 1.0)
       #     # => ["key2", "member", 0.5]
       #
-      # @param [Array<String>] keys sorted set keys
-      # @param [Float] timeout timeout in seconds
+      # @param [Array<String>] keys - sorted set keys
+      # @param [Float] timeout - timeout in seconds
+      #
       # @return [Array, nil] key, member, and score, or nil if timeout
       #
       # @see https://valkey.io/commands/bzpopmin/
@@ -629,8 +639,9 @@ class Valkey
       #   valkey.zintercard("key1", "key2", limit: 10)
       #     # => 3
       #
-      # @param [Array<String>] keys sorted set keys
-      # @param [Integer] limit maximum number to count (optional)
+      # @param [Array<String>] keys - sorted set keys
+      # @param [Integer] limit - maximum number to count (optional)
+      #
       # @return [Integer] number of elements in intersection
       #
       # @see https://valkey.io/commands/zintercard/
@@ -646,9 +657,10 @@ class Valkey
       #   valkey.zmpop("key1", "key2", modifier: "MAX", count: 2)
       #     # => ["key1", [["member1", 3.0], ["member2", 2.0]]]
       #
-      # @param [Array<String>] keys sorted set keys
-      # @param [String] modifier "MIN" or "MAX"
-      # @param [Integer] count number of elements to pop
+      # @param [Array<String>] keys - sorted set keys
+      # @param [String] modifier - "MIN" or "MAX"
+      # @param [Integer] count - number of elements to pop
+      #
       # @return [Array, nil] key and array of [member, score] pairs, or nil if no elements
       #
       # @see https://valkey.io/commands/zmpop/
@@ -671,9 +683,10 @@ class Valkey
       #   valkey.zrandmember("key", 2, with_scores: true)
       #     # => [["member1", 1.0], ["member2", 2.0]]
       #
-      # @param [String] key sorted set key
-      # @param [Integer] count number of members to return (optional)
-      # @param [Boolean] with_scores return scores with members
+      # @param [String] key - sorted set key
+      # @param [Integer] count - number of members to return (optional)
+      # @param [Boolean] with_scores - return scores with members
+      #
       # @return [String, Array] random member(s), optionally with scores
       #
       # @see https://valkey.io/commands/zrandmember/
@@ -701,15 +714,16 @@ class Valkey
       #   valkey.zremrangebylex("key", "[a", "[c")
       #     # => 2
       #
-      # @param [String] key sorted set key
-      # @param [String] min minimum lexicographical value
+      # @param [String] key - sorted set key
+      # @param [String] min - minimum lexicographical value
       #   - inclusive minimum is specified by prefixing `[`
       #   - exclusive minimum is specified by prefixing `(`
       #   - `-` represents negative infinity
-      # @param [String] max maximum lexicographical value
+      # @param [String] max - maximum lexicographical value
       #   - inclusive maximum is specified by prefixing `[`
       #   - exclusive maximum is specified by prefixing `(`
       #   - `+` represents positive infinity
+      #
       # @return [Integer] number of members that were removed
       #
       # @see https://valkey.io/commands/zremrangebylex/
@@ -719,8 +733,6 @@ class Valkey
 
       # Return a range of members in a sorted set, by index, with scores ordered from high to low.
       #
-      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:rev` option instead.
-      #
       # @example Retrieve members from a sorted set in reverse order
       #   valkey.zrevrange("zset", 0, -1)
       #     # => ["b", "a"]
@@ -729,16 +741,18 @@ class Valkey
       #     # => [["b", 64.0], ["a", 32.0]]
       #
       # @param [String] key
-      # @param [Integer] start start index
-      # @param [Integer] stop stop index
-      # @param [Hash] options
-      #   - `:with_scores => true`: include scores in output
+      # @param [Integer] start - start index
+      # @param [Integer] stop - stop index
+      # @param [Boolean] withscores - alias for with_scores
+      # @param [Boolean] with_scores - include scores in the result
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       #
       # @see https://valkey.io/commands/zrevrange/
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:rev` option instead.
       def zrevrange(key, start, stop, withscores: false, with_scores: withscores)
         args = [key, start, stop]
 
@@ -751,8 +765,6 @@ class Valkey
       end
 
       # Return a range of members in a sorted set, by score, with scores ordered from low to high.
-      #
-      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_score` option instead.
       #
       # @example Retrieve members with scores between 1 and 3
       #   valkey.zrangebyscore("zset", 1, 3)
@@ -768,23 +780,25 @@ class Valkey
       #     # => ["s1", "s2"]
       #
       # @param [String] key
-      # @param [String, Numeric] min minimum score
+      # @param [String, Numeric] min - minimum score
       #   - inclusive minimum is specified verbatim
       #   - exclusive minimum is specified by prefixing `(`
       #   - `-inf` represents negative infinity
-      # @param [String, Numeric] max maximum score
+      # @param [String, Numeric] max - maximum score
       #   - inclusive maximum is specified verbatim
       #   - exclusive maximum is specified by prefixing `(`
       #   - `+inf` represents positive infinity
-      # @param [Hash] options
-      #   - `:with_scores => true`: include scores in output
-      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      # @param [Boolean] withscores - alias for with_scores
+      # @param [Boolean] with_scores - include scores in the result
+      # @param [Array<Integer>, nil] limit - offset and maximum count
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       #
       # @see https://valkey.io/commands/zrangebyscore/
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_score` option instead.
       def zrangebyscore(key, min, max, withscores: false, with_scores: withscores, limit: nil)
         args = [key, min, max]
 
@@ -803,8 +817,6 @@ class Valkey
 
       # Return a range of members in a sorted set, by lexicographical ordering.
       #
-      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_lex` option instead.
-      #
       # @example Retrieve members within a lexicographical range
       #   valkey.zrangebylex("zset", "[aaa", "[g")
       #     # => ["aaa", "b", "c", "d", "e", "foo", "g"]
@@ -816,20 +828,21 @@ class Valkey
       #     # => ["aaa", "b", "c"]
       #
       # @param [String] key
-      # @param [String] min minimum lexicographical value
+      # @param [String] min - minimum lexicographical value
       #   - inclusive minimum is specified by prefixing `[`
       #   - exclusive minimum is specified by prefixing `(`
       #   - `-` represents negative infinity
-      # @param [String] max maximum lexicographical value
+      # @param [String] max - maximum lexicographical value
       #   - inclusive maximum is specified by prefixing `[`
       #   - exclusive maximum is specified by prefixing `(`
       #   - `+` represents positive infinity
-      # @param [Hash] options
-      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      # @param [Array<Integer>, nil] limit - offset and maximum count
       #
       # @return [Array<String>] array of members
       #
       # @see https://valkey.io/commands/zrangebylex/
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_lex` option instead.
       def zrangebylex(key, min, max, limit: nil)
         args = [key, min, max]
 
@@ -842,8 +855,6 @@ class Valkey
       end
 
       # Return a range of members in a sorted set, by score, with scores ordered from high to low.
-      #
-      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with `:by_score` and `:rev` instead.
       #
       # @example Retrieve members with scores between 3 and 1 (reversed)
       #   valkey.zrevrangebyscore("zset", 3, 1)
@@ -859,23 +870,25 @@ class Valkey
       #     # => ["s3", "s2"]
       #
       # @param [String] key
-      # @param [String, Numeric] max maximum score
+      # @param [String, Numeric] max - maximum score
       #   - inclusive maximum is specified verbatim
       #   - exclusive maximum is specified by prefixing `(`
       #   - `+inf` represents positive infinity
-      # @param [String, Numeric] min minimum score
+      # @param [String, Numeric] min - minimum score
       #   - inclusive minimum is specified verbatim
       #   - exclusive minimum is specified by prefixing `(`
       #   - `-inf` represents negative infinity
-      # @param [Hash] options
-      #   - `:with_scores => true`: include scores in output
-      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      # @param [Boolean] withscores - alias for with_scores
+      # @param [Boolean] with_scores - include scores in the result
+      # @param [Array<Integer>, nil] limit - offset and maximum count
       #
-      # @return [Array<String>, Array<[String, Float]>]
+      # @return [Array<String>, Array<Array>]
       #   - when `:with_scores` is not specified, an array of members
       #   - when `:with_scores` is specified, an array with `[member, score]` pairs
       #
       # @see https://valkey.io/commands/zrevrangebyscore/
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with `:by_score` and `:rev` instead.
       def zrevrangebyscore(key, max, min, withscores: false, with_scores: withscores, limit: nil)
         args = [key, max, min]
 
@@ -894,8 +907,6 @@ class Valkey
 
       # Return a range of members in a sorted set, by lexicographical ordering, ordered from high to low.
       #
-      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_lex` and `:rev` options instead.
-      #
       # @example Retrieve members within a lexicographical range (reversed)
       #   valkey.zrevrangebylex("zset", "[g", "[aaa")
       #     # => ["g", "foo", "e", "d", "c", "b", "aaa"]
@@ -907,20 +918,21 @@ class Valkey
       #     # => ["g", "foo", "e"]
       #
       # @param [String] key
-      # @param [String] max maximum lexicographical value
+      # @param [String] max - maximum lexicographical value
       #   - inclusive maximum is specified by prefixing `[`
       #   - exclusive maximum is specified by prefixing `(`
       #   - `+` represents positive infinity
-      # @param [String] min minimum lexicographical value
+      # @param [String] min - minimum lexicographical value
       #   - inclusive minimum is specified by prefixing `[`
       #   - exclusive minimum is specified by prefixing `(`
       #   - `-` represents negative infinity
-      # @param [Hash] options
-      #   - `:limit => [offset, count]`: skip `offset` members, return a maximum of `count` members
+      # @param [Array<Integer>, nil] limit - offset and maximum count
       #
       # @return [Array<String>] array of members
       #
       # @see https://valkey.io/commands/zrevrangebylex/
+      #
+      # @note This command is deprecated since Redis 6.2.0. Use {#zrange} with the `:by_lex` and `:rev` options instead.
       def zrevrangebylex(key, max, min, limit: nil)
         args = [key, max, min]
 

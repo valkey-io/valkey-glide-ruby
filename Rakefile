@@ -5,6 +5,19 @@
 require 'bundler/gem_tasks' unless ENV["TEST_INSTALLED_GEM"]
 require 'rake/testtask'
 
+namespace :lint do
+  desc "Lint YARD documentation for command APIs"
+  task :yard do
+    public_api_files = FileList[
+      "lib/valkey.rb",
+      "lib/valkey/commands/**/*.rb"
+    ]
+
+    failed_files = public_api_files.reject { |file| system("yard-lint", file) }
+    abort "YARD lint failed for:\n#{failed_files.join("\n")}" unless failed_files.empty?
+  end
+end
+
 # =============================================================================
 # Native Library Build Tasks
 # =============================================================================

@@ -10,14 +10,14 @@ class Valkey
     #
     # @see https://redis.io/commands/ft.create/
     class CreateOptions
-      # @param on [Symbol, String, nil] :hash or :json (ON clause)
-      # @param prefixes [Array<String>, nil] key prefixes (`PREFIX <count> <p...>`)
-      # @param score [Numeric, nil] default document score
-      # @param language [String, nil] default stemmer language
-      # @param skip_initial_scan [Boolean] emit SKIPINITIALSCAN
-      # @param min_stem_size [Integer, nil] emit `MINSTEMSIZE <n>`
-      # @param stopwords [Array<String>, nil] custom stopwords (mutually exclusive with no_stopwords)
-      # @param no_stopwords [Boolean] emit NOSTOPWORDS
+      # @param [Symbol, String, nil] on - :hash or :json (ON clause)
+      # @param [Array<String>, nil] prefixes - key prefixes (`PREFIX <count> <p...>`)
+      # @param [Numeric, nil] score - default document score
+      # @param [String, nil] language - default stemmer language
+      # @param [Boolean] skip_initial_scan - emit SKIPINITIALSCAN
+      # @param [Integer, nil] min_stem_size - emit `MINSTEMSIZE <n>`
+      # @param [Array<String>, nil] stopwords - custom stopwords (mutually exclusive with no_stopwords)
+      # @param [Boolean] no_stopwords - emit NOSTOPWORDS
       def initialize(on: nil, prefixes: nil, score: nil, language: nil,
                      skip_initial_scan: false, min_stem_size: nil,
                      stopwords: nil, no_stopwords: false)
