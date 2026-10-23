@@ -5,7 +5,6 @@ class Valkey
     # This module contains commands related to Redis Cluster management.
     #
     # @see https://valkey.io/commands/#cluster
-    #
     module ClusterCommands
       # Send ASKING command to the server.
       #
@@ -16,7 +15,8 @@ class Valkey
 
       # Add slots to the cluster.
       #
-      # @param [Array<Integer>] slots array of slot numbers
+      # @param [Array<Integer>] slots - array of slot numbers
+      #
       # @return [String] `"OK"`
       def cluster_addslots(*slots)
         send_command(RequestType::CLUSTER_ADD_SLOTS, slots)
@@ -24,8 +24,9 @@ class Valkey
 
       # Add a range of slots to the cluster.
       #
-      # @param [Integer] start_slot starting slot number
-      # @param [Integer] end_slot ending slot number
+      # @param [Integer] start_slot - starting slot number
+      # @param [Integer] end_slot - ending slot number
+      #
       # @return [String] `"OK"`
       def cluster_addslotsrange(start_slot, end_slot)
         send_command(RequestType::CLUSTER_ADD_SLOTS_RANGE, [start_slot, end_slot])
@@ -40,7 +41,8 @@ class Valkey
 
       # Count failure reports for a node.
       #
-      # @param [String] node_id the node ID
+      # @param [String] node_id - the node ID
+      #
       # @return [Integer] number of failure reports
       def cluster_count_failure_reports(node_id)
         send_command(RequestType::CLUSTER_COUNT_FAILURE_REPORTS, [node_id])
@@ -48,7 +50,8 @@ class Valkey
 
       # Count keys in a specific slot.
       #
-      # @param [Integer] slot the slot number
+      # @param [Integer] slot - the slot number
+      #
       # @return [Integer] number of keys in the slot
       def cluster_countkeysinslot(slot)
         send_command(RequestType::CLUSTER_COUNT_KEYS_IN_SLOT, [slot])
@@ -56,7 +59,8 @@ class Valkey
 
       # Delete slots from the cluster.
       #
-      # @param [Array<Integer>] slots array of slot numbers
+      # @param [Array<Integer>] slots - array of slot numbers
+      #
       # @return [String] `"OK"`
       def cluster_delslots(*slots)
         send_command(RequestType::CLUSTER_DEL_SLOTS, slots)
@@ -64,8 +68,9 @@ class Valkey
 
       # Delete a range of slots from the cluster.
       #
-      # @param [Integer] start_slot starting slot number
-      # @param [Integer] end_slot ending slot number
+      # @param [Integer] start_slot - starting slot number
+      # @param [Integer] end_slot - ending slot number
+      #
       # @return [String] `"OK"`
       def cluster_delslotsrange(start_slot, end_slot)
         send_command(RequestType::CLUSTER_DEL_SLOTS_RANGE, [start_slot, end_slot])
@@ -82,9 +87,12 @@ class Valkey
       # the primary is unreachable); +:takeover+ promotes it without any cluster
       # consensus (most aggressive — risks data loss / split brain).
       #
-      # @param [Symbol, nil] mode optional failover mode: +:force+ or +:takeover+
+      # @param [Symbol, nil] mode - optional failover mode: +:force+ or +:takeover+
+      #
       # @return [String] `"OK"`
+      #
       # @raise [ArgumentError] if +mode+ is not nil, +:force+, or +:takeover+
+      #
       # @see https://valkey.io/commands/cluster-failover/
       def cluster_failover(mode = nil)
         args = []
@@ -107,7 +115,8 @@ class Valkey
 
       # Remove a node from the cluster.
       #
-      # @param [String] node_id the node ID to forget
+      # @param [String] node_id - the node ID to forget
+      #
       # @return [String] `"OK"`
       def cluster_forget(node_id)
         send_command(RequestType::CLUSTER_FORGET, [node_id])
@@ -115,8 +124,9 @@ class Valkey
 
       # Get keys in a specific slot.
       #
-      # @param [Integer] slot the slot number
-      # @param [Integer] count maximum number of keys to return
+      # @param [Integer] slot - the slot number
+      # @param [Integer] count - maximum number of keys to return
+      #
       # @return [Array<String>] array of keys
       def cluster_getkeysinslot(slot, count)
         send_command(RequestType::CLUSTER_GET_KEYS_IN_SLOT, [slot, count])
@@ -137,7 +147,8 @@ class Valkey
 
       # Get the slot for a key.
       #
-      # @param [String] key the key name
+      # @param [String] key - the key name
+      #
       # @return [Integer] slot number
       def cluster_keyslot(key)
         send_command(RequestType::CLUSTER_KEY_SLOT, [key])
@@ -152,8 +163,9 @@ class Valkey
 
       # Meet another node in the cluster.
       #
-      # @param [String] ip IP address of the node
-      # @param [Integer] port port of the node
+      # @param [String] ip - IP address of the node
+      # @param [Integer] port - port of the node
+      #
       # @return [String] `"OK"`
       def cluster_meet(ip, port)
         send_command(RequestType::CLUSTER_MEET, [ip, port])
@@ -188,7 +200,8 @@ class Valkey
 
       # Get information about replica nodes.
       #
-      # @param [String] node_id the master node ID
+      # @param [String] node_id - the master node ID
+      #
       # @return [Array<Hash>] array of replica information
       def cluster_replicas(node_id)
         send_command(RequestType::CLUSTER_REPLICAS, [node_id]) do |reply|
@@ -198,7 +211,8 @@ class Valkey
 
       # Set a node as a replica of another node.
       #
-      # @param [String] node_id the master node ID
+      # @param [String] node_id - the master node ID
+      #
       # @return [String] `"OK"`
       def cluster_replicate(node_id)
         send_command(RequestType::CLUSTER_REPLICATE, [node_id])
@@ -206,7 +220,8 @@ class Valkey
 
       # Reset the cluster.
       #
-      # @param [String] hard hard reset
+      # @param [String] hard - hard reset
+      #
       # @return [String] `"OK"`
       def cluster_reset(hard = nil)
         args = []
@@ -223,7 +238,8 @@ class Valkey
 
       # Set the config epoch for a node.
       #
-      # @param [Integer] epoch the config epoch
+      # @param [Integer] epoch - the config epoch
+      #
       # @return [String] `"OK"`
       def cluster_set_config_epoch(epoch)
         send_command(RequestType::CLUSTER_SET_CONFIG_EPOCH, [epoch])
@@ -231,9 +247,10 @@ class Valkey
 
       # Set the state of a slot.
       #
-      # @param [Integer] slot the slot number
-      # @param [String] state the state (importing, migrating, node, stable)
-      # @param [String] node_id the node ID (optional)
+      # @param [Integer] slot - the slot number
+      # @param [String] state - the state (importing, migrating, node, stable)
+      # @param [String] node_id - the node ID (optional)
+      #
       # @return [String] `"OK"`
       def cluster_setslot(slot, state, node_id = nil)
         args = [slot, state]
@@ -249,6 +266,8 @@ class Valkey
       end
 
       # Get information about slave nodes (deprecated, use cluster_replicas).
+      #
+      # @param [String] node_id - the master node ID
       #
       # @return [Array<Hash>] array of slave information
       def cluster_slaves(node_id)

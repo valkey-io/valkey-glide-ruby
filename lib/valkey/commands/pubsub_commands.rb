@@ -26,7 +26,6 @@ class Valkey
     # * Callback: a `callback:` proc receives every message instead, along with an arbitrary `context:`.
     # * Lazy: the `_lazy` subscribe and unsubscribe methods return without waiting for the server to confirm
     #   the change; read back {#get_subscriptions} to see the subscriptions the server actually has.
-    #
     # @example PubSub with callback
     #   valkey = Valkey.new(
     #     pubsub: {
@@ -36,18 +35,16 @@ class Valkey
     #     }
     #   )
     #
+    # @see https://valkey.io/docs/topics/pubsub/
+    # @see https://valkey.io/commands/#pubsub
+    #
     # @note While the callback executes it holds the GVL, blocking the Ruby runtime until it
     #   returns. A slow callback becomes a bottleneck for the whole application, so avoid
     #   costly operations in it.
-    #
     # @note The callback may be invoked during initial connection, before Valkey.new returns.
     #   Do not reference the client being constructed from inside the callback, and
     #   any state the callback needs at delivery time should be passed via the context
     #   instead
-    #
-    # @see https://valkey.io/docs/topics/pubsub/
-    # @see https://valkey.io/commands/#pubsub
-    #
     module PubSubCommands
       # Subscription mode mapped to the integer key glide-core expects
       SUBSCRIPTION_MODES = { exact: 0, pattern: 1, sharded: 2 }.freeze
@@ -57,10 +54,12 @@ class Valkey
       # @example Subscribe to channels
       #   valkey.subscribe("channel1", "channel2")
       #
-      # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      # @param [Array<String>] channels - the channels to subscribe to; an empty list is rejected
+      # @param [Integer, Float] timeout_ms - maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
+      #
       # @return [void] returns once the server has confirmed the subscription
+      #
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -85,11 +84,13 @@ class Valkey
       # @example Unsubscribe from every subscribed channel
       #   valkey.unsubscribe
       #
-      # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
+      # @param [Array<String>] channels - the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      # @param [Integer, Float] timeout_ms - maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
+      #
       # @return [void] returns once the server has confirmed the change
+      #
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -106,10 +107,12 @@ class Valkey
       # @example Subscribe to patterns
       #   valkey.psubscribe("news.*", "events.*")
       #
-      # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      # @param [Array<String>] patterns - the glob-style patterns to subscribe to; an empty list is rejected
+      # @param [Integer, Float] timeout_ms - maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
+      #
       # @return [void] returns once the server has confirmed the subscription
+      #
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -129,11 +132,13 @@ class Valkey
       # @example Unsubscribe from every subscribed pattern
       #   valkey.punsubscribe
       #
-      # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
+      # @param [Array<String>] patterns - the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      # @param [Integer, Float] timeout_ms - maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
+      #
       # @return [void] returns once the server has confirmed the change
+      #
       # @raise [ArgumentError] if timeout_ms is negative
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -152,10 +157,12 @@ class Valkey
       # @example Subscribe to shard channels
       #   valkey.ssubscribe("shard1", "shard2")
       #
-      # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      # @param [Array<String>] channels - the sharded channels to subscribe to; an empty list is rejected
+      # @param [Integer, Float] timeout_ms - maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
+      #
       # @return [void] returns once the server has confirmed the subscription
+      #
       # @raise [ArgumentError] if the client is not in cluster mode, or if timeout_ms is negative
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -178,11 +185,13 @@ class Valkey
       # @example Unsubscribe from every subscribed shard channel
       #   valkey.sunsubscribe
       #
-      # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
+      # @param [Array<String>] channels - the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
-      # @param [Integer, Float] timeout_ms maximum time in milliseconds to wait for the server to
+      # @param [Integer, Float] timeout_ms - maximum time in milliseconds to wait for the server to
       #   confirm; `0` blocks indefinitely
+      #
       # @return [void] returns once the server has confirmed the change
+      #
       # @raise [ArgumentError] if the client is not in cluster mode, or if timeout_ms is negative
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::TimeoutError] if the timeout expires before the server confirms
@@ -204,8 +213,10 @@ class Valkey
       #   valkey.get_subscriptions.actual_subscriptions[:exact]
       #     # => ["channel1", "channel2"]
       #
-      # @param [Array<String>] channels the channels to subscribe to; an empty list is rejected
+      # @param [Array<String>] channels - the channels to subscribe to; an empty list is rejected
+      #
       # @return [void] returns as soon as the desired subscription state is updated
+      #
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
@@ -221,9 +232,11 @@ class Valkey
       #   valkey.get_subscriptions.actual_subscriptions[:exact]
       #     # => ["channel2"]
       #
-      # @param [Array<String>] channels the channels to unsubscribe from; an empty list unsubscribes from all
+      # @param [Array<String>] channels - the channels to unsubscribe from; an empty list unsubscribes from all
       #   exact channels
+      #
       # @return [void] returns as soon as the desired subscription state is updated
+      #
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/unsubscribe/
@@ -240,8 +253,10 @@ class Valkey
       #   valkey.get_subscriptions.actual_subscriptions[:pattern]
       #     # => ["news.*"]
       #
-      # @param [Array<String>] patterns the glob-style patterns to subscribe to; an empty list is rejected
+      # @param [Array<String>] patterns - the glob-style patterns to subscribe to; an empty list is rejected
+      #
       # @return [void] returns as soon as the desired subscription state is updated
+      #
       # @raise [ArgumentError] on argument errors
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
@@ -257,9 +272,11 @@ class Valkey
       #   valkey.get_subscriptions.actual_subscriptions[:pattern]
       #     # => []
       #
-      # @param [Array<String>] patterns the patterns to unsubscribe from; an empty list unsubscribes from all
+      # @param [Array<String>] patterns - the patterns to unsubscribe from; an empty list unsubscribes from all
       #   patterns
+      #
       # @return [void] returns as soon as the desired subscription state is updated
+      #
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
       # @see https://valkey.io/commands/punsubscribe/
@@ -277,8 +294,10 @@ class Valkey
       #   valkey.get_subscriptions.actual_subscriptions[:sharded]
       #     # => ["shard1"]
       #
-      # @param [Array<String>] channels the sharded channels to subscribe to; an empty list is rejected
+      # @param [Array<String>] channels - the sharded channels to subscribe to; an empty list is rejected
+      #
       # @return [void] returns as soon as the desired subscription state is updated
+      #
       # @raise [ArgumentError] if the client is not in cluster mode, or if the channel list is empty
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
@@ -297,9 +316,11 @@ class Valkey
       #   valkey.get_subscriptions.actual_subscriptions[:sharded]
       #     # => []
       #
-      # @param [Array<String>] channels the sharded channels to unsubscribe from; an empty list unsubscribes
+      # @param [Array<String>] channels - the sharded channels to unsubscribe from; an empty list unsubscribes
       #   from all sharded channels
+      #
       # @return [void] returns as soon as the desired subscription state is updated
+      #
       # @raise [ArgumentError] if the client is not in cluster mode
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       #
@@ -322,10 +343,11 @@ class Valkey
       #   valkey.publish("Hello, Shard!", "shard1", sharded: true)
       #     # => 1
       #
-      # @param [String] message the message to publish
-      # @param [String] channel the channel to publish the message on
-      # @param [Boolean] sharded use sharded Pub/Sub mode; only available in cluster mode
+      # @param [String] message - the message to publish
+      # @param [String] channel - the channel to publish the message on
+      # @param [Boolean] sharded - use sharded Pub/Sub mode; only available in cluster mode
       #   (`cluster_mode: true`). Since: Valkey version 7.0.0
+      #
       # @return [Integer] the number of subscriptions that received the message: in cluster mode the
       #   subscriptions on the node the request was routed to, in standalone the subscriptions on the primary
       #   node, which excludes subscriptions configured on replicas
@@ -340,6 +362,7 @@ class Valkey
       # Return this connection's desired and server-confirmed subscriptions.
       #
       # @return [Valkey::PubSub::PubSubState] the connection's subscription state
+      #
       # @raise [ArgumentError] if called inside `pipelined` or `multi`
       def get_subscriptions
         PubSub::PubSubState.from_reply(send_command(RequestType::GET_SUBSCRIPTIONS))
@@ -357,7 +380,8 @@ class Valkey
       #   valkey.pubsub_channels("news.*")
       #     # => ["news.sports", "news.weather"]
       #
-      # @param [String, nil] pattern the pattern used to filter active channels
+      # @param [String, nil] pattern - the pattern used to filter active channels
+      #
       # @return [Array<String>] matching active channels
       #
       # @see https://valkey.io/commands/pubsub-channels/
@@ -393,7 +417,8 @@ class Valkey
       #   valkey.pubsub_numsub
       #     # => {}
       #
-      # @param [Array<String>] channels the channels to query; omit to query none
+      # @param [Array<String>] channels - the channels to query; omit to query none
+      #
       # @return [Hash{String => Integer}, Array] subscriber counts keyed by channel
       #
       # @see https://valkey.io/commands/pubsub-numsub/
@@ -413,7 +438,8 @@ class Valkey
       #   valkey.pubsub_shardchannels("shard.*")
       #     # => ["shard.1", "shard.2"]
       #
-      # @param [String, nil] pattern the pattern used to filter active shard channels
+      # @param [String, nil] pattern - the pattern used to filter active shard channels
+      #
       # @return [Array<String>] matching active shard channels
       #
       # @see https://valkey.io/commands/pubsub-shardchannels/
@@ -433,7 +459,8 @@ class Valkey
       #   valkey.pubsub_shardnumsub
       #     # => {}
       #
-      # @param [Array<String>] channels the shard channels to query; omit to query none
+      # @param [Array<String>] channels - the shard channels to query; omit to query none
+      #
       # @return [Hash{String => Integer}, Array] subscriber counts keyed by shard channel;
       #
       # @see https://valkey.io/commands/pubsub-shardnumsub/
@@ -450,6 +477,7 @@ class Valkey
       #
       # @return [Valkey::PubSub::PubSubMessage, nil] the message, or `nil` once the client is closed.
       #   `#pattern` is set only when the push was a `PMESSAGE`
+      #
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
       def get_pubsub_message
@@ -466,8 +494,10 @@ class Valkey
       #   valkey.try_get_pubsub_message
       #     # => nil
       #
-      # @return [Valkey::PubSub::PubSubMessage, nil] the message, or `nil` when the queue is empty or the
-      #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
+      # @return [Valkey::PubSub::PubSubMessage, nil] the message, or `nil`
+      #   when the queue is empty or the client is closed. `#pattern` is set only when the
+      #   push was a `PMESSAGE`
+      #
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
       def try_get_pubsub_message

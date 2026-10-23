@@ -5,7 +5,6 @@ class Valkey
     # This module contains commands related to Valkey Functions.
     #
     # @see https://valkey.io/commands/#scripting
-    #
     module FunctionCommands
       # Delete a library and all its functions.
       #
@@ -13,8 +12,9 @@ class Valkey
       #   valkey.function_delete("mylib")
       #     # => "OK"
       #
-      # @param [String] library_name the library name to delete
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [String] library_name - the library name to delete
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-delete/
@@ -28,8 +28,10 @@ class Valkey
       #   valkey.function_dump
       #     # => <binary string>
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [String] the serialized payload
+      # @param [Valkey::Route, nil] route - cluster routing. A multi-node route returns a `Hash` of
+      #   `"host:port" => String`.
+      #
+      # @return [String, Hash{String => String}] the serialized payload
       #
       # @see https://valkey.io/commands/function-dump/
       def function_dump(route: nil)
@@ -48,9 +50,10 @@ class Valkey
       #   valkey.function_flush(sync: true)
       #     # => "OK"
       #
-      # @param [Boolean] async flush asynchronously
-      # @param [Boolean] sync flush synchronously
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [Boolean] async - flush asynchronously
+      # @param [Boolean] sync - flush synchronously
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-flush/
@@ -72,7 +75,8 @@ class Valkey
       #   valkey.function_kill
       #     # => "OK"
       #
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-kill/
@@ -92,10 +96,12 @@ class Valkey
       #   valkey.function_list(with_code: true)
       #     # => [{"library_name" => "mylib", "library_code" => "...", ...}]
       #
-      # @param [String] library_name filter by library name pattern
-      # @param [Boolean] with_code include the library code in the response
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Array<Hash>] array of library information
+      # @param [String] library_name - filter by library name pattern
+      # @param [Boolean] with_code - include the library code in the response
+      # @param [Valkey::Route, nil] route - cluster routing. Default is a single random node.
+      #   A multi-node route returns a `Hash` of `"host:port" => Array<Hash>`.
+      #
+      # @return [Array<Hash>, Hash{String => Array<Hash>}] array of library information
       #
       # @see https://valkey.io/commands/function-list/
       def function_list(library_name: nil, with_code: false, route: nil)
@@ -121,9 +127,10 @@ class Valkey
       #   valkey.function_load(code, replace: true)
       #     # => "mylib"
       #
-      # @param [String] function_code the source code
-      # @param [Boolean] replace replace the library if it exists
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [String] function_code - the source code
+      # @param [Boolean] replace - replace the library if it exists
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] the library name that was loaded
       #
       # @see https://valkey.io/commands/function-load/
@@ -151,9 +158,10 @@ class Valkey
       #   valkey.function_restore(payload, policy: "REPLACE")
       #     # => "OK"
       #
-      # @param [String] serialized_value the serialized payload from FUNCTION DUMP
-      # @param [String] policy the restore policy: "FLUSH", "APPEND", or "REPLACE"
-      # @param route [Valkey::Route, nil] cluster routing.
+      # @param [String] serialized_value - the serialized payload from FUNCTION DUMP
+      # @param [String] policy - the restore policy: "FLUSH", "APPEND", or "REPLACE"
+      # @param [Valkey::Route, nil] route - cluster routing.
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/function-restore/
@@ -171,8 +179,11 @@ class Valkey
       #   valkey.function_stats
       #     # => {"127.0.0.1:6379" => {"running_script" => nil, "engines" => {...}}}
       #
-      # @param route [Valkey::Route, nil] cluster routing. When routed, may return a Hash of node => value.
-      # @return [Hash{String => Hash}] a Hash keyed by `"host:port"`.
+      # @param [Valkey::Route, nil] route - cluster routing. On cluster the default is all nodes, so the
+      #   reply is keyed by `"host:port"` even with no route. A single-node route returns that node's
+      #   stats directly, without the `"host:port"` key.
+      #
+      # @return [Hash{String => Hash}, Hash] a Hash keyed by `"host:port"`, or one node's stats.
       #
       # @see https://valkey.io/commands/function-stats/
       def function_stats(route: nil)
@@ -188,9 +199,10 @@ class Valkey
       #   valkey.fcall("myfunc", arguments: ["arg1", "arg2"])
       #     # => <function result>
       #
-      # @param [String] function the function name
-      # @param [Array<String>] keys the keys to pass to the function
-      # @param [Array<String>] arguments the arguments to pass to the function
+      # @param [String] function - the function name
+      # @param [Array<String>] keys - the keys to pass to the function
+      # @param [Array<String>] arguments - the arguments to pass to the function
+      #
       # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall/
@@ -205,9 +217,10 @@ class Valkey
       #   valkey.fcall_ro("myfunc", keys: ["key1"], arguments: ["arg1"])
       #     # => <function result>
       #
-      # @param [String] function the function name
-      # @param [Array<String>] keys the keys to pass to the function
-      # @param [Array<String>] arguments the arguments to pass to the function
+      # @param [String] function - the function name
+      # @param [Array<String>] keys - the keys to pass to the function
+      # @param [Array<String>] arguments - the arguments to pass to the function
+      #
       # @return [Object] the function result
       #
       # @see https://valkey.io/commands/fcall_ro/
@@ -243,9 +256,10 @@ class Valkey
       #   valkey.function(:stats)
       #     # => {...}
       #
-      # @param [String, Symbol] subcommand the subcommand (delete, dump, flush, kill, list, load, restore, stats)
-      # @param [Array] args arguments for the subcommand
-      # @param [Hash] options options for the subcommand
+      # @param [String, Symbol] subcommand - the subcommand (delete, dump, flush, kill, list, load, restore, stats)
+      # @param [Array] args - arguments for the subcommand
+      # @param [Hash] options - options for the subcommand
+      #
       # @return [Object] depends on subcommand
       def function(subcommand, *args, **options)
         subcommand = subcommand.to_s.downcase
