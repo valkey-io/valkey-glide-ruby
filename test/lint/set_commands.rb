@@ -160,7 +160,7 @@ module Lint
     end
 
     def test_sismember_if_exists
-      omit_version("9.2")
+      target_version("9.2")
 
       key = "sismember_if_exists"
       r.sadd(key, "s1")
@@ -171,7 +171,7 @@ module Lint
     end
 
     def test_sismember_if_exists_wrong_type
-      omit_version("9.2")
+      target_version("9.2")
 
       key = "sismember_if_exists_string"
       r.set(key, "value")

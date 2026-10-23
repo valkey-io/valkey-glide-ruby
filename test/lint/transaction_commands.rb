@@ -588,7 +588,7 @@ module Lint
 
     def test_multi_with_sismember_if_exists
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-      omit_version("9.2")
+      target_version("9.2")
 
       key = "someset"
       r.del(key)
@@ -603,7 +603,7 @@ module Lint
     end
 
     def test_pipelined_with_sismember_if_exists
-      omit_version("9.2")
+      target_version("9.2")
 
       key = "someset"
       r.del(key)
@@ -617,7 +617,7 @@ module Lint
 
     def test_exec_sismember_if_exists_keeps_status_code
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-      omit_version("9.2")
+      target_version("9.2")
 
       key = "someset"
       r.del(key)
@@ -631,7 +631,7 @@ module Lint
 
     def test_exec_sismember_if_exists_with_wrong_type
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-      omit_version("9.2")
+      target_version("9.2")
 
       key = "someset"
       r.set(key, "value")
