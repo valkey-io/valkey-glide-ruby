@@ -1,55 +1,56 @@
 # Changelog
 
-## 1.1.0 (Pending)
+All notable changes to this project are documented in this file.
 
-### Breaking Changes
+GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-* feat(ruby): `client(:subcommand)` dispatches with `public_send`, so subclasses relying on private `client_*` helpers must make them public; a private subcommand now raises `NoMethodError` instead of being silently dispatched (landed in `a11baf7`, which removed the client-side-caching commands from the public interface) ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
+## [Unreleased]
 
-### Fixes
+### Added
 
-* fix(ruby): reject `cluster_mode: true` without an explicit seed instead of silently connecting to the standalone `127.0.0.1:6379` default ([#344](https://github.com/valkey-io/valkey-glide-ruby/pull/344))
+- Added support for `Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES` to prefer all nodes in the client's availability zone before other nodes. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
+- Added support for `hgetdel(key, *fields)` with Valkey 9.1 or later. ([#348](https://github.com/valkey-io/valkey-glide-ruby/pull/348))
+- Added support for IAM authentication through `Valkey::IamAuthConfig`, the `iam_config:` connection option, `refresh_iam_token`, and the ElastiCache and MemoryDB service types. ([#342](https://github.com/valkey-io/valkey-glide-ruby/pull/342))
+- Added support for custom OpenTelemetry resource attributes through `Valkey::OpenTelemetry.init(resource_attributes:)`, including automatic process attributes without replacing values already set in `OTEL_RESOURCE_ATTRIBUTES`. ([#325](https://github.com/valkey-io/valkey-glide-ruby/pull/325))
+- Added support for setting the `CLIENT SETINFO LIB-NAME` value with the `lib_name:` and `client_info_tag:` connection options. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
+- Added support for `FT.CREATE`, `FT.DROPINDEX`, `FT.INFO`, `FT.SEARCH`, and `FT.AGGREGATE` through `Valkey::Search` builders, with structured `FT.SEARCH` results. ([#295](https://github.com/valkey-io/valkey-glide-ruby/pull/295))
+- Added support for inline Pub/Sub subscriptions and message reads through `subscribe`, `unsubscribe`, `get_pubsub_message`, and `try_get_pubsub_message`. ([#308](https://github.com/valkey-io/valkey-glide-ruby/pull/308))
+- Added support for pattern subscriptions, nonblocking lazy subscription changes, and callback-based Pub/Sub delivery. ([#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316))
+- Added support for sharded Pub/Sub in cluster mode through `ssubscribe`, `sunsubscribe`, their lazy variants, and `publish(..., sharded: true)`. ([#317](https://github.com/valkey-io/valkey-glide-ruby/pull/317))
+- Added support for inspecting Pub/Sub channels, subscriber counts, and connection subscription state. ([#320](https://github.com/valkey-io/valkey-glide-ruby/pull/320))
+- Added support for queuing Pub/Sub commands in `pipelined` and `multi`. ([#329](https://github.com/valkey-io/valkey-glide-ruby/pull/329))
+- Added support for Alpine Linux on x86_64 and aarch64. ([#143](https://github.com/valkey-io/valkey-glide-ruby/pull/143))
+- Added support for propagating W3C trace context into command and pipeline spans through `Valkey::OpenTelemetry.set_parent_span_context_provider` and `parent_span_context_provider:`. ([#161](https://github.com/valkey-io/valkey-glide-ruby/pull/161))
+- Added Sigstore build-provenance attestations to gems published on RubyGems.org. ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
 
-* fix(ruby): treat an empty `lib_name` or `client_info_tag` as "not configured". Previously `lib_name: ""` plus a tag composed `(tag)` instead of `GlideRuby(tag)`, which glide-core rejects, surfacing as `Valkey::CannotConnectError` at client creation ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
+### Changed
 
-* Ruby: Fix `xpending`'s `idle:` option, which was emitted after `start`/`end`/`count` instead of before them. The Valkey `XPENDING` grammar is `XPENDING key group [IDLE ms] start end count [consumer]`, so the trailing `IDLE <ms>` was parsed by the server as the optional `consumer` argument, causing `xpending(key, group, start, end, count, idle: ms)` to silently return an empty result set instead of the idle-filtered entries. Also, `idle: false` was previously indistinguishable from `idle: nil` (both are falsy in Ruby) and silently dropped the filter instead of forwarding it to the server; `idle:` is now only omitted when explicitly `nil` ([#270](https://github.com/valkey-io/valkey-glide-ruby/issues/270), [#241](https://github.com/valkey-io/valkey-glide-ruby/issues/241)).
-* fix(ruby): raise `Valkey::InheritedError` instead of crashing the process when a client created before `fork()` is used in the child ([#255](https://github.com/valkey-io/valkey-glide-ruby/issues/255))
-* fix(ruby): `pipelined` and `multi` no longer discard successful replies when a queued command fails at runtime. The block form of `multi` now accepts an `exception:` kwarg (default `true`, matching `pipelined`), so `multi(exception: false) { ... }` returns an Array with `Valkey::CommandError` embedded at the position of any queued command that fails at runtime (e.g. `INCR` on a non-integer), instead of raising and discarding every other command's reply. This matches the server's "no rollback on a runtime error" semantics — other queued commands still commit and their replies stay reachable even though the default is still to raise and discard them. This kwarg only affects the block form; the imperative `multi` (no block) / `#exec` pair has no equivalent control. A genuine queue-time abort (nothing ran) now raises the new `Valkey::ExecAbortError` (a `CommandError` subclass) instead of a plain `CommandError`, so callers can tell the two apart from a mid-EXEC runtime error. Also fixed `incrbyfloat` and `geodist` returning a `String` instead of a `Float` when called inside `multi`/`exec`'s imperative (non-block) form, and a latent bug where a runtime error embedded in that form's `EXEC` reply could be silently coerced to `true` by boolean-typed commands' reconversion ([#260](https://github.com/valkey-io/valkey-glide-ruby/issues/260))
-* Ruby: Fix `blpop`, `brpop`, `blmove`, `rpoplpush` and `brpoplpush`, all of which were non-functional. `blpop`/`brpop` called a non-existent `send_blocking_command` helper, `blmove` leaked the command name into argv, and `rpoplpush`/`brpoplpush` dispatched `RequestType::RPOPLPUSH`/`BRPOPLPUSH`, for which glide-core has no command mapping. Since Valkey defines `RPOPLPUSH src dst` as exactly `LMOVE src dst RIGHT LEFT` (and `BRPOPLPUSH src dst timeout` as `BLMOVE src dst RIGHT LEFT timeout`), `rpoplpush`/`brpoplpush` are now fixed-argument facades over `lmove`/`blmove`. Both remain deprecated as of Redis 6.2; prefer `lmove`/`blmove` in new code. The unusable `RequestType::RPOPLPUSH`/`BRPOPLPUSH` constants were removed.
-* fix(ruby): release the GVL while a client connects. `create_client` and `create_client_from_uri` were declared without `blocking: true`, so client creation held the GVL for the whole call and stalled every other Ruby thread until it returned; this affects all clients, not only Pub/Sub ones ([#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316))
-* fix(ruby): resp now defaults to core behavior, which is resp3. This is the same as other GLIDE clients ([#331](https://github.com/valkey-io/valkey-glide-ruby/pull/331))
-* fix(ruby): size the per-argument length buffer passed to glide-ffi by the platform's `unsigned long` width instead of a hardcoded 8 bytes, which wrote past the buffer on platforms with a 4-byte `unsigned long` ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
+- Prevented `client(:subcommand)` from invoking private methods, so custom `Valkey` subclasses must make any dispatched `client_*` handlers public. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
+- Trimmed whitespace from string `client_az` values and rejected blank values when an availability-zone affinity strategy is selected. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
+- Changed `eval`, `evalsha`, their read-only variants, and `script_load` to execute server commands, accept integer key counts, and report missing scripts instead of reloading them automatically. ([#227](https://github.com/valkey-io/valkey-glide-ruby/pull/227))
+- Changed the default RESP protocol to RESP3, in line with other GLIDE clients. ([#331](https://github.com/valkey-io/valkey-glide-ruby/pull/331))
 
-### Changes
+### Removed
 
-* Ruby: Connection: added support for `Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES`; String `client_az` values are trimmed, and all AZ-affinity strategies require a nonblank effective value. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
+- Removed raw-token options, `ft(:subcommand)`, unsupported `FT.*` wrappers, and the `dd:` option from the Search API; use `call` for raw Search commands. ([#295](https://github.com/valkey-io/valkey-glide-ruby/pull/295))
 
-* Ruby: Hashes: added support for `hgetdel(key, *fields)`. Requires Valkey 9.1. ([#348](https://github.com/valkey-io/valkey-glide-ruby/pull/348))
+### Fixed
 
-* Ruby: Authentication: added support for `Valkey::IamAuthConfig.new(cluster_name:, service:, region:, refresh_interval_seconds: nil)`, `Valkey.new(..., iam_config:)`, `Valkey#refresh_iam_token`, `Valkey::ServiceType::ELASTICACHE`, and `Valkey::ServiceType::MEMORYDB`. ([#342](https://github.com/valkey-io/valkey-glide-ruby/pull/342))
+- Rejected `cluster_mode: true` without an explicit seed node instead of connecting to the standalone default. ([#344](https://github.com/valkey-io/valkey-glide-ruby/pull/344))
+- Treated empty `lib_name:` and `client_info_tag:` values as unset so they no longer produce invalid library names. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
+- Placed the `xpending` `idle:` filter in the correct command position and omitted it only when its value is `nil`. ([#300](https://github.com/valkey-io/valkey-glide-ruby/pull/300))
+- Raised `Valkey::InheritedError` instead of terminating the process when a child process uses a client created before `fork()`. ([#302](https://github.com/valkey-io/valkey-glide-ruby/pull/302))
+- Preserved successful pipeline and transaction replies when another queued command fails, added `multi(exception: false)`, distinguished queue-time aborts with `Valkey::ExecAbortError`, and retained float and error values in transaction results. ([#299](https://github.com/valkey-io/valkey-glide-ruby/pull/299))
+- Restored `blpop`, `brpop`, `blmove`, `rpoplpush`, and `brpoplpush`, with the deprecated pop-push methods delegated to `lmove` and `blmove`. ([#220](https://github.com/valkey-io/valkey-glide-ruby/pull/220))
+- Released the Ruby global VM lock while creating a client so other Ruby threads can continue running during connection setup. ([#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316))
+- Sized FFI argument-length buffers for the platform's `unsigned long` width to prevent memory corruption on platforms where it is four bytes. ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
+- Built Linux release binaries against glibc 2.17 for compatibility with supported Linux distributions. ([#232](https://github.com/valkey-io/valkey-glide-ruby/pull/232))
 
-* feat(ruby): add `resource_attributes:` to `Valkey::OpenTelemetry.init`, letting callers attach arbitrary OpenTelemetry resource attributes (e.g. `host.ip`, `host.name`) to Valkey spans/metrics. `process.pid`, `process.command`, and `process.runtime.name`/`.version`/`.description` are now auto-detected and attached without any config, closing the gap with `opentelemetry-ruby`'s `Resource.default`. Implemented by merging into `OTEL_RESOURCE_ATTRIBUTES` for the duration of the native `init_open_telemetry` call, so existing `k8s.*`-style attributes injected by a platform sidecar are preserved rather than clobbered ([#323](https://github.com/valkey-io/valkey-glide-ruby/issues/323))
+## [1.0.0] - 2026-08-12
 
-* feat(ruby): add `lib_name` and `client_info_tag` connection options controlling the `CLIENT SETINFO LIB-NAME` value; `client_info_tag` appends a parenthesized tag to the resolved name (`GlideRuby(my-framework:1.0)`) and is preferred for framework attribution, while `lib_name` overrides the name outright and the two combine as `<lib_name>(<tag>)`. Invalid types raise `ArgumentError` at construction, which is deliberately outside the `Valkey` error hierarchy and so is not caught by `rescue Valkey::BaseError`; invalid names fail client creation with `Valkey::CannotConnectError`. See the `lib_name` row in README's Connection Options ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
-* Ruby: Add a structured Valkey Search (FT.*) builder API under `Valkey::Search` and re-expose the `FT.*` commands ([#295](https://github.com/valkey-io/valkey-glide-ruby/pull/295)). Field builders (`TextField`, `TagField`, `NumericField`, `VectorField.flat`/`.hnsw`), `CreateOptions`, `SearchOptions`, `AggregateOptions` with pipeline clauses (`GroupBy`/`Reducer`, `SortBy`, `Filter`, `Apply`, `Limit`), and `InfoOptions` serialize to the FT protocol tokens, and `ft_search` returns a structured `Valkey::Search::SearchResult` (`total_results` plus `documents`). Options are expressed either as an options object or as the equivalent keyword arguments. Notable constraints, matching what the server actually accepts:
-  * The builders are the only supported way to pass options — the old redis-rb-style raw-token pass-through (e.g. `ft_search("idx", "@title:hello", "LIMIT", "0", "10")`) and the `ft(:subcommand, ...)` dispatcher were removed. Use `call("FT.SEARCH", ...)` to send FT tokens by hand.
-  * Only the commands Valkey Search implements are exposed — `FT._LIST`, `FT.CREATE`, `FT.DROPINDEX`, `FT.INFO`, `FT.SEARCH` and `FT.AGGREGATE`. The previously present `FT.ALIASADD`/`ALIASDEL`/`ALIASUPDATE`/`_ALIASLIST`, `FT.EXPLAIN`, `FT.EXPLAINCLI` and `FT.PROFILE` wrappers were removed because the server rejects them as unknown commands.
-  * `ft_drop_index` no longer takes a `dd:` flag; `FT.DROPINDEX` accepts the index name only, and indexed documents are always preserved.
-  * `ft_create` and `ft_drop_index` are broadcast to all primaries in cluster mode, since index definitions are per-node. Note that cross-shard result aggregation is not available in Valkey Search 1.2.1: documents are indexed on the shard that owns their key, queries return shard-local matches, and the `shard_scope:` flags are accepted without fanning out — so multi-shard search result completeness is not supported.
-  * `shard_scope:` / `consistency:` are accepted on `ft_search` and `ft_info` but not on `ft_aggregate`, which the server rejects with `Unexpected: argument`.
-  * `DIALECT` is validated to `2`, the only dialect Valkey Search supports.
-  * `with_sort_keys:` cannot be combined with `no_content:` — the server omits the sort keys under `NOCONTENT`, so the reply cannot be parsed reliably.
-  * `ft_search` is unsupported inside `pipelined`/`multi` (a queued command yields a `Valkey::Future`, not a reply) and with the `flatten_map: true` compatibility option; both raise `ArgumentError`. Use `call` in those cases.
-* Ruby: PubSub support added ([#308](https://github.com/valkey-io/valkey-glide-ruby/pull/308), [#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316), [#317](https://github.com/valkey-io/valkey-glide-ruby/pull/317), [#320](https://github.com/valkey-io/valkey-glide-ruby/pull/320), [#329](https://github.com/valkey-io/valkey-glide-ruby/pull/329))
-* Ruby: fixed cd workflow to correctly build the ffi with **glibc 2.17** ([#223](https://github.com/valkey-io/valkey-glide-ruby/issues/223))
-* Ruby: scripting commands now dispatch real `EVAL` / `EVALSHA` / `SCRIPT LOAD` to the server instead of a client-side script container ([#213](https://github.com/valkey-io/valkey-glide-ruby/issues/213)). Three behavior changes:
-  * `eval` / `evalsha` (and the `_ro` variants) now accept the standard integer key-count form used by `valkey-cli` and the Valkey docs — `eval(script, 1, "mykey", "myarg")`. It previously made the count `KEYS[1]`, shifted the real key into `ARGV[1]`, and dropped the remaining arguments without raising.
-  * `script_load` now really sends `SCRIPT LOAD`, so the returned SHA1 is known to the server and usable by `evalsha` from any other client or process. `script_exists` previously reported `false` for a just-loaded script.
-  * `evalsha` on a flushed or never-loaded SHA now raises `Valkey::CommandError` (NOSCRIPT) instead of silently re-uploading the script and succeeding, so `script_flush` is no longer quietly undone. Callers relying on the old auto-reload must load the script again after a flush, or use `eval`.
-* Ruby: Add Alpine Linux (musl libc) support for x86_64 and aarch64 — runtime detection of musl libc, CI/CD pipeline for native builds, and prebuilt `libglide_ffi.so` for musl targets ([#143](https://github.com/valkey-io/valkey-glide-ruby/pull/143))
-* Ruby: Add distributed tracing support — `Valkey::OpenTelemetry.set_parent_span_context_provider` (and `init(parent_span_context_provider:)`) let an app propagate its current W3C trace context into command/pipeline spans, so they become children of the app's trace instead of independent root spans, matching the Node.js client's `parentSpanContextProvider` behavior.
-* Ruby: Release: released gems now publish their Sigstore build-provenance attestation to RubyGems.org as well as GitHub; verify a downloaded gem with `gh attestation verify <gem> --repo valkey-io/valkey-glide-ruby` ([#338](https://github.com/valkey-io/valkey-glide-ruby/pull/338))
+### Added
 
-## 1.0.0
+- Published the first general availability release.
 
-GA Release
+[Unreleased]: https://github.com/valkey-io/valkey-glide-ruby/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/valkey-io/valkey-glide-ruby/releases/tag/v1.0.0
