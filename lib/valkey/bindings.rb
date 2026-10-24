@@ -235,13 +235,8 @@ class Valkey
       :pointer, :long   # pattern + length
     ], :void
 
-    attach_function :create_client, [
-      :pointer,        # *const u8 (connection_request_bytes)
-      :ulong,          # usize (connection_request_len)
-      ClientType.by_ref, # *const ClientType
-      :pubsub_callback # callback
-    ], :pointer, blocking: true # *const ConnectionResponse
-
+    # blocking: true releases the GVL while glide-core connects (and retries),
+    # so other Ruby threads keep running during `Valkey.new` (issue #309).
     attach_function :create_client_from_uri, [
       :string,         # *const c_char (uri_str)
       :string,         # *const c_char (extra_options_json)
