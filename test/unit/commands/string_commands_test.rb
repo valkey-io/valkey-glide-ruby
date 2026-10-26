@@ -11,53 +11,62 @@ class TestStringCommandsUnit < Minitest::Test
   class FakeClient
     include Valkey::Commands::StringCommands
 
-    attr_reader :captured_type, :captured_arguments
+    attr_reader :captured_command, :captured_arguments
 
-    def initialize(canned_reply: nil, canned_error: nil)
-      @canned_reply = canned_reply
-      @canned_error = canned_error
+    def initialize(reply: nil, error: nil)
+      @reply = reply
+      @error = error
     end
 
     def send_command(request_type, command_arguments = [])
-      @captured_type = request_type
+      @captured_command = request_type
       @captured_arguments = command_arguments
-      raise @canned_error if @canned_error
+      raise @error if @error
 
-      @canned_reply
+      @reply
     end
   end
 
   def test_delifeq
-    client = FakeClient.new(canned_reply: 0)
-
-    assert_equal 0, client.delifeq("key", "value")
-    assert_equal Valkey::RequestType::DEL_IF_EQ, client.captured_type
-    assert_equal %w[key value], client.captured_arguments
+    assert_delifeq(key: "key", value: "value", expected_value: "value")
   end
 
-  def test_delifeq_stringifies_non_string_value
-    client = FakeClient.new
-    value = %w[a b]
+  def test_delifeq_binary_value
+    value = "\x00\xFF".b
+    client = assert_delifeq(key: "key", value: value, expected_value: value)
 
-    client.delifeq("key", value)
+    captured_value = client.captured_arguments.last
+    # byte 0 = \x00, 255 = \xFF
+    assert_equal [0, 255], captured_value.bytes
+    assert_equal Encoding::BINARY, captured_value.encoding
+  end
 
-    assert_equal ["key", value.to_s], client.captured_arguments
+  def test_delifeq_non_string_value
+    assert_delifeq(key: "key", value: %w[a b], expected_value: "[\"a\", \"b\"]")
   end
 
   def test_delifeq_stringifies_nil_value
-    client = FakeClient.new
-
-    client.delifeq("key", nil)
-
-    assert_equal ["key", ""], client.captured_arguments
+    assert_delifeq(key: "key", value: nil, expected_value: "")
   end
 
   def test_delifeq_propagates_client_error
     error = Valkey::CommandError.new("boom")
-    client = FakeClient.new(canned_error: error)
+    client = FakeClient.new(error: error)
 
     raised_error = assert_raises(Valkey::CommandError) { client.delifeq("key", "value") }
 
     assert_same error, raised_error
+  end
+
+  private
+
+  def assert_delifeq(key:, value:, expected_value:)
+    client = FakeClient.new(reply: 0)
+
+    assert_equal 0, client.delifeq(key, value)
+    assert_equal Valkey::RequestType::DEL_IF_EQ, client.captured_command
+    assert_equal [key, expected_value], client.captured_arguments
+
+    client
   end
 end
