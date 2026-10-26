@@ -11,4 +11,4 @@ permissions:
 
 jobs:
   semgrep:
-    uses: valkey-io/valkey-glide/.github/workflows/semgrep.yml@eb954a09b68a3a45634b6c26573e5dca19ea1130 # main
+    uses: valkey-io/valkey-glide/.github/workflows/semgrep.yml@70006cc667a527e731aba2971fa57f8308704c1b # main
