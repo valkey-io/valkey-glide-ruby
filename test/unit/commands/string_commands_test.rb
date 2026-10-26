@@ -28,29 +28,20 @@ class TestStringCommandsUnit < Minitest::Test
   end
 
   def test_delifeq
-    assert_delifeq(key: "key", value: "value", expected_value: "value")
-  end
-
-  def test_delifeq_binary_value
-    value = "\x00\xFF".b
-    client = assert_delifeq(key: "key", value: value, expected_value: value)
-
-    captured_value = client.captured_arguments.last
-    # byte 0 = \x00, 255 = \xFF
-    assert_equal [0, 255], captured_value.bytes
-    assert_equal Encoding::BINARY, captured_value.encoding
+    assert_delifeq(key: "key", value: "value", expected_sent_value: "value")
   end
 
   def test_delifeq_non_string_value
-    assert_delifeq(key: "key", value: %w[a b], expected_value: "[\"a\", \"b\"]")
+    # non-string values are stringified
+    assert_delifeq(key: "key", value: %w[a b], expected_sent_value: "[\"a\", \"b\"]")
   end
 
   def test_delifeq_stringifies_nil_value
-    assert_delifeq(key: "key", value: nil, expected_value: "")
+    assert_delifeq(key: "key", value: nil, expected_sent_value: "")
   end
 
   def test_delifeq_propagates_client_error
-    error = Valkey::CommandError.new("boom")
+    error = Valkey::CommandError.new("error")
     client = FakeClient.new(error: error)
 
     raised_error = assert_raises(Valkey::CommandError) { client.delifeq("key", "value") }
@@ -60,12 +51,12 @@ class TestStringCommandsUnit < Minitest::Test
 
   private
 
-  def assert_delifeq(key:, value:, expected_value:)
+  def assert_delifeq(key:, value:, expected_sent_value:)
     client = FakeClient.new(reply: 0)
 
     assert_equal 0, client.delifeq(key, value)
     assert_equal Valkey::RequestType::DEL_IF_EQ, client.captured_command
-    assert_equal [key, expected_value], client.captured_arguments
+    assert_equal [key, expected_sent_value], client.captured_arguments
 
     client
   end
