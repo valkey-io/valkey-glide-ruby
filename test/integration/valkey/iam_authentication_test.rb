@@ -5,9 +5,7 @@ module ValkeyTests
   # server without IAM enforcement, using the placeholder credentials installed by
   # Helper::MockAwsCredentials.
   #
-  # IAM auth requires TLS (an IAM token must never traverse plaintext), so the
-  # client-creation test connects over the standalone TLS server and skips when no
-  # TLS server is available (including the cluster context, which has no TLS endpoint).
+  # Note: IAM requires TLS which is not set up for cluster tests.
   #
   # What they confirm:
   # - `iam_config:` and `username:` reach GLIDE Core, which resolves credentials,
@@ -80,8 +78,6 @@ module ValkeyTests
       assert_includes error.message, "Invalid refresh interval"
     end
 
-    # "Unknown service type" is rejected in Ruby before Client::new, so this needs
-    # no TLS connection and runs in every context.
     def test_invalid_iam_service_fails_creation
       error = assert_iam_creation_fails(
         username: IAM_USERNAME,
@@ -99,8 +95,6 @@ module ValkeyTests
 
     private
 
-    # IAM auth requires TLS, so build the client against the standalone TLS server
-    # (port SSL_PORT) with the suite's CA cert, mirroring the TLS connection tests.
     def _new_iam_tls_client(**options)
       Valkey.new(
         host: "127.0.0.1",
@@ -112,8 +106,6 @@ module ValkeyTests
       )
     end
 
-    # No TLS server exists for the cluster context, and TLS is skipped on platforms
-    # where the harness can't stand one up (e.g. macOS CI via SKIP_TLS_TESTS).
     def skip_unless_tls_available
       skip("TLS tests disabled via SKIP_TLS_TESTS") if defined?(SKIP_TLS_TESTS) && SKIP_TLS_TESTS
       skip("no TLS server for the cluster context") if cluster_mode?
