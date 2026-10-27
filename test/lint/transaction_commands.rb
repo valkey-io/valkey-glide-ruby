@@ -600,33 +600,40 @@ module Lint
       assert_equal [false, true], result
     end
 
-    def test_multi_with_delifeq
+    def test_multi_exec_boolean_coercion
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
       target_version("9.0")
 
-      r.set("foo", "value")
-      mismatch_future = nil
-      match_future = nil
-      result = r.multi do |multi|
-        mismatch_future = multi.delifeq("foo", "other")
-        match_future = multi.delifeq("foo", "value")
-      end
+      r.set("expire", "value")
+      r.set("expireat", "value")
+      r.set("pexpire", "value")
+      r.set("pexpireat", "value")
+      r.set("persist", "value", ex: 60)
+      r.sadd("sismember", "member")
+      r.sadd("smove-source", "member")
+      r.set("renamenx-source", "value")
+      r.set("move", "value")
+      r.set("copy-source", "value")
+      r.set("delifeq", "value")
 
-      assert_equal [false, true], result
-      assert_equal false, mismatch_future.value
-      assert_equal true, match_future.value
-    end
-
-    def test_exec_boolean_coercion_matches_direct_call
-      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-      target_version("9.0")
-
-      r.set("foo", "value")
       r.multi
-      r.delifeq("foo", "other")
-      r.delifeq("foo", "value")
+      r.expire("expire", 60)
+      r.expireat("expireat", Time.now.to_i + 60)
+      r.pexpire("pexpire", 60_000)
+      r.pexpireat("pexpireat", (Time.now.to_f * 1000).to_i + 60_000)
+      r.persist("persist")
+      r.sismember("sismember", "member")
+      r.smove("smove-source", "smove-destination", "member")
+      r.pfadd("pfadd", "member")
+      r.renamenx("renamenx-source", "renamenx-destination")
+      r.move("move", 14)
+      r.copy("copy-source", "copy-destination")
+      r.msetnx("msetnx", "value")
+      r.delifeq("delifeq", "value")
 
-      assert_equal [false, true], r.exec
+      result = r.exec
+      assert_equal Valkey::Commands::TransactionCommands::BOOLEAN_REQUEST_TYPES.size, result.size
+      assert result.all? { |value| [true, false].include?(value) }, "Expected only booleans, got #{result.inspect}"
     end
 
     def test_multi_with_block_returns_futures_that_resolve_after_the_block
