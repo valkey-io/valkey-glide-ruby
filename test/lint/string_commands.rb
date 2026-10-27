@@ -158,6 +158,14 @@ module Lint
       assert_equal "value", r.get("foo")
     end
 
+    def test_delifeq_raises
+      target_version("9.0")
+
+      r.sadd("foo", "member")
+
+      assert_raises(Valkey::CommandError) { r.delifeq("foo", "value") }
+    end
+
     def test_delifeq_in_pipeline
       target_version("9.0")
 

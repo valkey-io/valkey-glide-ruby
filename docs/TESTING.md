@@ -54,7 +54,8 @@ end
 ### Integration tests
 
 - Integration tests exercise the Ruby client from a user's point of view and verify public API contracts against a server.
-- They should assert return values and publicly observable state.
+- Negative tests must cover documented errors that are specific for that API; Generic errors like ACL and connections are not needed.
+- Tests should assert return values and publicly observable state.
 - They should not assert the Ruby client's private state. Unit tests own that behavior.
 - Integration tests should use the Ruby client as an application would.
 - Assertions must follow the public API documentation.
