@@ -52,6 +52,7 @@ When working on a feature, read these paths first:
 |-------|------------|
 | Connection / options | `lib/valkey.rb` (`#initialize`), `test/lint/connection_options.rb` |
 | New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/*.rb`, `test/lint/*` |
+| Testing | `docs/TESTING.md` |
 | Pipelining / batch | `lib/valkey.rb` (`pipelined`, `send_batch_commands`), `lib/valkey/pipeline.rb` |
 | OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/integration/valkey/opentelemetry_test.rb` |
 | FFI / errors | `lib/valkey/bindings.rb`, `lib/valkey/errors.rb` |
