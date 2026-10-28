@@ -159,6 +159,75 @@ module Lint
       assert_equal false, r.sismember("foo", "s2")
     end
 
+    def test_sismember_if_exists
+      target_version("9.2")
+
+      key = "key"
+      member = "member"
+      member_exists_status = 1
+      r.sadd(key, member)
+
+      result = r.sismember_if_exists(key, member)
+
+      assert_equal member_exists_status, result
+      assert_instance_of Integer, result
+    end
+
+    def test_sismember_if_exists_not_member
+      target_version("9.2")
+
+      key = "key"
+      missing_member = "missing_member"
+      not_member_status = 0
+      r.sadd(key, "existing_member")
+
+      result = r.sismember_if_exists(key, missing_member)
+
+      assert_equal not_member_status, result
+      assert_instance_of Integer, result
+    end
+
+    def test_sismember_if_exists_raises
+      target_version("9.2")
+
+      key = "key"
+      r.set(key, "value")
+
+      error = assert_raises(Valkey::CommandError) do
+        r.sismember_if_exists(key, "member")
+      end
+      assert_includes error.message, "WRONGTYPE"
+    end
+
+    def test_sismember_if_exists_key_not_found
+      target_version("9.2")
+
+      missing_key = "missing_key"
+      key_not_found_status = -1
+
+      result = r.sismember_if_exists(missing_key, "member")
+
+      assert_equal key_not_found_status, result
+      assert_instance_of Integer, result
+    end
+
+    def test_sismember_if_exists_in_multi
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      target_version("9.2")
+
+      missing_key = "missing_key"
+      key_not_found_status = -1
+
+      r.multi
+      assert_equal "QUEUED", r.sismember(missing_key, "member")
+      assert_equal "QUEUED", r.sismember_if_exists(missing_key, "member")
+
+      result = r.exec
+
+      assert_equal [false, key_not_found_status], result
+      assert_instance_of Integer, result.last
+    end
+
     def test_smismember
       target_version("6.2") do
         assert_equal [false], r.smismember("foo", "s1")
