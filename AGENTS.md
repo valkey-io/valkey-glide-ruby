@@ -63,7 +63,7 @@ When working on a feature, read these paths first:
 
 - [ ] Used `docs/TESTING.md` as the authoritative reference for test implementations.
 - [ ] `bundle exec rubocop` passes
-- [ ] `bundle exec rake lint:yard` passes when a public API file listed in `YARD_PUBLIC_API_FILES` changes
+- [ ] `bundle exec rake lint:yard`.
 - [ ] Test servers were started/stopped via `cluster_manager.py` (never hand-launched or ad-hoc `docker run`)
 - [ ] `bundle exec rake test:unit` passes (no server needed)
 - [ ] `bundle exec rake test:standalone` passes (with Valkey running)
@@ -266,8 +266,8 @@ cargo fmt --manifest-path ./Cargo.toml --all
 1. Check `RequestType` in `lib/valkey/request_type.rb` against glide-core `request_type.rs`
 2. Add method to appropriate `lib/valkey/commands/*.rb` module
 3. Use `send_command(RequestType::..., args)` 
-4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable
-5. Follow the [YARD API documentation rules](./CONTRIBUTING.md#api-documentation), including the Valkey command link
+4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable. MUST follow `docs/TESTING.md`
+5. MUST Follow the `docs/DOCUMENTING.md` on how to write public API docstring.
 
 ### Never Commit
 
