@@ -42,7 +42,7 @@ class Valkey
         args.push("LANGUAGE", @language) unless @language.nil?
         args << "SKIPINITIALSCAN" if @skip_initial_scan
         args.push("MINSTEMSIZE", @min_stem_size) unless @min_stem_size.nil?
-        args.push("STOPWORDS", @stopwords.length, *@stopwords) if @stopwords && !@stopwords.empty?
+        args.push("STOPWORDS", @stopwords.length, *@stopwords) unless @stopwords.nil?
         args << "NOSTOPWORDS" if @no_stopwords
         args
       end

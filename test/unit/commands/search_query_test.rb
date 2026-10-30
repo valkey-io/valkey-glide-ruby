@@ -56,15 +56,39 @@ class TestSearchQuery < Minitest::Test
     assert_equal ["RETURN", 4, "title", "loc", "AS", "location"], opts.to_args
   end
 
-  def test_sort_by_default_asc_and_desc
-    assert_equal %w[SORTBY price ASC], Valkey::Search::SearchOptions.new(sort_by: "price").to_args
+  def test_return_fields_empty
+    assert_equal [], Valkey::Search::SearchOptions.new(return_fields: []).to_args
+  end
+
+  def test_sort_by_without_order_and_desc
+    assert_equal %w[SORTBY price], Valkey::Search::SearchOptions.new(sort_by: "price").to_args
     assert_equal %w[SORTBY price DESC],
                  Valkey::Search::SearchOptions.new(sort_by: "price", sort_order: :desc).to_args
+  end
+
+  def test_sort_order_asc
+    assert_equal %w[SORTBY p ASC], Valkey::Search::SearchOptions.new(sort_by: "p", sort_order: :asc).to_args
+  end
+
+  def test_sort_order_nil
+    assert_equal [], Valkey::Search::SearchOptions.new(sort_order: nil).to_args
+  end
+
+  # Any explicit order without a field is rejected, including an explicit :asc.
+  def test_sort_order_requires_sort_by
+    %i[desc asc].each do |sort_order|
+      err = assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(sort_order: sort_order) }
+      assert_match(/sort_order requires sort_by/, err.message)
+    end
   end
 
   def test_params_nargs_is_twice_pairs
     opts = Valkey::Search::SearchOptions.new(params: { vec: "BLOB", k: "5" })
     assert_equal ["PARAMS", 4, "vec", "BLOB", "k", "5"], opts.to_args
+  end
+
+  def test_params_empty
+    assert_equal [], Valkey::Search::SearchOptions.new(params: {}).to_args
   end
 
   def test_flags_and_scalars
@@ -73,13 +97,13 @@ class TestSearchQuery < Minitest::Test
       sort_by: "price", dialect: 2, timeout: 500
     )
     assert_equal ["NOCONTENT", "VERBATIM", "INORDER", "SLOP", 2,
-                  "SORTBY", "price", "ASC", "DIALECT", 2, "TIMEOUT", 500],
+                  "SORTBY", "price", "DIALECT", 2, "TIMEOUT", 500],
                  opts.to_args
   end
 
   def test_with_sort_keys_emission
     opts = Valkey::Search::SearchOptions.new(sort_by: "price", with_sort_keys: true)
-    assert_equal %w[SORTBY price ASC WITHSORTKEYS], opts.to_args
+    assert_equal %w[SORTBY price WITHSORTKEYS], opts.to_args
   end
 
   def test_shard_scope_and_consistency
@@ -166,7 +190,7 @@ class TestSearchQuery < Minitest::Test
     result = client.ft_search("idx", "@title:hello", opts)
 
     assert_equal Valkey::RequestType::FT_SEARCH, client.captured_type
-    assert_equal ["idx", "@title:hello", "LIMIT", 0, 10, "SORTBY", "price", "ASC"], client.captured_args
+    assert_equal ["idx", "@title:hello", "LIMIT", 0, 10, "SORTBY", "price"], client.captured_args
     assert_instance_of Valkey::Search::SearchResult, result
     assert_equal 1, result.total_results
     assert_equal "doc:1", result.documents[0].key
@@ -203,6 +227,13 @@ class TestSearchQuery < Minitest::Test
   def test_ft_search_rejects_wrong_typed_options
     client = FakeClient.new
     assert_raises(ArgumentError) { client.ft_search("idx", "q", "EXTRA") }
+  end
+
+  def test_ft_search_sort_order_requires_sort_by
+    client = FakeClient.new
+    err = assert_raises(ArgumentError) { client.ft_search("idx", "*", sort_order: :desc) }
+    assert_match(/sort_order requires sort_by/, err.message)
+    assert_nil client.captured_args
   end
 
   # ---- Defensive option mitigations ----
@@ -264,11 +295,6 @@ class TestSearchQuery < Minitest::Test
   # a non-integer count surfaces loudly, not as "0 results".
   def test_from_raw_rejects_non_integer_count
     assert_raises(TypeError) { Valkey::Search::SearchResult.from_raw(["not-a-number", "doc:1", []]) }
-  end
-
-  # STOPWORDS []: empty array must not emit "STOPWORDS 0".
-  def test_create_options_empty_stopwords_emits_nothing
-    assert_equal [], Valkey::Search::CreateOptions.new(stopwords: []).to_args
   end
 
   # the shared lookup_token helper backs the enum validations.

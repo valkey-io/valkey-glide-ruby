@@ -226,9 +226,9 @@ class Valkey
       # @param slop [Integer, nil] emit `SLOP <n>`
       # @param dialect [Integer, nil] emit `DIALECT <n>` (only 2 is valid)
       # @param timeout [Integer, nil] emit `TIMEOUT <ms>`
-      def initialize(clauses: [], load: nil, params: nil, verbatim: false,
+      def initialize(clauses: nil, load: nil, params: nil, verbatim: false,
                      in_order: false, slop: nil, dialect: nil, timeout: nil)
-        @clauses = clauses
+        @clauses = clauses || []
         unless @clauses.all?(AggregateClause)
           raise ArgumentError, "aggregate clauses must be Valkey::Search::AggregateClause objects"
         end

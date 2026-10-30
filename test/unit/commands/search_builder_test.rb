@@ -128,6 +128,11 @@ class TestSearchBuilder < Minitest::Test
     assert_equal ["NOSTOPWORDS"], Valkey::Search::CreateOptions.new(no_stopwords: true).to_args
   end
 
+  def test_create_options_stopwords_empty
+    stopword_count = 0
+    assert_equal ["STOPWORDS", stopword_count], Valkey::Search::CreateOptions.new(stopwords: []).to_args
+  end
+
   def test_create_options_min_stem_size
     assert_equal ["MINSTEMSIZE", 4], Valkey::Search::CreateOptions.new(min_stem_size: 4).to_args
   end
@@ -135,6 +140,12 @@ class TestSearchBuilder < Minitest::Test
   def test_create_options_rejects_conflicting_stopwords
     assert_raises(ArgumentError) do
       Valkey::Search::CreateOptions.new(stopwords: ["x"], no_stopwords: true)
+    end
+  end
+
+  def test_create_options_rejects_empty_stopwords_with_no_stopwords
+    assert_raises(ArgumentError) do
+      Valkey::Search::CreateOptions.new(stopwords: [], no_stopwords: true)
     end
   end
 
@@ -167,6 +178,13 @@ class TestSearchBuilder < Minitest::Test
     client = FakeClient.new
     client.ft_create("idx", [Valkey::Search::TextField.new("title")])
     assert_equal %w[idx SCHEMA title TEXT], client.captured_args
+  end
+
+  def test_ft_create_builder_with_empty_stopwords
+    client = FakeClient.new
+    stopword_count = 0
+    client.ft_create("idx", [Valkey::Search::TextField.new("title")], stopwords: [])
+    assert_equal ["idx", "STOPWORDS", stopword_count, "SCHEMA", "title", "TEXT"], client.captured_args
   end
 
   def test_ft_create_builder_with_vector_field
