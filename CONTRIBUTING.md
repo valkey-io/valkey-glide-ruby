@@ -30,24 +30,7 @@ When adding a changelog entry, start with a verb and describe the change concise
 
 ## API documentation
 
-Every new or modified public API method must have a YARD docstring directly above its definition. Follow the format enforced by [`.yard-lint.yml`](./.yard-lint.yml) and YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md).
-
-The documentation linter checks only the public class and module source files listed in `YARD_PUBLIC_API_FILES` in the `Rakefile`. Keep that explicit allowlist current when adding or moving public APIs; do not add internal implementation files. The linter validates existing docstrings but does not require documentation on methods that have none.
-
-Writing guidelines:
-
-- Format parameter descriptions as `@param [Type] name - description`. Omit the separator when no description is needed.
-- Use `@return [void]` when a method has no meaningful return value.
-- Add `@raise` for errors that callers are expected to handle, not all possible errors.
-- Add `@since` with the minimum Valkey version.
-- Add `@see` with link to `https://valkey.io/commands/` for the command.
-- Use YARD tags instead of handwritten `Parameters` or `Returns` sections.
-
-Before opening a pull request, run the documentation linter with Ruby 3.3 or newer:
-
-```bash
-bundle exec rake lint:yard
-```
+Our docstring format follows YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md). We use `yard-lint` as the linter, with specific rules enforced in [`.yard-lint.yml`](./.yard-lint.yml).  `yard-lint` requires Ruby 3.3+.
 
 ## AI-Assisted Development
 
