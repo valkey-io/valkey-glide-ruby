@@ -160,6 +160,10 @@ class TestSearchAggregate < Minitest::Test
                  opts.to_args
   end
 
+  def test_aggregate_options_nil_clauses
+    assert_equal [], S::AggregateOptions.new(clauses: nil).to_args
+  end
+
   def test_aggregate_options_top_level_before_clauses
     opts = S::AggregateOptions.new(verbatim: true, dialect: 2,
                                    clauses: [S::Filter.new("@x > 1")])

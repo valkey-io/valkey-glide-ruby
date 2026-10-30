@@ -271,7 +271,6 @@ cargo fmt --manifest-path ./Cargo.toml --all
 - **FFI dependency:** `ffi ~> 1.17.0`; do not break ABI without rebuilding native lib
 - **Blocking FFI bindings MUST pass `blocking: true`:** any `attach_function` in `lib/valkey/bindings.rb` that can wait — connect, command, batch, script, close. Ruby-FFI defaults to `blocking: false`, holding the GVL for the whole call: that stalls every other Ruby thread, and deadlocks if the call waits on something needing the GVL (a Pub/Sub callback). `create_client`/`create_client_from_uri` still need it. The `free_*`/`drop_*` and OTel span helpers don't — they never wait.
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
-- **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
 - **Command args:** All FFI args are strings; convert types in Ruby before `send_command`
 - **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback; do not remove without fixing FFI batch stability
 - **OpenTelemetry:** Init once per process via `Valkey::OpenTelemetry.init`; spans created in FFI layer

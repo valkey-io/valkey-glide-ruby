@@ -20,7 +20,7 @@ class Valkey
       # @param return_fields [Array, nil] field name String/Symbol or { name:, as: } Hash
       # @param params [Hash, nil] query parameters (PARAMS)
       # @param sort_by [String, nil] field to sort by
-      # @param sort_order [Symbol] :asc (default) or :desc
+      # @param sort_order [Symbol, nil] :asc or :desc (requires sort_by)
       # @param with_sort_keys [Boolean] emit WITHSORTKEYS (requires sort_by; cannot
       #   be combined with no_content — the server discards the sort keys when
       #   NOCONTENT is set, which desynchronizes the reply parser)
@@ -28,10 +28,11 @@ class Valkey
       # @param shard_scope [Symbol, nil] :all_shards or :some_shards
       # @param consistency [Symbol, nil] :consistent or :inconsistent
       def initialize(limit: nil, return_fields: nil, params: nil, sort_by: nil,
-                     sort_order: :asc, with_sort_keys: false, no_content: false,
+                     sort_order: nil, with_sort_keys: false, no_content: false,
                      verbatim: false, in_order: false, slop: nil, dialect: nil,
                      timeout: nil, shard_scope: nil, consistency: nil)
         raise ArgumentError, "with_sort_keys requires sort_by" if with_sort_keys && sort_by.nil?
+        raise ArgumentError, "sort_order requires sort_by" if !sort_order.nil? && sort_by.nil?
         # The server honors NOCONTENT and silently drops the sort keys, but the
         # reply is still parsed as (key, sort_key) pairs — so the combination
         # yields mispaired documents or a parse error depending on how many
@@ -46,7 +47,7 @@ class Valkey
         @return_tokens = expand_return_fields(return_fields)
         @params = params
         @sort_by = sort_by
-        @sort_order = Search.lookup_token(Search::SORT_ORDERS, sort_order, "sort order")
+        @sort_order = sort_order && Search.lookup_token(Search::SORT_ORDERS, sort_order, "sort order")
         @with_sort_keys = with_sort_keys
         @no_content = no_content
         @verbatim = verbatim
@@ -102,7 +103,8 @@ class Valkey
       def append_sort_by(args)
         return if @sort_by.nil?
 
-        args.push("SORTBY", @sort_by, @sort_order)
+        args.push("SORTBY", @sort_by)
+        args << @sort_order unless @sort_order.nil?
       end
 
       def normalize_limit(limit)
