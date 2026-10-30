@@ -269,7 +269,7 @@ cargo fmt --manifest-path ./Cargo.toml --all
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
+- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/pubsub/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
 
 ## Project Structure (Essential)
 
@@ -279,7 +279,8 @@ valkey-glide-ruby/
 ├── lib/valkey/
 │   ├── bindings.rb
 │   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
-│   ├── glide/pubsub_receiver.rb   # internal; Pub/Sub message queue + FFI push handler
+│   ├── pubsub.rb         # Pub/Sub types and receiver entrypoint
+│   ├── pubsub/           # Pub/Sub message/state types and internal receiver
 │   ├── commands.rb       # requires + includes all command modules
 │   ├── commands/*.rb     # 20 command-family modules
 │   ├── opentelemetry.rb

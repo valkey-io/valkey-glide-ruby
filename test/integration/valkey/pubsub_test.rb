@@ -666,7 +666,7 @@ module ValkeyTests
         subscriber.subscribe(channel)
 
         state = subscriber.get_subscriptions
-        assert_kind_of Valkey::Glide::PubSubState, state
+        assert_kind_of Valkey::PubSub::PubSubState, state
         assert_empty state.desired_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
         assert_empty state.actual_subscriptions.keys - SUBSCRIPTION_MODE_KEYS
         assert_includes state.desired_subscriptions.fetch(:exact, []), channel

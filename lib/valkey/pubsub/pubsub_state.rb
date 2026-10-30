@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Valkey
-  module Glide
+  module PubSub
     # A connection's subscriptions
     #
     # @!attribute [rw] desired_subscriptions
