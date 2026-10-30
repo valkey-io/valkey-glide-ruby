@@ -22,6 +22,12 @@ will be rejected and asked for a resubmit.
 
 All commits require a DCO signoff and are cryptographically signed: `git commit -S -s -m "message"`. You should follow the Conventional Commits format: <type>(<scope>): <description>.
 
+## Changelog
+
+Our `CHANGELOG.md` follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/).
+
+When adding a changelog entry, start with a verb and describe the change concisely.
+
 ## AI-Assisted Development
 
 If you use Cursor, Claude Code, or similar tools, agent context files are available:
