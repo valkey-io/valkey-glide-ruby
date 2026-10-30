@@ -808,6 +808,16 @@ class TestPubSubCommandsUnit < Minitest::Test
     end
   end
 
+  def test_get_subscriptions_state_has_no_setters
+    reply = ["desired", { "Exact" => %w[news] }, "actual", { "Exact" => %w[news] }]
+    client = RecordingClient.new(response: reply)
+
+    state = client.get_subscriptions
+
+    refute_respond_to state, :desired_subscriptions=
+    refute_respond_to state, :actual_subscriptions=
+  end
+
   # --- RESP3 requirement ---------------------------------------------------
 
   def test_subscription_methods_reject_a_non_resp3_protocol
