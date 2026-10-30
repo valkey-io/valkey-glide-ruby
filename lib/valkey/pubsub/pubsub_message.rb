@@ -1,9 +1,7 @@
 # frozen_string_literal: true
 
 class Valkey
-  # GLIDE-specific public types, returned by APIs that have no redis-rb
-  # equivalent. Internal members carry `@api private`.
-  module Glide
+  module PubSub
     # A message delivered on a subscribed channel.
     #
     # @!attribute [rw] message

@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class Valkey
-  module Glide
+  module PubSub
     # Manages Pub/Sub messages from the core.
     #
     # @api private

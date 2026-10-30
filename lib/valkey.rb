@@ -20,9 +20,7 @@ require "valkey/opentelemetry"
 require "valkey/route"
 require "valkey/service_type"
 require "valkey/iam_auth_config"
-require "valkey/glide/pubsub_message"
-require "valkey/glide/pubsub_state"
-require "valkey/glide/pubsub_receiver"
+require "valkey/pubsub"
 
 class Valkey
   include Utils
@@ -360,7 +358,7 @@ class Valkey
                                                            cluster_mode: options[:cluster_mode] ? true : false)
     json_options.merge!(pubsub_config)
 
-    @pubsub_receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: options[:pubsub])
+    @pubsub_receiver = Valkey::PubSub::PubSubReceiver.make(pubsub_configs: options[:pubsub])
 
     json_str = json_options.empty? ? nil : JSON.generate(json_options)
     # Create client using URI-based FFI function
