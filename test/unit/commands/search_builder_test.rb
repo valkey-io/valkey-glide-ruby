@@ -128,7 +128,6 @@ class TestSearchBuilder < Minitest::Test
     assert_equal ["NOSTOPWORDS"], Valkey::Search::CreateOptions.new(no_stopwords: true).to_args
   end
 
-  # An empty list turns stopword removal off (`STOPWORDS 0`) rather than being dropped.
   def test_create_options_stopwords_empty
     stopword_count = 0
     assert_equal ["STOPWORDS", stopword_count], Valkey::Search::CreateOptions.new(stopwords: []).to_args
