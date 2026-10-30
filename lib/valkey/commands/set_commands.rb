@@ -5,11 +5,11 @@ class Valkey
     # this module contains commands related to set data type.
     #
     # @see https://valkey.io/commands/#set
-    #
     module SetCommands
       # Get the number of members in a set.
       #
       # @param [String] key
+      #
       # @return [Integer]
       def scard(key)
         send_command(RequestType::SCARD, [key])
@@ -18,7 +18,8 @@ class Valkey
       # Add one or more members to a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one or more members, or array of members
+      # @param [Array<String>] members - one or more members, or an array of members
+      #
       # @return [Integer] The number of members that were successfully added
       def sadd(key, *members)
         members.flatten!(1)
@@ -28,7 +29,8 @@ class Valkey
       # Add one or more members to a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one or more members, or array of members
+      # @param [Array<String>] members - one or more members, or an array of members
+      #
       # @return [Boolean] Whether at least one member was successfully added.
       def sadd?(key, *members)
         members.flatten!(1)
@@ -38,7 +40,8 @@ class Valkey
       # Remove one or more members from a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one or more members, or array of members
+      # @param [Array<String>] members - one or more members, or an array of members
+      #
       # @return [Integer] The number of members that were successfully removed
       def srem(key, *members)
         members.flatten!(1)
@@ -48,7 +51,8 @@ class Valkey
       # Remove one or more members from a set.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one or more members, or array of members
+      # @param [Array<String>] members - one or more members, or an array of members
+      #
       # @return [Boolean] Whether at least one member was successfully removed.
       def srem?(key, *members)
         members.flatten!(1)
@@ -59,6 +63,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] count
+      #
       # @return [String]
       def spop(key, count = nil)
         if count.nil?
@@ -72,6 +77,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] count
+      #
       # @return [String]
       def srandmember(key, count = nil)
         if count.nil?
@@ -83,9 +89,10 @@ class Valkey
 
       # Move a member from one set to another.
       #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @param [String] member member to move from `source` to `destination`
+      # @param [String] source - source key
+      # @param [String] destination - destination key
+      # @param [String] member - member to move from `source` to `destination`
+      #
       # @return [Boolean]
       def smove(source, destination, member)
         send_command(RequestType::S_MOVE, [source, destination, member])
@@ -95,6 +102,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String] member
+      #
       # @return [Boolean]
       def sismember(key, member)
         send_command(RequestType::SISMEMBER, [key, member])
@@ -115,6 +123,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String] member
+      #
       # @return [Integer] a status code: `1` the member is in the set, `0` the key
       #   exists but the member is not in it, `-1` the key does not exist
       #
@@ -130,6 +139,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String, Array<String>] members
+      #
       # @return [Array<Boolean>]
       def smismember(key, *members)
         members.flatten!(1)
@@ -139,6 +149,7 @@ class Valkey
       # Get all the members in a set.
       #
       # @param [String] key
+      #
       # @return [Array<String>]
       def smembers(key)
         send_command(RequestType::SMEMBERS, [key])
@@ -146,7 +157,8 @@ class Valkey
 
       # Subtract multiple sets.
       #
-      # @param [String, Array<String>] keys keys pointing to sets to subtract
+      # @param [String, Array<String>] keys - keys pointing to sets to subtract
+      #
       # @return [Array<String>] members in the difference
       def sdiff(*keys)
         keys.flatten!(1)
@@ -155,8 +167,9 @@ class Valkey
 
       # Subtract multiple sets and store the resulting set in a key.
       #
-      # @param [String] destination destination key
-      # @param [String, Array<String>] keys keys pointing to sets to subtract
+      # @param [String] destination - destination key
+      # @param [String, Array<String>] keys - keys pointing to sets to subtract
+      #
       # @return [Integer] number of elements in the resulting set
       def sdiffstore(destination, *keys)
         keys.flatten!(1)
@@ -165,7 +178,8 @@ class Valkey
 
       # Intersect multiple sets.
       #
-      # @param [String, Array<String>] keys keys pointing to sets to intersect
+      # @param [String, Array<String>] keys - keys pointing to sets to intersect
+      #
       # @return [Array<String>] members in the intersection
       def sinter(*keys)
         keys.flatten!(1)
@@ -174,8 +188,9 @@ class Valkey
 
       # Intersect multiple sets and store the resulting set in a key.
       #
-      # @param [String] destination destination key
-      # @param [String, Array<String>] keys keys pointing to sets to intersect
+      # @param [String] destination - destination key
+      # @param [String, Array<String>] keys - keys pointing to sets to intersect
+      #
       # @return [Integer] number of elements in the resulting set
       def sinterstore(destination, *keys)
         keys.flatten!(1)
@@ -184,7 +199,8 @@ class Valkey
 
       # Add multiple sets.
       #
-      # @param [String, Array<String>] keys keys pointing to sets to unify
+      # @param [String, Array<String>] keys - keys pointing to sets to unify
+      #
       # @return [Array<String>] members in the union
       def sunion(*keys)
         keys.flatten!(1)
@@ -193,8 +209,9 @@ class Valkey
 
       # Add multiple sets and store the resulting set in a key.
       #
-      # @param [String] destination destination key
-      # @param [String, Array<String>] keys keys pointing to sets to unify
+      # @param [String] destination - destination key
+      # @param [String, Array<String>] keys - keys pointing to sets to unify
+      #
       # @return [Integer] number of elements in the resulting set
       def sunionstore(destination, *keys)
         keys.flatten!(1)
@@ -206,9 +223,9 @@ class Valkey
       # @example Retrieve the first batch of keys in a set
       #   valkey.sscan("set", 0)
       #
-      # @param [String, Integer] cursor the cursor of the iteration
-      # @param [Hash] options
-      #   - `:match => String`: only return keys matching the pattern
+      # @param [String] key - set key
+      # @param [String, Integer] cursor - the cursor of the iteration
+      # @param [Hash] options - #   - `:match => String`: only return keys matching the pattern
       #   - `:count => Integer`: return count keys at most per iteration
       #
       # @return [String, Array<String>] the next cursor and all found members
@@ -224,8 +241,8 @@ class Valkey
       #   valkey.sscan_each("set").to_a
       #   # => ["key1", "key2", "key3"]
       #
-      # @param [Hash] options
-      #   - `:match => String`: only return keys matching the pattern
+      # @param [String] key - set key
+      # @param [Hash] options - #   - `:match => String`: only return keys matching the pattern
       #   - `:count => Integer`: return count keys at most per iteration
       #
       # @return [Enumerator] an enumerator for all keys in the set

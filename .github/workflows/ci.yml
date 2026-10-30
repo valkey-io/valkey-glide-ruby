@@ -17,6 +17,7 @@ on:
       - .github/json_matrices/**
       - Gemfile
       - Gemfile.lock
+      - .yard-lint.yml
       - Rakefile
       - valkey.gemspec
 
@@ -60,7 +61,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Rubocop
+    name: Lint
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
@@ -71,8 +72,10 @@ jobs:
         with:
           ruby-version: "3.3"
           bundler-cache: true
-      - name: Lint
+      - name: Lint Ruby
         run: bundle exec rubocop
+      - name: Check YARD documentation
+        run: bundle exec rake lint:yard
 
   get-matrices:
     name: Get Matrices

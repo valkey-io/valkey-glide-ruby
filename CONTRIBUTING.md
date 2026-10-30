@@ -28,6 +28,10 @@ Our `CHANGELOG.md` follows [Keep a Changelog 1.1.0](https://keepachangelog.com/e
 
 When adding a changelog entry, start with a verb and describe the change concisely.
 
+## API documentation
+
+Our docstring format follows YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md). We use `yard-lint` as the linter, with specific rules enforced in [`.yard-lint.yml`](./.yard-lint.yml).  `yard-lint` requires Ruby 3.3+.
+
 ## AI-Assisted Development
 
 If you use Cursor, Claude Code, or similar tools, agent context files are available:

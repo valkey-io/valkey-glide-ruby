@@ -5,7 +5,6 @@ class Valkey
     # this module contains commands related to list data type.
     #
     # @see https://valkey.io/commands/#scripting
-    #
     module ScriptingCommands
       # Control remote script registry.
       #
@@ -25,9 +24,11 @@ class Valkey
       #   valkey.script(:kill)
       #     # => "OK"
       #
-      # @param [String] subcommand e.g. `exists`, `flush`, `load`, `kill`
-      # @param [Array<String>] args depends on subcommand
-      # @return [String, Boolean, Array<Boolean>, ...] depends on subcommand
+      # @param [String] subcommand - e.g. `exists`, `flush`, `load`, `kill`
+      # @param [Array<String>] args - depends on subcommand
+      # @param [Hash] options - options forwarded to the selected subcommand
+      #
+      # @return [Object] depends on subcommand
       #
       # @see #eval
       # @see #evalsha
@@ -85,15 +86,16 @@ class Valkey
 
       # Set the debug mode for subsequent scripts executed with EVAL.
       #
-      # @param [String] mode debug mode: "YES", "SYNC", or "NO"
-      # @return [String] "OK"
-      #
       # @example Enable script debugging
       #   valkey.script_debug("YES")
       #     # => "OK"
       # @example Disable script debugging
       #   valkey.script_debug("NO")
       #     # => "OK"
+      #
+      # @param [String] mode - debug mode: "YES", "SYNC", or "NO"
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/script-debug/
       def script_debug(mode)
@@ -108,12 +110,13 @@ class Valkey
       # nodes, so the script is available whichever node a later `EVALSHA`
       # lands on.
       #
-      # @param [String] script the Lua script to load
-      # @return [String] the SHA1 hash of the script, as computed by the server
-      #
       # @example
       #   sha = valkey.script_load("return 1")
       #   valkey.script_exists(sha)   # => true
+      #
+      # @param [String] script - the Lua script to load
+      #
+      # @return [String] the SHA1 hash of the script, as computed by the server
       #
       # @see https://valkey.io/commands/script-load/
       def script_load(script)
@@ -128,13 +131,6 @@ class Valkey
       end
 
       # Execute a Lua script on the server.
-      #
-      # @param [String] script the Lua script to execute
-      # @param [Array<String>] keys array of key names that the script will access
-      # @param [Array<Object>] args array of arguments to pass to the script
-      # @return [Object] the result of the script execution
-      # @raise [ArgumentError] if script is empty
-      # @raise [CommandError] if script execution fails
       #
       # @example Execute a simple script
       #   valkey.eval("return 1")
@@ -154,6 +150,15 @@ class Valkey
       # @example Integer key-count form, matching valkey-cli and the Valkey docs
       #   valkey.eval("return {KEYS[1], ARGV[1]}", 1, "mykey", "myarg")
       #     # => ["mykey", "myarg"]
+      #
+      # @param [String] script - the Lua script to execute
+      # @param [Array<String>] keys - array of key names that the script will access
+      # @param [Array<Object>] args - array of arguments to pass to the script
+      #
+      # @return [Object] the result of the script execution
+      #
+      # @raise [ArgumentError] if script is empty
+      # @raise [CommandError] if script execution fails
       def eval(script, *rest, keys: nil, args: nil)
         # Validate script parameter
         raise ArgumentError, "script must be a string" unless script.is_a?(String)
@@ -165,13 +170,6 @@ class Valkey
       end
 
       # Execute a cached Lua script by its SHA1 hash.
-      #
-      # @param [String] sha the SHA1 hash of the script to execute
-      # @param [Array<String>] keys array of key names that the script will access
-      # @param [Array<Object>] args array of arguments to pass to the script
-      # @return [Object] the result of the script execution
-      # @raise [ArgumentError] if SHA1 hash format is invalid
-      # @raise [CommandError] if script is not found or execution fails
       #
       # @example Execute a cached script
       #   sha = valkey.script_load("return 1")
@@ -194,6 +192,15 @@ class Valkey
       # @example Integer key-count form, matching valkey-cli and the Valkey docs
       #   valkey.evalsha(sha, 1, "user", "123")
       #     # => "user:123"
+      #
+      # @param [String] sha - the SHA1 hash of the script to execute
+      # @param [Array<String>] keys - array of key names that the script will access
+      # @param [Array<Object>] args - array of arguments to pass to the script
+      #
+      # @return [Object] the result of the script execution
+      #
+      # @raise [ArgumentError] if SHA1 hash format is invalid
+      # @raise [CommandError] if script is not found or execution fails
       def evalsha(sha, *rest, keys: nil, args: nil)
         # Validate SHA1 hash parameter
         raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
@@ -209,17 +216,18 @@ class Valkey
       # This is a read-only variant of EVAL that cannot execute commands
       # that modify data. It can be routed to read replicas.
       #
-      # @param [String] script the Lua script to execute
-      # @param [Array<String>] keys array of key names that the script will access
-      # @param [Array<Object>] args array of arguments to pass to the script
-      # @return [Object] the result of the script execution
-      #
       # @example Execute a read-only script
       #   valkey.eval_ro("return redis.call('get', KEYS[1])", keys: ["mykey"])
       #     # => "myvalue"
       # @example Integer key-count form
       #   valkey.eval_ro("return redis.call('get', KEYS[1])", 1, "mykey")
       #     # => "myvalue"
+      #
+      # @param [String] script - the Lua script to execute
+      # @param [Array<String>] keys - array of key names that the script will access
+      # @param [Array<Object>] args - array of arguments to pass to the script
+      #
+      # @return [Object] the result of the script execution
       #
       # @see https://valkey.io/commands/eval_ro/
       def eval_ro(script, *rest, keys: nil, args: nil)
@@ -236,11 +244,6 @@ class Valkey
       # This is a read-only variant of EVALSHA that cannot execute commands
       # that modify data. It can be routed to read replicas.
       #
-      # @param [String] sha the SHA1 hash of the script to execute
-      # @param [Array<String>] keys array of key names that the script will access
-      # @param [Array<Object>] args array of arguments to pass to the script
-      # @return [Object] the result of the script execution
-      #
       # @example Execute a cached read-only script
       #   sha = valkey.script_load("return redis.call('get', KEYS[1])")
       #   valkey.evalsha_ro(sha, keys: ["mykey"])
@@ -248,6 +251,12 @@ class Valkey
       # @example Integer key-count form
       #   valkey.evalsha_ro(sha, 1, "mykey")
       #     # => "myvalue"
+      #
+      # @param [String] sha - the SHA1 hash of the script to execute
+      # @param [Array<String>] keys - array of key names that the script will access
+      # @param [Array<Object>] args - array of arguments to pass to the script
+      #
+      # @return [Object] the result of the script execution
       #
       # @see https://valkey.io/commands/evalsha_ro/
       def evalsha_ro(sha, *rest, keys: nil, args: nil)

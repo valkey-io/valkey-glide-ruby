@@ -5,6 +5,51 @@
 require 'bundler/gem_tasks' unless ENV["TEST_INSTALLED_GEM"]
 require 'rake/testtask'
 
+YARD_PUBLIC_API_FILES = %w[
+  lib/valkey.rb
+  lib/valkey/commands.rb
+  lib/valkey/commands/bitmap_commands.rb
+  lib/valkey/commands/cluster_commands.rb
+  lib/valkey/commands/connection_commands.rb
+  lib/valkey/commands/function_commands.rb
+  lib/valkey/commands/generic_commands.rb
+  lib/valkey/commands/geo_commands.rb
+  lib/valkey/commands/hash_commands.rb
+  lib/valkey/commands/hyper_log_log_commands.rb
+  lib/valkey/commands/json_commands.rb
+  lib/valkey/commands/list_commands.rb
+  lib/valkey/commands/module_commands.rb
+  lib/valkey/commands/pubsub_commands.rb
+  lib/valkey/commands/scripting_commands.rb
+  lib/valkey/commands/server_commands.rb
+  lib/valkey/commands/set_commands.rb
+  lib/valkey/commands/sorted_set_commands.rb
+  lib/valkey/commands/stream_commands.rb
+  lib/valkey/commands/string_commands.rb
+  lib/valkey/commands/transaction_commands.rb
+  lib/valkey/commands/vector_search_commands.rb
+  lib/valkey/pubsub.rb
+  lib/valkey/pubsub/pubsub_message.rb
+  lib/valkey/pubsub/pubsub_state.rb
+  lib/valkey/search.rb
+  lib/valkey/search/aggregate.rb
+  lib/valkey/search/create_options.rb
+  lib/valkey/search/fields.rb
+  lib/valkey/search/info.rb
+  lib/valkey/search/query.rb
+].freeze
+
+namespace :lint do
+  desc "Lint YARD documentation for public APIs"
+  task :yard do
+    missing_files = YARD_PUBLIC_API_FILES.reject { |file| File.file?(file) }
+    abort "YARD public API files not found:\n#{missing_files.join("\n")}" unless missing_files.empty?
+
+    failed_files = YARD_PUBLIC_API_FILES.reject { |file| system("yard-lint", file) }
+    abort "YARD lint failed for:\n#{failed_files.join("\n")}" unless failed_files.empty?
+  end
+end
+
 # =============================================================================
 # Native Library Build Tasks
 # =============================================================================

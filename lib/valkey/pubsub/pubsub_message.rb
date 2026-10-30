@@ -5,6 +5,7 @@ class Valkey
     # A message delivered on a subscribed channel.
     #
     # @!attribute [rw] message
+    #
     #   @return [String] the published payload. Binary safe: embedded NUL bytes
     #     are preserved.
     # @!attribute [rw] channel

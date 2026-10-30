@@ -4,8 +4,7 @@ class Valkey
   module Commands
     # This module contains commands related to RedisJSON / Valkey JSON.
     #
-    # @see https://redis.io/docs/stack/json/
-    #
+    # @see https://valkey.io/topics/valkey-json/
     module JsonCommands
       # Get JSON value at path.
       #
@@ -16,11 +15,12 @@ class Valkey
       #   valkey.json_get("user:1", "$.name")
       #     # => "[\"John\"]"
       #
-      # @param [String] key the key
-      # @param [Array<String>] paths optional paths to retrieve
+      # @param [String] key - the key
+      # @param [Array<String>] paths - optional paths to retrieve
+      #
       # @return [String, nil] JSON string or nil if key doesn't exist
       #
-      # @see https://redis.io/commands/json.get/
+      # @see https://valkey.io/commands/json.get/
       def json_get(key, *paths)
         args = [key] + paths
         send_command(RequestType::JSON_GET, args)
@@ -35,12 +35,13 @@ class Valkey
       #   valkey.json_set("user:1", "$.age", "31")
       #     # => "OK"
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [String] value the JSON value
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [String] value - the JSON value
+      #
       # @return [String] "OK"
       #
-      # @see https://redis.io/commands/json.set/
+      # @see https://valkey.io/commands/json.set/
       def json_set(key, path, value)
         send_command(RequestType::JSON_SET, [key, path, value])
       end
@@ -54,11 +55,12 @@ class Valkey
       #   valkey.json_del("user:1", "$.age")
       #     # => 1
       #
-      # @param [String] key the key
-      # @param [String] path optional path (default: root)
+      # @param [String] key - the key
+      # @param [String] path - optional path (default: root)
+      #
       # @return [Integer] number of paths deleted
       #
-      # @see https://redis.io/commands/json.del/
+      # @see https://valkey.io/commands/json.del/
       def json_del(key, path = nil)
         args = [key]
         args << path if path
@@ -67,11 +69,12 @@ class Valkey
 
       # Alias for json_del (deprecated).
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Integer] number of paths deleted
       #
-      # @see https://redis.io/commands/json.forget/
+      # @see https://valkey.io/commands/json.forget/
       def json_forget(key, path = nil)
         args = [key]
         args << path if path
@@ -84,10 +87,11 @@ class Valkey
       #   valkey.json_mget("user:1", "user:2", "$.name")
       #     # => ["[\"John\"]", "[\"Jane\"]"]
       #
-      # @param [Array<String>] keys_and_path keys followed by path
+      # @param [Array<String>] keys_and_path - keys followed by path
+      #
       # @return [Array<String, nil>] array of JSON strings
       #
-      # @see https://redis.io/commands/json.mget/
+      # @see https://valkey.io/commands/json.mget/
       def json_mget(*keys_and_path)
         send_command(RequestType::JSON_MGET, keys_and_path)
       end
@@ -98,11 +102,12 @@ class Valkey
       #   valkey.json_type("user:1", "$.age")
       #     # => ["integer"]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Array<String>] array of type names
       #
-      # @see https://redis.io/commands/json.type/
+      # @see https://valkey.io/commands/json.type/
       def json_type(key, path = nil)
         args = [key]
         args << path if path
@@ -115,12 +120,13 @@ class Valkey
       #   valkey.json_numincrby("user:1", "$.age", 1)
       #     # => "[31]"
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [Numeric] value the increment value
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [Numeric] value - the increment value
+      #
       # @return [String] JSON array of new values
       #
-      # @see https://redis.io/commands/json.numincrby/
+      # @see https://valkey.io/commands/json.numincrby/
       def json_numincrby(key, path, value)
         send_command(RequestType::JSON_NUM_INCR_BY, [key, path, value.to_s])
       end
@@ -131,12 +137,13 @@ class Valkey
       #   valkey.json_nummultby("product:1", "$.price", 1.1)
       #     # => "[110.0]"
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [Numeric] value the multiplier
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [Numeric] value - the multiplier
+      #
       # @return [String] JSON array of new values
       #
-      # @see https://redis.io/commands/json.nummultby/
+      # @see https://valkey.io/commands/json.nummultby/
       def json_nummultby(key, path, value)
         send_command(RequestType::JSON_NUM_MULT_BY, [key, path, value.to_s])
       end
@@ -147,12 +154,13 @@ class Valkey
       #   valkey.json_strappend("user:1", "$.name", '" Jr."')
       #     # => [8]
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [String] value the string to append
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [String] value - the string to append
+      #
       # @return [Array<Integer>] array of new string lengths
       #
-      # @see https://redis.io/commands/json.strappend/
+      # @see https://valkey.io/commands/json.strappend/
       def json_strappend(key, path, value)
         send_command(RequestType::JSON_STR_APPEND, [key, path, value])
       end
@@ -163,11 +171,12 @@ class Valkey
       #   valkey.json_strlen("user:1", "$.name")
       #     # => [4]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Array<Integer, nil>] array of string lengths
       #
-      # @see https://redis.io/commands/json.strlen/
+      # @see https://valkey.io/commands/json.strlen/
       def json_strlen(key, path = nil)
         args = [key]
         args << path if path
@@ -180,12 +189,13 @@ class Valkey
       #   valkey.json_arrappend("user:1", "$.tags", '"ruby"', '"valkey"')
       #     # => [3]
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [Array<String>] values JSON values to append
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [Array<String>] values - JSON values to append
+      #
       # @return [Array<Integer>] array of new array lengths
       #
-      # @see https://redis.io/commands/json.arrappend/
+      # @see https://valkey.io/commands/json.arrappend/
       def json_arrappend(key, path, *values)
         send_command(RequestType::JSON_ARR_APPEND, [key, path] + values)
       end
@@ -196,14 +206,15 @@ class Valkey
       #   valkey.json_arrindex("user:1", "$.tags", '"ruby"')
       #     # => [0]
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [String] value the value to search for
-      # @param [Integer] start optional start index
-      # @param [Integer] stop optional stop index
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [String] value - the value to search for
+      # @param [Integer] start - optional start index
+      # @param [Integer] stop - optional stop index
+      #
       # @return [Array<Integer>] array of indices (-1 if not found)
       #
-      # @see https://redis.io/commands/json.arrindex/
+      # @see https://valkey.io/commands/json.arrindex/
       def json_arrindex(key, path, value, start = nil, stop = nil)
         args = [key, path, value]
         args << start.to_s if start
@@ -217,13 +228,14 @@ class Valkey
       #   valkey.json_arrinsert("user:1", "$.tags", 1, '"python"')
       #     # => [3]
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [Integer] index the index to insert at
-      # @param [Array<String>] values JSON values to insert
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [Integer] index - the index to insert at
+      # @param [Array<String>] values - JSON values to insert
+      #
       # @return [Array<Integer>] array of new array lengths
       #
-      # @see https://redis.io/commands/json.arrinsert/
+      # @see https://valkey.io/commands/json.arrinsert/
       def json_arrinsert(key, path, index, *values)
         send_command(RequestType::JSON_ARR_INSERT, [key, path, index.to_s] + values)
       end
@@ -234,11 +246,12 @@ class Valkey
       #   valkey.json_arrlen("user:1", "$.tags")
       #     # => [2]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Array<Integer, nil>] array of array lengths
       #
-      # @see https://redis.io/commands/json.arrlen/
+      # @see https://valkey.io/commands/json.arrlen/
       def json_arrlen(key, path = nil)
         args = [key]
         args << path if path
@@ -254,12 +267,13 @@ class Valkey
       #   valkey.json_arrpop("user:1", "$.tags", 0)
       #     # => ["\"python\""]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
-      # @param [Integer] index optional index (default: -1)
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      # @param [Integer] index - optional index (default: -1)
+      #
       # @return [Array<String, nil>] array of popped values
       #
-      # @see https://redis.io/commands/json.arrpop/
+      # @see https://valkey.io/commands/json.arrpop/
       def json_arrpop(key, path = nil, index = nil)
         args = [key]
         args << path if path
@@ -273,13 +287,14 @@ class Valkey
       #   valkey.json_arrtrim("user:1", "$.tags", 0, 1)
       #     # => [2]
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
-      # @param [Integer] start start index
-      # @param [Integer] stop stop index
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      # @param [Integer] start - start index
+      # @param [Integer] stop - stop index
+      #
       # @return [Array<Integer>] array of new array lengths
       #
-      # @see https://redis.io/commands/json.arrtrim/
+      # @see https://valkey.io/commands/json.arrtrim/
       def json_arrtrim(key, path, start, stop)
         send_command(RequestType::JSON_ARR_TRIM, [key, path, start.to_s, stop.to_s])
       end
@@ -290,11 +305,12 @@ class Valkey
       #   valkey.json_objkeys("user:1", "$")
       #     # => [["name", "age"]]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Array<Array<String>>] array of key arrays
       #
-      # @see https://redis.io/commands/json.objkeys/
+      # @see https://valkey.io/commands/json.objkeys/
       def json_objkeys(key, path = nil)
         args = [key]
         args << path if path
@@ -307,11 +323,12 @@ class Valkey
       #   valkey.json_objlen("user:1", "$")
       #     # => [2]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Array<Integer, nil>] array of key counts
       #
-      # @see https://redis.io/commands/json.objlen/
+      # @see https://valkey.io/commands/json.objlen/
       def json_objlen(key, path = nil)
         args = [key]
         args << path if path
@@ -324,11 +341,12 @@ class Valkey
       #   valkey.json_clear("user:1", "$.tags")
       #     # => 1
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Integer] number of paths cleared
       #
-      # @see https://redis.io/commands/json.clear/
+      # @see https://valkey.io/commands/json.clear/
       def json_clear(key, path = nil)
         args = [key]
         args << path if path
@@ -341,11 +359,12 @@ class Valkey
       #   valkey.json_toggle("user:1", "$.active")
       #     # => [1]
       #
-      # @param [String] key the key
-      # @param [String] path the JSON path
+      # @param [String] key - the key
+      # @param [String] path - the JSON path
+      #
       # @return [Array<Integer>] array of new boolean values (0 or 1)
       #
-      # @see https://redis.io/commands/json.toggle/
+      # @see https://valkey.io/commands/json.toggle/
       def json_toggle(key, path)
         send_command(RequestType::JSON_TOGGLE, [key, path])
       end
@@ -356,12 +375,13 @@ class Valkey
       #   valkey.json_debug("MEMORY", "user:1", "$")
       #     # => [120]
       #
-      # @param [String] subcommand the debug subcommand
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] subcommand - the debug subcommand
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Object] depends on subcommand
       #
-      # @see https://redis.io/commands/json.debug/
+      # @see https://valkey.io/commands/json.debug/
       def json_debug(subcommand, key, path = nil)
         args = [subcommand, key]
         args << path if path
@@ -374,11 +394,12 @@ class Valkey
       #   valkey.json_resp("user:1", "$")
       #     # => [["name", "John"], ["age", 30]]
       #
-      # @param [String] key the key
-      # @param [String] path optional path
+      # @param [String] key - the key
+      # @param [String] path - optional path
+      #
       # @return [Object] RESP representation
       #
-      # @see https://redis.io/commands/json.resp/
+      # @see https://valkey.io/commands/json.resp/
       def json_resp(key, path = nil)
         args = [key]
         args << path if path
