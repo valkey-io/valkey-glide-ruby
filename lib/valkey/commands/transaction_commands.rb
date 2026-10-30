@@ -212,7 +212,8 @@ class Valkey
       BOOLEAN_REQUEST_TYPES = [
         RequestType::EXPIRE, RequestType::EXPIRE_AT, RequestType::PEXPIRE, RequestType::PEXPIRE_AT,
         RequestType::PERSIST, RequestType::SISMEMBER, RequestType::S_MOVE, RequestType::PFADD,
-        RequestType::RENAME_NX, RequestType::MOVE, RequestType::COPY, RequestType::MSET_NX
+        RequestType::RENAME_NX, RequestType::MOVE, RequestType::COPY, RequestType::MSET_NX,
+        RequestType::DEL_IF_EQ
       ].freeze
 
       private

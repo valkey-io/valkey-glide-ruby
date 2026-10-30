@@ -100,6 +100,32 @@ class Valkey
         send_command(RequestType::SISMEMBER, [key, member])
       end
 
+      # Determine if a given value is a member of a set, distinguishing a missing
+      # key from a missing member.
+      #
+      # @example The member exists in the set
+      #   valkey.sismember_if_exists("my_set", "member1")
+      #     # => 1
+      # @example The key exists but the member does not exist in it
+      #   valkey.sismember_if_exists("my_set", "non_existing_member")
+      #     # => 0
+      # @example The key does not exist
+      #   valkey.sismember_if_exists("non_existing_set", "member1")
+      #     # => -1
+      #
+      # @param [String] key
+      # @param [String] member
+      # @return [Integer] a status code: `1` the member is in the set, `0` the key
+      #   exists but the member is not in it, `-1` the key does not exist
+      #
+      # @see https://valkey.io/commands/sismember/
+      #
+      # Since Valkey 9.2.
+      def sismember_if_exists(key, member)
+        # &Utils::Noop opts out of BOOLEAN_REQUEST_TYPES reconversion in multi
+        send_command(RequestType::SISMEMBER, [key, member, "XX"], &Utils::Noop)
+      end
+
       # Determine if multiple values are members of a set.
       #
       # @param [String] key

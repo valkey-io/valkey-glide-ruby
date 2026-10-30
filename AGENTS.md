@@ -52,6 +52,7 @@ When working on a feature, read these paths first:
 |-------|------------|
 | Connection / options | `lib/valkey.rb` (`#initialize`), `test/lint/connection_options.rb` |
 | New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/*.rb`, `test/lint/*` |
+| Adding/reviewing tests | `docs/TESTING.md` in full, then the relevant test files |
 | Pipelining / batch | `lib/valkey.rb` (`pipelined`, `send_batch_commands`), `lib/valkey/pipeline.rb` |
 | OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/integration/valkey/opentelemetry_test.rb` |
 | FFI / errors | `lib/valkey/bindings.rb`, `lib/valkey/errors.rb` |
@@ -60,8 +61,7 @@ When working on a feature, read these paths first:
 
 ## Quality Gates (Agent Checklist)
 
-- [ ] Positive tests added.
-- [ ] Negative tests covered.
+- [ ] Used `docs/TESTING.md` as the authoritative reference for test implementations.
 - [ ] `bundle exec rubocop` passes
 - [ ] Test servers were started/stopped via `cluster_manager.py` (never hand-launched or ad-hoc `docker run`)
 - [ ] `bundle exec rake test:unit` passes (no server needed)

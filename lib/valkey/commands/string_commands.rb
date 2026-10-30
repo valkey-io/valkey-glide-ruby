@@ -285,6 +285,25 @@ class Valkey
         send_command(RequestType::GET_DEL, [key])
       end
 
+      # Delete a key only if its value matches the given value.
+      #
+      # @example
+      #   valkey.set("key", "value")
+      #   valkey.delifeq("key", "value")
+      #     # => true
+      #
+      # @param [String] key
+      # @param [String] value the comparison value; the key is only deleted on an exact match
+      # @return [Boolean] true when the key was deleted; false when the key does not
+      #   exist or its value did not match
+      #
+      # @see https://valkey.io/commands/delifeq/
+      #
+      # Since Valkey 9.0.
+      def delifeq(key, value)
+        send_command(RequestType::DEL_IF_EQ, [key, value.to_s])
+      end
+
       # Get the value of key and optionally set its expiration.
       #
       # @param [String] key

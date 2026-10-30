@@ -8,6 +8,8 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added support for `sismember_if_exists(key, member)` with Valkey 9.2 or later. ([#383](https://github.com/valkey-io/valkey-glide-ruby/pull/383))
+- Added support for `delifeq(key, value)` with Valkey 9.0 or later. ([#382](https://github.com/valkey-io/valkey-glide-ruby/pull/382))
 - Added support for `Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES` to prefer all nodes in the client's availability zone before other nodes. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
 - Added support for `hgetdel(key, *fields)` with Valkey 9.1 or later. ([#348](https://github.com/valkey-io/valkey-glide-ruby/pull/348))
 - Added support for IAM authentication through `Valkey::IamAuthConfig`, the `iam_config:` connection option, `refresh_iam_token`, and the ElastiCache and MemoryDB service types. ([#342](https://github.com/valkey-io/valkey-glide-ruby/pull/342))
@@ -36,6 +38,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Required TLS for IAM authentication, rejecting IAM configurations without TLS during client creation. ([#397](https://github.com/valkey-io/valkey-glide-ruby/pull/397))
 - Rejected `cluster_mode: true` without an explicit seed node instead of connecting to the standalone default. ([#344](https://github.com/valkey-io/valkey-glide-ruby/pull/344))
 - Treated empty `lib_name:` and `client_info_tag:` values as unset so they no longer produce invalid library names. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 - Placed the `xpending` `idle:` filter in the correct command position and omitted it only when its value is `nil`. ([#300](https://github.com/valkey-io/valkey-glide-ruby/pull/300))
