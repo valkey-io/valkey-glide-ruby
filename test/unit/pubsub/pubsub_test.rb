@@ -49,7 +49,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   # Enqueues without going through the FFI, so the queue contract can be tested
   # apart from the handler. In production only the handler enqueues.
   def deliver(message:, channel:, pattern: nil)
-    enqueue(@pubsub, Valkey::Glide::PubSubMessage.new(message, channel, pattern))
+    enqueue(@pubsub, Valkey::PubSubMessage.new(message: message, channel: channel, pattern: pattern))
   end
 
   def test_message_kinds_cover_only_payload_carrying_pushes
@@ -59,7 +59,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   end
 
   def test_message_carries_message_channel_and_pattern
-    msg = Valkey::Glide::PubSubMessage.new("hello", "news.tech", "news.*")
+    msg = Valkey::PubSubMessage.new(message: "hello", channel: "news.tech", pattern: "news.*")
 
     assert_equal "hello", msg.message
     assert_equal "news.tech", msg.channel
@@ -720,7 +720,7 @@ class TestPubSubCommandsUnit < Minitest::Test
 
     state = client.get_subscriptions
 
-    assert_instance_of Valkey::Glide::PubSubState, state
+    assert_instance_of Valkey::PubSubState, state
     assert_equal({ exact: %w[news], pattern: ["news.*"], sharded: %w[shard1] }, state.desired_subscriptions)
     assert_equal({ exact: %w[news], pattern: [], sharded: %w[shard1] }, state.actual_subscriptions)
   end
@@ -863,7 +863,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   # get_pubsub_message blocks, so it is only called on a queue that already
   # holds one.
   def queued_message(client)
-    enqueue(client, Valkey::Glide::PubSubMessage.new("hello", "news", nil))
+    enqueue(client, Valkey::PubSubMessage.new(message: "hello", channel: "news"))
     client.get_pubsub_message
   end
 
