@@ -339,10 +339,10 @@ class Valkey
 
       # Return this connection's desired and server-confirmed subscriptions.
       #
-      # @return [Valkey::Glide::PubSubState] the connection's subscription state
+      # @return [Valkey::PubSubState] the connection's subscription state
       # @raise [ArgumentError] if called inside `pipelined` or `multi`
       def get_subscriptions
-        Glide::PubSubState.from_reply(send_command(RequestType::GET_SUBSCRIPTIONS))
+        PubSubState.from_reply(send_command(RequestType::GET_SUBSCRIPTIONS))
       end
 
       # List active channels, optionally filtered by a glob-style pattern.
@@ -448,7 +448,7 @@ class Valkey
       #     handle(message.channel, message.message)
       #   end
       #
-      # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` once the client is closed.
+      # @return [Valkey::PubSubMessage, nil] the message, or `nil` once the client is closed.
       #   `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors
@@ -460,13 +460,15 @@ class Valkey
       # Get the next Pub/Sub message if one is already queued. Never blocks.
       #
       # @example Poll for a message
-      #   valkey.try_get_pubsub_message
-      #     # => #<struct Valkey::Glide::PubSubMessage message="hi", channel="channel1", pattern=nil>
+      #   message = valkey.try_get_pubsub_message
+      #   message.message # => "hi"
+      #   message.channel # => "channel1"
+      #   message.pattern # => nil
       # @example Poll when nothing is queued
       #   valkey.try_get_pubsub_message
       #     # => nil
       #
-      # @return [Valkey::Glide::PubSubMessage, nil] the message, or `nil` when the queue is empty or the
+      # @return [Valkey::PubSubMessage, nil] the message, or `nil` when the queue is empty or the
       #   client is closed. `#pattern` is set only when the push was a `PMESSAGE`
       # @raise [Valkey::Resp3RequiredError] GLIDE Pub/Sub requires RESP3
       # @raise [Valkey::InvalidClientOptionError] on client-side configuration errors

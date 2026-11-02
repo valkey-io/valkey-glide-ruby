@@ -119,7 +119,11 @@ class Valkey
 
           pattern = pattern_ptr.null? ? nil : pattern_ptr.read_string(pattern_size)
           message = message_ptr.read_string(message_size)
-          payload = PubSubMessage.new(message, channel_ptr.read_string(channel_size), pattern)
+          payload = PubSubMessage.new(
+            message: message,
+            channel: channel_ptr.read_string(channel_size),
+            pattern: pattern
+          )
           callback_mode? ? deliver_to_callback(payload) : @message_queue.push(payload)
         rescue Exception # rubocop:disable Lint/RescueException
           # TODO: Log the swallowed error once a logger binding exists.
