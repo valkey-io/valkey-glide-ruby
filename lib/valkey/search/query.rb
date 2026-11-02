@@ -144,6 +144,10 @@ class Valkey
       # @return [Array<Document>] returned documents
       attr_reader :documents
 
+      # Create a structured search result.
+      #
+      # @param [Integer] total_results - total number of matching documents
+      # @param [Array<Document>] documents - documents returned by this query
       def initialize(total_results, documents)
         @total_results = total_results
         @documents = documents

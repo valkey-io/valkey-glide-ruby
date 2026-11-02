@@ -394,6 +394,14 @@ class Valkey
         send_command(RequestType::COPY, args)
       end
 
+      # Return information about the value stored at a key.
+      #
+      # @param [String, Symbol] subcommand - `refcount`, `encoding`, `idletime`, or `freq`
+      # @param [Array<String>] args - the key and any additional subcommand arguments
+      #
+      # @return [Integer, String, nil] the requested object information, or nil if the key does not exist
+      #
+      # @see https://valkey.io/commands/object/
       def object(subcommand, *args)
         map = {
           refcount: RequestType::OBJECT_REF_COUNT,
@@ -483,6 +491,13 @@ class Valkey
         end
       end
 
+      # Update the last-access time of one or more keys.
+      #
+      # @param [Array<String>] keys - the keys to touch
+      #
+      # @return [Integer] the number of existing keys that were updated
+      #
+      # @see https://valkey.io/commands/touch/
       def touch(*keys)
         send_command(RequestType::TOUCH, keys.flatten)
       end
@@ -536,6 +551,21 @@ class Valkey
         send_command(RequestType::TYPE, [key])
       end
 
+      # Build and dispatch a SCAN-family command.
+      #
+      # @param [Integer] command - the request type for SCAN, SSCAN, HSCAN, or ZSCAN
+      # @param [String, Integer] cursor - the cursor of the iteration
+      # @param [Array<String>] args - command arguments that precede the cursor
+      # @param [String, nil] match - pattern used to filter returned elements
+      # @param [Integer, nil] count - requested number of elements per iteration
+      # @param [String, nil] type - object type used to filter SCAN results
+      #
+      # @yieldparam [Array] reply - the raw scan response
+      # @yieldreturn [Object] the transformed scan response
+      #
+      # @return [Object] the scan response, transformed by the block when one is provided
+      #
+      # @api private
       def _scan(command, cursor, args, match: nil, count: nil, type: nil, &block)
         # SSCAN/ZSCAN/HSCAN already prepend the key to +args+.
 

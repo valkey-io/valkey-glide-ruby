@@ -57,10 +57,26 @@ class Valkey
         send_command(RequestType::BIT_OP, args)
       end
 
+      # Read or modify bit fields in the string stored at a key.
+      #
+      # @param [String] key - the key of the string
+      # @param [Array<Object>] args - BITFIELD subcommands and their arguments
+      #
+      # @return [Array<Integer, nil>] results from the GET, SET, and INCRBY subcommands
+      #
+      # @see https://valkey.io/commands/bitfield/
       def bitfield(key, *args)
         send_command(RequestType::BIT_FIELD, [key] + args.map(&:to_s))
       end
 
+      # Read bit fields from the string stored at a key.
+      #
+      # @param [String] key - the key of the string
+      # @param [Array<Object>] args - one or more GET subcommands and their arguments
+      #
+      # @return [Array<Integer>] results from the GET subcommands
+      #
+      # @see https://valkey.io/commands/bitfield_ro/
       def bitfield_ro(key, *args)
         send_command(RequestType::BIT_FIELD_READ_ONLY, [key] + args.map(&:to_s))
       end

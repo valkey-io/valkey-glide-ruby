@@ -90,6 +90,9 @@ class Valkey
         raise ArgumentError, "GroupBy reducers must be Valkey::Search::Reducer objects"
       end
 
+      # Serialize the GROUPBY clause and its reducers.
+      #
+      # @return [Array] the GROUPBY clause tokens
       def to_args
         tokens = ["GROUPBY", @properties.length, *@properties]
         @reducers.each { |reducer| tokens.concat(reducer.to_args) }
@@ -119,6 +122,9 @@ class Valkey
         @max = max
       end
 
+      # Serialize the SORTBY clause.
+      #
+      # @return [Array] the SORTBY clause tokens
       def to_args
         flat = @pairs.flat_map do |property, ord|
           [property, Search.lookup_token(Search::SORT_ORDERS, ord, "sort order")]
@@ -160,6 +166,9 @@ class Valkey
         @expression = expression
       end
 
+      # Serialize the FILTER clause.
+      #
+      # @return [Array] the FILTER clause tokens
       def to_args
         ["FILTER", @expression]
       end
@@ -179,6 +188,9 @@ class Valkey
         @alias_name = as
       end
 
+      # Serialize the APPLY clause.
+      #
+      # @return [Array] the APPLY clause tokens
       def to_args
         ["APPLY", @expression, "AS", @alias_name]
       end
@@ -197,6 +209,9 @@ class Valkey
         @count = count
       end
 
+      # Serialize the LIMIT clause.
+      #
+      # @return [Array] the LIMIT clause tokens
       def to_args
         ["LIMIT", @offset, @count]
       end

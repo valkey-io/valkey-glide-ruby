@@ -58,6 +58,14 @@ class Valkey
         # end
       end
 
+      # Flush the Lua script cache.
+      #
+      # @param [Boolean] sync - request a synchronous flush
+      # @param [Boolean] async - request an asynchronous flush; takes precedence when both options are true
+      #
+      # @return [String] "OK"
+      #
+      # @see https://valkey.io/commands/script-flush/
       def script_flush(sync: false, async: false)
         args = []
 
@@ -70,6 +78,13 @@ class Valkey
         send_command(RequestType::SCRIPT_FLUSH, args)
       end
 
+      # Check whether one or more SHA1 hashes exist in the script cache.
+      #
+      # @param [String, Array<String>] args - one SHA1 hash or an array of SHA1 hashes
+      #
+      # @return [Boolean, Array<Boolean>] whether each script exists
+      #
+      # @see https://valkey.io/commands/script-exists/
       def script_exists(args)
         send_command(RequestType::SCRIPT_EXISTS, Array(args)) do |reply|
           if args.is_a?(Array)
@@ -80,6 +95,13 @@ class Valkey
         end
       end
 
+      # Kill the currently executing Lua script if it has not performed a write.
+      #
+      # @return [String] "OK"
+      #
+      # @raise [Valkey::CommandError] if no script is running or the running script has performed a write
+      #
+      # @see https://valkey.io/commands/script-kill/
       def script_kill
         send_command(RequestType::SCRIPT_KILL)
       end
@@ -268,6 +290,17 @@ class Valkey
         call("EVALSHA_RO", sha, keys.size, *keys, *args)
       end
 
+      # Execute a cached Lua script by its SHA1 hash.
+      #
+      # @param [String] script - the SHA1 hash returned by {#script_load}
+      # @param [Array<Object>] args - non-key arguments passed to the script as ARGV
+      # @param [Array<String>] keys - keys accessed by the script
+      #
+      # @return [Object] the value returned by the script
+      #
+      # @see https://valkey.io/commands/evalsha/
+      #
+      # @note In cluster mode, all keys must map to the same hash slot.
       def invoke_script(script, args: [], keys: [])
         # Checked before allocating any FFI memory below, so a closed client fails fast.
         conn = connection!

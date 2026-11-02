@@ -17,6 +17,10 @@ class Valkey
       # @return [String, nil] optional attribute alias (AS clause)
       attr_reader :alias_name
 
+      # Initialize the attributes shared by all schema fields.
+      #
+      # @param [String] name - the field identifier
+      # @param [String, nil] as - optional attribute alias
       def initialize(name, as: nil)
         @name = name
         @alias_name = as
@@ -53,6 +57,9 @@ class Valkey
         @weight = weight
       end
 
+      # Serialize the TEXT field type and options.
+      #
+      # @return [Array] the TEXT field tokens
       def type_args
         args = ["TEXT"]
         args << "NOSTEM" if @no_stem
@@ -79,6 +86,9 @@ class Valkey
         @sortable = sortable
       end
 
+      # Serialize the TAG field type and options.
+      #
+      # @return [Array] the TAG field tokens
       def type_args
         args = ["TAG"]
         args.push("SEPARATOR", @separator) unless @separator.nil?
@@ -101,6 +111,9 @@ class Valkey
         @sortable = sortable
       end
 
+      # Serialize the NUMERIC field type and options.
+      #
+      # @return [Array] the NUMERIC field tokens
       def type_args
         args = ["NUMERIC"]
         args << "SORTABLE" if @sortable
@@ -173,6 +186,9 @@ class Valkey
         @ef_runtime = ef_runtime
       end
 
+      # Serialize the VECTOR field type and algorithm options.
+      #
+      # @return [Array] the VECTOR field tokens
       def type_args
         attrs = ["TYPE", @type, "DIM", @dim, "DISTANCE_METRIC", @metric]
         attrs.push("INITIAL_CAP", @initial_cap) unless @initial_cap.nil?
