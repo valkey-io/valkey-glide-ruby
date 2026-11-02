@@ -2,10 +2,9 @@
 
 require "test_helper"
 require "timeout"
-require "valkey/pubsub"
 
 class TestPubSubReceiverUnit < Minitest::Test
-  Kind = Valkey::PubSub::PubSubReceiver::PushKind
+  Kind = Valkey::Glide::PubSubReceiver::PushKind
 
   # An invalid Pubsub callback
   class CallableWithoutArity
@@ -13,7 +12,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   def setup
-    @receiver = Valkey::PubSub::PubSubReceiver.new
+    @receiver = Valkey::Glide::PubSubReceiver.new
   end
 
   def teardown
@@ -31,9 +30,10 @@ class TestPubSubReceiverUnit < Minitest::Test
       ["sharded", "shard-chan", nil]
     ]
 
-    received = 3.times.map { @receiver.try_pop.to_a }
+    received = 3.times.map { @receiver.try_pop }
 
-    assert_equal expected, received
+    received.each { |message| assert_instance_of Valkey::PubSubMessage, message }
+    assert_equal expected, received.map(&:to_a)
   end
 
   def test_ffi_handler_drops_non_message_kinds
@@ -110,14 +110,14 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   def test_callback_mode_is_reported
-    @receiver = Valkey::PubSub::PubSubReceiver.new(callback: ->(_message, _context) {})
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
 
     assert_predicate @receiver, :callback_mode?
   end
 
   def test_callback_receives_messages
     received = Thread::Queue.new
-    @receiver = Valkey::PubSub::PubSubReceiver.new(callback: ->(message, _context) { received.push(message) })
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(message, _context) { received.push(message) })
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
     push(Kind::PMESSAGE, message: "pattern", channel: "news.tech", pattern: "news.*")
@@ -136,7 +136,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_callback_of_arity_one_receives_only_the_message
     received = Thread::Queue.new
-    @receiver = Valkey::PubSub::PubSubReceiver.new(
+    @receiver = Valkey::Glide::PubSubReceiver.new(
       callback: ->(message) { received.push([message]) },
       context: :ignored
     )
@@ -152,7 +152,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   def test_callback_of_arity_two_receives_the_context
     received = Thread::Queue.new
     context = { state: "app" }
-    @receiver = Valkey::PubSub::PubSubReceiver.new(
+    @receiver = Valkey::Glide::PubSubReceiver.new(
       callback: ->(message, callback_context) { received.push([message, callback_context]) },
       context: context
     )
@@ -168,7 +168,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   def test_two_argument_proc_receives_the_context
     received = Thread::Queue.new
     callback = proc { |message, callback_context| received.push([message, callback_context]) }
-    @receiver = Valkey::PubSub::PubSubReceiver.new(callback: callback, context: :app_state)
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: callback, context: :app_state)
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
 
@@ -185,7 +185,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
       received.push(message)
     end
-    @receiver = Valkey::PubSub::PubSubReceiver.new(callback: callback)
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: callback)
 
     push(Kind::MESSAGE, message: "first", channel: "news")
     push(Kind::MESSAGE, message: "second", channel: "news")
@@ -196,7 +196,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_close_stops_callback_delivery
     received = Thread::Queue.new
-    @receiver = Valkey::PubSub::PubSubReceiver.make(
+    @receiver = Valkey::Glide::PubSubReceiver.make(
       pubsub_configs: { callback: ->(message, _context) { received.push(message) } }
     )
 
@@ -211,7 +211,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   def test_pop_raises_in_callback_mode
-    @receiver = Valkey::PubSub::PubSubReceiver.new(callback: ->(_message, _context) {})
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
 
     error = assert_raises(Valkey::InvalidClientOptionError) { @receiver.pop }
 
@@ -219,7 +219,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   def test_try_pop_raises_in_callback_mode
-    @receiver = Valkey::PubSub::PubSubReceiver.new(callback: ->(_message, _context) {})
+    @receiver = Valkey::Glide::PubSubReceiver.new(callback: ->(_message, _context) {})
 
     error = assert_raises(Valkey::InvalidClientOptionError) { @receiver.try_pop }
 
@@ -228,7 +228,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_make_context_without_callback
     error = assert_raises(Valkey::InvalidClientOptionError) do
-      Valkey::PubSub::PubSubReceiver.make(pubsub_configs: { context: :app_state })
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { context: :app_state })
     end
 
     assert_equal "Pub/Sub context: requires a callback", error.message
@@ -236,7 +236,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_callback_without_arity
     error = assert_raises(Valkey::InvalidClientOptionError) do
-      Valkey::PubSub::PubSubReceiver.make(pubsub_configs: { callback: CallableWithoutArity.new })
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { callback: CallableWithoutArity.new })
     end
 
     assert_equal "Pub/Sub: callback must respond to #arity, got: #{CallableWithoutArity}", error.message
@@ -244,7 +244,7 @@ class TestPubSubReceiverUnit < Minitest::Test
 
   def test_non_callable_callback_raises
     error = assert_raises(Valkey::InvalidClientOptionError) do
-      Valkey::PubSub::PubSubReceiver.make(pubsub_configs: { callback: "not callable" })
+      Valkey::Glide::PubSubReceiver.make(pubsub_configs: { callback: "not callable" })
     end
 
     assert_equal "Pub/Sub: callback must respond to #call, got: String", error.message
@@ -258,7 +258,7 @@ class TestPubSubReceiverUnit < Minitest::Test
       context: :app_state
     }
 
-    @receiver = Valkey::PubSub::PubSubReceiver.make(pubsub_configs: pubsub_configs)
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: pubsub_configs)
 
     push(Kind::MESSAGE, message: "exact", channel: "news")
 
@@ -282,7 +282,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   def test_omitted_callback_builds_a_queue_mode_receiver
-    @receiver = Valkey::PubSub::PubSubReceiver.make(pubsub_configs: { subscriptions: { exact: ["news"] } })
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: { subscriptions: { exact: ["news"] } })
 
     refute_predicate @receiver, :callback_mode?
 
@@ -292,7 +292,7 @@ class TestPubSubReceiverUnit < Minitest::Test
   end
 
   def test_nil_configs
-    @receiver = Valkey::PubSub::PubSubReceiver.make(pubsub_configs: nil)
+    @receiver = Valkey::Glide::PubSubReceiver.make(pubsub_configs: nil)
 
     refute_predicate @receiver, :callback_mode?
 
