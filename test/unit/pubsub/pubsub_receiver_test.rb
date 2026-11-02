@@ -30,9 +30,10 @@ class TestPubSubReceiverUnit < Minitest::Test
       ["sharded", "shard-chan", nil]
     ]
 
-    received = 3.times.map { @receiver.try_pop.to_a }
+    received = 3.times.map { @receiver.try_pop }
+    actual = received.map { |item| [item.message, item.channel, item.pattern] }
 
-    assert_equal expected, received
+    assert_equal expected, actual
   end
 
   def test_ffi_handler_drops_non_message_kinds
@@ -68,13 +69,17 @@ class TestPubSubReceiverUnit < Minitest::Test
   def test_ffi_handler_reads_zero_length_payload_as_empty_string
     push(Kind::MESSAGE, message: "", channel: "news")
 
-    assert_equal ["", "news", nil], @receiver.try_pop.to_a
+    message = @receiver.try_pop
+
+    assert_equal ["", "news", nil], [message.message, message.channel, message.pattern]
   end
 
   def test_ffi_handler_survives_null_pointers_with_zero_length
     @receiver.ffi_handler.call(0, Kind::MESSAGE, FFI::Pointer::NULL, 0, FFI::Pointer::NULL, 0, FFI::Pointer::NULL, 0)
 
-    assert_equal ["", "", nil], @receiver.try_pop.to_a
+    message = @receiver.try_pop
+
+    assert_equal ["", "", nil], [message.message, message.channel, message.pattern]
   end
 
   def test_ffi_handler_drops_message_with_null_payload_pointer_and_nonzero_length
@@ -126,7 +131,10 @@ class TestPubSubReceiverUnit < Minitest::Test
       ["pattern", "news.tech", "news.*"]
     ]
 
-    delivered = 2.times.map { queue_pop(received).to_a }
+    delivered = 2.times.map do
+      message = queue_pop(received)
+      [message.message, message.channel, message.pattern]
+    end
 
     assert_equal expected, delivered
 

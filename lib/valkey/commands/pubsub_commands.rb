@@ -460,8 +460,10 @@ class Valkey
       # Get the next Pub/Sub message if one is already queued. Never blocks.
       #
       # @example Poll for a message
-      #   valkey.try_get_pubsub_message
-      #     # => #<struct Valkey::PubSubMessage message="hi", channel="channel1", pattern=nil>
+      #   message = valkey.try_get_pubsub_message
+      #   message.message # => "hi"
+      #   message.channel # => "channel1"
+      #   message.pattern # => nil
       # @example Poll when nothing is queued
       #   valkey.try_get_pubsub_message
       #     # => nil
