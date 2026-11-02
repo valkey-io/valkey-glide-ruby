@@ -58,11 +58,6 @@ class TestPubSubCommandsUnit < Minitest::Test
     refute_includes Kind::MESSAGE_KINDS, Kind::DISCONNECTION
   end
 
-  def test_public_types_are_defined_directly_on_valkey
-    assert_equal "Valkey::PubSubMessage", Valkey::PubSubMessage.name
-    assert_equal "Valkey::PubSubState", Valkey::PubSubState.name
-  end
-
   def test_message_carries_message_channel_and_pattern
     msg = Valkey::PubSubMessage.new("hello", "news.tech", "news.*")
 

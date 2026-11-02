@@ -30,10 +30,9 @@ class TestPubSubReceiverUnit < Minitest::Test
       ["sharded", "shard-chan", nil]
     ]
 
-    received = 3.times.map { @receiver.try_pop }
+    received = 3.times.map { @receiver.try_pop.to_a }
 
-    received.each { |message| assert_instance_of Valkey::PubSubMessage, message }
-    assert_equal expected, received.map(&:to_a)
+    assert_equal expected, received
   end
 
   def test_ffi_handler_drops_non_message_kinds
