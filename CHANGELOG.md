@@ -27,7 +27,6 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Exposed Pub/Sub messages and subscription states as `Valkey::PubSubMessage` and `Valkey::PubSubState` instead of under `Valkey::Glide`. ([#390](https://github.com/valkey-io/valkey-glide-ruby/pull/390))
 - Prevented `client(:subcommand)` from invoking private methods, so custom `Valkey` subclasses must make any dispatched `client_*` handlers public. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 - Trimmed whitespace from string `client_az` values and rejected blank values when an availability-zone affinity strategy is selected. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
 - Changed `eval`, `evalsha`, their read-only variants, and `script_load` to execute server commands, accept integer key counts, and report missing scripts instead of reloading them automatically. ([#227](https://github.com/valkey-io/valkey-glide-ruby/pull/227))
