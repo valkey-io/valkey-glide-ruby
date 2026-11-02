@@ -20,9 +20,9 @@ require "valkey/opentelemetry"
 require "valkey/route"
 require "valkey/service_type"
 require "valkey/iam_auth_config"
-require "valkey/glide/pubsub_message"
-require "valkey/glide/pubsub_state"
-require "valkey/glide/pubsub_receiver"
+require "valkey/pubsub/pubsub_message"
+require "valkey/pubsub/pubsub_state"
+require "valkey/pubsub/pubsub_receiver"
 
 class Valkey
   include Utils
