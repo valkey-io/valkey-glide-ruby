@@ -4,14 +4,14 @@ class Valkey
   module Glide
     # A connection's subscriptions
     #
-    # @!attribute [rw] desired_subscriptions
+    # @!attribute [r] desired_subscriptions
     #   @return [Hash{Symbol => Array<String>}] the subscriptions the client asked for, keyed
     #     `:exact`, `:pattern` and `:sharded`. If empty, then the client has no desired
     #     subscriptions. Otherwise each mode maps to its channels, for example
     #     `{ exact: ["channel1"] }`. A targeted unsubscribe may leave `{ exact: [] }`, while
     #     unsubscribe-all removes `:exact`. Treat these states equivalently, for example with
     #     `desired_subscriptions.fetch(:exact, [])`.
-    # @!attribute [rw] actual_subscriptions
+    # @!attribute [r] actual_subscriptions
     #   @return [Hash{Symbol => Array<String>}] the subscriptions the server has confirmed, keyed
     #     the same way. Each mode maps to its confirmed channels, for example
     #     `{ exact: ["channel1"], pattern: [] }`. Every supported mode is present, mapped to `[]`
@@ -19,12 +19,26 @@ class Valkey
     #     `:sharded` in cluster mode.
     #
     # @see https://valkey.io/docs/topics/pubsub/
-    PubSubState = Struct.new(:desired_subscriptions, :actual_subscriptions) do
+    class PubSubState
+      attr_reader :desired_subscriptions, :actual_subscriptions
+
+      # @param [Hash{Symbol => Array<String>}] desired_subscriptions
+      # @param [Hash{Symbol => Array<String>}] actual_subscriptions
+      def initialize(desired_subscriptions:, actual_subscriptions:)
+        @desired_subscriptions = desired_subscriptions
+        @actual_subscriptions = actual_subscriptions
+      end
+
       # Build a state from the raw `GET_SUBSCRIPTIONS` reply.
       #
-      # glide-core answers this synthetic request locally rather than on the wire, always as a
-      # labelled 4-element array, `["desired", {modes}, "actual", {modes}]`, whose mode maps are
-      # keyed by the capitalized mode name (`"Exact"`, `"Pattern"`, `"Sharded"`).
+      # @example Cluster client subscribed to one exact channel
+      #   reply = [
+      #     "desired", { "Exact" => ["news"] },
+      #     "actual",  { "Exact" => ["news"], "Pattern" => [], "Sharded" => [] }
+      #   ]
+      #   state = PubSubState.from_reply(reply)
+      #   state.desired_subscriptions # => { exact: ["news"] }
+      #   state.actual_subscriptions  # => { exact: ["news"], pattern: [], sharded: [] }
       #
       # @param [Array] reply the raw reply
       # @return [PubSubState]
@@ -35,7 +49,7 @@ class Valkey
         desired_label, desired, actual_label, actual = reply
         reject_reply(reply) unless desired_label == "desired" && actual_label == "actual"
 
-        new(symbolize_modes(desired), symbolize_modes(actual))
+        new(desired_subscriptions: symbolize_modes(desired), actual_subscriptions: symbolize_modes(actual))
       end
 
       def self.symbolize_modes(payload)
