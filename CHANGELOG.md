@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Latest
+
+### Added
+
+### Changed
+
+### Removed
+
+### Fixed
+
 ## [1.1.0]
 
 ### Added
