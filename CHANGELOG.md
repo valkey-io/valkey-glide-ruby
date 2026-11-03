@@ -4,9 +4,7 @@ All notable changes to this project are documented in this file.
 
 GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [1.1.0] - 2026-11-03
+## [1.1.0]
 
 ### Added
 
@@ -57,6 +55,5 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Published the first general availability release.
 
-[Unreleased]: https://github.com/valkey-io/valkey-glide-ruby/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/valkey-io/valkey-glide-ruby/releases/tag/v1.1.0
 [1.0.0]: https://github.com/valkey-io/valkey-glide-ruby/releases/tag/v1.0.0
