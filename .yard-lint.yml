@@ -1,0 +1,157 @@
+# Keep this configuration limited to the API documentation format described in CONTRIBUTING.md. Validators outside that format stay disabled.
+AllValidators:
+  Exclude:
+    - "test/**/*"
+    - "valkey-glide/**/*"
+  FailOnSeverity: convention
+  MinCoverage: 0
+
+Documentation:
+  Enabled: false
+
+Tags:
+  Enabled: false
+
+Warnings:
+  Enabled: false
+
+Semantic:
+  Enabled: false
+
+Documentation/UndocumentedObjects:
+  Enabled: false
+
+Documentation/UndocumentedMethodArguments:
+  Enabled: true
+  Severity: error
+  SkipFullyUndocumented: true
+  # YARD associates the preceding attr_reader docs with two undocumented
+  # two-argument initializers, so they do not appear fully undocumented here.
+  AllowedMethods:
+    - "initialize/2"
+
+Documentation/MissingReturn:
+  # This validator also reports fully undocumented methods and has no equivalent
+  # to UndocumentedMethodArguments/SkipFullyUndocumented.
+  Enabled: false
+
+Documentation/OrphanedDocComment:
+  Enabled: true
+  Severity: error
+
+Documentation/EmptyCommentLine:
+  Enabled: true
+  Severity: convention
+  EnabledPatterns:
+    Leading: true
+    Trailing: true
+
+Documentation/BlankLineBeforeDefinition:
+  Enabled: true
+  Severity: convention
+  OrphanedSeverity: convention
+  EnabledPatterns:
+    SingleBlankLine: true
+    OrphanedDocs: true
+
+Documentation/LineLength:
+  Enabled: true
+  Severity: convention
+  MaxLength: 120
+
+Tags/Order:
+  Enabled: true
+  Severity: error
+  EnforcedOrder:
+    - example
+    - param
+    - option
+    - yield
+    - yieldparam
+    - yieldreturn
+    - return
+    - raise
+    - since
+    - see
+    - note
+    - deprecated
+    - todo
+    - api
+
+Tags/InvalidTypes:
+  Enabled: true
+  Severity: error
+  ValidatedTags:
+    - param
+    - option
+    - return
+
+Tags/TypeSyntax:
+  Enabled: true
+  Severity: error
+  ValidatedTags:
+    - param
+    - option
+    - return
+    - yieldparam
+    - yieldreturn
+
+Tags/TagTypePosition:
+  Enabled: true
+  Severity: error
+  CheckedTags:
+    - param
+    - option
+  EnforcedStyle: type_first
+
+Tags/TagGroupSeparator:
+  Enabled: true
+  Severity: convention
+  TagGroups:
+    example:
+      - example
+    param:
+      - param
+      - option
+    yield:
+      - yield
+      - yieldparam
+      - yieldreturn
+    return:
+      - return
+    error:
+      - raise
+    since:
+      - since
+    reference:
+      - see
+    note:
+      - note
+      - deprecated
+      - todo
+      - api
+  RequireAfterDescription: true
+
+Tags/InformalNotation:
+  Enabled: true
+  Severity: warning
+
+Warnings/SyntaxError:
+  Enabled: true
+  Severity: error
+
+Warnings/UnknownTag:
+  Enabled: true
+  Severity: error
+
+Warnings/InvalidTagFormat:
+  Enabled: true
+  Severity: error
+
+Warnings/DuplicatedParameterName:
+  Enabled: true
+  Severity: error
+
+Warnings/UnknownParameterName:
+  Enabled: true
+  Severity: error

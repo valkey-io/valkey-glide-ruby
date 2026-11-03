@@ -10,11 +10,11 @@ class Valkey
     # @example
     #   Valkey::Search::InfoOptions.new(scope: :cluster, consistency: :consistent)
     #
-    # @see https://redis.io/commands/ft.info/
+    # @see https://valkey.io/commands/ft.info/
     class InfoOptions
-      # @param scope [Symbol, nil] :local, :primary, or :cluster
-      # @param shard_scope [Symbol, nil] :all_shards or :some_shards
-      # @param consistency [Symbol, nil] :consistent or :inconsistent
+      # @param [Symbol, nil] scope - :local, :primary, or :cluster
+      # @param [Symbol, nil] shard_scope - :all_shards or :some_shards
+      # @param [Symbol, nil] consistency - :consistent or :inconsistent
       def initialize(scope: nil, shard_scope: nil, consistency: nil)
         @scope = scope.nil? ? nil : Search.lookup_token(Search::SCOPES, scope, "info scope")
         @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")

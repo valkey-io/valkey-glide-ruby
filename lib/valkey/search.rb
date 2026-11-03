@@ -31,10 +31,12 @@ class Valkey
     # ArgumentError on an unknown value. Shared by the enum-like option
     # validations (data type, distance metric, shard scope, consistency).
     #
-    # @param map [Hash{Symbol=>String}] valid values mapped to wire tokens
-    # @param value [Symbol, String] the caller-supplied value (case-insensitive)
-    # @param label [String] human label for the error message
+    # @param [Hash{Symbol=>String}] map - valid values mapped to wire tokens
+    # @param [Symbol, String] value - the caller-supplied value (case-insensitive)
+    # @param [String] label - human label for the error message
+    #
     # @return [String] the wire token
+    #
     # @raise [ArgumentError] when value is not a key of map
     def self.lookup_token(map, value, label)
       map.fetch(value.to_s.downcase.to_sym) do
@@ -44,8 +46,10 @@ class Valkey
 
     # Validate a DIALECT value against the Valkey-native supported set.
     #
-    # @param dialect [Integer, nil] requested dialect (nil emits nothing)
+    # @param [Integer, nil] dialect - requested dialect (nil emits nothing)
+    #
     # @return [Integer, nil] the validated dialect
+    #
     # @raise [ArgumentError] when the dialect is unsupported
     def self.normalize_dialect(dialect)
       return nil if dialect.nil?
@@ -58,7 +62,8 @@ class Valkey
     # empty/nil. Keys are stringified; values pass through (coerced at the FFI
     # boundary).
     #
-    # @param params [Hash, nil]
+    # @param [Hash, nil] params
+    #
     # @return [Array] the PARAMS token run (empty when there are no params)
     def self.params_tokens(params)
       return [] if params.nil? || params.empty?
@@ -71,9 +76,10 @@ class Valkey
     # consistency) to args, skipping nils. Callers validate/convert via
     # {lookup_token} at construction time so a bad value fails fast.
     #
-    # @param args [Array] the token array being built (mutated in place)
-    # @param shard_scope_token [String, nil] the wire token (e.g. "ALLSHARDS")
-    # @param consistency_token [String, nil] the wire token (e.g. "CONSISTENT")
+    # @param [Array] args - the token array being built (mutated in place)
+    # @param [String, nil] shard_scope_token - the wire token (e.g. "ALLSHARDS")
+    # @param [String, nil] consistency_token - the wire token (e.g. "CONSISTENT")
+    #
     # @return [Array] args
     def self.append_cluster_flags(args, shard_scope_token, consistency_token)
       args << shard_scope_token unless shard_scope_token.nil?

@@ -5,7 +5,6 @@ class Valkey
     # This module contains commands on geospatial operations.
     #
     # @see https://valkey.io/commands/#geo
-    #
     module GeoCommands
       # Add one or more geospatial items (longitude, latitude, name) to a key.
       #
@@ -13,8 +12,9 @@ class Valkey
       #   valkey.geoadd("locations", 13.361389, 38.115556, "Palermo", 15.087269, 37.502669, "Catania")
       #     # => Integer (number of elements added)
       #
-      # @param [String] key the name of the key
-      # @param [Array<String, Float>] members one or more longitude, latitude, and name triplets
+      # @param [String] key - the name of the key
+      # @param [Array<String, Float>] members - one or more longitude, latitude, and name triplets
+      #
       # @return [Integer] the number of elements added
       def geoadd(key, *members)
         send_command(RequestType::GEO_ADD, [key, *members])
@@ -26,8 +26,9 @@ class Valkey
       #   valkey.geopos("locations", "Palermo", "Catania")
       #     # => [[13.361389, 38.115556], [15.087269, 37.502669]]
       #
-      # @param [String] key the name of the key
-      # @param [Array<String>] members one or more member names to get positions for
+      # @param [String] key - the name of the key
+      # @param [Array<String>] members - one or more member names to get positions for
+      #
       # @return [Array<Array<Float, Float>, nil>] list of positions or nil for missing members
       def geopos(key, *members)
         send_command(RequestType::GEO_POS, [key, *members])
@@ -36,7 +37,8 @@ class Valkey
       # Returns geohash string representing position for specified members of the specified key.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one member or array of members
+      # @param [String, Array<String>] member - one member or array of members
+      #
       # @return [Array<String, nil>] returns array containg geohash string if member is present, nil otherwise
       def geohash(key, *member)
         send_command(RequestType::GEO_HASH, [key, *member])
@@ -45,8 +47,10 @@ class Valkey
       # Returns the distance between two members of a geospatial index
       #
       # @param [String] key
-      # @param [Array<String>] members
+      # @param [String] member1 - first member
+      # @param [String] member2 - second member
       # @param ['m', 'km', 'mi', 'ft'] unit
+      #
       # @return [Float, nil] returns distance in specified unit if both members present, nil otherwise.
       def geodist(key, member1, member2, unit = 'm')
         send_command(RequestType::GEO_DIST, [key, member1, member2, unit], &Utils::Floatify)
@@ -57,7 +61,8 @@ class Valkey
       # @example
       #   valkey.geosearch("places", "FROMMEMBER", "berlin", "BYRADIUS", 1000, "km", "WITHDIST")
       #
-      # @param [Array<String>] args full argument list for GEOSEARCH
+      # @param [Array<String>] args - full argument list for GEOSEARCH
+      #
       # @return [Array] raw result from server
       def geosearch(*args)
         send_command(RequestType::GEO_SEARCH, args)
@@ -75,9 +80,11 @@ class Valkey
       #   )
       #   # => 2 (number of items stored)
       #
-      # @param [String] destination the name of the key where results will be stored
-      # @param [String] source the name of the source geo key to search from
-      # @param [Array<String, Integer>] args full argument list like GEOSEARCH (e.g., FROMMEMBER, BYRADIUS, COUNT, etc.)
+      # @param [String] destination - the name of the key where results will be stored
+      # @param [String] source - the name of the source geo key to search from
+      # @param [Array<String, Integer>] args - full argument list like GEOSEARCH
+      #   (e.g., FROMMEMBER, BYRADIUS, COUNT, etc.)
+      #
       # @return [Integer] the number of items stored in the destination key
       def geosearchstore(destination, source, *args)
         send_command(RequestType::GEO_SEARCH_STORE, [destination, source, *args])

@@ -16,3 +16,7 @@ gem "minitest", "~> 5.16"
 gem "minitest-reporters", "~> 1.4"
 
 gem "rubocop", "~> 1.21"
+
+# Documentation linting runs in the Ruby 3.3 CI lint job. yard-lint does not
+# support the older Ruby versions covered by the test matrix.
+gem "yard-lint", "~> 1.12", require: false if RUBY_VERSION >= "3.3"

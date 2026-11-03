@@ -5,7 +5,6 @@ class Valkey
     # This module contains commands on the String data type.
     #
     # @see https://valkey.io/commands/#string
-    #
     module StringCommands
       # Decrement the integer value of a key by one.
       #
@@ -14,6 +13,7 @@ class Valkey
       #     # => 4
       #
       # @param [String] key
+      #
       # @return [Integer] value after decrementing it
       def decr(key)
         send_command(RequestType::DECR, [key])
@@ -27,6 +27,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] decrement
+      #
       # @return [Integer] value after decrementing it
       def decrby(key, decrement)
         send_command(RequestType::DECR_BY, [key, Integer(decrement)])
@@ -39,6 +40,7 @@ class Valkey
       #     # => 6
       #
       # @param [String] key
+      #
       # @return [Integer] value after incrementing it
       def incr(key)
         send_command(RequestType::INCR, [key])
@@ -52,6 +54,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] increment
+      #
       # @return [Integer] value after incrementing it
       def incrby(key, increment)
         send_command(RequestType::INCR_BY, [key, Integer(increment)])
@@ -65,6 +68,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Float] increment
+      #
       # @return [Float] value after incrementing it
       def incrbyfloat(key, increment)
         send_command(RequestType::INCR_BY_FLOAT, [key, increment], &Utils::Floatify)
@@ -74,15 +78,15 @@ class Valkey
       #
       # @param [String] key
       # @param [String] value
-      # @param [Hash] options
-      #   - `:ex => Integer`: Set the specified expire time, in seconds.
-      #   - `:px => Integer`: Set the specified expire time, in milliseconds.
-      #   - `:exat => Integer` : Set the specified Unix time at which the key will expire, in seconds.
-      #   - `:pxat => Integer` : Set the specified Unix time at which the key will expire, in milliseconds.
-      #   - `:nx => true`: Only set the key if it does not already exist.
-      #   - `:xx => true`: Only set the key if it already exist.
-      #   - `:keepttl => true`: Retain the time to live associated with the key.
-      #   - `:get => true`: Return the old string stored at key, or nil if key did not exist.
+      # @param [Integer, nil] ex - expiration time in seconds
+      # @param [Integer, nil] px - expiration time in milliseconds
+      # @param [Integer, nil] exat - Unix expiration time in seconds
+      # @param [Integer, nil] pxat - Unix expiration time in milliseconds
+      # @param [Boolean, nil] nx - set only when the key does not exist
+      # @param [Boolean, nil] xx - set only when the key exists
+      # @param [Boolean, nil] keepttl - retain the key's time to live
+      # @param [Boolean, nil] get - return the previous value
+      #
       # @return [String, nil] `"OK"` on write; `nil` when `:nx` or `:xx` skipped the write.
       def set(key, value, ex: nil, px: nil, exat: nil, pxat: nil, nx: nil, xx: nil, keepttl: nil, get: nil)
         # A non-String value (e.g. an Array) must become ONE opaque value here, not
@@ -106,6 +110,7 @@ class Valkey
       # @param [String] key
       # @param [Integer] ttl
       # @param [String] value
+      #
       # @return [String] `"OK"`
       def setex(key, ttl, value)
         send_command(RequestType::SET_EX, [key, Integer(ttl), value.to_s])
@@ -116,6 +121,7 @@ class Valkey
       # @param [String] key
       # @param [Integer] ttl
       # @param [String] value
+      #
       # @return [String] `"OK"`
       def psetex(key, ttl, value)
         send_command(RequestType::PSET_EX, [key, Integer(ttl), value.to_s])
@@ -125,6 +131,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String] value
+      #
       # @return [Boolean] whether the key was set or not
       def setnx(key, value)
         # &Utils::Boolify (not glide-core's generic Boolean-coercion table) is
@@ -143,7 +150,8 @@ class Valkey
       #   valkey.mset("key1", "v1", "key2", "v2")
       #     # => "OK"
       #
-      # @param [Array<String>] args array of keys and values
+      # @param [Array<String>] args - array of keys and values
+      #
       # @return [String] `"OK"`
       #
       # @see #mapped_mset
@@ -157,7 +165,8 @@ class Valkey
       #   valkey.mapped_mset({ "f1" => "v1", "f2" => "v2" })
       #     # => "OK"
       #
-      # @param [Hash] hash keys mapping to values
+      # @param [Hash] hash - keys mapping to values
+      #
       # @return [String] `"OK"`
       #
       # @see #mset
@@ -171,7 +180,8 @@ class Valkey
       #   valkey.msetnx("key1", "v1", "key2", "v2")
       #     # => true
       #
-      # @param [Array<String>] args array of keys and values
+      # @param [Array<String>] args - array of keys and values
+      #
       # @return [Boolean] whether or not all values were set
       #
       # @see #mapped_msetnx
@@ -185,7 +195,8 @@ class Valkey
       #   valkey.mapped_msetnx({ "key1" => "v1", "key2" => "v2" })
       #     # => true
       #
-      # @param [Hash] hash keys mapping to values
+      # @param [Hash] hash - keys mapping to values
+      #
       # @return [Boolean] whether or not all values were set
       #
       # @see #msetnx
@@ -196,6 +207,7 @@ class Valkey
       # Get the value of a key.
       #
       # @param [String] key
+      #
       # @return [String]
       def get(key)
         send_command(RequestType::GET, [key])
@@ -208,6 +220,7 @@ class Valkey
       #
       # @param [String] key
       # @param [#to_s] value
+      #
       # @return [String, nil] the old value, or +nil+ if the key did not exist
       def getset(key, value)
         set(key, value, get: true)
@@ -220,6 +233,7 @@ class Valkey
       #     # => ["v1", "v2"]
       #
       # @param [Array<String>] keys
+      #
       # @return [Array<String>] an array of values for the specified keys
       #
       # @see #mapped_mget
@@ -234,7 +248,8 @@ class Valkey
       #   valkey.mapped_mget("key1", "key2")
       #     # => { "key1" => "v1", "key2" => "v2" }
       #
-      # @param [Array<String>] keys array of keys
+      # @param [Array<String>] keys - array of keys
+      #
       # @return [Hash] a hash mapping the specified keys to their values
       #
       # @see #mget
@@ -251,8 +266,9 @@ class Valkey
       # Overwrite part of a string at key starting at the specified offset.
       #
       # @param [String] key
-      # @param [Integer] offset byte offset
+      # @param [Integer] offset - byte offset
       # @param [String] value
+      #
       # @return [Integer] length of the string after it was modified
       def setrange(key, offset, value)
         send_command(RequestType::SET_RANGE, [key, Integer(offset), value.to_s])
@@ -261,8 +277,9 @@ class Valkey
       # Get a substring of the string stored at key.
       #
       # @param [String] key
-      # @param [Integer] start start position
-      # @param [Integer] stop end position
+      # @param [Integer] start - start position
+      # @param [Integer] stop - end position
+      #
       # @return [String] the substring
       def getrange(key, start, stop)
         send_command(RequestType::GET_RANGE, [key, start, stop])
@@ -272,6 +289,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String] value
+      #
       # @return [Integer] the length of the string after the append operation
       def append(key, value)
         send_command(RequestType::APPEND, [key, value])
@@ -280,6 +298,7 @@ class Valkey
       # Get the value of key and delete it.
       #
       # @param [String] key
+      #
       # @return [String, nil] the value of key, or nil when key does not exist
       def getdel(key)
         send_command(RequestType::GET_DEL, [key])
@@ -294,6 +313,7 @@ class Valkey
       #
       # @param [String] key
       # @param [String] value the comparison value; the key is only deleted on an exact match
+      #
       # @return [Boolean] true when the key was deleted; false when the key does not
       #   exist or its value did not match
       #
@@ -307,12 +327,12 @@ class Valkey
       # Get the value of key and optionally set its expiration.
       #
       # @param [String] key
-      # @param [Hash] options
-      #   - `:ex => Integer`: Set the specified expire time, in seconds.
-      #   - `:px => Integer`: Set the specified expire time, in milliseconds.
-      #   - `:exat => Integer` : Set the specified Unix time at which the key will expire, in seconds.
-      #   - `:pxat => Integer` : Set the specified Unix time at which the key will expire, in milliseconds.
-      #   - `:persist => true`: Remove the time to live associated with the key.
+      # @param [Integer, nil] ex - expiration time in seconds
+      # @param [Integer, nil] px - expiration time in milliseconds
+      # @param [Integer, nil] exat - Unix expiration time in seconds
+      # @param [Integer, nil] pxat - Unix expiration time in milliseconds
+      # @param [Boolean] persist - remove the key's time to live
+      #
       # @return [String, nil] the value of key, or nil when key does not exist
       def getex(key, ex: nil, px: nil, exat: nil, pxat: nil, persist: false)
         args = [key]
@@ -328,6 +348,7 @@ class Valkey
       # Get the length of the value stored in a key.
       #
       # @param [String] key
+      #
       # @return [Integer] the length of the string at key, or 0 when key does not exist
       def strlen(key)
         send_command(RequestType::STRLEN, [key])
@@ -337,11 +358,11 @@ class Valkey
       #
       # @param [String] key1
       # @param [String] key2
-      # @param [Hash] options
-      #   - `:len => true`: Return the length of the LCS
-      #   - `:idx => true`: Return the positions of the LCS
-      #   - `:min_match_len => Integer`: Minimum match length
-      #   - `:with_match_len => true`: Include match length in results
+      # @param [Boolean, nil] len - return the LCS length
+      # @param [Boolean, nil] idx - return the LCS positions
+      # @param [Integer, nil] min_match_len - minimum match length
+      # @param [Boolean, nil] with_match_len - include match lengths
+      #
       # @return [String, Integer, Hash] the LCS result based on options (Hash when idx: true)
       def lcs(key1, key2, len: nil, idx: nil, min_match_len: nil, with_match_len: nil)
         args = [key1, key2]

@@ -5,11 +5,11 @@ class Valkey
     # this module contains commands related to list data type.
     #
     # @see https://valkey.io/commands/#list
-    #
     module ListCommands
       # Get the length of a list.
       #
       # @param [String] key
+      #
       # @return [Integer]
       def llen(key)
         send_command(RequestType::LLEN, [key])
@@ -17,11 +17,11 @@ class Valkey
 
       # Remove the first/last element in a list, append/prepend it to another list and return it.
       #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @param [String, Symbol] where_source from where to remove the element from the source list
+      # @param [String] source - source key
+      # @param [String] destination - destination key
+      # @param [String, Symbol] where_source - from where to remove the element from the source list
       #     e.g. 'LEFT' - from head, 'RIGHT' - from tail
-      # @param [String, Symbol] where_destination where to push the element to the source list
+      # @param [String, Symbol] where_destination - where to push the element to the source list
       #     e.g. 'LEFT' - to head, 'RIGHT' - to tail
       #
       # @return [nil, String] the element, or nil when the source key does not exist
@@ -45,13 +45,13 @@ class Valkey
       #   element = valkey.blmove("foo", "bar", "LEFT", "RIGHT")
       #     # => "element"
       #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @param [String, Symbol] where_source from where to remove the element from the source list
+      # @param [String] source - source key
+      # @param [String] destination - destination key
+      # @param [String, Symbol] where_source - from where to remove the element from the source list
       #     e.g. 'LEFT' - from head, 'RIGHT' - from tail
-      # @param [String, Symbol] where_destination where to push the element to the source list
+      # @param [String, Symbol] where_destination - where to push the element to the source list
       #     e.g. 'LEFT' - to head, 'RIGHT' - to tail
-      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
+      # @param [Float, Integer] timeout - timeout in seconds; `0` blocks indefinitely
       #
       # @return [nil, String] the element, or nil when the source key does not exist or the timeout expired
       #
@@ -75,8 +75,8 @@ class Valkey
       #   valkey.rpush("src", "a", "b")
       #   valkey.rpoplpush("src", "dst") # => "b"
       #
-      # @param [String] source source key
-      # @param [String] destination destination key
+      # @param [String] source - source key
+      # @param [String] destination - destination key
       #
       # @return [nil, String] the element, or nil when the source key does not exist
       #
@@ -98,9 +98,9 @@ class Valkey
       #     # => nil on timeout
       #     # => "element" on success
       #
-      # @param [String] source source key
-      # @param [String] destination destination key
-      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
+      # @param [String] source - source key
+      # @param [String] destination - destination key
+      # @param [Float, Integer] timeout - timeout in seconds; `0` blocks indefinitely
       #
       # @return [nil, String]
       #   - `nil` when the operation timed out
@@ -115,7 +115,8 @@ class Valkey
       # Prepend one or more values to a list, creating the list if it doesn't exist.
       #
       # @param [String] key
-      # @param [String, Array<String>] value one or more values, or array of values
+      # @param [String, Array<String>] value - one or more values, or array of values
+      #
       # @return [Integer] the length of the list after the push operation
       def lpush(key, *value)
         value.flatten!(1)
@@ -125,7 +126,8 @@ class Valkey
       # Prepend one or more values to a list, only if the list exists.
       #
       # @param [String] key
-      # @param [String, Array<String>] value one or more values, or array of values
+      # @param [String, Array<String>] value - one or more values, or array of values
+      #
       # @return [Integer] the length of the list after the push operation
       def lpushx(key, *value)
         value.flatten!(1)
@@ -135,7 +137,8 @@ class Valkey
       # Append one or more values to a list, creating the list if it doesn't exist.
       #
       # @param [String] key
-      # @param [String, Array<String>] value one or more values, or array of values
+      # @param [String, Array<String>] value - one or more values, or array of values
+      #
       # @return [Integer] the length of the list after the push operation
       def rpush(key, *value)
         value.flatten!(1)
@@ -145,7 +148,8 @@ class Valkey
       # Append one or more values to a list, only if the list exists.
       #
       # @param [String] key
-      # @param [String, Array<String>] value one or more values, or array of values
+      # @param [String, Array<String>] value - one or more values, or array of values
+      #
       # @return [Integer] the length of the list after the push operation
       def rpushx(key, *value)
         value.flatten!(1)
@@ -155,7 +159,8 @@ class Valkey
       # Remove and get the first elements in a list.
       #
       # @param [String] key
-      # @param [Integer] count number of elements to remove
+      # @param [Integer] count - number of elements to remove
+      #
       # @return [nil, String, Array<String>] the values of the first elements
       def lpop(key, count = nil)
         args = [key]
@@ -166,7 +171,8 @@ class Valkey
       # Remove and get the last elements in a list.
       #
       # @param [String] key
-      # @param [Integer] count number of elements to remove
+      # @param [Integer] count - number of elements to remove
+      #
       # @return [nil, String, Array<String>] the values of the last elements
       def rpop(key, count = nil)
         args = [key]
@@ -187,11 +193,11 @@ class Valkey
       #   list, element = valkey.blpop("list", "another_list", timeout: 5)
       #   list, element = valkey.blpop(["list", "another_list"], timeout: 5)
       #
-      # @param [String, Array<String>] keys one or more keys, checked in the given
+      # @param [String, Array<String>] keys - one or more keys, checked in the given
       #   order; in cluster mode all keys must map to the same hash slot
-      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
+      # @param [Float, Integer] timeout - timeout in seconds; `0` blocks indefinitely
       #
-      # @return [nil, [String, String]]
+      # @return [nil, Array<String>]
       #   - `nil` when the operation timed out
       #   - tuple of the list that was popped from and element was popped otherwise
       def blpop(*keys, timeout: 0)
@@ -200,20 +206,20 @@ class Valkey
 
       # Remove and get the last element in a list, or block until one is available.
       #
-      # @param [String, Array<String>] keys one or more keys, checked in the given
-      #   order; in cluster mode all keys must map to the same hash slot
-      # @param [Float, Integer] timeout timeout in seconds; `0` blocks indefinitely
-      #
-      # @return [nil, [String, String]]
-      #   - `nil` when the operation timed out
-      #   - tuple of the list that was popped from and element was popped otherwise
-      #
       # @example With timeout
       #   list, element = valkey.brpop("list", timeout: 5)
       #     # => nil on timeout
       #     # => ["list", "element"] on success
       # @example Blocking pop on multiple lists
       #   list, element = valkey.brpop("list", "another_list", timeout: 5)
+      #
+      # @param [String, Array<String>] keys - one or more keys, checked in the given
+      #   order; in cluster mode all keys must map to the same hash slot
+      # @param [Float, Integer] timeout - timeout in seconds; `0` blocks indefinitely
+      #
+      # @return [nil, Array<String>]
+      #   - `nil` when the operation timed out
+      #   - tuple of the list that was popped from and element was popped otherwise
       #
       # @see #blpop
       def brpop(*keys, timeout: 0)
@@ -230,14 +236,13 @@ class Valkey
       #   valkey.blmpop(1.0, 'list', count: 2)
       #   #=> ['list', ['a', 'b']]
       #
-      # @params timeout [Float] a float value specifying the maximum number of seconds to block) elapses.
+      # @param [Float] timeout - a float value specifying the maximum number of seconds to block) elapses.
       #   A timeout of zero can be used to block indefinitely.
-      # @params keys [String] one or more list keys, passed as separate arguments
+      # @param [String] keys - one or more list keys, passed as separate arguments
       #   (splat). To pass a pre-built array, splat it at the call site: `blmpop(1.0, *keys)`.
-      # @params modifier [String]
-      #  - when `"LEFT"` - the elements popped are those from the left of the list
+      # @param [String] modifier - #  - when `"LEFT"` - the elements popped are those from the left of the list
       #  - when `"RIGHT"` - the elements popped are those from the right of the list
-      # @params count [Integer] a number of elements to pop
+      # @param [Integer] count - a number of elements to pop
       #
       # @return [Hash, nil] hash mapping key to popped elements, or nil on timeout
       def blmpop(timeout, *keys, modifier: "LEFT", count: nil)
@@ -259,12 +264,11 @@ class Valkey
       #   valkey.lmpop('list', count: 2)
       #   #=> ['list', ['a', 'b']]
       #
-      # @params keys [String] one or more list keys, passed as separate arguments
+      # @param [String] keys - one or more list keys, passed as separate arguments
       #   (splat). To pass a pre-built array, splat it at the call site: `lmpop(*keys)`.
-      # @params modifier [String]
-      #  - when `"LEFT"` - the elements popped are those from the left of the list
+      # @param [String] modifier - #  - when `"LEFT"` - the elements popped are those from the left of the list
       #  - when `"RIGHT"` - the elements popped are those from the right of the list
-      # @params count [Integer] a number of elements to pop
+      # @param [Integer] count - a number of elements to pop
       #
       # @return [Hash, nil] hash mapping key to popped elements, or nil if no elements
       def lmpop(*keys, modifier: "LEFT", count: nil)
@@ -280,6 +284,7 @@ class Valkey
       #
       # @param [String] key
       # @param [Integer] index
+      #
       # @return [String]
       def lindex(key, index)
         send_command(RequestType::LINDEX, [key, Integer(index)])
@@ -288,9 +293,10 @@ class Valkey
       # Insert an element before or after another element in a list.
       #
       # @param [String] key
-      # @param [String, Symbol] where `BEFORE` or `AFTER`
-      # @param [String] pivot reference element
+      # @param [String, Symbol] where - `BEFORE` or `AFTER`
+      # @param [String] pivot - reference element
       # @param [String] value
+      #
       # @return [Integer] length of the list after the insert operation, or `-1`
       #   when the element `pivot` was not found
       def linsert(key, where, pivot, value)
@@ -300,8 +306,9 @@ class Valkey
       # Get a range of elements from a list.
       #
       # @param [String] key
-      # @param [Integer] start start index
-      # @param [Integer] stop stop index
+      # @param [Integer] start - start index
+      # @param [Integer] stop - stop index
+      #
       # @return [Array<String>]
       def lrange(key, start, stop)
         send_command(RequestType::LRANGE, [key, Integer(start), Integer(stop)])
@@ -310,11 +317,12 @@ class Valkey
       # Remove elements from a list.
       #
       # @param [String] key
-      # @param [Integer] count number of elements to remove. Use a positive
+      # @param [Integer] count - number of elements to remove. Use a positive
       #   value to remove the first `count` occurrences of `value`. A negative
       #   value to remove the last `count` occurrences of `value`. Or zero, to
       #   remove all occurrences of `value` from the list.
       # @param [String] value
+      #
       # @return [Integer] the number of removed elements
       def lrem(key, count, value)
         send_command(RequestType::LREM, [key, Integer(count), value])
@@ -325,6 +333,7 @@ class Valkey
       # @param [String] key
       # @param [Integer] index
       # @param [String] value
+      #
       # @return [String] `OK`
       def lset(key, index, value)
         send_command(RequestType::LSET, [key, Integer(index), value])
@@ -333,8 +342,9 @@ class Valkey
       # Trim a list to the specified range.
       #
       # @param [String] key
-      # @param [Integer] start start index
-      # @param [Integer] stop stop index
+      # @param [Integer] start - start index
+      # @param [Integer] stop - stop index
+      #
       # @return [String] `OK`
       def ltrim(key, start, stop)
         send_command(RequestType::LTRIM, [key, Integer(start), Integer(stop)])

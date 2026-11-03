@@ -33,7 +33,6 @@ class Valkey
   # key management, and bitmap operations.
   #
   # @see https://valkey.io/commands/ Valkey Commands Documentation
-  #
   module Commands
     include StringCommands
     include ConnectionCommands
