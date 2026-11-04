@@ -149,4 +149,4 @@ Report issues: [valkey-glide-ruby issues](https://github.com/valkey-io/valkey-gl
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/valkey-io/valkey-glide-ruby/blob/main/LICENSE) in the repository.
+Apache-2.0. See [LICENSE](./LICENSE) in the repository.
