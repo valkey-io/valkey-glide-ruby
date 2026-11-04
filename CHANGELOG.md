@@ -18,6 +18,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added the Apache 2.0 project license, project notice, and redis-rb MIT license to distributed gems. ([#411](https://github.com/valkey-io/valkey-glide-ruby/pull/411))
 - Added support for `sismember_if_exists(key, member)` with Valkey 9.2 or later. ([#383](https://github.com/valkey-io/valkey-glide-ruby/pull/383))
 - Added support for `delifeq(key, value)` with Valkey 9.0 or later. ([#382](https://github.com/valkey-io/valkey-glide-ruby/pull/382))
 - Added support for `Valkey::ReadFrom::AZ_AFFINITY_ALL_NODES` to prefer all nodes in the client's availability zone before other nodes. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
