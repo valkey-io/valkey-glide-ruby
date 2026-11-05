@@ -309,7 +309,7 @@ class Valkey
       #   {#ft_hybrid} return, and `cursor_id` is `0` once the cursor is
       #   exhausted, or the id to pass to the next {#ft_cursor_read} call
       #
-      # @see https://valkey.io/commands/ft.cursor-read/
+      # @see https://valkey.io/commands/ft.cursor/
       def ft_cursor_read(index, cursor_id, count: nil)
         command_args = ["FT.CURSOR", "READ", index, cursor_id.to_s]
         command_args.push("COUNT", count) unless count.nil?
@@ -337,7 +337,7 @@ class Valkey
       #
       # @return [String] "OK"
       #
-      # @see https://valkey.io/commands/ft.cursor-del/
+      # @see https://valkey.io/commands/ft.cursor/
       def ft_cursor_del(index, cursor_id)
         command_args = ["FT.CURSOR", "DEL", index, cursor_id.to_s]
         send_command(RequestType::CUSTOM_COMMAND, command_args, route: ft_cursor_route(index))
