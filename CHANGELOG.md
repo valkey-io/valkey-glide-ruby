@@ -8,6 +8,8 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added support for valkey-search 1.3 and RediSearch parity in the `FT.*` builder API: `in_keys`, `count`, `with_scores`, and `scorer` on `SearchOptions`; `LoadField`, `add_scores`, `scorer`, and `with_cursor` on `AggregateOptions`; `WithCursor`, `ft_cursor_read`, and `ft_cursor_del`; `FLOAT16`/`BFLOAT16` vector types and `unf` on sortable fields; `filter`, `score_field`, and `no_highlight` on `CreateOptions`; and `ft_hybrid` with `HybridSearchArm`, `HybridVsimArm`, `HybridVsimFilter`, `HybridCombine`, and `HybridOptions`. ([#412](https://github.com/valkey-io/valkey-glide-ruby/pull/412))
+
 ### Changed
 
 ### Removed
@@ -27,7 +29,6 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added support for custom OpenTelemetry resource attributes through `Valkey::OpenTelemetry.init(resource_attributes:)`, including automatic process attributes without replacing values already set in `OTEL_RESOURCE_ATTRIBUTES`. ([#325](https://github.com/valkey-io/valkey-glide-ruby/pull/325))
 - Added support for setting the `CLIENT SETINFO LIB-NAME` value with the `lib_name:` and `client_info_tag:` connection options. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 - Added support for `FT.CREATE`, `FT.DROPINDEX`, `FT.INFO`, `FT.SEARCH`, and `FT.AGGREGATE` through `Valkey::Search` builders, with structured `FT.SEARCH` results. ([#295](https://github.com/valkey-io/valkey-glide-ruby/pull/295))
-- Added support for valkey-search 1.3 and RediSearch parity in the `FT.*` builder API: `in_keys`, `count`, `with_scores`, and `scorer` on `SearchOptions`; `LoadField`, `add_scores`, `scorer`, and `with_cursor` on `AggregateOptions`; `WithCursor`, `ft_cursor_read`, and `ft_cursor_del`; `FLOAT16`/`BFLOAT16` vector types and `unf` on sortable fields; `filter`, `score_field`, and `no_highlight` on `CreateOptions`; and `ft_hybrid` with `HybridSearchArm`, `HybridVsimArm`, `HybridVsimFilter`, `HybridCombine`, and `HybridOptions`. ([#412](https://github.com/valkey-io/valkey-glide-ruby/pull/412))
 - Added support for inline Pub/Sub subscriptions and message reads through `subscribe`, `unsubscribe`, `get_pubsub_message`, and `try_get_pubsub_message`. ([#308](https://github.com/valkey-io/valkey-glide-ruby/pull/308))
 - Added support for pattern subscriptions, nonblocking lazy subscription changes, and callback-based Pub/Sub delivery. ([#316](https://github.com/valkey-io/valkey-glide-ruby/pull/316))
 - Added support for sharded Pub/Sub in cluster mode through `ssubscribe`, `sunsubscribe`, their lazy variants, and `publish(..., sharded: true)`. ([#317](https://github.com/valkey-io/valkey-glide-ruby/pull/317))
