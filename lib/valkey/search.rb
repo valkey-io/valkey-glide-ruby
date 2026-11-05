@@ -22,8 +22,13 @@ class Valkey
     DATA_TYPES = { hash: "HASH", json: "JSON" }.freeze
     # VECTOR field DISTANCE_METRIC values ({VectorField}).
     DISTANCE_METRICS = { l2: "L2", ip: "IP", cosine: "COSINE" }.freeze
-    # VECTOR field element types — only FLOAT32 is supported ({VectorField}).
-    VECTOR_TYPES = ["FLOAT32"].freeze
+    # VECTOR field element types: FLOAT32 plus the valkey-search 1.3.0
+    # half-precision types FLOAT16 (IEEE 754 half precision) and BFLOAT16
+    # (truncated IEEE 754 single precision). Packing is the caller's
+    # responsibility -- GLIDE does not convert vector bytes between types.
+    # The engine may refuse to create or load a BFLOAT16 index on a host
+    # without hardware support.
+    VECTOR_TYPES = %w[FLOAT32 FLOAT16 BFLOAT16].freeze
     # FT.INFO's scope: which node(s) to report on ({InfoOptions}).
     SCOPES = { local: "LOCAL", primary: "PRIMARY", cluster: "CLUSTER" }.freeze
 
@@ -91,6 +96,8 @@ end
 
 require "valkey/search/fields"
 require "valkey/search/create_options"
+require "valkey/search/cursor"
 require "valkey/search/query"
 require "valkey/search/aggregate"
+require "valkey/search/hybrid"
 require "valkey/search/info"
