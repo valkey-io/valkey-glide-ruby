@@ -5,19 +5,8 @@ class Valkey
     # This module contains commands related to Redis Streams.
     #
     # @see https://valkey.io/commands/#stream
-    #
     module StreamCommands
       # Append a new entry to a stream.
-      #
-      # @param [String] key stream key
-      # @param [Hash, Array] entry field-value pairs
-      # @param [Hash] options optional parameters
-      #   - `:id => String`: entry ID (default: "*" for auto-generated)
-      #   - `:maxlen => Integer`: maximum length of the stream
-      #   - `:minid => String`: minimum ID to keep
-      #   - `:approximate => true`: use approximate trimming
-      #   - `:nomkstream => true`: do not create stream if it doesn't exist
-      # @return [String] entry ID
       #
       # @example Add entry with auto-generated ID
       #   valkey.xadd("mystream", { "field1" => "value1", "field2" => "value2" })
@@ -27,6 +16,16 @@ class Valkey
       #     # => "1234567890-1"
       # @example Add entry with maxlen trimming
       #   valkey.xadd("mystream", { "field1" => "value1" }, maxlen: 1000, approximate: true)
+      #
+      # @param [String] key - stream key
+      # @param [Hash, Array] entry - field-value pairs
+      # @param [Boolean, nil] approximate - use approximate trimming
+      # @param [Integer, nil] maxlen - maximum stream length
+      # @param [String, nil] minid - minimum ID to keep
+      # @param [Boolean, nil] nomkstream - do not create the stream
+      # @param [String] id - entry ID
+      #
+      # @return [String] entry ID
       #
       # @see https://valkey.io/commands/xadd/
       def xadd(key, entry, approximate: nil, maxlen: nil, minid: nil, nomkstream: nil, id: "*")
@@ -60,16 +59,17 @@ class Valkey
 
       # Remove one or more entries from a stream.
       #
-      # @param [String] key stream key
-      # @param [String, Array<String>] ids entry ID(s) to delete
-      # @return [Integer] number of entries deleted
-      #
       # @example Delete a single entry
       #   valkey.xdel("mystream", "1234567890-0")
       #     # => 1
       # @example Delete multiple entries
       #   valkey.xdel("mystream", ["1234567890-0", "1234567890-1"])
       #     # => 2
+      #
+      # @param [String] key - stream key
+      # @param [String, Array<String>] ids - entry ID(s) to delete
+      #
+      # @return [Integer] number of entries deleted
       #
       # @see https://valkey.io/commands/xdel/
       def xdel(key, *ids)
@@ -79,12 +79,13 @@ class Valkey
 
       # Get the length of a stream.
       #
-      # @param [String] key stream key
-      # @return [Integer] number of entries in the stream
-      #
       # @example
       #   valkey.xlen("mystream")
       #     # => 42
+      #
+      # @param [String] key - stream key
+      #
+      # @return [Integer] number of entries in the stream
       #
       # @see https://valkey.io/commands/xlen/
       def xlen(key)
@@ -93,18 +94,18 @@ class Valkey
 
       # Read entries from one or more streams.
       #
-      # @param [Array<String>] keys stream keys
-      # @param [Array<String>] ids last read IDs for each stream
-      # @param [Hash] options optional parameters
-      #   - `:count => Integer`: maximum number of entries per stream
-      #   - `:block => Integer`: block for specified milliseconds (0 = no timeout)
-      # @return [Hash] hash of stream keys to arrays of entries (empty hash on timeout or no data)
-      #
       # @example Read from a single stream
       #   valkey.xread(["mystream"], ["0"])
       #     # => { "mystream" => [["1234567890-0", {"field1" => "value1"}]] }
       # @example Read with count and block
       #   valkey.xread(["mystream"], ["0"], count: 10, block: 1000)
+      #
+      # @param [Array<String>] keys - stream keys
+      # @param [Array<String>] ids - last read IDs for each stream
+      # @param [Integer, nil] count - maximum number of entries per stream
+      # @param [Integer, nil] block - blocking timeout in milliseconds
+      #
+      # @return [Hash] hash of stream keys to arrays of entries (empty hash on timeout or no data)
       #
       # @see https://valkey.io/commands/xread/
       def xread(keys, ids, count: nil, block: nil)
@@ -132,18 +133,18 @@ class Valkey
 
       # Read entries from streams using a consumer group.
       #
-      # @param [String] group consumer group name
-      # @param [String] consumer consumer name
-      # @param [Array<String>] keys stream keys
-      # @param [Array<String>] ids last read IDs for each stream
-      # @param [Hash] options optional parameters
-      #   - `:count => Integer`: maximum number of entries per stream
-      #   - `:block => Integer`: block for specified milliseconds (0 = no timeout)
-      #   - `:noack => true`: do not add messages to pending list
-      # @return [Hash] hash of stream keys to arrays of entries (empty hash on timeout or no data)
-      #
       # @example Read from consumer group
       #   valkey.xreadgroup("mygroup", "consumer1", ["mystream"], [">"])
+      #
+      # @param [String] group - consumer group name
+      # @param [String] consumer - consumer name
+      # @param [Array<String>] keys - stream keys
+      # @param [Array<String>] ids - last read IDs for each stream
+      # @param [Integer, nil] count - maximum number of entries per stream
+      # @param [Integer, nil] block - blocking timeout in milliseconds
+      # @param [Boolean] noack - do not add messages to the pending list
+      #
+      # @return [Hash] hash of stream keys to arrays of entries (empty hash on timeout or no data)
       #
       # @see https://valkey.io/commands/xreadgroup/
       def xreadgroup(group, consumer, keys, ids, count: nil, block: nil, noack: false)
@@ -172,18 +173,19 @@ class Valkey
 
       # Get entries from a stream within a range of IDs.
       #
-      # @param [String] key stream key
-      # @param [String] start start ID ("-" for beginning, "+" for end)
-      # @param [String] end_id end ID ("-" for beginning, "+" for end)
-      # @param [Hash] options optional parameters
-      #   - `:count => Integer`: maximum number of entries to return
-      # @return [Array<Array>] array of `[id, {field => value, ...}]` entries
-      #
       # @example Get all entries
       #   valkey.xrange("mystream", "-", "+")
       #     # => [["1234567890-0", {"field1" => "value1", "field2" => "value2"}]]
       # @example Get entries with count limit
       #   valkey.xrange("mystream", "-", "+", count: 10)
+      #
+      # @param [String] key - stream key
+      # @param [String] start - start ID ("-" for beginning, "+" for end)
+      # @param [String] end_id - end ID ("-" for beginning, "+" for end)
+      # @param [Hash] options - optional parameters
+      #   - `:count => Integer`: maximum number of entries to return
+      #
+      # @return [Array<Array>] array of `[id, {field => value, ...}]` entries
       #
       # @see https://valkey.io/commands/xrange/
       def xrange(key, start, end_id, **options)
@@ -196,15 +198,15 @@ class Valkey
 
       # Get entries from a stream within a range of IDs in reverse order.
       #
-      # @param [String] key stream key
-      # @param [String] end_id end ID ("+" for end, "-" for beginning) - higher bound
-      # @param [String] start start ID ("-" for beginning, "+" for end) - lower bound
-      # @param [Hash] options optional parameters
-      #   - `:count => Integer`: maximum number of entries to return
-      # @return [Array<Array>] array of `[id, {field => value, ...}]` entries in reverse order
-      #
       # @example Get last 10 entries
       #   valkey.xrevrange("mystream", "+", "-", count: 10)
+      #
+      # @param [String] key - stream key
+      # @param [String] end_id - end ID ("+" for end, "-" for beginning) - higher bound
+      # @param [String] start - start ID ("-" for beginning, "+" for end) - lower bound
+      # @param [Integer, nil] count - maximum number of entries to return
+      #
+      # @return [Array<Array>] array of `[id, {field => value, ...}]` entries in reverse order
       #
       # @see https://valkey.io/commands/xrevrange/
       def xrevrange(key, end_id = "+", start = "-", count: nil)
@@ -217,20 +219,20 @@ class Valkey
 
       # Trim a stream to a maximum length.
       #
-      # @param [String] key stream key
-      # @param [Integer] maxlen maximum length of the stream
-      # @param [Hash] options trimming options
-      #   - `:strategy => String`: trimming strategy (default: "MAXLEN")
-      #   - `:approximate => Boolean`: use approximate trimming (default: false)
-      #   - `:limit => Integer`: cap trim work per call; only valid with `approximate: true`
-      # @return [Integer] number of entries removed
-      #
       # @example Trim to maximum length (exact)
       #   valkey.xtrim("mystream", 1000)
       # @example Approximate trimming
       #   valkey.xtrim("mystream", 1000, approximate: true)
       # @example Approximate trimming with LIMIT
       #   valkey.xtrim("mystream", 1000, approximate: true, limit: 100)
+      #
+      # @param [String] key - stream key
+      # @param [Integer] maxlen - maximum length of the stream
+      # @param [String] strategy - trimming strategy
+      # @param [Boolean] approximate - use approximate trimming
+      # @param [Integer, nil] limit - cap trim work per call
+      #
+      # @return [Integer] number of entries removed
       #
       # @see https://valkey.io/commands/xtrim/
       def xtrim(key, maxlen, strategy: "MAXLEN", approximate: false, limit: nil)
@@ -245,12 +247,6 @@ class Valkey
 
       # Manage consumer groups (dispatcher method).
       #
-      # @param [Symbol, String] subcommand subcommand (:create, :setid, :destroy, :createconsumer, :delconsumer)
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [Array] args additional arguments depending on subcommand
-      # @return [String, Integer] depends on subcommand
-      #
       # @example Create group
       #   valkey.xgroup(:create, "mystream", "mygroup", "0")
       # @example Create group with mkstream
@@ -263,6 +259,13 @@ class Valkey
       #   valkey.xgroup(:createconsumer, "mystream", "mygroup", "consumer1")
       # @example Delete consumer
       #   valkey.xgroup(:delconsumer, "mystream", "mygroup", "consumer1")
+      #
+      # @param [Symbol, String] subcommand - subcommand (:create, :setid, :destroy, :createconsumer, :delconsumer)
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [Array] args - additional arguments depending on subcommand
+      #
+      # @return [String, Integer] depends on subcommand
       #
       # @see https://valkey.io/commands/xgroup/
       def xgroup(subcommand, key, group, *args, **options)
@@ -295,17 +298,18 @@ class Valkey
 
       # Create a consumer group for a stream.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String] id starting ID ("0" for beginning, "$" for end)
-      # @param [Hash] options optional parameters
-      #   - `:mkstream => true`: create stream if it doesn't exist
-      # @return [String] "OK"
-      #
       # @example Create group from beginning
       #   valkey.xgroup_create("mystream", "mygroup", "0")
       # @example Create group from end and create stream if needed
       #   valkey.xgroup_create("mystream", "mygroup", "$", mkstream: true)
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String] id - starting ID ("0" for beginning, "$" for end)
+      # @param [Hash] options - optional parameters
+      #   - `:mkstream => true`: create stream if it doesn't exist
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/xgroup-create/
       def xgroup_create(key, group, id, **options)
@@ -314,14 +318,15 @@ class Valkey
 
       # Create a consumer in a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String] consumer consumer name
-      # @return [Integer] number of pending messages for the consumer (0 for new consumer)
-      #
       # @example
       #   valkey.xgroup_createconsumer("mystream", "mygroup", "consumer1")
       #     # => 0
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String] consumer - consumer name
+      #
+      # @return [Integer] number of pending messages for the consumer (0 for new consumer)
       #
       # @see https://valkey.io/commands/xgroup-createconsumer/
       def xgroup_createconsumer(key, group, consumer)
@@ -339,13 +344,14 @@ class Valkey
 
       # Set the last-delivered ID for a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String] id entry ID
-      # @return [String] "OK"
-      #
       # @example
       #   valkey.xgroup_setid("mystream", "mygroup", "1234567890-0")
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String] id - entry ID
+      #
+      # @return [String] "OK"
       #
       # @see https://valkey.io/commands/xgroup-setid/
       def xgroup_setid(key, group, id)
@@ -354,13 +360,14 @@ class Valkey
 
       # Destroy a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @return [Integer] number of pending messages (if any)
-      #
       # @example
       #   valkey.xgroup_destroy("mystream", "mygroup")
       #     # => 0
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      #
+      # @return [Integer] number of pending messages (if any)
       #
       # @see https://valkey.io/commands/xgroup-destroy/
       def xgroup_destroy(key, group)
@@ -378,14 +385,15 @@ class Valkey
 
       # Remove a consumer from a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String] consumer consumer name
-      # @return [Integer] number of pending messages for the consumer
-      #
       # @example
       #   valkey.xgroup_delconsumer("mystream", "mygroup", "consumer1")
       #     # => 5
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String] consumer - consumer name
+      #
+      # @return [Integer] number of pending messages for the consumer
       #
       # @see https://valkey.io/commands/xgroup-delconsumer/
       def xgroup_delconsumer(key, group, consumer)
@@ -394,17 +402,18 @@ class Valkey
 
       # Acknowledge one or more messages in a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String, Array<String>] ids entry ID(s) to acknowledge
-      # @return [Integer] number of messages acknowledged
-      #
       # @example Acknowledge a single message
       #   valkey.xack("mystream", "mygroup", "1234567890-0")
       #     # => 1
       # @example Acknowledge multiple messages
       #   valkey.xack("mystream", "mygroup", ["1234567890-0", "1234567890-1"])
       #     # => 2
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String, Array<String>] ids - entry ID(s) to acknowledge
+      #
+      # @return [Integer] number of messages acknowledged
       #
       # @see https://valkey.io/commands/xack/
       def xack(key, group, *ids)
@@ -414,21 +423,21 @@ class Valkey
 
       # Get information about pending messages in a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [Array] args optional arguments (start, end, count, consumer)
-      # @param [Hash] options optional parameters
-      #   - `:idle => Integer`: filter by minimum idle time in milliseconds
-      # @return [Hash, Array] pending information
-      #   - Without args: summary hash with keys 'size', 'min_entry_id', 'max_entry_id', 'consumers'
-      #   - With start/end/count: array of Hashes with keys 'entry_id', 'consumer', 'elapsed', and 'count'
-      #
       # @example Get summary
       #   valkey.xpending("mystream", "mygroup")
       #     # => {"size" => 5, "min_entry_id" => "1234567890-0",
       #     #     "max_entry_id" => "1234567890-4", "consumers" => {"consumer1" => 3, "consumer2" => 2}}
       # @example Get detailed pending entries
       #   valkey.xpending("mystream", "mygroup", "-", "+", 10)
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [Array] args - optional arguments (start, end, count, consumer)
+      # @param [Integer, nil] idle - minimum idle time in milliseconds
+      #
+      # @return [Hash, Array] pending information
+      #   - Without args: summary hash with keys 'size', 'min_entry_id', 'max_entry_id', 'consumers'
+      #   - With start/end/count: array of Hashes with keys 'entry_id', 'consumer', 'elapsed', and 'count'
       #
       # @see https://valkey.io/commands/xpending/
       def xpending(key, group, *args, idle: nil)
@@ -449,21 +458,22 @@ class Valkey
 
       # Claim ownership of pending messages in a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String] consumer consumer name
-      # @param [Integer] min_idle_time minimum idle time in milliseconds
-      # @param [String, Array<String>] ids entry ID(s) to claim
-      # @param [Hash] options optional parameters
+      # @example Claim pending messages
+      #   valkey.xclaim("mystream", "mygroup", "consumer2", 3600000, ["1234567890-0"])
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String] consumer - consumer name
+      # @param [Integer] min_idle_time - minimum idle time in milliseconds
+      # @param [String, Array<String>] ids - entry ID(s) to claim
+      # @param [Hash] options - optional parameters
       #   - `:idle => Integer`: set idle time in milliseconds
       #   - `:time => Integer`: set time in milliseconds (Unix timestamp)
       #   - `:retrycount => Integer`: set retry count
       #   - `:force => true`: claim even if already assigned
       #   - `:justid => true`: return only IDs
-      # @return [Array] array of claimed entries or IDs
       #
-      # @example Claim pending messages
-      #   valkey.xclaim("mystream", "mygroup", "consumer2", 3600000, ["1234567890-0"])
+      # @return [Array] array of claimed entries or IDs
       #
       # @see https://valkey.io/commands/xclaim/
       def xclaim(key, group, consumer, min_idle_time, ids, **options)
@@ -487,22 +497,23 @@ class Valkey
 
       # Automatically claim pending messages that have been idle for a specified time.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @param [String] consumer consumer name
-      # @param [Integer] min_idle_time minimum idle time in milliseconds
-      # @param [String] start start ID for scanning
-      # @param [Hash] options optional parameters
+      # @example Auto-claim pending messages
+      #   valkey.xautoclaim("mystream", "mygroup", "consumer2", 3600000, "0-0")
+      #     # => { 'next' => "1234567890-5", 'entries' => [["1234567890-0", {"field1" => "value1"}]] }
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      # @param [String] consumer - consumer name
+      # @param [Integer] min_idle_time - minimum idle time in milliseconds
+      # @param [String] start - start ID for scanning
+      # @param [Hash] options - optional parameters
       #   - `:count => Integer`: maximum number of entries to claim
       #   - `:idle => Integer`: set idle time in milliseconds
       #   - `:time => Integer`: set time in milliseconds (Unix timestamp)
       #   - `:retrycount => Integer`: set retry count
       #   - `:justid => true`: return only IDs
-      # @return [Hash] hash with 'next' key for next cursor ID and 'entries' key for array of claimed entries
       #
-      # @example Auto-claim pending messages
-      #   valkey.xautoclaim("mystream", "mygroup", "consumer2", 3600000, "0-0")
-      #     # => { 'next' => "1234567890-5", 'entries' => [["1234567890-0", {"field1" => "value1"}]] }
+      # @return [Hash] hash with 'next' key for next cursor ID and 'entries' key for array of claimed entries
       #
       # @see https://valkey.io/commands/xautoclaim/
       def xautoclaim(key, group, consumer, min_idle_time, start, **options)
@@ -530,14 +541,6 @@ class Valkey
 
       # Get information about streams, groups, and consumers (dispatcher method).
       #
-      # @param [Symbol, String] subcommand subcommand (:stream, :groups, :consumers)
-      # @param [String] key stream key
-      # @param [String] group optional consumer group name (required for :consumers)
-      # @param [Hash] options optional parameters (for :stream)
-      #   - `:full => true`: return full information including entries
-      #   - `:count => Integer`: limit number of entries (requires :full)
-      # @return [Hash, Array] depends on subcommand
-      #
       # @example Get stream info
       #   valkey.xinfo(:stream, "mystream")
       # @example Get stream info with full details
@@ -546,6 +549,15 @@ class Valkey
       #   valkey.xinfo(:groups, "mystream")
       # @example Get consumers info
       #   valkey.xinfo(:consumers, "mystream", "mygroup")
+      #
+      # @param [Symbol, String] subcommand - subcommand (:stream, :groups, :consumers)
+      # @param [String] key - stream key
+      # @param [String] group - optional consumer group name (required for :consumers)
+      # @param [Hash] options - optional parameters (for :stream)
+      #   - `:full => true`: return full information including entries
+      #   - `:count => Integer`: limit number of entries (requires :full)
+      #
+      # @return [Hash, Array] depends on subcommand
       #
       # @see https://valkey.io/commands/xinfo/
       def xinfo(subcommand, key, group = nil, **options)
@@ -571,17 +583,18 @@ class Valkey
 
       # Get information about a stream.
       #
-      # @param [String] key stream key
-      # @param [Hash] options optional parameters
-      #   - `:full => true`: return full information including entries
-      #   - `:count => Integer`: limit number of entries (requires :full)
-      # @return [Hash] stream information as a hash of key-value pairs
-      #
       # @example Get basic stream info
       #   valkey.xinfo_stream("mystream")
       #     # => ["length", 42, "radix-tree-keys", 1, ...]
       # @example Get full info with entries
       #   valkey.xinfo_stream("mystream", full: true, count: 10)
+      #
+      # @param [String] key - stream key
+      # @param [Hash] options - optional parameters
+      #   - `:full => true`: return full information including entries
+      #   - `:count => Integer`: limit number of entries (requires :full)
+      #
+      # @return [Hash] stream information as a hash of key-value pairs
       #
       # @see https://valkey.io/commands/xinfo-stream/
       def xinfo_stream(key, **options)
@@ -590,12 +603,13 @@ class Valkey
 
       # Get information about consumer groups of a stream.
       #
-      # @param [String] key stream key
-      # @return [Array] array of consumer group information hashes
-      #
       # @example
       #   valkey.xinfo_groups("mystream")
       #     # => [{"name" => "mygroup", "consumers" => 2, "pending" => 5, ...}]
+      #
+      # @param [String] key - stream key
+      #
+      # @return [Array] array of consumer group information hashes
       #
       # @see https://valkey.io/commands/xinfo-groups/
       def xinfo_groups(key)
@@ -604,13 +618,14 @@ class Valkey
 
       # Get information about consumers in a consumer group.
       #
-      # @param [String] key stream key
-      # @param [String] group consumer group name
-      # @return [Array] array of consumer information hashes
-      #
       # @example
       #   valkey.xinfo_consumers("mystream", "mygroup")
       #     # => [{"name" => "consumer1", "pending" => 3, "idle" => 12345, ...}]
+      #
+      # @param [String] key - stream key
+      # @param [String] group - consumer group name
+      #
+      # @return [Array] array of consumer information hashes
       #
       # @see https://valkey.io/commands/xinfo-consumers/
       def xinfo_consumers(key, group)
@@ -618,21 +633,6 @@ class Valkey
       end
 
       # TODO: Implement xsetid command after enabling in glide-core
-      # Set the ID of the last entry in a stream.
-      #
-      # @param [String] key stream key
-      # @param [String] id entry ID
-      # @param [Hash] options optional parameters
-      #   - `:entries_added => Integer`: set entries-added counter
-      #   - `:max_deleted_id => String`: set max-deleted-id
-      # @return [String] "OK"
-      #
-      # @example
-      #   valkey.xsetid("mystream", "1234567890-0")
-      # @example With additional options
-      #   valkey.xsetid("mystream", "1234567890-0", entries_added: 100, max_deleted_id: "1234567890-50")
-      #
-      # @see https://valkey.io/commands/xsetid/
       # def xsetid(key, id, **options)
       #   args = [key, id]
 

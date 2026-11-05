@@ -52,6 +52,7 @@ When working on a feature, read these paths first:
 |-------|------------|
 | Connection / options | `lib/valkey.rb` (`#initialize`), `test/lint/connection_options.rb` |
 | New command | `lib/valkey/request_type.rb`, matching `lib/valkey/commands/*.rb`, `test/lint/*` |
+| Adding/reviewing tests | `docs/TESTING.md` in full, then the relevant test files |
 | Pipelining / batch | `lib/valkey.rb` (`pipelined`, `send_batch_commands`), `lib/valkey/pipeline.rb` |
 | OpenTelemetry | `lib/valkey/opentelemetry.rb`, `test/integration/valkey/opentelemetry_test.rb` |
 | FFI / errors | `lib/valkey/bindings.rb`, `lib/valkey/errors.rb` |
@@ -60,9 +61,9 @@ When working on a feature, read these paths first:
 
 ## Quality Gates (Agent Checklist)
 
-- [ ] Positive tests added.
-- [ ] Negative tests covered.
+- [ ] Used `docs/TESTING.md` as the authoritative reference for test implementations.
 - [ ] `bundle exec rubocop` passes
+- [ ] `bundle exec rake lint:yard`.
 - [ ] Test servers were started/stopped via `cluster_manager.py` (never hand-launched or ad-hoc `docker run`)
 - [ ] `bundle exec rake test:unit` passes (no server needed)
 - [ ] `bundle exec rake test:standalone` passes (with Valkey running)
@@ -86,6 +87,7 @@ bin/setup                              # bundle install
 
 # Linting
 bundle exec rubocop
+bundle exec rake lint:yard
 
 # Testing
 bundle exec rake test                  # unit + integration
@@ -209,34 +211,17 @@ in the body you pass.
 
 ### Changelog REQUIRED
 
-Every user-facing change MUST add an entry to `CHANGELOG.md` under the top
-`## 1.x.x (Pending)` section, in the correct subsections.
+Follow the [changelog guidelines](./CONTRIBUTING.md#changelog).
 
-```markdown
-## 1.x.x (Pending)
+General guidelines are:
 
-### Fixes
-
-* fix(ruby): <what changed and the user-visible effect> ([#123](https://github.com/valkey-io/valkey-glide-ruby/pull/123))
-
-### Changes
-
-* Ruby: <Area>: added support for `method_a(sig)`, `method_b(sig)` and the `option:` option. <One short constraint if there is one> ([#124](https://github.com/valkey-io/valkey-glide-ruby/pull/124))
-```
-
-Rules for an entry:
-
-- **One line.** No sub-bullets. If it needs paragraphs to explain, it belongs in
-  the README or the method's YARD docs, not here.
-- **New APIs: list them, don't narrate them.** `added support for` followed by
-  the public method names with their signatures. Do not restate what each method
-  does; the names and docs already say it.
-- **List only what this PR shipped.** Methods that raise `NotImplementedError`,
-  future plans, and internal refactors do not belong in the entry.
-- **Link the PR that made the change**, not the issue it closes. Readers want the
-  diff.
-- Fixes use the Conventional Commits prefix (`fix(ruby):`); Changes use
-  `Ruby: <Area>:`. Both state the user-visible effect, not the implementation.
+- For each PR, add every user-facing change to the appropriate changelog section.
+- Start each item with a verb.
+- For new APIs, use `Added support for <API>`. Do not restate what each method does; the names and docs already say it.
+- Future plans and internal refactors do not belong in the entry.
+- Each change should be a concise one-sentence description of the change.
+- Each change must be followed by a link to its PR.
+- Do not retroactively change other changelog entries unless explicitly told to.
 
 ### Code Quality Requirements
 
@@ -271,23 +256,23 @@ cargo fmt --manifest-path ./Cargo.toml --all
 - **FFI dependency:** `ffi ~> 1.17.0`; do not break ABI without rebuilding native lib
 - **Blocking FFI bindings MUST pass `blocking: true`:** any `attach_function` in `lib/valkey/bindings.rb` that can wait — connect, command, batch, script, close. Ruby-FFI defaults to `blocking: false`, holding the GVL for the whole call: that stalls every other Ruby thread, and deadlocks if the call waits on something needing the GVL (a Pub/Sub callback). `create_client`/`create_client_from_uri` still need it. The `free_*`/`drop_*` and OTel span helpers don't — they never wait.
 - **Synchronous only:** No async client in this repo; do not add EventMachine/async patterns without design review
-- **redis-rb conventions:** Prefer matching redis-rb method signatures and return types when implementing commands for familiarity.
 - **Command args:** All FFI args are strings; convert types in Ruby before `send_command`
 - **Pipeline transactions:** `MULTI`/`EXEC`/`DISCARD` in `pipelined` use sequential fallback; do not remove without fixing FFI batch stability
 - **OpenTelemetry:** Init once per process via `Valkey::OpenTelemetry.init`; spans created in FFI layer
+- **Comments:** Do not restate the code or narrate obvious steps. Explain intent, non-obvious constraints, or why the implementation is necessary.
 
 ### Command Implementation Guidelines
 
 1. Check `RequestType` in `lib/valkey/request_type.rb` against glide-core `request_type.rs`
 2. Add method to appropriate `lib/valkey/commands/*.rb` module
 3. Use `send_command(RequestType::..., args)` 
-4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable
-5. Document with YARD comments + Valkey command link
+4. Add tests: `test/integration/valkey/` + `test/lint/` when applicable. MUST follow `docs/TESTING.md`
+5. MUST Follow the `docs/DOCUMENTING.md` on how to write public API docstring.
 
 ### Never Commit
 
 - Secrets, `.env` credentials, production URLs
-- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/glide/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
+- Debug `puts` in production code paths (the native Pub/Sub callback in `lib/valkey/pubsub/pubsub_receiver.rb` must never `puts` or block: it runs on a Rust thread under a borrowed GVL)
 
 ## Project Structure (Essential)
 
@@ -297,7 +282,7 @@ valkey-glide-ruby/
 ├── lib/valkey/
 │   ├── bindings.rb
 │   ├── native/{arch}-{os}/libglide_ffi.{so,dylib}   # bundled per-platform lib (packaged during CD)
-│   ├── glide/pubsub_receiver.rb   # internal; Pub/Sub message queue + FFI push handler
+│   ├── pubsub/          # Pub/Sub message/state types and internal receiver
 │   ├── commands.rb       # requires + includes all command modules
 │   ├── commands/*.rb     # 20 command-family modules
 │   ├── opentelemetry.rb

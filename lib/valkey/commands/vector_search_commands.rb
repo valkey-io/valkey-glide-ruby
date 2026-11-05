@@ -39,14 +39,16 @@ class Valkey
       # fails with "Index with name '...' not found"). Pass an explicit `route:`
       # to override.
       #
-      # @param index [String] the index name
-      # @param fields [Array<Valkey::Search::Field>] the schema
-      # @param options [Valkey::Search::CreateOptions, nil] index-level options
-      # @param route [Valkey::Route, nil] override the all-primaries broadcast
-      # @param kwargs [Hash] index-level options, as an alternative to +options+
+      # @param [String] index - the index name
+      # @param [Array<Valkey::Search::Field>] fields - the schema
+      # @param [Valkey::Search::CreateOptions, nil] options - index-level options
+      # @param [Valkey::Route, nil] route - override the all-primaries broadcast
+      # @param [Hash] kwargs - index-level options, as an alternative to +options+
       #   (forwarded to {Valkey::Search::CreateOptions})
+      #
       # @return [String, Hash] "OK" when every node agrees (the usual case);
       #   the per-node `{ "host:port" => reply }` Hash if they disagree
+      #
       # @raise [ArgumentError] on an empty/invalid schema, a non-CreateOptions
       #   options object, or options passed both positionally and as keywords
       #
@@ -70,8 +72,9 @@ class Valkey
       #   valkey.ft_drop_index("myIndex")
       #     # => "OK"
       #
-      # @param index [String] the index name
-      # @param route [Valkey::Route, nil] override the all-primaries broadcast
+      # @param [String] index - the index name
+      # @param [Valkey::Route, nil] route - override the all-primaries broadcast
+      #
       # @return [String, Hash] "OK" when every node agrees (the usual case); the
       #   per-node `{ "host:port" => reply }` Hash if they disagree
       #
@@ -91,11 +94,13 @@ class Valkey
       #     valkey.ft_info("idx", scope: :cluster, consistency: :consistent)
       #     valkey.ft_info("idx", Valkey::Search::InfoOptions.new(scope: :local))
       #
-      # @param index [String] the index name
-      # @param options [Valkey::Search::InfoOptions, nil] info options
-      # @param kwargs [Hash] info options, as an alternative to +options+
+      # @param [String] index - the index name
+      # @param [Valkey::Search::InfoOptions, nil] options - info options
+      # @param [Hash] kwargs - info options, as an alternative to +options+
       #   (forwarded to {Valkey::Search::InfoOptions})
+      #
       # @return [Hash] index information as a hash of key-value pairs
+      #
       # @raise [ArgumentError] on options passed both positionally and as keywords
       #
       # @see https://valkey.io/commands/ft.info/
@@ -130,12 +135,14 @@ class Valkey
       # In both cases use {Valkey#call} to issue FT.SEARCH directly and handle the
       # raw reply yourself.
       #
-      # @param index [String] the index name
-      # @param query [String] the search query
-      # @param options [Valkey::Search::SearchOptions, nil] search options
-      # @param kwargs [Hash] search options, as an alternative to +options+
+      # @param [String] index - the index name
+      # @param [String] query - the search query
+      # @param [Valkey::Search::SearchOptions, nil] options - search options
+      # @param [Hash] kwargs - search options, as an alternative to +options+
       #   (forwarded to {Valkey::Search::SearchOptions})
+      #
       # @return [Valkey::Search::SearchResult] the structured result
+      #
       # @raise [ArgumentError] on options passed both positionally and as
       #   keywords, or when used inside a batch or with `flatten_map: true`
       #
@@ -176,12 +183,14 @@ class Valkey
       # {Valkey::Future} rather than a reply. Use {Valkey#call} to issue
       # FT.AGGREGATE directly inside a batch.
       #
-      # @param index [String] the index name to search
-      # @param query [String] the search/filter query
-      # @param options [Valkey::Search::AggregateOptions, nil] aggregate options
-      # @param kwargs [Hash] aggregate options, as an alternative to +options+
+      # @param [String] index - the index name to search
+      # @param [String] query - the search/filter query
+      # @param [Valkey::Search::AggregateOptions, nil] options - aggregate options
+      # @param [Hash] kwargs - aggregate options, as an alternative to +options+
       #   (forwarded to {Valkey::Search::AggregateOptions})
+      #
       # @return [Array] aggregation results
+      #
       # @raise [ArgumentError] on options passed both positionally and as
       #   keywords, or when used inside a batch
       #
@@ -228,11 +237,12 @@ class Valkey
       # Not supported inside `pipelined` / `multi`, matching every other
       # FT.* command.
       #
-      # @param index [String] the index name to query
-      # @param search_arm [Valkey::Search::HybridSearchArm] the text/tag/numeric query arm
-      # @param vsim_arm [Valkey::Search::HybridVsimArm] the vector similarity search arm
-      # @param options [Valkey::Search::HybridOptions, nil] the optional
+      # @param [String] index - the index name to query
+      # @param [Valkey::Search::HybridSearchArm] search_arm - the text/tag/numeric query arm
+      # @param [Valkey::Search::HybridVsimArm] vsim_arm - the vector similarity search arm
+      # @param [Valkey::Search::HybridOptions, nil] options - the optional
       #   arguments for FT.HYBRID's aggregate-suffix tail
+      #
       # @return [Array] an array of field-name/value mappings for each
       #   matching document, after both arms' results have been fused and
       #   any clauses in +options+ applied. With no LOAD clause (the
@@ -240,6 +250,7 @@ class Valkey
       #   fused score. When `options.with_cursor` is set, the reply shape
       #   instead matches FT.AGGREGATE's own WITHCURSOR shape: a two-element
       #   array of `[rows, cursor_id]`.
+      #
       # @raise [ArgumentError] when used inside a batch
       #
       # @see https://valkey.io/commands/ft.hybrid/
@@ -285,13 +296,14 @@ class Valkey
       # FT.HYBRID is read the same way as one opened by FT.AGGREGATE; the
       # server does not distinguish which command created it.
       #
-      # @param index [String] the index name the cursor was opened against
-      # @param cursor_id [Integer] the cursor id, from the opening command's
+      # @param [String] index - the index name the cursor was opened against
+      # @param [Integer] cursor_id - the cursor id, from the opening command's
       #   reply or a previous {#ft_cursor_read} call. `0` means the cursor
       #   is already exhausted; calling this with `0` is a caller error, not
       #   something this method special-cases.
-      # @param count [Integer, nil] overrides how many rows this page
+      # @param [Integer, nil] count - overrides how many rows this page
       #   returns, instead of the count the cursor was opened with
+      #
       # @return [Array] a two-element array of `[rows, cursor_id]`, where
       #   `rows` is the same per-document mapping shape {#ft_aggregate}/
       #   {#ft_hybrid} return, and `cursor_id` is `0` once the cursor is
@@ -320,8 +332,9 @@ class Valkey
       # Always reads from the PRIMARY of the index's slot in cluster mode
       # — see {#ft_cursor_read}'s routing note.
       #
-      # @param index [String] the index name the cursor was opened against
-      # @param cursor_id [Integer] the cursor id to delete
+      # @param [String] index - the index name the cursor was opened against
+      # @param [Integer] cursor_id - the cursor id to delete
+      #
       # @return [String] "OK"
       #
       # @see https://valkey.io/commands/ft.cursor-del/
@@ -347,13 +360,16 @@ class Valkey
       # the exact constructor the object form would have called, so kwargs never
       # bypass whatever the class validates in #initialize.
       #
-      # @api private
-      # @param klass [Class] the options class
-      # @param options [Object, nil] a positional options instance
-      # @param kwargs [Hash] keyword options
-      # @param label [String] command name, for error messages
+      # @param [Class] klass - the options class
+      # @param [Object, nil] options - a positional options instance
+      # @param [Hash] kwargs - keyword options
+      # @param [String] label - command name, for error messages
+      #
       # @return [Object, nil] an instance of klass, or nil
+      #
       # @raise [ArgumentError] on a wrong-typed positional, or options given both ways
+      #
+      # @api private
       def ft_resolve_options(klass, options, kwargs, label:)
         if options.nil?
           kwargs.empty? ? nil : klass.new(**kwargs)
@@ -370,9 +386,10 @@ class Valkey
 
       # Build the FT.CREATE token array from the schema + options.
       #
-      # @api private
       # @raise [ArgumentError] on an empty/invalid schema, a non-CreateOptions
       #   options object, or options passed both ways
+      #
+      # @api private
       def ft_create_args(index, fields, options, kwargs)
         unless fields.is_a?(Array)
           raise ArgumentError, "ft_create schema must be an Array of Valkey::Search::Field, got #{fields.class}"

@@ -8,31 +8,32 @@ class Valkey
     # @example
     #   Valkey::Search::CreateOptions.new(on: :hash, prefixes: ["doc:"], skip_initial_scan: true)
     #
-    # @see https://redis.io/commands/ft.create/
+    # @see https://valkey.io/commands/ft.create/
     class CreateOptions
-      # @param on [Symbol, String, nil] :hash or :json (ON clause)
-      # @param prefixes [Array<String>, nil] key prefixes (`PREFIX <count> <p...>`)
-      # @param score [Numeric, nil] default document score
-      # @param language [String, nil] default stemmer language
-      # @param skip_initial_scan [Boolean] emit SKIPINITIALSCAN
-      # @param min_stem_size [Integer, nil] emit `MINSTEMSIZE <n>`
-      # @param stopwords [Array<String>, nil] custom stopwords (mutually exclusive with no_stopwords)
-      # @param no_stopwords [Boolean] emit NOSTOPWORDS
-      # @param filter [String, nil] a filter expression limiting which
+      # @param [Symbol, String, nil] on - :hash or :json (ON clause)
+      # @param [Array<String>, nil] prefixes - key prefixes (`PREFIX <count> <p...>`)
+      # @param [Numeric, nil] score - default document score
+      # @param [String, nil] language - default stemmer language
+      # @param [Boolean] skip_initial_scan - emit SKIPINITIALSCAN
+      # @param [Integer, nil] min_stem_size - emit `MINSTEMSIZE <n>`
+      # @param [Array<String>, nil] stopwords - custom stopwords (mutually exclusive with no_stopwords)
+      # @param [Boolean] no_stopwords - emit NOSTOPWORDS
+      # @param [String, nil] filter - a filter expression limiting which
       #   documents the index applies to (valkey-search 1.3.0). A document
       #   that doesn't match this expression is excluded from the index even
       #   if its key matches a configured prefix. Cannot be empty.
-      # @param score_field [String, nil] the name of a document field whose
+      # @param [String, nil] score_field - the name of a document field whose
       #   numeric value is used as the document's custom score, multiplying
       #   into the final relevance score (valkey-search 1.3.0). The field
       #   must already exist in the document; it is not itself a schema
       #   definition. FT.INFO only reports this back under
       #   `index_definition`'s `score_field` key when `search.emulate-release`
       #   is at least 1.3.0 — below that level the pair is omitted entirely.
-      # @param no_highlight [Boolean] emit NOHL. valkey-search does not
+      # @param [Boolean] no_highlight - emit NOHL. valkey-search does not
       #   support highlighting at all, so this is a genuine no-op on this
       #   engine (the token is accepted but not even stored for FT.INFO to
       #   report). Included for wire compatibility with RediSearch clients.
+      #
       # @raise [ArgumentError] if filter is an empty String, or stopwords
       #   and no_stopwords are both set
       def initialize(on: nil, prefixes: nil, score: nil, language: nil,
@@ -64,7 +65,7 @@ class Valkey
         args.push("LANGUAGE", @language) unless @language.nil?
         args << "SKIPINITIALSCAN" if @skip_initial_scan
         args.push("MINSTEMSIZE", @min_stem_size) unless @min_stem_size.nil?
-        args.push("STOPWORDS", @stopwords.length, *@stopwords) if @stopwords && !@stopwords.empty?
+        args.push("STOPWORDS", @stopwords.length, *@stopwords) unless @stopwords.nil?
         args << "NOSTOPWORDS" if @no_stopwords
         args.push("FILTER", @filter) unless @filter.nil?
         args.push("SCORE_FIELD", @score_field) unless @score_field.nil?

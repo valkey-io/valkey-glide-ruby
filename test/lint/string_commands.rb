@@ -140,6 +140,45 @@ module Lint
       end
     end
 
+    def test_delifeq
+      target_version("9.0")
+
+      assert_delifeq(key: "key", value: "value")
+      assert_delifeq(key: "non-string", value: %w[a b])
+      assert_delifeq(key: "binary", value: "\x00\xFF".b)
+    end
+
+    def test_delifeq_not_matching
+      target_version("9.0")
+
+      assert_equal false, r.delifeq("foo", "value")
+
+      r.set("foo", "value")
+      assert_equal false, r.delifeq("foo", "other")
+      assert_equal "value", r.get("foo")
+    end
+
+    def test_delifeq_raises
+      target_version("9.0")
+
+      r.sadd("foo", "member")
+
+      assert_raises(Valkey::CommandError) { r.delifeq("foo", "value") }
+    end
+
+    def test_delifeq_in_pipeline
+      target_version("9.0")
+
+      r.set("foo", "value")
+
+      result = r.pipelined do |pipeline|
+        pipeline.delifeq("foo", "value")
+        pipeline.delifeq("foo", "other")
+      end
+
+      assert_equal [true, false], result
+    end
+
     def test_getset
       r.set("foo", "bar")
 
@@ -423,6 +462,14 @@ module Lint
                        4
                      ]
                    ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4, with_match_len: true))
+    end
+
+    private
+
+    def assert_delifeq(key:, value:)
+      r.set(key, value)
+      assert_equal true, r.delifeq(key, value)
+      assert_nil r.get(key)
     end
   end
 end

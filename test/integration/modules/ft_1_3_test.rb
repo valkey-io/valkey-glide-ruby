@@ -257,7 +257,7 @@ module ModulesFt13Shared
 
   # ---- 1.3 reducers: TOLIST, FIRST_VALUE, RANDOM_SAMPLE ----
 
-  def test_aggregate_reducers_1_3
+  def test_aggregate_reducers_search_1_3_additions
     skip_unless_1_3!
     @client.ft_create(
       @index,

@@ -10,6 +10,7 @@ Gem::Specification.new do |spec|
   spec.summary = "A Ruby client library for Valkey"
   spec.description = "A Ruby client library for Valkey"
   spec.homepage = "https://github.com/valkey-io/valkey-glide-ruby"
+  spec.license = "Apache-2.0"
   spec.required_ruby_version = ">= 3.0.0"
 
   spec.metadata["homepage_uri"] = spec.homepage

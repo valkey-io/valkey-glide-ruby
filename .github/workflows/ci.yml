@@ -17,6 +17,7 @@ on:
       - .github/json_matrices/**
       - Gemfile
       - Gemfile.lock
+      - .yard-lint.yml
       - Rakefile
       - valkey.gemspec
 
@@ -60,19 +61,21 @@ concurrency:
 
 jobs:
   lint:
-    name: Rubocop
+    name: Lint
     timeout-minutes: 15
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Ruby
-        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
+        uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
           ruby-version: "3.3"
           bundler-cache: true
-      - name: Lint
+      - name: Lint Ruby
         run: bundle exec rubocop
+      - name: Check YARD documentation
+        run: bundle exec rake lint:yard
 
   get-matrices:
     name: Get Matrices
@@ -220,7 +223,7 @@ jobs:
           path: valkey-glide/ffi/target/release/
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
 
@@ -243,7 +246,7 @@ jobs:
           echo "TLS_CERT_DIR=$(pwd)/valkey-glide/utils/tls_crts" >> $GITHUB_ENV
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
+        uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
           ruby-version: ${{ matrix.version }}
           bundler-cache: true
@@ -307,7 +310,7 @@ jobs:
           path: valkey-glide/ffi/target/release/
 
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
 
@@ -323,7 +326,7 @@ jobs:
           engine-version: "9.0"
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
+        uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
           ruby-version: "3.4"
           bundler-cache: true

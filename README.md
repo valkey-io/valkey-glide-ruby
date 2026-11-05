@@ -106,7 +106,7 @@ client.get("foo")
 | `url` | `redis://`, `rediss://`, `valkey://`, or `valkeys://` URI (merged with explicit options) |
 | `db` | Database index (standalone only) |
 | `password`, `username` | Authentication |
-| `iam_config` | A `Valkey::IamAuthConfig` for AWS IAM authentication. Requires `username` and cannot be combined with `password`. |
+| `iam_config` | A `Valkey::IamAuthConfig` for AWS IAM authentication. Requires `username` and TLS (`ssl: true`), and cannot be combined with `password`. |
 | `timeout` | Request timeout in seconds (default `5.0`) |
 | `connect_timeout` | Connection timeout in seconds |
 | `ssl`| Enable TLS if true |
@@ -149,4 +149,4 @@ Report issues: [valkey-glide-ruby issues](https://github.com/valkey-io/valkey-gl
 
 ## License
 
-Apache-2.0. See [LICENSE](https://github.com/valkey-io/valkey-glide-ruby/blob/main/LICENSE) in the repository.
+Apache-2.0. See [LICENSE](./LICENSE) in the repository.

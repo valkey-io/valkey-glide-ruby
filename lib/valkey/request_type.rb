@@ -394,6 +394,7 @@ class Valkey
     SET_RANGE = 1520
     STRLEN = 1521
     SUBSTR = 1522
+    DEL_IF_EQ = 1523
 
     # Transaction commands
     DISCARD = 1601

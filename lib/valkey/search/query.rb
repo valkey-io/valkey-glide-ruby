@@ -9,7 +9,7 @@ class Valkey
     #   Valkey::Search::SearchOptions.new(limit: { offset: 0, count: 10 },
     #     return_fields: ["title", { name: "loc", as: "location" }], dialect: 2)
     #
-    # @see https://redis.io/commands/ft.search/
+    # @see https://valkey.io/commands/ft.search/
     class SearchOptions
       # @return [Boolean] NOCONTENT requested (the parser needs this)
       attr_reader :no_content
@@ -18,40 +18,47 @@ class Valkey
       # @return [Boolean] WITHSCORES requested (the parser needs this)
       attr_reader :with_scores
 
-      # @param limit [Hash, Array, nil] { offset:, count: } or [offset, count]
-      # @param return_fields [Array, nil] field name String/Symbol or { name:, as: } Hash
-      # @param params [Hash, nil] query parameters (PARAMS)
-      # @param sort_by [String, nil] field to sort by
-      # @param sort_order [Symbol] :asc (default) or :desc
-      # @param with_sort_keys [Boolean] emit WITHSORTKEYS (requires sort_by; cannot
+      # @param [Hash, Array, nil] limit - { offset:, count: } or [offset, count]
+      # @param [Array, nil] return_fields - field name String/Symbol or { name:, as: } Hash
+      # @param [Hash, nil] params - query parameters (PARAMS)
+      # @param [String, nil] sort_by - field to sort by
+      # @param [Symbol, nil] sort_order - :asc or :desc (requires sort_by)
+      # @param [Boolean] with_sort_keys - emit WITHSORTKEYS (requires sort_by; cannot
       #   be combined with no_content — the server discards the sort keys when
       #   NOCONTENT is set, which desynchronizes the reply parser)
-      # @param no_content [Boolean] emit NOCONTENT (keys only)
-      # @param shard_scope [Symbol, nil] :all_shards or :some_shards
-      # @param consistency [Symbol, nil] :consistent or :inconsistent
-      # @param in_keys [Array<String>, nil] restricts the search to only this
+      # @param [Boolean] no_content - emit NOCONTENT (keys only)
+      # @param [Boolean] verbatim - emit VERBATIM
+      # @param [Boolean] in_order - emit INORDER
+      # @param [Integer, nil] slop - emit `SLOP <n>`
+      # @param [Integer, nil] dialect - emit `DIALECT <n>`
+      # @param [Integer, nil] timeout - emit `TIMEOUT <ms>`
+      # @param [Symbol, nil] shard_scope - :all_shards or :some_shards
+      # @param [Symbol, nil] consistency - :consistent or :inconsistent
+      # @param [Array<String>, nil] in_keys - restricts the search to only this
       #   set of keys (INKEYS), filtering out any matching result whose key
       #   is not in the list. `[]` (empty Array) differs from `nil`: an empty
       #   Array emits `INKEYS 0` (matches nothing), `nil` omits INKEYS
       #   entirely (matches on index content alone).
-      # @param count [Boolean] returns only the total matching-document
+      # @param [Boolean] count - returns only the total matching-document
       #   count, with no document rows. Emits `LIMIT 0 0` — the server
       #   rejects a bare COUNT token outright — and is mutually exclusive
       #   with `limit`.
-      # @param with_scores [Boolean] augments the output with each
+      # @param [Boolean] with_scores - augments the output with each
       #   document's relevance score (valkey-search 1.3.0, emits WITHSCORES)
-      # @param scorer [String, nil] the scoring function used to rank
+      # @param [String, nil] scorer - the scoring function used to rank
       #   results (valkey-search 1.3.0). `"BM25STD"` is currently the only
       #   registered value; any other is rejected server-side. Has no
       #   visible effect unless combined with `with_scores` (or inspected
       #   indirectly via `sort_by`).
+      #
       # @raise [ArgumentError] if count and limit are both set
       def initialize(limit: nil, return_fields: nil, params: nil, sort_by: nil,
-                     sort_order: :asc, with_sort_keys: false, no_content: false,
+                     sort_order: nil, with_sort_keys: false, no_content: false,
                      verbatim: false, in_order: false, slop: nil, dialect: nil,
                      timeout: nil, shard_scope: nil, consistency: nil,
                      in_keys: nil, count: false, with_scores: false, scorer: nil)
         raise ArgumentError, "with_sort_keys requires sort_by" if with_sort_keys && sort_by.nil?
+        raise ArgumentError, "sort_order requires sort_by" if !sort_order.nil? && sort_by.nil?
         # The server honors NOCONTENT and silently drops the sort keys, but the
         # reply is still parsed as (key, sort_key) pairs — so the combination
         # yields mispaired documents or a parse error depending on how many
@@ -67,7 +74,7 @@ class Valkey
         @return_tokens = expand_return_fields(return_fields)
         @params = params
         @sort_by = sort_by
-        @sort_order = Search.lookup_token(Search::SORT_ORDERS, sort_order, "sort order")
+        @sort_order = sort_order && Search.lookup_token(Search::SORT_ORDERS, sort_order, "sort order")
         @with_sort_keys = with_sort_keys
         @no_content = no_content
         @verbatim = verbatim
@@ -135,7 +142,8 @@ class Valkey
       def append_sort_by(args)
         return if @sort_by.nil?
 
-        args.push("SORTBY", @sort_by, @sort_order)
+        args.push("SORTBY", @sort_by)
+        args << @sort_order unless @sort_order.nil?
       end
 
       def normalize_limit(limit)
@@ -161,7 +169,7 @@ class Valkey
     # Structured FT.SEARCH result: a total count plus a list of documents. The
     # raw-args path still returns the unwrapped reply. Mirrors Go/C#.
     #
-    # @see https://redis.io/commands/ft.search/
+    # @see https://valkey.io/commands/ft.search/
     class SearchResult
       Document = Struct.new(:key, :fields, :sort_key, :score)
 
@@ -170,6 +178,10 @@ class Valkey
       # @return [Array<Document>] returned documents
       attr_reader :documents
 
+      # Create a structured search result.
+      #
+      # @param [Integer] total_results - total number of matching documents
+      # @param [Array<Document>] documents - documents returned by this query
       def initialize(total_results, documents)
         @total_results = total_results
         @documents = documents
@@ -189,6 +201,11 @@ class Valkey
       # inferred from the reply shape, because a bare [x, y] pair is
       # ambiguous between "[score, fields]" and "[sort_key, fields]"
       # without knowing which flags were requested.
+      #
+      # @param [Array] raw - raw FT.SEARCH reply
+      # @param [Boolean] no_content - whether NOCONTENT was requested
+      # @param [Boolean] with_sort_keys - whether WITHSORTKEYS was requested
+      # @param [Boolean] with_scores - whether WITHSCORES was requested
       #
       # @return [SearchResult]
       def self.from_raw(raw, no_content: false, with_sort_keys: false, with_scores: false)

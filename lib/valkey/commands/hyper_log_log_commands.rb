@@ -6,7 +6,8 @@ class Valkey
       # Add one or more members to a HyperLogLog structure.
       #
       # @param [String] key
-      # @param [String, Array<String>] member one member, or array of members
+      # @param [String, Array<String>] member - one member, or array of members
+      #
       # @return [Boolean] true if at least 1 HyperLogLog internal register was altered. false otherwise.
       #
       # @see https://valkey.io/commands/pfadd/
@@ -28,6 +29,7 @@ class Valkey
       # union of the HyperLogLogs contained in the keys.
       #
       # @param [String, Array<String>] keys
+      #
       # @return [Integer]
       #
       # @see https://valkey.io/commands/pfcount
@@ -38,8 +40,9 @@ class Valkey
       # Merge multiple HyperLogLog values into an unique value that will approximate the cardinality of the union of
       # the observed Sets of the source HyperLogLog structures.
       #
-      # @param [String] dest_key destination key
-      # @param [String, Array<String>] source_key source key, or array of keys
+      # @param [String] dest_key - destination key
+      # @param [String, Array<String>] source_key - source key, or array of keys
+      #
       # @return [Boolean]
       #
       # @see https://valkey.io/commands/pfmerge

@@ -59,9 +59,10 @@ module Helper
     def target_version(target)
       if version < target
         skip("Requires Valkey > #{target}") if respond_to?(:skip)
-      else
-        yield
+        return
       end
+
+      yield if block_given?
     end
 
     def keys(pattern = "*")

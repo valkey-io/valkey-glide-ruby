@@ -600,6 +600,42 @@ module Lint
       assert_equal [false, true], result
     end
 
+    def test_multi_exec_boolean_coercion
+      skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
+      target_version("9.0")
+
+      r.set("expire", "value")
+      r.set("expireat", "value")
+      r.set("pexpire", "value")
+      r.set("pexpireat", "value")
+      r.set("persist", "value", ex: 60)
+      r.sadd("sismember", "member")
+      r.sadd("smove-source", "member")
+      r.set("renamenx-source", "value")
+      r.set("move", "value")
+      r.set("copy-source", "value")
+      r.set("delifeq", "value")
+
+      r.multi
+      r.expire("expire", 60)
+      r.expireat("expireat", Time.now.to_i + 60)
+      r.pexpire("pexpire", 60_000)
+      r.pexpireat("pexpireat", (Time.now.to_f * 1000).to_i + 60_000)
+      r.persist("persist")
+      r.sismember("sismember", "member")
+      r.smove("smove-source", "smove-destination", "member")
+      r.pfadd("pfadd", "member")
+      r.renamenx("renamenx-source", "renamenx-destination")
+      r.move("move", 14)
+      r.copy("copy-source", "copy-destination")
+      r.msetnx("msetnx", "value")
+      r.delifeq("delifeq", "value")
+
+      result = r.exec
+      assert_equal Valkey::Commands::TransactionCommands::BOOLEAN_REQUEST_TYPES.size, result.size
+      assert result.all? { |value| [true, false].include?(value) }, "Expected only booleans, got #{result.inspect}"
+    end
+
     def test_multi_with_block_returns_futures_that_resolve_after_the_block
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
 
