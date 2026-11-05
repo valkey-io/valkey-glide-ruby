@@ -365,9 +365,11 @@ class Valkey
       #   rejected ("Unexpected argument `LOCALONLY`") once PARAMS has been
       #   parsed. `to_args` always emits it before `params` and `clauses`.
       # @param timeout [Integer, nil] overrides the module's timeout, in ms
-      # @param params [Hash, nil] param key/value pairs referenced from the
-      #   SEARCH query, a VSIM arm's `$name` vector reference, or any
-      #   clause's expression text
+      # @param params [Hash, nil] param key/value pairs. Substituted only
+      #   into the VSIM arm's `$name` vector reference and into clause
+      #   expression text (FILTER, APPLY). The SEARCH arm's query text is
+      #   not substituted — like FT.SEARCH, a `$name` reference there is
+      #   either taken as literal text or rejected, never replaced.
       # @param dialect [Integer, nil] FT.HYBRID is fixed at dialect 2
       #   server-side; passing any other value is rejected by the server
       def initialize(combine: nil, load_all: false, load_fields: nil, clauses: nil,
