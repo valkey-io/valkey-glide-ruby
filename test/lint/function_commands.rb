@@ -189,9 +189,9 @@ module Lint
         r.function_load(code)
         result = r.fcall("fcallfunc", keys: [], arguments: ["test"])
         assert_equal "test", result
-      rescue Valkey::CommandError => e
+      rescue Valkey::CommandError, Valkey::ReadOnlyError => e
         # In cluster mode, function may be loaded on different node than execution
-        raise unless e.message.include?("Function not found") || e.message.include?("ReadOnly")
+        raise unless e.message.include?("Function not found") || e.is_a?(Valkey::ReadOnlyError)
 
         skip("Function execution in cluster mode requires function on all nodes")
       rescue Valkey::TimeoutError
@@ -209,9 +209,9 @@ module Lint
         r.function_load(code)
         result = r.fcall("keysfunc", keys: ["mykey"], arguments: [])
         assert_equal "mykey", result
-      rescue Valkey::CommandError => e
+      rescue Valkey::CommandError, Valkey::ReadOnlyError => e
         # In cluster mode, function may be loaded on different node than execution
-        raise unless e.message.include?("Function not found") || e.message.include?("ReadOnly")
+        raise unless e.message.include?("Function not found") || e.is_a?(Valkey::ReadOnlyError)
 
         skip("Function execution in cluster mode requires function on all nodes")
       rescue Valkey::TimeoutError
@@ -240,9 +240,9 @@ module Lint
         r.function_load(code)
         result = r.fcall_ro("rofunc", keys: [], arguments: ["readonly"])
         assert_equal "readonly", result
-      rescue Valkey::CommandError => e
+      rescue Valkey::CommandError, Valkey::ReadOnlyError => e
         # In cluster mode, function may be loaded on different node than execution
-        raise unless e.message.include?("Function not found") || e.message.include?("ReadOnly")
+        raise unless e.message.include?("Function not found") || e.is_a?(Valkey::ReadOnlyError)
 
         skip("Function execution in cluster mode requires function on all nodes")
       rescue Valkey::TimeoutError

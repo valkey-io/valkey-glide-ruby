@@ -152,19 +152,17 @@ module ValkeyTests
     end
 
     # should raise when an ACL user runs a command outside its permissions
-    # The FFI maps the permission error to Valkey::CommandError. glide-core
-    # translates the server's NOPERM into a "PermissionDenied" message, so we
-    # assert the class and that distinctive token.
+    # The server's NOPERM reply raises Valkey::PermissionError, matching redis-rb.
     def test_acl_user_disallowed_command_raises
       skip("ACL auth tests only run on standalone mode") if cluster_mode?
       with_acl do |username, password|
         # Built directly, not via init: johndoe lacks +flushdb (and +set).
         client = _new_client(username: username, password: password)
         begin
-          error = assert_raises(::Valkey::CommandError) do
+          error = assert_raises(::Valkey::PermissionError) do
             client.set("k", "v")
           end
-          assert_includes error.message, "PermissionDenied"
+          assert_includes error.message, "NOPERM"
         ensure
           client.close
         end
@@ -185,7 +183,7 @@ module ValkeyTests
       with_default_user_password do |_user, password|
         client = _new_client(password: password)
         begin
-          error = assert_raises(::Valkey::CommandError) do
+          error = assert_raises(::Valkey::CannotConnectError) do
             client.auth("wrongpass")
           end
           # The runtime AUTH command surfaces the raw server WRONGPASS reply
