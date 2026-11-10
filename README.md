@@ -128,9 +128,7 @@ client.get("foo")
 
 A Ruby client currently have limited forking support. After each fork you need to recreate the Valkey instance.
 
-> **Note:** a client created before the fork raises `Valkey::InheritedError` in
-> the child. Create a new client in the child instead. The parent can keep using
-> Valkey before and after the fork.
+> **Note:** a client created before the fork raises `Valkey::InheritedError` in the child. Create a new client in the child instead. The parent can keep using Valkey before and after the fork.
 
 ## Building and Testing
 
