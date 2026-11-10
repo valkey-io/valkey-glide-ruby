@@ -128,10 +128,9 @@ client.get("foo")
 
 A Ruby client currently have limited forking support. After each fork you need to recreate the Valkey instance.
 
-> **Note:** if the parent issues any command before forking, a client created in
-> the child can still be killed by a native signal. This is a limitation of the
-> Rust core, tracked in [valkey-glide#6912](https://github.com/valkey-io/valkey-glide/pull/6912). Until
-> it ships, do not use Valkey in the parent process.
+> **Note:** a client created before the fork raises `Valkey::InheritedError` in
+> the child. Create a new client in the child instead. The parent can keep using
+> Valkey before and after the fork.
 
 ## Building and Testing
 

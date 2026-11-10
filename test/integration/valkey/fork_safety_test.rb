@@ -46,15 +46,10 @@ module ValkeyTests
       client&.close
     end
 
-    # Needs the glide-core watchdog fix (valkey-glide#6912, draft); the submodule
-    # is pinned before it, so a fresh child client SIGTRAPs and would take the
-    # whole suite down.
-    #
-    # To un-skip: bump the valkey-glide submodule past the watchdog PID fix,
-    # `rake native:build`, then delete the skip.
+    # The parent uses a client before forking, which arms glide-core's global
+    # timeout watchdog. Without valkey-glide#7569, which rebuilds it in the
+    # child, the child's new client is killed by SIGTRAP on macOS.
     def test_fork_child_proc_with_new_client
-      skip("blocked on the glide-core watchdog PID fix (valkey-glide#6912, draft)")
-
       client = _new_client
       assert_equal "PONG", client.ping
       assert_equal "OK", client.set(FORK_KEY, "before-fork")
