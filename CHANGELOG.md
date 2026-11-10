@@ -10,6 +10,8 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Changed server error replies to raise `Valkey::NoScriptError`, `Valkey::WrongTypeError`, `Valkey::OutOfMemoryError`, `Valkey::PermissionError`, `Valkey::ReadOnlyError` and `Valkey::ExecAbortError` as redis-rb does, instead of a plain `Valkey::CommandError`, and to use the server's own error text as the message. Breaking: `READONLY`, `MASTERDOWN` and authentication (`WRONGPASS`) errors now raise `Valkey::ReadOnlyError`, `Valkey::ConnectionError` and `Valkey::CannotConnectError`, which are not `Valkey::CommandError`, so code that rescues only `Valkey::CommandError` for them must also rescue `Valkey::BaseConnectionError`. ([#414](https://github.com/valkey-io/valkey-glide-ruby/pull/414))
+
 ### Removed
 
 ### Fixed
@@ -38,7 +40,6 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Changed server error replies to raise `Valkey::NoScriptError`, `Valkey::WrongTypeError`, `Valkey::OutOfMemoryError`, `Valkey::PermissionError`, `Valkey::ReadOnlyError` and `Valkey::ExecAbortError` as redis-rb does, instead of a plain `Valkey::CommandError`, and to use the server's own error text as the message. Breaking: `READONLY`, `MASTERDOWN` and authentication (`WRONGPASS`) errors now raise `Valkey::ReadOnlyError`, `Valkey::ConnectionError` and `Valkey::CannotConnectError`, which are not `Valkey::CommandError`, so code that rescues only `Valkey::CommandError` for them must also rescue `Valkey::BaseConnectionError`. ([#TBD](https://github.com/valkey-io/valkey-glide-ruby/pull/TBD))
 - Prevented `client(:subcommand)` from invoking private methods, so custom `Valkey` subclasses must make any dispatched `client_*` handlers public. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 - Trimmed whitespace from string `client_az` values and rejected blank values when an availability-zone affinity strategy is selected. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
 - Changed `eval`, `evalsha`, their read-only variants, and `script_load` to execute server commands, accept integer key counts, and report missing scripts instead of reloading them automatically. ([#227](https://github.com/valkey-io/valkey-glide-ruby/pull/227))
