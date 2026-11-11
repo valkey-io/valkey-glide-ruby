@@ -107,7 +107,7 @@ class Valkey
   #   from a queued command (e.g. WRONGTYPE) raises the first such error
   #   and aborts the pipeline's futures (see {Future#value}). Pass `false`
   #   to instead leave it in its slot of the returned Array as a
-  #   {CommandError} - other commands' replies stay reachable, matching
+  #   {BaseError} - other commands' replies stay reachable, matching
   #   the server's "no rollback on a runtime error" semantics.
   #
   # @return [Array] command results in pipeline order
@@ -876,7 +876,7 @@ class Valkey
 
       case error[:command_error_type]
       when RequestErrorType::EXECABORT
-        raise Valkey.error_for(error[:command_error_message])
+        raise Valkey.error_for(error[:command_error_message], default: ExecAbortError)
       when RequestErrorType::UNSPECIFIED
         raise Valkey.error_for(error[:command_error_message])
       when RequestErrorType::TIMEOUT

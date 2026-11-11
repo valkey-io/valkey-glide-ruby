@@ -93,22 +93,22 @@ class Valkey
 
   # Marks an exception built from a server error reply, as opposed to one raised
   # for a transport failure. The two can share a class - MASTERDOWN and a dropped
-  # connection both raise {ConnectionError} - so rescue this module to handle
-  # only the server's replies.
+  # connection both raise {ConnectionError} - so internal code can tell them apart.
   #
   # @api private
   module ServerReply; end
 
   # Builds the exception for a server error reply, picking the class from the
   # error code the same way redis-client does and using the server's original
-  # error text as the message. Unknown codes yield a plain {CommandError}.
+  # error text as the message. Unknown codes yield `default`.
   #
   # @param [String] message the error message returned by the server
+  # @param [Class] default the class used when the code is not recognised
   # @return [BaseError]
   # @api private
-  def self.error_for(message)
+  def self.error_for(message, default: CommandError)
     message = normalize_server_error(message)
-    SERVER_ERROR_CLASSES.fetch(server_error_code(message), CommandError).new(message).extend(ServerReply)
+    SERVER_ERROR_CLASSES.fetch(server_error_code(message), default).new(message).extend(ServerReply)
   end
 
   # @api private
@@ -136,4 +136,7 @@ class Valkey
 
     message.split(" ", 2).first.to_s
   end
+
+  private_class_method :normalize_server_error, :server_error_code
+  private_constant :SERVER_ERROR_CLASSES, :GLIDE_ERROR_KIND_CODES
 end

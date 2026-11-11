@@ -10,7 +10,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- Changed server error replies to raise `Valkey::NoScriptError`, `Valkey::WrongTypeError`, `Valkey::OutOfMemoryError`, `Valkey::PermissionError`, `Valkey::ReadOnlyError` and `Valkey::ExecAbortError` as redis-rb does, instead of a plain `Valkey::CommandError`, and to use the server's own error text as the message. Breaking: `READONLY`, `MASTERDOWN` and authentication (`WRONGPASS`) errors now raise `Valkey::ReadOnlyError`, `Valkey::ConnectionError` and `Valkey::CannotConnectError`, which are not `Valkey::CommandError`, so code that rescues only `Valkey::CommandError` for them must also rescue `Valkey::BaseConnectionError`. ([#414](https://github.com/valkey-io/valkey-glide-ruby/pull/414))
+- Changed server error replies to raise `Valkey::NoScriptError`, `Valkey::WrongTypeError`, `Valkey::OutOfMemoryError` and `Valkey::PermissionError` with the server's own error text as the message, as redis-rb does; `READONLY`, `MASTERDOWN` and `WRONGPASS` replies now raise `Valkey::ReadOnlyError`, `Valkey::ConnectionError` and `Valkey::CannotConnectError` instead of `Valkey::CommandError`. **Breaking.** ([#414](https://github.com/valkey-io/valkey-glide-ruby/pull/414))
 
 ### Removed
 

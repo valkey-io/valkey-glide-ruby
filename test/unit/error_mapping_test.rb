@@ -114,7 +114,48 @@ class ErrorMappingTest < Minitest::Test
     assert_raises(Valkey::ConnectionError) { multi_client { raise Valkey::ConnectionError, "dropped" }.discard }
   end
 
+  def test_error_for_uses_the_default_class_for_unrecognised_codes
+    assert_instance_of Valkey::ExecAbortError, Valkey.error_for("reworded by glide-core", default: Valkey::ExecAbortError)
+    assert_instance_of Valkey::CommandError, Valkey.error_for("reworded by glide-core")
+  end
+
+  def test_internal_helpers_are_not_public
+    refute_respond_to Valkey, :normalize_server_error
+    refute_respond_to Valkey, :server_error_code
+    assert_raises(NameError) { Valkey::SERVER_ERROR_CLASSES }
+    assert_raises(NameError) { Valkey::GLIDE_ERROR_KIND_CODES }
+  end
+
+  def test_watch_unwatches_after_a_server_reply_that_maps_to_a_connection_error
+    calls = []
+    client = watch_client(calls)
+
+    assert_raises(Valkey::ConnectionError) do
+      client.watch("key") { raise Valkey.error_for("MASTERDOWN Link with MASTER is down") }
+    end
+    assert_includes calls, Valkey::RequestType::UNWATCH
+  end
+
+  def test_watch_skips_unwatch_after_a_transport_failure
+    calls = []
+    client = watch_client(calls)
+
+    assert_raises(Valkey::ConnectionError) do
+      client.watch("key") { raise Valkey::ConnectionError, "connection dropped" }
+    end
+    refute_includes calls, Valkey::RequestType::UNWATCH
+  end
+
   private
+
+  def watch_client(calls)
+    client = Valkey.allocate
+    client.define_singleton_method(:send_command) do |request_type, *_args, **_opts, &_block|
+      calls << request_type
+      "OK"
+    end
+    client
+  end
 
   def multi_client(&failure)
     client = Valkey.allocate
