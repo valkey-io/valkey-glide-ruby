@@ -14,6 +14,8 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Stopped a client created in a forked child from being killed by `SIGTRAP` on macOS after the parent used Valkey, by updating glide-core to rebuild its timeout watchdog in forked children. ([#420](https://github.com/valkey-io/valkey-glide-ruby/pull/420))
+
 ## [1.1.0]
 
 ### Added
