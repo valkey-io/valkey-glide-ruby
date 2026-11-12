@@ -293,13 +293,13 @@ class Valkey
     # TLS/SSL certificates
     root_certs = []
     if options[:ssl_params].is_a?(Hash)
-      # ca_file - CA certificate file path
+      # ca_file - CA certificate file path, PEM text or OpenSSL::X509::Certificate
       root_certs << read_ssl_value(options[:ssl_params][:ca_file], "CA") if options[:ssl_params][:ca_file]
 
       # Additional root certificates from ca_path
       if options[:ssl_params][:ca_path]
         ca_path = options[:ssl_params][:ca_path]
-        raise ArgumentError, "CA path does not exist: #{ca_path}" unless Dir.exist?(ca_path)
+        raise ArgumentError, "CA path does not exist (pass a directory path)" unless Dir.exist?(ca_path)
 
         Dir.glob(File.join(ca_path, "*.crt")).each do |cert_file|
           root_certs << File.binread(cert_file) if File.readable?(cert_file)
@@ -309,10 +309,10 @@ class Valkey
         end
       end
 
-      # cert - file path or OpenSSL::X509::Certificate
+      # cert - file path, PEM text or OpenSSL::X509::Certificate
       json_options["client_cert"] = read_ssl_value(options[:ssl_params][:cert], "Cert") if options[:ssl_params][:cert]
 
-      # key - file path or OpenSSL::PKey
+      # key - file path, PEM text or OpenSSL::PKey
       json_options["client_key"] = read_ssl_value(options[:ssl_params][:key], "Key") if options[:ssl_params][:key]
 
       # Direct root_certs array support
@@ -663,14 +663,23 @@ class Valkey
     conn
   end
 
-  # Read an SSL value
-  # Accepts a file path (String), an OpenSSL object (#to_pem / #to_der), or a fallback #to_s.
+  # Resolves an `ssl_params` `ca_file`, `cert` or `key` value to certificate or key content.
+  # Accepts PEM text (a String containing `-----BEGIN `), a file path (any other String),
+  # an OpenSSL object (#to_pem / #to_der), or a fallback #to_s.
+  # Error messages never include the value: it may be a private key.
   def read_ssl_value(value, label)
     if value.is_a?(String)
-      raise ArgumentError, "#{label} file does not exist: #{value}" unless File.exist?(value)
-      raise ArgumentError, "#{label} file is not readable: #{value}" unless File.readable?(value)
+      return value if value.include?("-----BEGIN ")
 
-      File.binread(value)
+      expected = "(pass a file path, PEM text, or an OpenSSL object)"
+      raise ArgumentError, "#{label} file does not exist #{expected}" unless File.exist?(value)
+      raise ArgumentError, "#{label} file is not readable #{expected}" unless File.readable?(value)
+
+      begin
+        File.binread(value)
+      rescue SystemCallError, IOError
+        raise ArgumentError, "#{label} file could not be read #{expected}", cause: nil
+      end
     # Duck-typing check
     elsif value.respond_to?(:to_pem)
       value.to_pem
