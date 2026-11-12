@@ -336,6 +336,21 @@ jobs:
         env:
           STANDALONE_ENDPOINTS: ${{ env.MODULES_STANDALONE_ENDPOINT }}
 
+      # valkey-search 1.3 FT.* suite (test/integration/modules/ft_1_3_test.rb),
+      # against the same valkey-bundle:9.1.3 image the step above uses. The
+      # module on this image is search 1.2.1, so every test here skips with a
+      # stated reason (the capability probe in
+      # test/support/helper/search_capability.rb detects this live, not via a
+      # version-string compare) -- proof that the 1.3 tests really do skip on
+      # CI's pinned image lives here, not only in the local 3-configuration
+      # run against the out-of-band rc2 .so (see BUILD-MODULES-1.3.md, not
+      # wired into CI since no bundle tag ships rc2 cleanly).
+      - name: Run valkey-search 1.3 FT.* tests
+        run: bundle exec ruby -Itest -Ilib test/integration/modules/ft_1_3_test.rb
+        env:
+          MODULES_STANDALONE_ENDPOINT: ${{ env.MODULES_STANDALONE_ENDPOINT }}
+          MODULES_CLUSTER_ENDPOINTS: ${{ env.MODULES_CLUSTER_ENDPOINTS }}
+
       - name: Stop containers
         if: always()
         run: |

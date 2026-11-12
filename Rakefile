@@ -160,7 +160,8 @@ namespace :test do
   groups = {
     unit: "unit",
     standalone: "integration/standalone",
-    cluster: "integration/cluster"
+    cluster: "integration/cluster",
+    modules: "integration/modules"
   }
   groups.each do |group, dir|
     Rake::TestTask.new(group) do |t|

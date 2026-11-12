@@ -111,6 +111,40 @@ class TestSearchQuery < Minitest::Test
     assert_equal %w[ALLSHARDS CONSISTENT], opts.to_args
   end
 
+  def test_in_keys
+    opts = Valkey::Search::SearchOptions.new(in_keys: %w[doc1 doc2])
+    assert_equal ["INKEYS", 2, "doc1", "doc2"], opts.to_args
+  end
+
+  def test_in_keys_empty_array_emits_inkeys_zero
+    opts = Valkey::Search::SearchOptions.new(in_keys: [])
+    assert_equal ["INKEYS", 0], opts.to_args
+  end
+
+  def test_count_option_emits_limit_zero_zero
+    opts = Valkey::Search::SearchOptions.new(count: true)
+    assert_equal %w[LIMIT 0 0], opts.to_args
+  end
+
+  def test_count_and_limit_mutually_exclusive
+    assert_raises(ArgumentError) { Valkey::Search::SearchOptions.new(count: true, limit: [0, 10]) }
+  end
+
+  def test_with_scores
+    opts = Valkey::Search::SearchOptions.new(with_scores: true)
+    assert_equal ["WITHSCORES"], opts.to_args
+  end
+
+  def test_scorer
+    opts = Valkey::Search::SearchOptions.new(scorer: "BM25STD")
+    assert_equal %w[SCORER BM25STD], opts.to_args
+  end
+
+  def test_with_scores_and_scorer_order
+    opts = Valkey::Search::SearchOptions.new(limit: [0, 10], with_scores: true, scorer: "BM25STD")
+    assert_equal ["LIMIT", 0, 10, "WITHSCORES", "SCORER", "BM25STD"], opts.to_args
+  end
+
   def test_full_option_order
     opts = Valkey::Search::SearchOptions.new(
       no_content: false, verbatim: true, in_order: true, slop: 1,
@@ -337,6 +371,76 @@ class TestSearchQuery < Minitest::Test
     assert_equal "doc:1", doc.key
     assert_equal "42", doc.sort_key
     assert_empty doc.fields
+  end
+
+  # C1: WITHSCORES map form -- [score, field_map]. Previously dropped both
+  # the score and the fields entirely because parse_map never read a
+  # with_scores flag.
+  def test_from_raw_map_with_scores
+    raw = [2, { "doc:1" => ["1.5", { "title" => "hello" }], "doc:2" => ["0.75", { "title" => "world" }] }]
+    result = Valkey::Search::SearchResult.from_raw(raw, with_scores: true)
+    assert_equal 2, result.total_results
+    doc1 = result.documents.find { |d| d.key == "doc:1" }
+    doc2 = result.documents.find { |d| d.key == "doc:2" }
+    assert_in_delta 1.5, doc1.score.to_f
+    assert_equal({ "title" => "hello" }, doc1.fields)
+    assert_nil doc1.sort_key
+    assert_in_delta 0.75, doc2.score.to_f
+    assert_equal({ "title" => "world" }, doc2.fields)
+  end
+
+  # C1: WITHSCORES + WITHSORTKEYS map form -- [score, sort_key, field_map].
+  # Previously the score was misreported as the sort key, and the fields
+  # were dropped.
+  def test_from_raw_map_with_scores_and_sort_keys
+    raw = [1, { "doc:1" => ["2.25", "#1", { "price" => "10" }] }]
+    result = Valkey::Search::SearchResult.from_raw(raw, with_scores: true, with_sort_keys: true)
+    doc = result.documents.first
+    assert_in_delta 2.25, doc.score.to_f
+    assert_equal "#1", doc.sort_key
+    assert_equal({ "price" => "10" }, doc.fields)
+  end
+
+  # C1: WITHSCORES + NOCONTENT map form -- the value is the bare score,
+  # not an Array, matching the WITHSORTKEYS+NOCONTENT bare-scalar shape.
+  def test_from_raw_map_with_scores_no_content
+    raw = [1, { "doc:1" => "3.0" }]
+    result = Valkey::Search::SearchResult.from_raw(raw, with_scores: true, no_content: true)
+    doc = result.documents.first
+    assert_in_delta 3.0, doc.score.to_f
+    assert_empty doc.fields
+    assert_nil doc.sort_key
+  end
+
+  # C1: WITHSCORES flat (RESP2) form -- key, score, field pairs.
+  def test_from_raw_flat_with_scores
+    raw = [1, "doc:1", "1.5", %w[title hello]]
+    result = Valkey::Search::SearchResult.from_raw(raw, with_scores: true)
+    doc = result.documents.first
+    assert_equal "doc:1", doc.key
+    assert_in_delta 1.5, doc.score.to_f
+    assert_equal({ "title" => "hello" }, doc.fields)
+  end
+
+  # C1: WITHSCORES + WITHSORTKEYS flat form -- key, score, sort_key, fields.
+  def test_from_raw_flat_with_scores_and_sort_keys
+    raw = [1, "doc:1", "2.0", "#1", %w[title hello]]
+    result = Valkey::Search::SearchResult.from_raw(raw, with_scores: true, with_sort_keys: true)
+    doc = result.documents.first
+    assert_in_delta 2.0, doc.score.to_f
+    assert_equal "#1", doc.sort_key
+    assert_equal({ "title" => "hello" }, doc.fields)
+  end
+
+  # ft_search threads with_scores through to SearchResult.from_raw so the
+  # typed API (not just raw custom_command) parses the reshaped reply.
+  def test_ft_search_with_scores_builder_parses_score_and_fields
+    client = FakeClient.new([1, { "doc:1" => ["1.5", { "title" => "hello" }] }])
+    result = client.ft_search("idx", "hello", with_scores: true)
+    assert_equal %w[idx hello WITHSCORES], client.captured_args
+    doc = result.documents.first
+    assert_in_delta 1.5, doc.score.to_f
+    assert_equal({ "title" => "hello" }, doc.fields)
   end
 
   # a bare Symbol return field is accepted and stringified.

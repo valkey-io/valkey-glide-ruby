@@ -69,6 +69,50 @@ class TestSearchAggregate < Minitest::Test
     assert_equal ["REDUCE", "TOLIST", 1, "@tag"], S::Reducer.new(:tolist, "@tag").to_args
   end
 
+  # H4: typed TOLIST / FIRST_VALUE / RANDOM_SAMPLE reducers (valkey-search
+  # 1.3.0, #932/#946/#949; #7335/AEA-557).
+
+  def test_reducer_to_list
+    assert_equal ["REDUCE", "TOLIST", 1, "@price", "AS", "prices"],
+                 S::Reducer.to_list("@price", as: "prices").to_args
+  end
+
+  def test_reducer_to_list_without_alias
+    assert_equal ["REDUCE", "TOLIST", 1, "@color"], S::Reducer.to_list("@color").to_args
+  end
+
+  def test_reducer_first_value_without_by
+    assert_equal ["REDUCE", "FIRST_VALUE", 1, "@title", "AS", "any_title"],
+                 S::Reducer.first_value("@title", as: "any_title").to_args
+  end
+
+  def test_reducer_first_value_with_by_and_order
+    assert_equal(
+      ["REDUCE", "FIRST_VALUE", 4, "@title", "BY", "@price", "DESC", "AS", "most_expensive_title"],
+      S::Reducer.first_value("@title", by: "@price", order: :desc, as: "most_expensive_title").to_args
+    )
+  end
+
+  def test_reducer_first_value_with_by_no_order
+    assert_equal ["REDUCE", "FIRST_VALUE", 3, "@title", "BY", "@price"],
+                 S::Reducer.first_value("@title", by: "@price").to_args
+  end
+
+  def test_reducer_first_value_order_without_by_raises
+    err = assert_raises(ArgumentError) { S::Reducer.first_value("@title", order: :desc) }
+    assert_match(/order requires by/, err.message)
+  end
+
+  def test_reducer_random_sample
+    assert_equal ["REDUCE", "RANDOM_SAMPLE", 2, "@price", "10", "AS", "sample"],
+                 S::Reducer.random_sample("@price", 10, as: "sample").to_args
+  end
+
+  def test_reducer_random_sample_without_alias
+    assert_equal ["REDUCE", "RANDOM_SAMPLE", 2, "@score", "5"],
+                 S::Reducer.random_sample("@score", 5).to_args
+  end
+
   # ---- GroupBy clause ----
 
   def test_group_by_with_reducers
@@ -203,6 +247,32 @@ class TestSearchAggregate < Minitest::Test
   def test_aggregate_options_rejects_bad_dialect
     err = assert_raises(ArgumentError) { S::AggregateOptions.new(dialect: 3) }
     assert_match(/unsupported dialect/, err.message)
+  end
+
+  def test_aggregate_options_load_fields_with_load_field_alias
+    opts = S::AggregateOptions.new(load: ["title", S::LoadField.new("price", alias: "p")])
+    assert_equal ["LOAD", 4, "title", "price", "AS", "p"], opts.to_args
+  end
+
+  def test_aggregate_options_add_scores
+    opts = S::AggregateOptions.new(add_scores: true)
+    assert_equal ["ADDSCORES"], opts.to_args
+  end
+
+  def test_aggregate_options_scorer
+    opts = S::AggregateOptions.new(scorer: "BM25STD")
+    assert_equal %w[SCORER BM25STD], opts.to_args
+  end
+
+  def test_aggregate_options_with_cursor
+    opts = S::AggregateOptions.new(with_cursor: S::WithCursor.new(count: 10))
+    assert_equal ["WITHCURSOR", "COUNT", 10], opts.to_args
+  end
+
+  def test_aggregate_options_dialect_scoring_cursor_order
+    opts = S::AggregateOptions.new(dialect: 2, add_scores: true, scorer: "BM25STD",
+                                   with_cursor: S::WithCursor.new(count: 1))
+    assert_equal ["DIALECT", 2, "ADDSCORES", "SCORER", "BM25STD", "WITHCURSOR", "COUNT", 1], opts.to_args
   end
 
   def test_aggregate_options_rejects_non_clause

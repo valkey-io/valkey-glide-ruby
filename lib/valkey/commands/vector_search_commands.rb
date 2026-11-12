@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "securerandom"
+
 class Valkey
   module Commands
     # Commands for Valkey Search (the FT.* command family): secondary indexing,
@@ -151,7 +153,8 @@ class Valkey
                    Valkey::Search::SearchOptions.new
         raw = send_command(RequestType::FT_SEARCH, [index, query] + resolved.to_args)
         Valkey::Search::SearchResult.from_raw(
-          raw, no_content: resolved.no_content, with_sort_keys: resolved.with_sort_keys
+          raw, no_content: resolved.no_content, with_sort_keys: resolved.with_sort_keys,
+               with_scores: resolved.with_scores
         )
       end
 
@@ -197,7 +200,147 @@ class Valkey
         resolved = ft_resolve_options(Valkey::Search::AggregateOptions, options, kwargs, label: "ft_aggregate")
         command_args = [index, query]
         command_args.concat(resolved.to_args) if resolved
-        send_command(RequestType::FT_AGGREGATE, command_args)
+        route = resolved&.with_cursor ? ft_cursor_route(index) : nil
+        send_command(RequestType::FT_AGGREGATE, command_args, route: route)
+      end
+
+      # Combines a text/tag/numeric query (the SEARCH arm) with a vector
+      # similarity search (the VSIM arm) in a single query, fusing both
+      # arms' results into one ranked reply.
+      #
+      #     valkey.ft_hybrid("idx",
+      #       Valkey::Search::HybridSearchArm.new("hello world"),
+      #       Valkey::Search::HybridVsimArm.new("vec", query_vector_bytes, k: 10))
+      #
+      #     # With RRF fusion, a LOAD clause and WITHCURSOR paging:
+      #     valkey.ft_hybrid("idx",
+      #       Valkey::Search::HybridSearchArm.new("hello world", yield_score_as: "ss"),
+      #       Valkey::Search::HybridVsimArm.new("vec", query_vector_bytes, k: 10, yield_score_as: "vs"),
+      #       Valkey::Search::HybridOptions.new(
+      #         combine: Valkey::Search::HybridCombine.rrf(constant: 60),
+      #         load_fields: ["title"],
+      #         with_cursor: Valkey::Search::WithCursor.new(count: 10)))
+      #
+      # ### Limitations
+      #
+      # **Dispatched via a raw custom command, not a typed RequestType.**
+      # FT.HYBRID has no typed `RequestType::FT_HYBRID` yet — the upstream
+      # core PR adding `FtHybrid`/`FtCursorRead`/`FtCursorDel` RequestTypes
+      # (valkey-io/valkey-glide#7456) is not merged into the submodule commit
+      # this client is pinned to. The argv this method builds is otherwise
+      # identical to what a typed dispatch would send, so re-pinning to a
+      # submodule commit with the merged core PR and switching this to
+      # `RequestType::FT_HYBRID` is a routing-only change with no argv impact.
+      # See the gem's `Limitations` section in the project README/CHANGELOG
+      # for tracking.
+      #
+      # Not supported inside `pipelined` / `multi`, matching every other
+      # FT.* command.
+      #
+      # @param [String] index - the index name to query
+      # @param [Valkey::Search::HybridSearchArm] search_arm - the text/tag/numeric query arm
+      # @param [Valkey::Search::HybridVsimArm] vsim_arm - the vector similarity search arm
+      # @param [Valkey::Search::HybridOptions, nil] options - the optional
+      #   arguments for FT.HYBRID's aggregate-suffix tail
+      #
+      # @return [Array] an array of field-name/value mappings for each
+      #   matching document, after both arms' results have been fused and
+      #   any clauses in +options+ applied. With no LOAD clause (the
+      #   default), each mapping contains just the document key and the
+      #   fused score. When `options.with_cursor` is set, the reply shape
+      #   instead matches FT.AGGREGATE's own WITHCURSOR shape: a two-element
+      #   array of `[rows, cursor_id]`.
+      #
+      # @raise [ArgumentError] when used inside a batch
+      #
+      # @see https://valkey.io/commands/ft.hybrid/
+      def ft_hybrid(index, search_arm, vsim_arm, options = nil)
+        ft_assert_supported!("ft_hybrid", flatten_map_check: false)
+        command_args = ["FT.HYBRID", index]
+        command_args.concat(search_arm.to_args)
+        generated_vsim_param = nil
+        if vsim_arm.param_reference?
+          command_args.concat(vsim_arm.to_args)
+        else
+          generated_name = "$#{SecureRandom.hex}"
+          generated_vsim_param = { generated_name[1..] => vsim_arm.vector }
+          command_args.concat(vsim_arm.to_args(generated_param_name: generated_name))
+        end
+        command_args.concat(options.combine.to_args) if options&.combine
+        command_args.concat(
+          (options || Valkey::Search::HybridOptions.new).to_args(generated_vsim_param: generated_vsim_param)
+        )
+        route = options&.with_cursor ? ft_cursor_route(index) : nil
+        send_command(RequestType::CUSTOM_COMMAND, command_args, route: route)
+      end
+
+      # Reads the next page of results from a cursor opened by {#ft_aggregate}
+      # (with `AggregateOptions.new(with_cursor: ...)`) or {#ft_hybrid} (with
+      # `HybridOptions.new(with_cursor: ...)`).
+      #
+      #     rows, cursor_id = valkey.ft_aggregate("idx", "*",
+      #       load: ["__key"], with_cursor: Valkey::Search::WithCursor.new(count: 10))
+      #     while cursor_id != 0
+      #       rows, cursor_id = valkey.ft_cursor_read("idx", cursor_id)
+      #     end
+      #
+      # ### Limitations
+      #
+      # Dispatched via a raw custom command rather than a typed
+      # `RequestType::FT_CURSOR_READ` — see {#ft_hybrid}'s Limitations.
+      #
+      # Always reads from the PRIMARY of the index's slot in cluster mode
+      # , regardless of the client's ReadFrom configuration — a cursor
+      # is a per-process, node-local server resource, and a read routed to a
+      # different node fails with "Cursor not found". A cursor opened by
+      # FT.HYBRID is read the same way as one opened by FT.AGGREGATE; the
+      # server does not distinguish which command created it.
+      #
+      # @param [String] index - the index name the cursor was opened against
+      # @param [Integer] cursor_id - the cursor id, from the opening command's
+      #   reply or a previous {#ft_cursor_read} call. `0` means the cursor
+      #   is already exhausted; calling this with `0` is a caller error, not
+      #   something this method special-cases.
+      # @param [Integer, nil] count - overrides how many rows this page
+      #   returns, instead of the count the cursor was opened with
+      #
+      # @return [Array] a two-element array of `[rows, cursor_id]`, where
+      #   `rows` is the same per-document mapping shape {#ft_aggregate}/
+      #   {#ft_hybrid} return, and `cursor_id` is `0` once the cursor is
+      #   exhausted, or the id to pass to the next {#ft_cursor_read} call
+      #
+      # @see https://valkey.io/commands/ft.cursor/
+      def ft_cursor_read(index, cursor_id, count: nil)
+        command_args = ["FT.CURSOR", "READ", index, cursor_id.to_s]
+        command_args.push("COUNT", count) unless count.nil?
+        send_command(RequestType::CUSTOM_COMMAND, command_args, route: ft_cursor_route(index))
+      end
+
+      # Deletes an open cursor, discarding it before it would otherwise be
+      # exhausted or time out.
+      #
+      #     rows, cursor_id = valkey.ft_aggregate("idx", "*",
+      #       load: ["__key"], with_cursor: Valkey::Search::WithCursor.new(count: 1))
+      #     valkey.ft_cursor_del("idx", cursor_id)
+      #       # => "OK"
+      #
+      # ### Limitations
+      #
+      # Dispatched via a raw custom command rather than a typed
+      # `RequestType::FT_CURSOR_DEL` — see {#ft_hybrid}'s Limitations.
+      #
+      # Always reads from the PRIMARY of the index's slot in cluster mode
+      # — see {#ft_cursor_read}'s routing note.
+      #
+      # @param [String] index - the index name the cursor was opened against
+      # @param [Integer] cursor_id - the cursor id to delete
+      #
+      # @return [String] "OK"
+      #
+      # @see https://valkey.io/commands/ft.cursor/
+      def ft_cursor_del(index, cursor_id)
+        command_args = ["FT.CURSOR", "DEL", index, cursor_id.to_s]
+        send_command(RequestType::CUSTOM_COMMAND, command_args, route: ft_cursor_route(index))
       end
 
       private
@@ -291,6 +434,21 @@ class Valkey
         return nil unless defined?(Valkey::Route)
 
         Valkey::Route.all_primaries
+      end
+
+      # A cursor is a per-process, node-local server resource. FT.CURSOR
+      # READ/DEL and every WITHCURSOR-opening query must therefore pin to the
+      # PRIMARY that holds the cursor: the index's own slot, not an arbitrary
+      # node. Returns nil on standalone (and wherever routing is unavailable,
+      # e.g. a queued batch), which leaves the command's default routing
+      # untouched — standalone has only one node to route to anyway.
+      #
+      # @api private
+      def ft_cursor_route(index)
+        return nil unless @cluster_mode
+        return nil unless defined?(Valkey::Route)
+
+        Valkey::Route.slot_key(index, :primary)
       end
 
       # ft_search parses the reply into a structured result, which is incompatible
