@@ -107,7 +107,7 @@ class Valkey
   #   from a queued command (e.g. WRONGTYPE) raises the first such error
   #   and aborts the pipeline's futures (see {Future#value}). Pass `false`
   #   to instead leave it in its slot of the returned Array as a
-  #   {CommandError} - other commands' replies stay reachable, matching
+  #   {BaseError} - other commands' replies stay reachable, matching
   #   the server's "no rollback on a runtime error" semantics.
   #
   # @return [Array] command results in pipeline order
@@ -789,13 +789,7 @@ class Valkey
       end
     end
 
-    # An inline error slot (see the ResponseType::ERROR case in
-    # convert_response above) must be left alone here - e.g. Utils::Boolify
-    # would otherwise silently coerce a CommandError object to `true`
-    # (`value != 0` is true for any non-numeric object), hiding the error.
-    blocks.each_with_index do |block, i|
-      results[i] = block.call(results[i]) if block && !results[i].is_a?(CommandError)
-    end
+    apply_reply_blocks(results, blocks)
 
     results
   end
@@ -861,6 +855,19 @@ class Valkey
     [arg_ptrs, arg_lens, buffers, command_args]
   end
 
+  # An inline error slot (see the ResponseType::ERROR case in convert_response)
+  # must be left alone here - e.g. Utils::Boolify would otherwise silently coerce
+  # an error object to `true` (`value != 0` is true for any non-numeric object),
+  # hiding the error. Any BaseError is skipped, since a server error reply can map
+  # to a connection error class (READONLY, MASTERDOWN) as well as a CommandError.
+  def apply_reply_blocks(results, blocks)
+    blocks.each_with_index do |block, i|
+      results[i] = block.call(results[i]) if block && !results[i].is_a?(BaseError)
+    end
+
+    results
+  end
+
   def convert_response(res, &block)
     result = Bindings::CommandResult.new(res)
 
@@ -869,9 +876,9 @@ class Valkey
 
       case error[:command_error_type]
       when RequestErrorType::EXECABORT
-        raise ExecAbortError, error[:command_error_message]
+        raise Valkey.error_for(error[:command_error_message], default: ExecAbortError)
       when RequestErrorType::UNSPECIFIED
-        raise CommandError, error[:command_error_message]
+        raise Valkey.error_for(error[:command_error_message])
       when RequestErrorType::TIMEOUT
         raise TimeoutError, error[:command_error_message]
       when RequestErrorType::DISCONNECT
@@ -940,7 +947,7 @@ class Valkey
                     else
                       response_item[:string_value].read_string(response_item[:string_value_len])
                     end
-        CommandError.new(error_msg)
+        Valkey.error_for(error_msg)
       else
         raise "Unsupported response type: #{response_item[:response_type]}"
       end

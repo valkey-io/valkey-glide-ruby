@@ -65,10 +65,12 @@ module Helper
         Make sure Valkey Cluster Node is running on localhost, port #{PORT_CLUSTER_MODE}.
       MSG
       exit 1
-    rescue Valkey::CommandError => e
+    rescue Valkey::ReadOnlyError
       # In cluster mode, flushdb might hit a read-only replica
       # This is acceptable during test setup
-      raise unless e.message.include?("ReadOnly") || e.message.include?("read only replica")
+      valkey
+    rescue Valkey::CommandError => e
+      raise unless e.message.include?("read only replica")
 
       valkey
     end
