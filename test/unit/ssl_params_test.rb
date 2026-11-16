@@ -21,6 +21,9 @@ class TestSslParams < Minitest::Test
   KEY_PEM = KEY.to_pem
   CERT_PEM = CERT.to_pem
   KEY_BODY = KEY_PEM.lines[1..-2].join
+  # Shorter lines, such as blank lines and short base64 tails, can match
+  # unrelated error text, so they are not checked on their own.
+  MIN_LEAK_LINE_LENGTH = 9
 
   def captured_json_options(ssl_params)
     json = nil
@@ -40,11 +43,16 @@ class TestSslParams < Minitest::Test
     JSON.parse(json)
   end
 
+  # The whole secret and each of its lines, so a partial leak also fails.
+  def leak_fragments(secret)
+    lines = secret.each_line.map(&:strip).select { |line| line.length >= MIN_LEAK_LINE_LENGTH }
+    [secret, *lines]
+  end
+
   def assert_no_leak(error, *secrets)
     messages = [error.message, error.full_message(highlight: false)]
-    secrets.each do |secret|
-      messages.each { |message| refute_includes message, secret }
-      secret.each_line { |line| messages.each { |message| refute_includes message, line.strip } if line.strip.size > 8 }
+    secrets.flat_map { |secret| leak_fragments(secret) }.each do |fragment|
+      messages.each { |message| refute_includes message, fragment }
     end
     assert_nil error.cause
   end
