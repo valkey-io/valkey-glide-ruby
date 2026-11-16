@@ -14,8 +14,6 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Stopped echoing `ssl_params` values, including private keys, in connection errors, and accepted PEM text for `ca_file`, `cert`, and `key`. ([#428](https://github.com/valkey-io/valkey-glide-ruby/pull/428))
-
 ## [1.1.0]
 
 ### Added
@@ -40,6 +38,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Changed `publish` to accept positional arguments as `publish(channel, message, sharded: false)`, matching redis-rb. ([#432](https://github.com/valkey-io/valkey-glide-ruby/pull/432))
 - Prevented `client(:subcommand)` from invoking private methods, so custom `Valkey` subclasses must make any dispatched `client_*` handlers public. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))
 - Trimmed whitespace from string `client_az` values and rejected blank values when an availability-zone affinity strategy is selected. ([#349](https://github.com/valkey-io/valkey-glide-ruby/pull/349))
 - Changed `eval`, `evalsha`, their read-only variants, and `script_load` to execute server commands, accept integer key counts, and report missing scripts instead of reloading them automatically. ([#227](https://github.com/valkey-io/valkey-glide-ruby/pull/227))
@@ -51,6 +50,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Stopped echoing `ssl_params` values, including private keys, in connection errors, and accepted PEM text for `ca_file`, `cert`, and `key`. ([#428](https://github.com/valkey-io/valkey-glide-ruby/pull/428))
 - Required TLS for IAM authentication, rejecting IAM configurations without TLS during client creation. ([#397](https://github.com/valkey-io/valkey-glide-ruby/pull/397))
 - Rejected `cluster_mode: true` without an explicit seed node instead of connecting to the standalone default. ([#344](https://github.com/valkey-io/valkey-glide-ruby/pull/344))
 - Treated empty `lib_name:` and `client_info_tag:` values as unset so they no longer produce invalid library names. ([#246](https://github.com/valkey-io/valkey-glide-ruby/pull/246))

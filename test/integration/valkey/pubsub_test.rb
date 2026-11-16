@@ -17,7 +17,7 @@ module ValkeyTests
 
       with_client(pubsub: { subscriptions: { exact: [channel] } }) do |client|
         # Uses try_get_pubsub_message polling underneath
-        received = publish_until_received("connect-time", channel, client)
+        received = publish_until_received(channel, "connect-time", client)
 
         assert_equal "connect-time", received.message
         assert_equal channel, received.channel
@@ -30,7 +30,7 @@ module ValkeyTests
 
       with_client do |client|
         client.subscribe(channel)
-        r.publish("runtime", channel)
+        r.publish(channel, "runtime")
         received = wait_for_message(client)
 
         assert_equal "runtime", received.message
@@ -44,7 +44,7 @@ module ValkeyTests
 
       with_client do |client|
         client.subscribe(channel)
-        payloads.each { |payload| r.publish(payload, channel) }
+        payloads.each { |payload| r.publish(channel, payload) }
 
         received = payloads.map { wait_for_message(client).message }
 
@@ -58,7 +58,7 @@ module ValkeyTests
 
       with_client do |client|
         client.subscribe(channel)
-        r.publish(payload, channel)
+        r.publish(channel, payload)
         received = wait_for_message(client)
 
         assert_equal payload.bytesize, received.message.bytesize
@@ -83,7 +83,7 @@ module ValkeyTests
 
         refute reader.join(0.2), "get_pubsub_message returned before anything was published"
 
-        r.publish("message", channel)
+        r.publish(channel, "message")
         received = Timeout.timeout(MESSAGE_WAIT_SECONDS) { reader.value }
 
         assert_equal "message", received.message
@@ -111,11 +111,11 @@ module ValkeyTests
       with_client do |first_subscriber|
         with_client do |second_subscriber|
           # No subscribers yet, so the count is zero
-          assert_equal 0, first_subscriber.publish("message", channel)
+          assert_equal 0, first_subscriber.publish(channel, "message")
 
           first_subscriber.subscribe(channel)
           second_subscriber.subscribe(channel)
-          assert_equal 2, r.publish("counted", channel)
+          assert_equal 2, r.publish(channel, "counted")
         end
       end
     end
@@ -125,13 +125,13 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.subscribe(channel)
-        r.publish("first", channel)
+        r.publish(channel, "first")
 
         assert_equal "first", wait_for_message(subscriber).message
 
         subscriber.unsubscribe(channel)
 
-        assert_equal 0, r.publish("second", channel)
+        assert_equal 0, r.publish(channel, "second")
         assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
       end
     end
@@ -145,7 +145,7 @@ module ValkeyTests
         # Default to unsubscribe all channels
         subscriber.unsubscribe
 
-        channels.each { |channel| assert_equal 0, r.publish("orphan", channel) }
+        channels.each { |channel| assert_equal 0, r.publish(channel, "orphan") }
         assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
       end
     end
@@ -159,7 +159,7 @@ module ValkeyTests
             channel = unique_channel("confirmed-#{index}")
             subscriber.subscribe(channel)
 
-            subscriber_count = publisher.publish("immediate-#{index}", channel)
+            subscriber_count = publisher.publish(channel, "immediate-#{index}")
             assert_equal 1, subscriber_count
 
             message = wait_for_message(subscriber).message
@@ -185,7 +185,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.subscribe(channel, timeout_ms: 0)
-        publish_until_received("zero-timeout", channel, subscriber)
+        publish_until_received(channel, "zero-timeout", subscriber)
         subscriber.unsubscribe(channel, timeout_ms: 0)
       end
     end
@@ -196,7 +196,7 @@ module ValkeyTests
 
       subscriber.subscribe(channel)
 
-      assert_equal "default-protocol", publish_until_received("default-protocol", channel, subscriber).message
+      assert_equal "default-protocol", publish_until_received(channel, "default-protocol", subscriber).message
     ensure
       subscriber&.close
     end
@@ -215,7 +215,7 @@ module ValkeyTests
       channel = unique_channel
       subscriber = _new_client(pubsub: { subscriptions: { exact: [channel] } })
 
-      assert_equal "connect-default", publish_until_received("connect-default", channel, subscriber).message
+      assert_equal "connect-default", publish_until_received(channel, "connect-default", subscriber).message
     ensure
       subscriber&.close
     end
@@ -243,7 +243,7 @@ module ValkeyTests
         assert_equal "PONG", subscriber.ping
         assert_equal "value", subscriber.get(key)
 
-        r.publish("after-command", channel)
+        r.publish(channel, "after-command")
 
         recv = wait_for_message(subscriber)
         assert_equal "after-command", recv.message
@@ -256,7 +256,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.psubscribe(pattern)
-        r.publish("pattern-msg", channel)
+        r.publish(channel, "pattern-msg")
         msg = wait_for_message(subscriber)
 
         assert_equal "pattern-msg", msg.message
@@ -271,12 +271,12 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.psubscribe(pattern)
-        r.publish("before", channel)
+        r.publish(channel, "before")
         assert_equal "before", wait_for_message(subscriber).message
 
         subscriber.punsubscribe(pattern)
 
-        r.publish("after", channel)
+        r.publish(channel, "after")
         assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
       end
     end
@@ -287,7 +287,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.psubscribe(first, second)
-        r.publish("before", first.sub(".*", ".x"))
+        r.publish(first.sub(".*", ".x"), "before")
         assert_equal "before", wait_for_message(subscriber).message
 
         subscriber.punsubscribe
@@ -303,7 +303,7 @@ module ValkeyTests
       with_client do |subscriber|
         subscriber.subscribe_lazy(channel)
 
-        received = publish_until_received("lazy-msg", channel, subscriber)
+        received = publish_until_received(channel, "lazy-msg", subscriber)
 
         assert_equal "lazy-msg", received.message
         assert_equal channel,    received.channel
@@ -318,7 +318,7 @@ module ValkeyTests
       with_client do |subscriber|
         subscriber.psubscribe_lazy(pattern)
 
-        received = publish_until_received("lazy-pattern-msg", channel, subscriber)
+        received = publish_until_received(channel, "lazy-pattern-msg", subscriber)
 
         assert_equal "lazy-pattern-msg", received.message
         assert_equal channel,            received.channel
@@ -331,7 +331,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.subscribe_lazy(channel)
-        publish_until_received("before", channel, subscriber)
+        publish_until_received(channel, "before", subscriber)
 
         subscriber.unsubscribe_lazy(channel)
 
@@ -345,7 +345,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.psubscribe_lazy(pattern)
-        publish_until_received("before", channel, subscriber)
+        publish_until_received(channel, "before", subscriber)
 
         subscriber.punsubscribe_lazy(pattern)
 
@@ -359,7 +359,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.subscribe(first, second)
-        publish_until_received("before", first, subscriber)
+        publish_until_received(first, "before", subscriber)
 
         subscriber.unsubscribe_lazy
 
@@ -374,7 +374,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.psubscribe(first, second)
-        publish_until_received("before", first.sub(".*", ".x"), subscriber)
+        publish_until_received(first.sub(".*", ".x"), "before", subscriber)
 
         subscriber.punsubscribe_lazy
 
@@ -491,7 +491,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.ssubscribe(channel)
-        r.publish("sharded-msg", channel, sharded: true)
+        r.publish(channel, "sharded-msg", sharded: true)
         received = wait_for_message(subscriber)
 
         assert_equal "sharded-msg", received.message
@@ -506,10 +506,10 @@ module ValkeyTests
       channel = unique_channel
 
       with_client do |subscriber|
-        assert_equal 0, r.publish("nobody", channel, sharded: true)
+        assert_equal 0, r.publish(channel, "nobody", sharded: true)
 
         subscriber.ssubscribe(channel)
-        assert_equal 1, r.publish("counted", channel, sharded: true)
+        assert_equal 1, r.publish(channel, "counted", sharded: true)
       end
     end
 
@@ -520,12 +520,12 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.ssubscribe(channel)
-        r.publish("before", channel, sharded: true)
+        r.publish(channel, "before", sharded: true)
         assert_equal "before", wait_for_message(subscriber).message
 
         subscriber.sunsubscribe(channel)
 
-        assert_equal 0, r.publish("after", channel, sharded: true)
+        assert_equal 0, r.publish(channel, "after", sharded: true)
         assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
       end
     end
@@ -542,7 +542,7 @@ module ValkeyTests
 
         subscriber.sunsubscribe
 
-        channels.each { |channel| assert_equal 0, r.publish("orphan", channel, sharded: true) }
+        channels.each { |channel| assert_equal 0, r.publish(channel, "orphan", sharded: true) }
         assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
       end
     end
@@ -555,7 +555,7 @@ module ValkeyTests
       with_client do |subscriber|
         subscriber.ssubscribe_lazy(channel)
 
-        received = publish_until_received_sharded("lazy-sharded-msg", channel, subscriber)
+        received = publish_until_received_sharded(channel, "lazy-sharded-msg", subscriber)
 
         assert_equal "lazy-sharded-msg", received.message
         assert_equal channel,            received.channel
@@ -570,7 +570,7 @@ module ValkeyTests
 
       with_client do |subscriber|
         subscriber.ssubscribe_lazy(channel)
-        publish_until_received_sharded("before", channel, subscriber)
+        publish_until_received_sharded(channel, "before", subscriber)
 
         subscriber.sunsubscribe_lazy(channel)
 
@@ -584,7 +584,7 @@ module ValkeyTests
       channel = unique_channel
 
       with_client(pubsub: { subscriptions: { sharded: [channel] } }) do |client|
-        received = publish_until_received_sharded("connect-time-sharded", channel, client)
+        received = publish_until_received_sharded(channel, "connect-time-sharded", client)
 
         assert_equal "connect-time-sharded", received.message
         assert_equal channel, received.channel
@@ -606,12 +606,12 @@ module ValkeyTests
         subscriber.ssubscribe(subscribed_channel)
 
         # A message on a channel in a different slot must not arrive here.
-        r.publish("wrong-slot", other_slot_channel, sharded: true)
+        r.publish(other_slot_channel, "wrong-slot", sharded: true)
         assert_nil wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
 
         # A message on the subscribed channel must arrive, proving the SPUBLISH
         # was routed to the node owning that channel's slot.
-        r.publish("right-slot", subscribed_channel, sharded: true)
+        r.publish(subscribed_channel, "right-slot", sharded: true)
         assert_equal "right-slot", wait_for_message(subscriber).message
       end
     end
@@ -624,7 +624,7 @@ module ValkeyTests
       with_client do |subscriber|
         subscriber.ssubscribe(channel)
 
-        counts = r.pipelined { |p| p.publish("piped", channel, sharded: true) }
+        counts = r.pipelined { |p| p.publish(channel, "piped", sharded: true) }
 
         assert_equal [1], counts
         assert_equal "piped", wait_for_message(subscriber).message
@@ -733,7 +733,7 @@ module ValkeyTests
 
       %i[pipelined multi].each do |batch_method|
         calls = {
-          publish: ->(batch) { batch.publish("message", unique_channel, sharded: true) },
+          publish: ->(batch) { batch.publish(unique_channel, "message", sharded: true) },
           pubsub_shardchannels: ->(batch) { batch.pubsub_shardchannels(nil) },
           pubsub_shardnumsub: ->(batch) { batch.pubsub_shardnumsub(unique_channel) }
         }
@@ -756,16 +756,16 @@ module ValkeyTests
 
       error = assert_raises(Valkey::CommandError) do
         r.multi do |batch|
-          batch.publish("first", first, sharded: true)
-          batch.publish("second", second, sharded: true)
+          batch.publish(first, "first", sharded: true)
+          batch.publish(second, "second", sharded: true)
         end
       end
 
       assert_match(/CrossSlot/i, error.message)
 
       results = r.pipelined do |batch|
-        batch.publish("first", first, sharded: true)
-        batch.publish("second", second, sharded: true)
+        batch.publish(first, "first", sharded: true)
+        batch.publish(second, "second", sharded: true)
       end
 
       assert_equal [0, 0], results
@@ -824,13 +824,13 @@ module ValkeyTests
         futures = []
 
         results = batch_client.public_send(batch_method) do |batch|
-          futures << batch.publish("orphan", channel)
+          futures << batch.publish(channel, "orphan")
           futures << batch.pubsub_channels(channel)
           futures << batch.pubsub_numpat
           futures << batch.pubsub_numsub
 
           if supports_sharded
-            futures << batch.publish("sharded-orphan", channel, sharded: true)
+            futures << batch.publish(channel, "sharded-orphan", sharded: true)
             futures << batch.pubsub_shardchannels(channel)
             futures << batch.pubsub_shardnumsub
           end
@@ -873,13 +873,13 @@ module ValkeyTests
         batch_client = _new_client(protocol: protocol)
 
         results = batch_client.public_send(batch_method) do |batch|
-          batch.publish(regular_message, channel)
+          batch.publish(channel, regular_message)
           batch.pubsub_channels(channel)
           batch.pubsub_numpat
           batch.pubsub_numsub(channel)
 
           if supports_sharded
-            batch.publish(sharded_message, channel, sharded: true)
+            batch.publish(channel, sharded_message, sharded: true)
             batch.pubsub_shardchannels(channel)
             batch.pubsub_shardnumsub(channel)
           end
@@ -920,11 +920,11 @@ module ValkeyTests
       wait_until(timeout: timeout) { subscriber.try_get_pubsub_message }
     end
 
-    def publish_until_received(message, channel, subscriber, timeout: MESSAGE_WAIT_SECONDS)
+    def publish_until_received(channel, message, subscriber, timeout: MESSAGE_WAIT_SECONDS)
       deadline = monotonic_now + timeout
 
       loop do
-        r.publish(message, channel)
+        r.publish(channel, message)
         received = wait_for_message(subscriber, timeout: POLL_INTERVAL_SECONDS)
         return received if received
 
@@ -932,11 +932,11 @@ module ValkeyTests
       end
     end
 
-    def publish_until_received_sharded(message, channel, subscriber, timeout: MESSAGE_WAIT_SECONDS)
+    def publish_until_received_sharded(channel, message, subscriber, timeout: MESSAGE_WAIT_SECONDS)
       deadline = monotonic_now + timeout
 
       loop do
-        r.publish(message, channel, sharded: true)
+        r.publish(channel, message, sharded: true)
         received = wait_for_message(subscriber, timeout: POLL_INTERVAL_SECONDS)
         return received if received
 
@@ -964,7 +964,7 @@ module ValkeyTests
       deadline = monotonic_now + timeout
 
       loop do
-        r.publish(payload, channel)
+        r.publish(channel, payload)
 
         begin
           return queue.pop(true)
@@ -985,7 +985,7 @@ module ValkeyTests
       until quiet_count >= quiet_windows
         flunk("delivery did not cease on #{channel} within #{MESSAGE_WAIT_SECONDS}s") if monotonic_now >= deadline
 
-        r.publish("probe-ceased-#{SecureRandom.hex(4)}", channel, sharded: sharded)
+        r.publish(channel, "probe-ceased-#{SecureRandom.hex(4)}", sharded: sharded)
         message = wait_for_message(subscriber, timeout: UNSUB_WAIT_TIME)
 
         if message
