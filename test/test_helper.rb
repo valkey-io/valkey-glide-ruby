@@ -20,6 +20,8 @@ require_relative 'support/helper/client'
 require_relative 'support/helper/cluster'
 require_relative 'support/helper/fork'
 require_relative 'support/helper/parameterized'
+require_relative 'support/helper/search_capability'
+require_relative 'support/helper/module_client'
 
 Minitest::Reporters.use! Minitest::Reporters::SpecReporter.new
 

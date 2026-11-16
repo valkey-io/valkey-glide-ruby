@@ -74,3 +74,6 @@ Gemfile.lock
 *.pem
 *.crt
 *.key
+
+# Module-CI local harness scratch (generated .conf files, endpoint capture)
+.module-ci-local-scratch/

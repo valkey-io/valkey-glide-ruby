@@ -40,6 +40,24 @@ class Valkey
       end
     end
 
+    # Append SORTABLE and, immediately after it, UNF — the only position
+    # valkey-search recognizes UNF in (the server's FT.CREATE parser only
+    # looks for UNF directly after SORTABLE, matching RediSearch).
+    #
+    # @param [Array<String>] args - the token array to append to
+    # @param [Boolean] sortable - whether SORTABLE was requested
+    # @param [Boolean] unf - whether UNF was requested
+    #
+    # @return [void]
+    #
+    # @api private
+    def self.append_sortable_unf_args(args, sortable, unf)
+      return unless sortable
+
+      args << "SORTABLE"
+      args << "UNF" if unf
+    end
+
     # A full-text (TEXT) field.
     #
     # @example
@@ -50,11 +68,21 @@ class Valkey
       # @param [Boolean] sortable - emit SORTABLE
       # @param [Boolean] no_stem - emit NOSTEM
       # @param [Numeric, nil] weight - emit `WEIGHT <weight>`
-      def initialize(name, as: nil, sortable: false, no_stem: false, weight: nil)
+      # @param [Boolean] unf - keeps the sorted value in its original
+      #   (un-normalized) form, e.g. preserving case, instead of the
+      #   default lowercased/simplified sort value (valkey-search 1.3.0;
+      #   a documented no-op on this engine, included for RediSearch wire
+      #   compatibility). Requires `sortable: true`.
+      #
+      # @raise [ArgumentError] if unf is set without sortable
+      def initialize(name, as: nil, sortable: false, no_stem: false, weight: nil, unf: false)
+        raise ArgumentError, "unf requires sortable: true" if unf && !sortable
+
         super(name, as: as)
         @sortable = sortable
         @no_stem = no_stem
         @weight = weight
+        @unf = unf
       end
 
       # Serialize the TEXT field type and options.
@@ -64,7 +92,7 @@ class Valkey
         args = ["TEXT"]
         args << "NOSTEM" if @no_stem
         args.push("WEIGHT", @weight) unless @weight.nil?
-        args << "SORTABLE" if @sortable
+        Search.append_sortable_unf_args(args, @sortable, @unf)
         args
       end
     end
@@ -79,11 +107,18 @@ class Valkey
       # @param [String, nil] separator - emit `SEPARATOR <sep>`
       # @param [Boolean] case_sensitive - emit CASESENSITIVE
       # @param [Boolean] sortable - emit SORTABLE
-      def initialize(name, as: nil, separator: nil, case_sensitive: false, sortable: false)
+      # @param [Boolean] unf - see {TextField#initialize}'s `unf` docs.
+      #   Requires `sortable: true`.
+      #
+      # @raise [ArgumentError] if unf is set without sortable
+      def initialize(name, as: nil, separator: nil, case_sensitive: false, sortable: false, unf: false)
+        raise ArgumentError, "unf requires sortable: true" if unf && !sortable
+
         super(name, as: as)
         @separator = separator
         @case_sensitive = case_sensitive
         @sortable = sortable
+        @unf = unf
       end
 
       # Serialize the TAG field type and options.
@@ -93,7 +128,7 @@ class Valkey
         args = ["TAG"]
         args.push("SEPARATOR", @separator) unless @separator.nil?
         args << "CASESENSITIVE" if @case_sensitive
-        args << "SORTABLE" if @sortable
+        Search.append_sortable_unf_args(args, @sortable, @unf)
         args
       end
     end
@@ -106,9 +141,16 @@ class Valkey
       # @param [String] name - the field identifier
       # @param [String, nil] as - optional attribute alias
       # @param [Boolean] sortable - emit SORTABLE
-      def initialize(name, as: nil, sortable: false)
+      # @param [Boolean] unf - see {TextField#initialize}'s `unf` docs
+      #   (valkey-search 1.3.0). Requires `sortable: true`.
+      #
+      # @raise [ArgumentError] if unf is set without sortable
+      def initialize(name, as: nil, sortable: false, unf: false)
+        raise ArgumentError, "unf requires sortable: true" if unf && !sortable
+
         super(name, as: as)
         @sortable = sortable
+        @unf = unf
       end
 
       # Serialize the NUMERIC field type and options.
@@ -116,7 +158,7 @@ class Valkey
       # @return [Array] the NUMERIC field tokens
       def type_args
         args = ["NUMERIC"]
-        args << "SORTABLE" if @sortable
+        Search.append_sortable_unf_args(args, @sortable, @unf)
         args
       end
     end

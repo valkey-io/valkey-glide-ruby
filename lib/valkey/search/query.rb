@@ -15,6 +15,8 @@ class Valkey
       attr_reader :no_content
       # @return [Boolean] WITHSORTKEYS requested (the parser needs this)
       attr_reader :with_sort_keys
+      # @return [Boolean] WITHSCORES requested (the parser needs this)
+      attr_reader :with_scores
 
       # @param [Hash, Array, nil] limit - { offset:, count: } or [offset, count]
       # @param [Array, nil] return_fields - field name String/Symbol or { name:, as: } Hash
@@ -32,10 +34,29 @@ class Valkey
       # @param [Integer, nil] timeout - emit `TIMEOUT <ms>`
       # @param [Symbol, nil] shard_scope - :all_shards or :some_shards
       # @param [Symbol, nil] consistency - :consistent or :inconsistent
+      # @param [Array<String>, nil] in_keys - restricts the search to only this
+      #   set of keys (INKEYS), filtering out any matching result whose key
+      #   is not in the list. `[]` (empty Array) differs from `nil`: an empty
+      #   Array emits `INKEYS 0` (matches nothing), `nil` omits INKEYS
+      #   entirely (matches on index content alone).
+      # @param [Boolean] count - returns only the total matching-document
+      #   count, with no document rows. Emits `LIMIT 0 0` — the server
+      #   rejects a bare COUNT token outright — and is mutually exclusive
+      #   with `limit`.
+      # @param [Boolean] with_scores - augments the output with each
+      #   document's relevance score (valkey-search 1.3.0, emits WITHSCORES)
+      # @param [String, nil] scorer - the scoring function used to rank
+      #   results (valkey-search 1.3.0). `"BM25STD"` is currently the only
+      #   registered value; any other is rejected server-side. Has no
+      #   visible effect unless combined with `with_scores` (or inspected
+      #   indirectly via `sort_by`).
+      #
+      # @raise [ArgumentError] if count and limit are both set
       def initialize(limit: nil, return_fields: nil, params: nil, sort_by: nil,
                      sort_order: nil, with_sort_keys: false, no_content: false,
                      verbatim: false, in_order: false, slop: nil, dialect: nil,
-                     timeout: nil, shard_scope: nil, consistency: nil)
+                     timeout: nil, shard_scope: nil, consistency: nil,
+                     in_keys: nil, count: false, with_scores: false, scorer: nil)
         raise ArgumentError, "with_sort_keys requires sort_by" if with_sort_keys && sort_by.nil?
         raise ArgumentError, "sort_order requires sort_by" if !sort_order.nil? && sort_by.nil?
         # The server honors NOCONTENT and silently drops the sort keys, but the
@@ -47,6 +68,7 @@ class Valkey
                 "with_sort_keys cannot be combined with no_content: the server omits sort keys " \
                 "under NOCONTENT, so the reply cannot be parsed reliably"
         end
+        raise ArgumentError, "count and limit are mutually exclusive: count maps to LIMIT 0 0" if count && limit
 
         @limit = normalize_limit(limit)
         @return_tokens = expand_return_fields(return_fields)
@@ -62,6 +84,10 @@ class Valkey
         @timeout = timeout
         @shard_scope = shard_scope.nil? ? nil : Search.lookup_token(Search::SHARD_SCOPES, shard_scope, "shard scope")
         @consistency = consistency.nil? ? nil : Search.lookup_token(Search::CONSISTENCY, consistency, "consistency")
+        @in_keys = in_keys
+        @count = count
+        @with_scores = with_scores
+        @scorer = scorer
       end
 
       # @return [Array] FT.SEARCH option tokens (after `index query`), in wire order
@@ -72,12 +98,20 @@ class Valkey
         args << "INORDER" if @in_order
         args.push("SLOP", @slop) unless @slop.nil?
         args.push("LIMIT", @limit[0], @limit[1]) unless @limit.nil?
+        args.push("INKEYS", @in_keys.length, *@in_keys) unless @in_keys.nil?
         args.push("RETURN", @return_tokens.length, *@return_tokens) if @return_tokens && !@return_tokens.empty?
         append_sort_by(args)
         args << "WITHSORTKEYS" if @with_sort_keys
         args.concat(Search.params_tokens(@params))
         args.push("DIALECT", @dialect) unless @dialect.nil?
         args.push("TIMEOUT", @timeout) unless @timeout.nil?
+        # COUNT is not a real FT.SEARCH keyword — the server rejects a bare
+        # COUNT token outright. The count-only form it actually recognises
+        # is LIMIT 0 0; the constructor guard above has already confirmed
+        # @limit is unset (mutually exclusive) by the time this runs.
+        args.push("LIMIT", "0", "0") if @count
+        args << "WITHSCORES" if @with_scores
+        args.push("SCORER", @scorer) unless @scorer.nil?
         Search.append_cluster_flags(args, @shard_scope, @consistency)
         args
       end
@@ -137,7 +171,7 @@ class Valkey
     #
     # @see https://valkey.io/commands/ft.search/
     class SearchResult
-      Document = Struct.new(:key, :fields, :sort_key)
+      Document = Struct.new(:key, :fields, :sort_key, :score)
 
       # @return [Integer] total matching documents
       attr_reader :total_results
@@ -155,23 +189,35 @@ class Valkey
 
       # Parse a raw FT.SEARCH reply. Handles both the GLIDE normalized map form
       # ([count, { key => { field => value } }]) and the flat RESP2 array form,
-      # honoring no_content and with_sort_keys.
+      # honoring no_content, with_sort_keys and with_scores.
+      #
+      # Under WITHSCORES, glide-core reshapes each document's value by
+      # prepending the numeric score: [score, field_map] (score + no
+      # sort key), or [score, sort_key, field_map] when combined with
+      # WITHSORTKEYS. Without this, with_scores: true silently drops both
+      # the score and the field map, and (if combined with
+      # with_sort_keys) misreports the score as the sort key — the
+      # with_scores flag has to be threaded through explicitly rather than
+      # inferred from the reply shape, because a bare [x, y] pair is
+      # ambiguous between "[score, fields]" and "[sort_key, fields]"
+      # without knowing which flags were requested.
       #
       # @param [Array] raw - raw FT.SEARCH reply
       # @param [Boolean] no_content - whether NOCONTENT was requested
       # @param [Boolean] with_sort_keys - whether WITHSORTKEYS was requested
+      # @param [Boolean] with_scores - whether WITHSCORES was requested
       #
       # @return [SearchResult]
-      def self.from_raw(raw, no_content: false, with_sort_keys: false)
+      def self.from_raw(raw, no_content: false, with_sort_keys: false, with_scores: false)
         return new(0, []) if raw.nil? || raw.empty?
 
         total = coerce_count(raw[0])
         rest = raw[1..] || []
         documents =
           if rest.length == 1 && rest[0].is_a?(Hash)
-            parse_map(rest[0], no_content: no_content, with_sort_keys: with_sort_keys)
+            parse_map(rest[0], no_content: no_content, with_sort_keys: with_sort_keys, with_scores: with_scores)
           else
-            parse_flat(rest, no_content: no_content, with_sort_keys: with_sort_keys)
+            parse_flat(rest, no_content: no_content, with_sort_keys: with_sort_keys, with_scores: with_scores)
           end
         new(total, documents)
       end
@@ -190,15 +236,36 @@ class Valkey
         raise TypeError, "FT.SEARCH reply had a non-integer count: #{value.inspect}"
       end
 
-      # GLIDE normalized map form: { key => value }. With content, value is the
-      # field map; under WITHSORTKEYS it is [sort_key, field_map]; under
-      # WITHSORTKEYS + NOCONTENT it is the bare sort key (no field map); under
-      # NOCONTENT alone it may be nil/empty.
-      def self.parse_map(map, no_content:, with_sort_keys:)
+      # GLIDE normalized map form: { key => value }. Without WITHSCORES,
+      # with content the value is the field map; under WITHSORTKEYS it is
+      # [sort_key, field_map]; under WITHSORTKEYS + NOCONTENT it is the
+      # bare sort key (no field map); under NOCONTENT alone it may be
+      # nil/empty.
+      #
+      # Under WITHSCORES, glide-core prepends the numeric score to the
+      # same shapes: [score, field_map], or [score, sort_key, field_map]
+      # when WITHSORTKEYS is also set. with_scores alone with NOCONTENT is
+      # [score] (no field map) — matching how WITHSORTKEYS + NOCONTENT
+      # drops to a bare scalar rather than a longer Array.
+      def self.parse_map(map, no_content:, with_sort_keys:, with_scores: false)
         map.map do |key, value|
+          score = nil
           sort_key = nil
           fields = {}
-          if with_sort_keys && value.is_a?(Array)
+          if with_scores && value.is_a?(Array)
+            score = value[0]
+            remainder = value[1..]
+            if with_sort_keys
+              sort_key = remainder[0]
+              fields = remainder[1] if remainder[1].is_a?(Hash)
+            elsif remainder[0].is_a?(Hash)
+              fields = remainder[0]
+            end
+          elsif with_scores && no_content
+            # WITHSCORES + NOCONTENT (no WITHSORTKEYS) — the value is the
+            # bare numeric score, not an Array.
+            score = value
+          elsif with_sort_keys && value.is_a?(Array)
             sort_key = value[0]
             fields = value[1] if value[1].is_a?(Hash)
           elsif with_sort_keys && no_content
@@ -208,16 +275,23 @@ class Valkey
           elsif !no_content && value.is_a?(Hash)
             fields = value
           end
-          Document.new(key, fields, sort_key)
+          Document.new(key, fields, sort_key, score)
         end
       end
 
-      def self.parse_flat(rest, no_content:, with_sort_keys:)
+      def self.parse_flat(rest, no_content:, with_sort_keys:, with_scores: false)
         documents = []
         i = 0
         while i < rest.length
           key = rest[i]
           i += 1
+          score = nil
+          if with_scores
+            raise TypeError, "FT.SEARCH reply truncated (missing score)" if i >= rest.length
+
+            score = rest[i]
+            i += 1
+          end
           sort_key = nil
           if with_sort_keys
             # bounds-check every read past the KEY so a truncated reply
@@ -239,7 +313,7 @@ class Valkey
             # escapes ft_search as a non-Valkey error.
             fields = pairs.each_slice(2).to_h { |k, v| [k, v] } if pairs.is_a?(Array)
           end
-          documents << Document.new(key, fields, sort_key)
+          documents << Document.new(key, fields, sort_key, score)
         end
         documents
       end

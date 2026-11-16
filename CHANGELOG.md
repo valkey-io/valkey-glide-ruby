@@ -8,6 +8,8 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added support for valkey-search 1.3 and RediSearch parity in the `FT.*` builder API: `in_keys`, `count`, `with_scores`, and `scorer` on `SearchOptions`; `LoadField`, `add_scores`, `scorer`, and `with_cursor` on `AggregateOptions`; `WithCursor`, `ft_cursor_read`, and `ft_cursor_del`; `FLOAT16`/`BFLOAT16` vector types and `unf` on sortable fields; `filter`, `score_field`, and `no_highlight` on `CreateOptions`; and `ft_hybrid` with `HybridSearchArm`, `HybridVsimArm`, `HybridVsimFilter`, `HybridCombine`, and `HybridOptions`. ([#412](https://github.com/valkey-io/valkey-glide-ruby/pull/412))
+
 ### Changed
 
 ### Removed
