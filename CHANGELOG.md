@@ -10,6 +10,8 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Changed `publish` to accept positional arguments as `publish(channel, message, sharded: false)`, matching redis-rb. ([#432](https://github.com/valkey-io/valkey-glide-ruby/pull/432))
+
 ### Removed
 
 ### Fixed

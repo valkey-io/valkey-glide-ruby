@@ -320,7 +320,7 @@ module ValkeyTests
         channels: [channel],
         callback: callback
       ) do |subscriber, publisher|
-        receiver_count = publisher.publish(payload, channel)
+        receiver_count = publisher.publish(channel, payload)
         assert_equal 1, receiver_count if cluster_mode?
 
         received = matrix_get_message_by_method(read_method, subscriber, callback_messages)
@@ -353,7 +353,7 @@ module ValkeyTests
           { exact: [channel] }
         )
 
-        r.publish(payload, channel)
+        r.publish(channel, payload)
         received = matrix_get_message_by_method(read_method, subscriber, callback_messages)
 
         assert_equal payload, received.message
@@ -382,7 +382,7 @@ module ValkeyTests
         context: callback ? callback_messages : nil,
         state_timeout: 3.0
       ) do |subscriber, publisher|
-        publisher.publish("message_before_kill", channel)
+        publisher.publish(channel, "message_before_kill")
         message_before = matrix_get_message_by_method(read_method, subscriber, callback_messages, 0)
         assert_equal "message_before_kill", message_before.message
         assert_equal channel, message_before.channel
@@ -433,7 +433,7 @@ module ValkeyTests
         context: callback ? callback_messages : nil,
         state_timeout: 3.0
       ) do |subscriber, publisher|
-        publisher.publish("message_before_kill", channel)
+        publisher.publish(channel, "message_before_kill")
         message_before = matrix_get_message_by_method(read_method, subscriber, callback_messages, 0)
         assert_equal "message_before_kill", message_before.message
         assert_equal channel, message_before.channel
@@ -486,7 +486,7 @@ module ValkeyTests
         context: callback ? callback_messages : nil,
         state_timeout: 3.0
       ) do |subscriber, publisher|
-        publisher.publish("message_before_kill", channel, sharded: true)
+        publisher.publish(channel, "message_before_kill", sharded: true)
         message_before = matrix_get_message_by_method(read_method, subscriber, callback_messages, 0)
         assert_equal "message_before_kill", message_before.message
         assert_equal channel, message_before.channel
@@ -495,7 +495,7 @@ module ValkeyTests
         sleep MATRIX_RECONNECT_SETTLE_SECONDS
         matrix_wait_for_actual_subscription(subscriber, :sharded, channel, timeout: 15.0)
 
-        publisher.publish("message_after_kill", channel, sharded: true)
+        publisher.publish(channel, "message_after_kill", sharded: true)
         message_after = matrix_get_message_by_method(read_method, subscriber, callback_messages, 1)
         assert_equal "message_after_kill", message_after.message
         assert_equal channel, message_after.channel
@@ -537,7 +537,7 @@ module ValkeyTests
           timeout: cluster_mode? ? 15.0 : 5.0
         )
 
-        expected_messages.each_key { |channel| publisher.publish(payload, channel) }
+        expected_messages.each_key { |channel| publisher.publish(channel, payload) }
 
         received_messages = matrix_collect_messages_by_method(
           read_method,
@@ -575,7 +575,7 @@ module ValkeyTests
 
       with_matrix_pubsub_clients(subscription_method, channels: [channel]) do |subscriber, publisher|
         payloads.each do |payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
 
@@ -604,7 +604,7 @@ module ValkeyTests
       with_matrix_pubsub_clients(:config, channels: [channel], callback: callback) do |subscriber, publisher|
         assert_includes matrix_actual_subscriptions(subscriber, :exact), channel
 
-        publisher.publish("exact_message_1", channel)
+        publisher.publish(channel, "exact_message_1")
         received = matrix_get_message_by_method(read_method, subscriber, callback_messages)
         assert_equal "exact_message_1", received.message
 
@@ -621,7 +621,7 @@ module ValkeyTests
         )
         refute_includes matrix_actual_subscriptions(subscriber, :exact), channel
 
-        publisher.publish("exact_message_2", channel)
+        publisher.publish(channel, "exact_message_2")
         matrix_assert_no_delivery(read_method, subscriber, callback_messages, 1)
       end
     end
@@ -636,7 +636,7 @@ module ValkeyTests
       with_matrix_pubsub_clients(:config, patterns: [pattern], callback: callback) do |subscriber, publisher|
         assert_includes matrix_actual_subscriptions(subscriber, :pattern), pattern
 
-        publisher.publish("message_before_unsub", channel)
+        publisher.publish(channel, "message_before_unsub")
         received = matrix_get_message_by_method(read_method, subscriber, callback_messages)
         assert_equal "message_before_unsub", received.message
 
@@ -653,7 +653,7 @@ module ValkeyTests
         )
         refute_includes matrix_actual_subscriptions(subscriber, :pattern), pattern
 
-        publisher.publish("message_after_unsub", channel)
+        publisher.publish(channel, "message_after_unsub")
         matrix_assert_no_delivery(read_method, subscriber, callback_messages, 1)
       ensure
         subscriber.punsubscribe(pattern, timeout_ms: 5000)
@@ -670,7 +670,7 @@ module ValkeyTests
       with_matrix_pubsub_clients(:config, sharded: [channel], callback: callback) do |subscriber, publisher|
         assert_includes matrix_actual_subscriptions(subscriber, :sharded), channel
 
-        publisher.publish("message_before_unsub", channel, sharded: true)
+        publisher.publish(channel, "message_before_unsub", sharded: true)
         received = matrix_get_message_by_method(read_method, subscriber, callback_messages)
         assert_equal "message_before_unsub", received.message
 
@@ -687,7 +687,7 @@ module ValkeyTests
         )
         refute_includes matrix_actual_subscriptions(subscriber, :sharded), channel
 
-        publisher.publish("message_after_unsub", channel, sharded: true)
+        publisher.publish(channel, "message_after_unsub", sharded: true)
         matrix_assert_no_delivery(read_method, subscriber, callback_messages, 1)
       ensure
         subscriber.sunsubscribe(channel, timeout_ms: 5000)
@@ -757,9 +757,9 @@ module ValkeyTests
         client_options: { lazy_connect: true },
         subscription_timeout_ms: 10_000
       ) do |subscriber, publisher|
-        publisher.publish("msg1", exact_channel)
-        publisher.publish("msg2", pattern_channel)
-        publisher.publish("msg3", sharded_channel, sharded: true) if sharded_channel
+        publisher.publish(exact_channel, "msg1")
+        publisher.publish(pattern_channel, "msg2")
+        publisher.publish(sharded_channel, "msg3", sharded: true) if sharded_channel
 
         expected_count = sharded_channel ? 3 : 2
         if read_method == :callback
@@ -795,7 +795,7 @@ module ValkeyTests
         fresh_publisher: true,
         subscription_timeout_ms: 10_000
       ) do |_subscriber, publisher|
-        receiver_count = publisher.publish(payload, channel)
+        receiver_count = publisher.publish(channel, payload)
         assert_equal 1, receiver_count if cluster_mode?
 
         received_count = matrix_wait_for_callback_count(callback_messages, 1, timeout: 30.0)
@@ -830,7 +830,7 @@ module ValkeyTests
         subscription_timeout_ms: 10_000,
         state_timeout: 10.0
       ) do |_subscriber, publisher|
-        assert_equal 1, publisher.publish(payload, channel, sharded: true)
+        assert_equal 1, publisher.publish(channel, payload, sharded: true)
 
         notification = matrix_pop_callback_notification(callback_notifications, timeout: 45.0)
         refute_nil notification, "callback received no large sharded Pub/Sub message"
@@ -864,7 +864,7 @@ module ValkeyTests
         callback: callback
       ) do |subscriber, publisher|
         channels_and_messages.each do |channel, payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
 
@@ -908,7 +908,7 @@ module ValkeyTests
         channels: channels_and_messages.keys
       ) do |subscriber, publisher|
         channels_and_messages.each do |channel, payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
 
@@ -955,7 +955,7 @@ module ValkeyTests
         callback: callback,
         context: callback ? callback_messages : nil
       ) do |subscriber, publisher|
-        receiver_count = publisher.publish(payload, channel, sharded: true)
+        receiver_count = publisher.publish(channel, payload, sharded: true)
         assert_equal 1, receiver_count
 
         received = matrix_get_message_by_method(read_method, subscriber, callback_messages)
@@ -976,7 +976,7 @@ module ValkeyTests
 
       with_matrix_pubsub_clients(subscription_method, sharded: [channel]) do |subscriber, publisher|
         payloads.each do |payload|
-          assert_equal 1, publisher.publish(payload, channel, sharded: true)
+          assert_equal 1, publisher.publish(channel, payload, sharded: true)
         end
 
         blocking_message = matrix_blocking_get(subscriber)
@@ -1020,7 +1020,7 @@ module ValkeyTests
         context: callback ? callback_messages : nil
       ) do |subscriber, publisher|
         channels_and_messages.each do |channel, payload|
-          assert_equal 1, publisher.publish(payload, channel, sharded: true)
+          assert_equal 1, publisher.publish(channel, payload, sharded: true)
         end
 
         received_messages = matrix_collect_messages_by_method(
@@ -1069,7 +1069,7 @@ module ValkeyTests
 
       with_matrix_pubsub_clients(subscription_method, sharded: channels, state_timeout: 3.0) do |subscriber, publisher|
         expected_messages.each do |channel, message|
-          publisher.publish(message, channel, sharded: true)
+          publisher.publish(channel, message, sharded: true)
         end
 
         received_messages = {}
@@ -1119,7 +1119,7 @@ module ValkeyTests
         matrix_assert_subscription_sets({ sharded: [] }, state.actual_subscriptions)
 
         channels.each do |channel|
-          publisher.publish("test_message", channel, sharded: true)
+          publisher.publish(channel, "test_message", sharded: true)
         end
         matrix_assert_no_delivery(:polling_try_get, subscriber, [], 0)
       end
@@ -1157,7 +1157,7 @@ module ValkeyTests
         context: callback ? callback_messages : nil
       ) do |subscriber, publisher|
         channels_and_messages.each do |channel, payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
 
@@ -1231,7 +1231,7 @@ module ValkeyTests
 
       with_matrix_pubsub_clients(subscription_method, patterns: [pattern]) do |subscriber, publisher|
         channels_and_messages.each do |channel, payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
 
@@ -1278,7 +1278,7 @@ module ValkeyTests
         always_poll_subscription_state: true
       ) do |subscriber, publisher|
         all_channels_and_messages.each do |channel, payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
 
@@ -1398,7 +1398,7 @@ module ValkeyTests
           pattern_channels_and_messages
         )
         sharded_channels_and_messages.each do |channel, payload|
-          assert_equal 1, publisher.publish(payload, channel, sharded: true)
+          assert_equal 1, publisher.publish(channel, payload, sharded: true)
         end
 
         received_messages = matrix_collect_messages_by_method(
@@ -1556,7 +1556,7 @@ module ValkeyTests
           context: callback ? pattern_callback_messages : nil
         ) do |pattern_subscriber, _pattern_publisher|
           payloads.each do |payload|
-            receiver_count = pattern_subscriber.publish(payload, channel)
+            receiver_count = pattern_subscriber.publish(channel, payload)
             assert_equal 2, receiver_count if cluster_mode?
           end
 
@@ -1644,9 +1644,9 @@ module ValkeyTests
       pattern_subscriber, pattern_callback_messages = listeners.fetch(:pattern)
       sharded_subscriber, sharded_callback_messages = listeners.fetch(:sharded)
 
-      assert_equal 2, pattern_subscriber.publish(payloads.fetch(:exact), channel)
-      assert_equal 2, sharded_subscriber.publish(payloads.fetch(:pattern), channel)
-      assert_equal 1, exact_subscriber.publish(payloads.fetch(:sharded), channel, sharded: true)
+      assert_equal 2, pattern_subscriber.publish(channel, payloads.fetch(:exact))
+      assert_equal 2, sharded_subscriber.publish(channel, payloads.fetch(:pattern))
+      assert_equal 1, exact_subscriber.publish(channel, payloads.fetch(:sharded), sharded: true)
 
       ordinary_payloads = payloads.values_at(:exact, :pattern)
       matrix_assert_same_name_ordinary_messages(
@@ -1681,9 +1681,9 @@ module ValkeyTests
     end
 
     def matrix_assert_same_name_delivery(read_method, publisher, channel, payloads, listeners)
-      assert_equal 2, publisher.publish(payloads.fetch(:exact), channel)
-      assert_equal 2, publisher.publish(payloads.fetch(:pattern), channel)
-      assert_equal 1, publisher.publish(payloads.fetch(:sharded), channel, sharded: true)
+      assert_equal 2, publisher.publish(channel, payloads.fetch(:exact))
+      assert_equal 2, publisher.publish(channel, payloads.fetch(:pattern))
+      assert_equal 1, publisher.publish(channel, payloads.fetch(:sharded), sharded: true)
 
       exact_subscriber, exact_callback_messages = listeners.fetch(:exact)
       pattern_subscriber, pattern_callback_messages = listeners.fetch(:pattern)
@@ -1760,7 +1760,7 @@ module ValkeyTests
         pattern.fetch(2)
       )
       sharded.fetch(2).each do |channel, payload|
-        assert_equal 1, publisher.publish(payload, channel, sharded: true)
+        assert_equal 1, publisher.publish(channel, payload, sharded: true)
       end
 
       listeners = [exact, pattern, sharded]
@@ -1791,7 +1791,7 @@ module ValkeyTests
     def matrix_publish_combined_channels_once(publisher, *channel_message_maps)
       channel_message_maps.each do |channels_and_messages|
         channels_and_messages.each do |channel, payload|
-          receiver_count = publisher.publish(payload, channel)
+          receiver_count = publisher.publish(channel, payload)
           assert_equal 1, receiver_count if cluster_mode?
         end
       end
@@ -2100,7 +2100,7 @@ module ValkeyTests
       callback_index
     )
       MATRIX_RECONNECT_PUBLISH_ATTEMPTS.times do
-        publisher.publish(payload, channel)
+        publisher.publish(channel, payload)
         deadline = monotonic_now + MATRIX_RECONNECT_POLL_SECONDS
 
         loop do

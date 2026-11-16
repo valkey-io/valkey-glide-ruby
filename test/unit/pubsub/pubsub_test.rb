@@ -426,7 +426,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   def test_publish_works_without_resp3
     client = RecordingClient.new(response: 0, protocol: :resp2)
 
-    client.publish("hello", "news")
+    client.publish("news", "hello")
 
     assert_equal %w[news hello], client.last_command.args
   end
@@ -436,7 +436,7 @@ class TestPubSubCommandsUnit < Minitest::Test
   def test_publish_defaults_to_unsharded
     client = RecordingClient.new(response: 0)
 
-    client.publish("hello", "news")
+    client.publish("news", "hello")
 
     assert_equal Valkey::RequestType::PUBLISH, client.last_command.request_type
     assert_equal %w[news hello], client.last_command.args
@@ -445,17 +445,16 @@ class TestPubSubCommandsUnit < Minitest::Test
   def test_publish_sharded_uses_spublish_with_channel_first
     client = RecordingClient.new(response: 0, cluster_mode: true)
 
-    client.publish("hello", "shard-chan", sharded: true)
+    client.publish("shard-chan", "hello", sharded: true)
 
     assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
-    # Signature is (message, channel); wire order is <channel> <message>.
     assert_equal %w[shard-chan hello], client.last_command.args
   end
 
   def test_publish_sharded_works_without_resp3
     client = RecordingClient.new(response: 0, protocol: :resp2, cluster_mode: true)
 
-    client.publish("hello", "shard-chan", sharded: true)
+    client.publish("shard-chan", "hello", sharded: true)
 
     assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
     assert_equal %w[shard-chan hello], client.last_command.args
@@ -581,7 +580,7 @@ class TestPubSubCommandsUnit < Minitest::Test
     # raise the client-side cluster-mode ArgumentError.
     client = RecordingClient.new(response: 0) # standalone
 
-    client.publish("hello", "shard-chan", sharded: true)
+    client.publish("shard-chan", "hello", sharded: true)
 
     assert_equal Valkey::RequestType::SPUBLISH, client.last_command.request_type
   end

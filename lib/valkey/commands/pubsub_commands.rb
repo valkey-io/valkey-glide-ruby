@@ -334,17 +334,17 @@ class Valkey
       #
       # This method aggregates the PUBLISH and SPUBLISH functionalities; the mode is selected with the
       # `sharded` parameter. In both modes the request is routed using the hashed channel as key. The
-      # argument order is `(message, channel)`, matching the other GLIDE clients.
+      # argument order is `(channel, message)`, matching redis-rb.
       #
       # @example Publish a message
-      #   valkey.publish("Hello, World!", "channel1")
+      #   valkey.publish("channel1", "Hello, World!")
       #     # => 2
       # @example Publish on a sharded channel
-      #   valkey.publish("Hello, Shard!", "shard1", sharded: true)
+      #   valkey.publish("shard1", "Hello, Shard!", sharded: true)
       #     # => 1
       #
-      # @param [String] message - the message to publish
       # @param [String] channel - the channel to publish the message on
+      # @param [String] message - the message to publish
       # @param [Boolean] sharded - use sharded Pub/Sub mode; only available in cluster mode
       #   (`cluster_mode: true`). Since: Valkey version 7.0.0
       #
@@ -354,7 +354,7 @@ class Valkey
       #
       # @see https://valkey.io/commands/publish/
       # @see https://valkey.io/commands/spublish/
-      def publish(message, channel, sharded: false)
+      def publish(channel, message, sharded: false)
         request_type = sharded ? RequestType::SPUBLISH : RequestType::PUBLISH
         send_command(request_type, [channel.to_s, message.to_s])
       end

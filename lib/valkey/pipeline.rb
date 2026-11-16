@@ -188,7 +188,7 @@ class Valkey
     # rubocop:enable Lint/UselessMethodDefinition
 
     # Mirror Python sync which only allow sharded Pub/Sub in ClusterBatch.
-    def publish(message, channel, sharded: false)
+    def publish(channel, message, sharded: false)
       raise ArgumentError, "publish with sharded: true is only available in cluster mode." if sharded && !cluster_mode?
 
       super

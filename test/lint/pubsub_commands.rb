@@ -3,7 +3,7 @@
 module Lint
   module PubSubCommands
     def test_publish
-      result = r.publish("Hello, World!", "lint_pubsub_no_subscribers")
+      result = r.publish("lint_pubsub_no_subscribers", "Hello, World!")
 
       assert_equal 0, result
     end
@@ -93,7 +93,7 @@ module Lint
     def test_publish_sharded
       omit_version("7.0")
 
-      result = r.publish("Hello, Shard!", "lint_shard_no_subscribers", sharded: true)
+      result = r.publish("lint_shard_no_subscribers", "Hello, Shard!", sharded: true)
 
       assert_equal 0, result
     end
