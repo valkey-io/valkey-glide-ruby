@@ -50,6 +50,8 @@ module ValkeyTests
     # timeout watchdog. Without valkey-glide#7569, which rebuilds it in the
     # child, the child's new client is killed by SIGTRAP on macOS.
     def test_fork_child_proc_with_new_client
+      skip("fork() unavailable on #{RUBY_PLATFORM}") unless Helper::Fork.supported?
+
       client = _new_client
       assert_equal "PONG", client.ping
       assert_equal "OK", client.set(FORK_KEY, "before-fork")

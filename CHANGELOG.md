@@ -15,6 +15,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 
 - fix(ruby): stopped a client created in a forked child from being killed by `SIGTRAP` on macOS after the parent used Valkey. ([#420](https://github.com/valkey-io/valkey-glide-ruby/pull/420))
+- Stopped echoing `ssl_params` values, including private keys, in connection errors, and accepted PEM text for `ca_file`, `cert`, and `key`. ([#428](https://github.com/valkey-io/valkey-glide-ruby/pull/428))
 
 ## [1.1.0]
 
