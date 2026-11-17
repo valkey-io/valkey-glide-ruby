@@ -201,6 +201,8 @@ git config --global format.signOff true
 
 **Scopes:** `ruby`, or command family name when appropriate.
 
+The PR title uses the same format with a lowercase type; it is checked and becomes the release notes entry.
+
 ### Pull Requests REQUIRED
 
 When opening a PR, you MUST follow `.github/pull_request_template.md`. Read that
