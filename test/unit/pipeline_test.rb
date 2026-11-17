@@ -61,7 +61,7 @@ class TestPipelineUnit < Minitest::Test
   def test_sharded_pubsub_batch_commands_require_cluster_mode
     pipeline = Valkey::Pipeline.new
     calls = {
-      publish: -> { pipeline.publish("hello", "shard-chan", sharded: true) },
+      publish: -> { pipeline.publish("shard-chan", "hello", sharded: true) },
       pubsub_shardchannels: -> { pipeline.pubsub_shardchannels },
       pubsub_shardnumsub: -> { pipeline.pubsub_shardnumsub("shard-chan") }
     }
@@ -80,11 +80,11 @@ class TestPipelineUnit < Minitest::Test
     pipeline = Valkey::Pipeline.new(cluster_mode: true)
 
     futures = [
-      pipeline.publish("hello", "news"),
+      pipeline.publish("news", "hello"),
       pipeline.pubsub_channels("news.*"),
       pipeline.pubsub_numpat,
       pipeline.pubsub_numsub("news", "alerts"),
-      pipeline.publish("hello", "shard-chan", sharded: true),
+      pipeline.publish("shard-chan", "hello", sharded: true),
       pipeline.pubsub_shardchannels("shard-*"),
       pipeline.pubsub_shardnumsub("shard-chan")
     ]
