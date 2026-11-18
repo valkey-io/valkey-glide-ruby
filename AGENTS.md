@@ -72,7 +72,7 @@ When working on a feature, read these paths first:
 - [ ] `RequestType` matches glide-core enum
 - [ ] No secrets or generated junk committed
 - [ ] DCO signoff: `git log --format="%B" -n 1 | grep "Signed-off-by"`
-- [ ] Conventional commit format used
+- [ ] Conventional commit format used for commits and the PR title
 - [ ] `CHANGELOG.md` updated for user-facing changes
 - [ ] PR body follows `.github/pull_request_template.md` (all sections filled, checklist completed)
 - [ ] Native lib rebuilt and copied if FFI/protobuf changed upstream
