@@ -201,7 +201,7 @@ git config --global format.signOff true
 
 **Scopes:** `ruby`, or command family name when appropriate.
 
-The PR title uses the same format with a lowercase type; it is checked and becomes the release notes entry.
+The PR title uses the same format with a lowercase type; it is checked and becomes the release notes entry. A backport keeps the original PR's type, e.g. `fix(ruby): ... (backport #123)`; porting already-released fixes to `main` is `chore:`.
 
 ### Pull Requests REQUIRED
 
