@@ -13,4 +13,6 @@ jobs:
     permissions:
       contents: read
       pull-requests: read
+      # Requested by the shared bot-prs job; the call fails to load without it.
+      statuses: write
     uses: valkey-io/valkey-glide/.github/workflows/pr-title.yml@main
