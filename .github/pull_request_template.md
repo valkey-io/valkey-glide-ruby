@@ -51,6 +51,7 @@ Before submitting the PR make sure the following are checked:
 
 - [ ] This Pull Request is related to an issue.
 - [ ] Commit message describe your changes
+- [ ] PR title follows `type(scope): description` with a lowercase type; it becomes the release notes entry.
 - [ ] Commits are signed off (`git commit -s`) per the DCO.
 - [ ] Tests are added or updated.
 - [ ] CHANGELOG.md and documentation files are updated.
