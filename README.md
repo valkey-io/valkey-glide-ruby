@@ -110,7 +110,7 @@ client.get("foo")
 | `timeout` | Request timeout in seconds (default `5.0`) |
 | `connect_timeout` | Connection timeout in seconds |
 | `ssl`| Enable TLS if true |
-| `ssl_params` | TLS options {`ca_file`, `cert`, `key`, `ca_path`, `root_certs`} |
+| `ssl_params` | TLS options {`ca_file`, `cert`, `key`, `ca_path`, `root_certs`}. `ca_file`, `cert` and `key` each accept a file path, PEM text, or an OpenSSL object. |
 | `cluster_mode` | Enable cluster client |
 | `nodes` | Array of `{ host:, port: }` hashes |
 | `protocol` | `:resp3` (default) or `:resp2`|
@@ -128,10 +128,7 @@ client.get("foo")
 
 A Ruby client currently have limited forking support. After each fork you need to recreate the Valkey instance.
 
-> **Note:** if the parent issues any command before forking, a client created in
-> the child can still be killed by a native signal. This is a limitation of the
-> Rust core, tracked in [valkey-glide#6912](https://github.com/valkey-io/valkey-glide/pull/6912). Until
-> it ships, do not use Valkey in the parent process.
+> **Note:** a client created before the fork raises `Valkey::InheritedError` in the child. Create a new client in the child instead. The parent can keep using Valkey before and after the fork.
 
 ## Building and Testing
 
