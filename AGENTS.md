@@ -72,7 +72,7 @@ When working on a feature, read these paths first:
 - [ ] `RequestType` matches glide-core enum
 - [ ] No secrets or generated junk committed
 - [ ] DCO signoff: `git log --format="%B" -n 1 | grep "Signed-off-by"`
-- [ ] Conventional commit format used
+- [ ] Conventional commit format used for commits and the PR title
 - [ ] `CHANGELOG.md` updated for user-facing changes
 - [ ] PR body follows `.github/pull_request_template.md` (all sections filled, checklist completed)
 - [ ] Native lib rebuilt and copied if FFI/protobuf changed upstream
@@ -200,6 +200,8 @@ git config --global format.signOff true
 **Example:** `feat(ruby): implement CLUSTER SCAN with routing options`
 
 **Scopes:** `ruby`, or command family name when appropriate.
+
+The PR title uses the same format with a lowercase type; it is checked and becomes the release notes entry. A backport keeps the original PR's type, e.g. `fix(ruby): ... (backport #123)`; porting already-released fixes to `main` is `chore:`.
 
 ### Pull Requests REQUIRED
 
