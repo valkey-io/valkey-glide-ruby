@@ -84,7 +84,7 @@ module Lint
 
     def test_evalsha_nonexistent_script
       valid_sha = "1234567890123456789012345678901234567890"
-      assert_raises(Valkey::CommandError) { r.evalsha(valid_sha) }
+      assert_raises(Valkey::NoScriptError) { r.evalsha(valid_sha) }
     end
 
     def test_evalsha_empty_keys_and_args
