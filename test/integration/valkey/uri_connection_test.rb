@@ -99,8 +99,16 @@ module ValkeyTests
         port: 6379,
         timeout: 0.001 # 1ms
       )
-      assert_equal "PONG", client.ping
-      client.close
+      # A 1ms request timeout can legitimately expire on a slow runner (e.g. musl CI),
+      # so the test only requires that the client is created and answers with either
+      # a reply or a timeout error, never any other failure.
+      begin
+        assert_equal "PONG", client.ping
+      rescue ::Valkey::TimeoutError
+        pass
+      ensure
+        client.close
+      end
     end
 
     # ====================
