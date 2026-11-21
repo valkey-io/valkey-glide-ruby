@@ -399,7 +399,13 @@ module Lint
     end
 
     def test_wait
-      assert_equal r.wait(0, 0), 0
+      # WAIT returns the number of replicas that acknowledged the preceding
+      # writes. With numreplicas=0 it returns immediately, so the count depends
+      # on replication timing (0 or the number of replicas in the topology).
+      acked = r.wait(0, 0)
+
+      assert_kind_of Integer, acked
+      assert_operator acked, :>=, 0
     end
 
     # call/call_v generic-command primitive tests
