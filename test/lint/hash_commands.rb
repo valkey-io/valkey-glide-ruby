@@ -278,6 +278,133 @@ module Lint
       end
     end
 
+    def test_hsetex_nx
+      target_version "9.1" do
+        ttl_seconds = 100
+
+        assert_equal 1, r.hsetex("foo", "f1", "s1", ttl_seconds, nx: true)
+        assert_equal "s1", r.hget("foo", "f1")
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
+      end
+    end
+
+    def test_hsetex_xx
+      target_version "9.1" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 1, r.hsetex("foo", "f2", "s2", ttl_seconds, xx: true)
+        assert_equal "s2", r.hget("foo", "f2")
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f2").first
+      end
+    end
+
+    def test_hsetex_fnx
+      target_version "9.0" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 1, r.hsetex("foo", "f2", "s2", ttl_seconds, fnx: true)
+        assert_equal({ "f1" => "s1", "f2" => "s2" }, r.hgetall("foo"))
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f2").first
+      end
+    end
+
+    def test_hsetex_fxx
+      target_version "9.0" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 1, r.hsetex("foo", "f1", "s2", ttl_seconds, fxx: true)
+        assert_equal "s2", r.hget("foo", "f1")
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
+      end
+    end
+
+    def test_hsetex_key_and_field_conditions
+      target_version "9.1" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 1, r.hsetex("foo", "f1", "s2", ttl_seconds, xx: true, fxx: true)
+        assert_equal "s2", r.hget("foo", "f1")
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
+      end
+    end
+
+    def test_hsetex_nx_key_exists
+      target_version "9.1" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 0, r.hsetex("foo", "f2", "s2", ttl_seconds, nx: true)
+        assert_equal({ "f1" => "s1" }, r.hgetall("foo"))
+      end
+    end
+
+    def test_hsetex_xx_key_not_found
+      target_version "9.1" do
+        ttl_seconds = 100
+
+        assert_equal 0, r.hsetex("foo", "f1", "s1", ttl_seconds, xx: true)
+        assert_equal 0, r.exists("foo")
+      end
+    end
+
+    def test_hsetex_fnx_field_exists
+      target_version "9.0" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 0, r.hsetex("foo", "f1", "s2", ttl_seconds, fnx: true)
+        assert_equal "s1", r.hget("foo", "f1")
+        assert_equal([-1], r.httl("foo", "f1"))
+      end
+    end
+
+    def test_hsetex_fxx_field_not_found
+      target_version "9.0" do
+        ttl_seconds = 100
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 0, r.hsetex("foo", "f2", "s2", ttl_seconds, fxx: true)
+        assert_equal({ "f1" => "s1" }, r.hgetall("foo"))
+      end
+    end
+
+    def test_hsetex_fxx_key_not_found
+      target_version "9.0" do
+        ttl_seconds = 100
+
+        assert_equal 0, r.hsetex("foo", "f1", "s1", ttl_seconds, fxx: true)
+        assert_equal 0, r.exists("foo")
+      end
+    end
+
+    def test_hsetex_nx_and_xx_raises
+      target_version "9.1" do
+        ttl_seconds = 100
+
+        error = assert_raises(Valkey::CommandError) do
+          r.hsetex("foo", "f1", "s1", ttl_seconds, nx: true, xx: true)
+        end
+        assert_includes error.message, "syntax error"
+        assert_equal 0, r.exists("foo")
+      end
+    end
+
+    def test_hsetex_fnx_and_fxx_raises
+      target_version "9.0" do
+        ttl_seconds = 100
+
+        error = assert_raises(Valkey::CommandError) do
+          r.hsetex("foo", "f1", "s1", ttl_seconds, fnx: true, fxx: true)
+        end
+        assert_includes error.message, "syntax error"
+        assert_equal 0, r.exists("foo")
+      end
+    end
+
     def test_hgetex
       target_version "9.0" do
         r.hset("foo", "f1", "s1")

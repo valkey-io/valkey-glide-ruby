@@ -365,15 +365,40 @@ class Valkey
       # @example
       #   valkey.hsetex("hash", "field", "value", 60)
       #     # => 1
+      # @example Set the field only if the hash already exists
+      #   valkey.hsetex("hash", "field", "value", 60, xx: true)
+      #     # => 1
+      # @example Set the field only if the hash does not exist
+      #   valkey.hsetex("hash", "field", "value", 60, nx: true)
+      #     # => 0
+      # @example Set the field only if it does not exist in the hash
+      #   valkey.hsetex("hash", "new_field", "value", 60, fnx: true)
+      #     # => 1
       #
       # @param [String] key
       # @param [String] field
       # @param [String] value
       # @param [Integer] seconds - expiration time in seconds
+      # @param [Boolean, nil] nx - set only when the key does not exist. Requires Valkey 9.1.
+      # @param [Boolean, nil] xx - set only when the key exists. Requires Valkey 9.1.
+      # @param [Boolean, nil] fnx - set only when the field does not exist
+      # @param [Boolean, nil] fxx - set only when the field exists
       #
-      # @return [Integer] the number of fields that were added
-      def hsetex(key, field, value, seconds)
-        send_command(RequestType::HSETEX, [key, "EX", Integer(seconds), "FIELDS", 1, field, value])
+      # @return [Integer] `1` if the field was set, `0` if an `:nx`, `:xx`, `:fnx`, or `:fxx` condition
+      #   was not met
+      #
+      # @since Valkey 9.0
+      #
+      # @see https://valkey.io/commands/hsetex/
+      def hsetex(key, field, value, seconds, nx: nil, xx: nil, fnx: nil, fxx: nil)
+        args = [key]
+        args << "NX" if nx
+        args << "XX" if xx
+        args << "FNX" if fnx
+        args << "FXX" if fxx
+        args.push("EX", Integer(seconds), "FIELDS", 1, field, value)
+
+        send_command(RequestType::HSETEX, args)
       end
 
       # Get the value of one or more hash fields and optionally set their expiration time.
