@@ -94,9 +94,9 @@ class TestStringCommandsUnit < Minitest::Test
     reply = "OK"
     client = FakeClient.new(reply: reply)
 
-    assert_same reply, client.set("key", "new", **options), "reply for #{options.inspect}"
-    assert_equal Valkey::RequestType::SET, client.captured_command, "command for #{options.inspect}"
-    assert_equal expected_arguments, client.captured_arguments, "arguments for #{options.inspect}"
+    assert_same reply, client.set("key", "new", **options)
+    assert_equal Valkey::RequestType::SET, client.captured_command
+    assert_equal expected_arguments, client.captured_arguments
 
     client
   end

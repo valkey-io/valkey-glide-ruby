@@ -76,11 +76,8 @@ class Valkey
 
       # Set the string value of a key.
       #
-      # @example Set only when the current value differs
-      #   valkey.set("key", "current")
-      #   valkey.set("key", "new", ifne: "current")
-      #     # => nil
-      #   valkey.set("key", "new", ifne: "different")
+      # @example Set a string value
+      #   valkey.set("key", "value")
       #     # => "OK"
       #
       # @param [String] key
