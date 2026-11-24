@@ -8,9 +8,11 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- Added support for the `hsetex` key conditions `nx:` and `xx:` with Valkey 9.1 or later, and the field conditions `fnx:` and `fxx:` with Valkey 9.0 or later. ([#445](https://github.com/valkey-io/valkey-glide-ruby/issues/445))
+- Added support for `hsetex(key, *attrs, ...)` with multiple fields and the `fnx:`, `fxx:`, `ex:`, `px:`, `exat:`, `pxat:`, and `keepttl:` options matching redis-rb, and the `nx:` and `xx:` key conditions with Valkey 9.1 or later. ([#447](https://github.com/valkey-io/valkey-glide-ruby/pull/447))
 
 ### Changed
+
+- Deprecated `hsetex(key, field, value, seconds)` in favor of `hsetex(key, field, value, ex: seconds)`; the deprecated form warns when called and will be removed in the next major release. ([#447](https://github.com/valkey-io/valkey-glide-ruby/pull/447))
 
 ### Removed
 

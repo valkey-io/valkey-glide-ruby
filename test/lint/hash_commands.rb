@@ -272,9 +272,57 @@ module Lint
 
     def test_hsetex
       target_version "9.0" do
-        r.hsetex("foo", "f1", "s1", 2)
-        assert_equal "s1", r.hget("foo", "f1")
-        assert_in_range 0..2, r.httl("foo", "f1").first
+        assert_equal 1, r.hsetex("foo", "f1", "s1", "f2", "s2")
+        assert_equal({ "f1" => "s1", "f2" => "s2" }, r.hgetall("foo"))
+        assert_equal [-1, -1], r.httl("foo", "f1", "f2")
+      end
+    end
+
+    def test_hsetex_hash_attrs_with_ex
+      target_version "9.0" do
+        ttl_seconds = 100
+
+        assert_equal 1, r.hsetex("foo", { "f1" => "s1", "f2" => "s2" }, ex: ttl_seconds)
+        assert_equal({ "f1" => "s1", "f2" => "s2" }, r.hgetall("foo"))
+        r.httl("foo", "f1", "f2").each { |ttl| assert_in_range 0..ttl_seconds, ttl }
+      end
+    end
+
+    def test_hsetex_px
+      target_version "9.0" do
+        ttl_milliseconds = 100_000
+
+        assert_equal 1, r.hsetex("foo", "f1", "s1", px: ttl_milliseconds)
+        assert_in_range 0..ttl_milliseconds, r.hpttl("foo", "f1").first
+      end
+    end
+
+    def test_hsetex_exat
+      target_version "9.0" do
+        ttl_seconds = 100
+
+        assert_equal 1, r.hsetex("foo", "f1", "s1", exat: Time.now.to_i + ttl_seconds)
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
+      end
+    end
+
+    def test_hsetex_pxat
+      target_version "9.0" do
+        ttl_milliseconds = 100_000
+
+        assert_equal 1, r.hsetex("foo", "f1", "s1", pxat: (Time.now.to_f * 1000).to_i + ttl_milliseconds)
+        assert_in_range 0..ttl_milliseconds, r.hpttl("foo", "f1").first
+      end
+    end
+
+    def test_hsetex_keepttl
+      target_version "9.0" do
+        ttl_seconds = 100
+        r.hsetex("foo", "f1", "s1", ex: ttl_seconds)
+
+        assert_equal 1, r.hsetex("foo", "f1", "s2", keepttl: true)
+        assert_equal "s2", r.hget("foo", "f1")
+        assert_in_range 1..ttl_seconds, r.httl("foo", "f1").first
       end
     end
 
@@ -282,7 +330,7 @@ module Lint
       target_version "9.1" do
         ttl_seconds = 100
 
-        assert_equal 1, r.hsetex("foo", "f1", "s1", ttl_seconds, nx: true)
+        assert_equal 1, r.hsetex("foo", "f1", "s1", ex: ttl_seconds, nx: true)
         assert_equal "s1", r.hget("foo", "f1")
         assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
       end
@@ -293,7 +341,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 1, r.hsetex("foo", "f2", "s2", ttl_seconds, xx: true)
+        assert_equal 1, r.hsetex("foo", "f2", "s2", ex: ttl_seconds, xx: true)
         assert_equal "s2", r.hget("foo", "f2")
         assert_in_range 0..ttl_seconds, r.httl("foo", "f2").first
       end
@@ -304,7 +352,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 1, r.hsetex("foo", "f2", "s2", ttl_seconds, fnx: true)
+        assert_equal 1, r.hsetex("foo", "f2", "s2", ex: ttl_seconds, fnx: true)
         assert_equal({ "f1" => "s1", "f2" => "s2" }, r.hgetall("foo"))
         assert_in_range 0..ttl_seconds, r.httl("foo", "f2").first
       end
@@ -315,7 +363,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 1, r.hsetex("foo", "f1", "s2", ttl_seconds, fxx: true)
+        assert_equal 1, r.hsetex("foo", "f1", "s2", ex: ttl_seconds, fxx: true)
         assert_equal "s2", r.hget("foo", "f1")
         assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
       end
@@ -326,7 +374,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 1, r.hsetex("foo", "f1", "s2", ttl_seconds, xx: true, fxx: true)
+        assert_equal 1, r.hsetex("foo", "f1", "s2", ex: ttl_seconds, xx: true, fxx: true)
         assert_equal "s2", r.hget("foo", "f1")
         assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
       end
@@ -337,7 +385,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 0, r.hsetex("foo", "f2", "s2", ttl_seconds, nx: true)
+        assert_equal 0, r.hsetex("foo", "f2", "s2", ex: ttl_seconds, nx: true)
         assert_equal({ "f1" => "s1" }, r.hgetall("foo"))
       end
     end
@@ -346,7 +394,7 @@ module Lint
       target_version "9.1" do
         ttl_seconds = 100
 
-        assert_equal 0, r.hsetex("foo", "f1", "s1", ttl_seconds, xx: true)
+        assert_equal 0, r.hsetex("foo", "f1", "s1", ex: ttl_seconds, xx: true)
         assert_equal 0, r.exists("foo")
       end
     end
@@ -356,7 +404,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 0, r.hsetex("foo", "f1", "s2", ttl_seconds, fnx: true)
+        assert_equal 0, r.hsetex("foo", "f1", "s2", ex: ttl_seconds, fnx: true)
         assert_equal "s1", r.hget("foo", "f1")
         assert_equal([-1], r.httl("foo", "f1"))
       end
@@ -367,7 +415,7 @@ module Lint
         ttl_seconds = 100
         r.hset("foo", "f1", "s1")
 
-        assert_equal 0, r.hsetex("foo", "f2", "s2", ttl_seconds, fxx: true)
+        assert_equal 0, r.hsetex("foo", "f2", "s2", ex: ttl_seconds, fxx: true)
         assert_equal({ "f1" => "s1" }, r.hgetall("foo"))
       end
     end
@@ -376,7 +424,7 @@ module Lint
       target_version "9.0" do
         ttl_seconds = 100
 
-        assert_equal 0, r.hsetex("foo", "f1", "s1", ttl_seconds, fxx: true)
+        assert_equal 0, r.hsetex("foo", "f1", "s1", ex: ttl_seconds, fxx: true)
         assert_equal 0, r.exists("foo")
       end
     end
@@ -386,7 +434,7 @@ module Lint
         ttl_seconds = 100
 
         error = assert_raises(Valkey::CommandError) do
-          r.hsetex("foo", "f1", "s1", ttl_seconds, nx: true, xx: true)
+          r.hsetex("foo", "f1", "s1", ex: ttl_seconds, nx: true, xx: true)
         end
         assert_includes error.message, "syntax error"
         assert_equal 0, r.exists("foo")
@@ -398,10 +446,45 @@ module Lint
         ttl_seconds = 100
 
         error = assert_raises(Valkey::CommandError) do
-          r.hsetex("foo", "f1", "s1", ttl_seconds, fnx: true, fxx: true)
+          r.hsetex("foo", "f1", "s1", ex: ttl_seconds, fnx: true, fxx: true)
         end
         assert_includes error.message, "syntax error"
         assert_equal 0, r.exists("foo")
+      end
+    end
+
+    def test_hsetex_fnx_one_field_exists
+      target_version "9.0" do
+        r.hset("foo", "f1", "s1")
+
+        assert_equal 0, r.hsetex("foo", "f1", "s2", "f2", "s2", fnx: true)
+        assert_equal({ "f1" => "s1" }, r.hgetall("foo"))
+      end
+    end
+
+    def test_hsetex_multiple_expiry_options_raises
+      target_version "9.0" do
+        ttl_seconds = 100
+        ttl_milliseconds = 100_000
+
+        assert_raises(Valkey::CommandError) do
+          r.hsetex("foo", "f1", "s1", ex: ttl_seconds, px: ttl_milliseconds)
+        end
+        assert_equal 0, r.exists("foo")
+      end
+    end
+
+    def test_hsetex_deprecated_form
+      target_version "9.0" do
+        ttl_seconds = 100
+        result = nil
+
+        _, warning = capture_io { result = r.hsetex("foo", "f1", "s1", ttl_seconds) }
+
+        assert_equal 1, result
+        assert_equal "s1", r.hget("foo", "f1")
+        assert_in_range 0..ttl_seconds, r.httl("foo", "f1").first
+        assert_match(/hsetex\(key, field, value, seconds\) is deprecated/, warning)
       end
     end
 
@@ -423,7 +506,7 @@ module Lint
 
     def test_hgetex_with_persist
       target_version "9.0" do
-        r.hsetex("foo", "f1", "s1", 100)
+        r.hsetex("foo", "f1", "s1", ex: 100)
         assert_equal "s1", r.hgetex("foo", "f1", persist: true)
         assert_equal([-1], r.httl("foo", "f1"))
       end
@@ -480,7 +563,7 @@ module Lint
 
     def test_hpersist
       target_version "9.0" do
-        r.hsetex("foo", "f1", "s1", 100)
+        r.hsetex("foo", "f1", "s1", ex: 100)
         assert_equal [1], r.hpersist("foo", "f1")
         assert_equal([-1], r.httl("foo", "f1"))
       end
@@ -488,8 +571,8 @@ module Lint
 
     def test_hpersist_multiple_fields
       target_version "9.0" do
-        r.hsetex("foo", "f1", "s1", 100)
-        r.hsetex("foo", "f2", "s2", 100)
+        r.hsetex("foo", "f1", "s1", ex: 100)
+        r.hsetex("foo", "f2", "s2", ex: 100)
         results = r.hpersist("foo", "f1", "f2")
         assert_equal [1, 1], results
       end
@@ -500,7 +583,7 @@ module Lint
         r.hset("foo", "f1", "s1")
         assert_equal([-1], r.httl("foo", "f1"))
 
-        r.hsetex("foo", "f1", "s1", 2)
+        r.hsetex("foo", "f1", "s1", ex: 2)
         assert_in_range 0..2, r.httl("foo", "f1").first
 
         assert_equal([-2], r.httl("foo", "f2"))
@@ -510,7 +593,7 @@ module Lint
     def test_httl_multiple_fields
       target_version "9.0" do
         r.hset("foo", "f1", "s1", "f2", "s2")
-        r.hsetex("foo", "f1", "s1", 2)
+        r.hsetex("foo", "f1", "s1", ex: 2)
         results = r.httl("foo", "f1", "f2", "f3")
         assert results[0].between?(0, 2)
         assert_equal(-1, results[1])

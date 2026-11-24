@@ -40,67 +40,130 @@ class TestHashCommandsUnit < Minitest::Test
   end
 
   HSETEX_KEY = "hash"
-  HSETEX_FIELD = "field"
-  HSETEX_VALUE = "value"
   HSETEX_TTL_SECONDS = 60
-  HSETEX_FIELDS_COUNT = 1
-  HSETEX_TRAILING_ARGS = [
-    "EX", HSETEX_TTL_SECONDS, "FIELDS", HSETEX_FIELDS_COUNT, HSETEX_FIELD, HSETEX_VALUE
-  ].freeze
+  HSETEX_TTL_MILLISECONDS = 1500
+  HSETEX_UNIX_TIME_SECONDS = 1_900_000_000
+  HSETEX_UNIX_TIME_MILLISECONDS = 1_900_000_000_000
+  HSETEX_FIELD_VALUES = %w[f1 v1 f2 v2].freeze
+  HSETEX_FIELDS_ARGS = ["FIELDS", 2, *HSETEX_FIELD_VALUES].freeze
+  HSETEX_DEPRECATION = /hsetex\(key, field, value, seconds\) is deprecated/
 
   def test_hsetex
     client = FakeClient.new(1)
 
-    assert_equal 1, client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS)
+    assert_equal 1, client.hsetex(HSETEX_KEY, *HSETEX_FIELD_VALUES)
     assert_equal Valkey::RequestType::HSETEX, client.captured_type
-    assert_equal [HSETEX_KEY, *HSETEX_TRAILING_ARGS], client.captured_arguments
+    assert_equal [HSETEX_KEY, *HSETEX_FIELDS_ARGS], client.captured_arguments
   end
 
-  def test_hsetex_nx
+  def test_hsetex_hash_attrs
     client = FakeClient.new(1)
 
-    client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS, nx: true)
+    client.hsetex(HSETEX_KEY, { "f1" => "v1", "f2" => "v2" })
 
-    assert_equal [HSETEX_KEY, "NX", *HSETEX_TRAILING_ARGS], client.captured_arguments
+    assert_equal [HSETEX_KEY, *HSETEX_FIELDS_ARGS], client.captured_arguments
   end
 
-  def test_hsetex_xx
+  def test_hsetex_array_attrs
     client = FakeClient.new(1)
 
-    client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS, xx: true)
+    client.hsetex(HSETEX_KEY, HSETEX_FIELD_VALUES)
 
-    assert_equal [HSETEX_KEY, "XX", *HSETEX_TRAILING_ARGS], client.captured_arguments
+    assert_equal [HSETEX_KEY, *HSETEX_FIELDS_ARGS], client.captured_arguments
   end
 
-  def test_hsetex_fnx
-    client = FakeClient.new(1)
+  def test_hsetex_expiry_options
+    {
+      { ex: HSETEX_TTL_SECONDS } => ["EX", HSETEX_TTL_SECONDS],
+      { px: HSETEX_TTL_MILLISECONDS } => ["PX", HSETEX_TTL_MILLISECONDS],
+      { exat: HSETEX_UNIX_TIME_SECONDS } => ["EXAT", HSETEX_UNIX_TIME_SECONDS],
+      { pxat: HSETEX_UNIX_TIME_MILLISECONDS } => ["PXAT", HSETEX_UNIX_TIME_MILLISECONDS],
+      { keepttl: true } => ["KEEPTTL"]
+    }.each do |options, expected_args|
+      client = FakeClient.new(1)
 
-    client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS, fnx: true)
+      client.hsetex(HSETEX_KEY, *HSETEX_FIELD_VALUES, **options)
 
-    assert_equal [HSETEX_KEY, "FNX", *HSETEX_TRAILING_ARGS], client.captured_arguments
+      assert_equal [HSETEX_KEY, *expected_args, *HSETEX_FIELDS_ARGS], client.captured_arguments, options.inspect
+    end
   end
 
-  def test_hsetex_fxx
-    client = FakeClient.new(1)
+  def test_hsetex_conditions
+    { nx: "NX", xx: "XX", fnx: "FNX", fxx: "FXX" }.each do |option, token|
+      client = FakeClient.new(1)
 
-    client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS, fxx: true)
+      client.hsetex(HSETEX_KEY, *HSETEX_FIELD_VALUES, option => true)
 
-    assert_equal [HSETEX_KEY, "FXX", *HSETEX_TRAILING_ARGS], client.captured_arguments
+      assert_equal [HSETEX_KEY, token, *HSETEX_FIELDS_ARGS], client.captured_arguments, option.inspect
+    end
   end
 
-  def test_hsetex_key_and_field_conditions
+  def test_hsetex_option_order
     client = FakeClient.new(1)
 
-    client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS, fnx: true, nx: true)
+    client.hsetex(HSETEX_KEY, *HSETEX_FIELD_VALUES, ex: HSETEX_TTL_SECONDS, fnx: true, nx: true)
 
-    assert_equal [HSETEX_KEY, "NX", "FNX", *HSETEX_TRAILING_ARGS], client.captured_arguments
+    assert_equal [HSETEX_KEY, "NX", "FNX", "EX", HSETEX_TTL_SECONDS, *HSETEX_FIELDS_ARGS], client.captured_arguments
   end
 
-  def test_hsetex_conditions_disabled
+  def test_hsetex_options_disabled
     client = FakeClient.new(1)
 
-    client.hsetex(HSETEX_KEY, HSETEX_FIELD, HSETEX_VALUE, HSETEX_TTL_SECONDS, nx: false, xx: nil, fnx: false, fxx: nil)
+    client.hsetex(HSETEX_KEY, *HSETEX_FIELD_VALUES, nx: false, xx: nil, fnx: false, fxx: nil, keepttl: false)
 
-    assert_equal [HSETEX_KEY, *HSETEX_TRAILING_ARGS], client.captured_arguments
+    assert_equal [HSETEX_KEY, *HSETEX_FIELDS_ARGS], client.captured_arguments
+  end
+
+  def test_hsetex_odd_attrs
+    client = FakeClient.new(1)
+
+    assert_raises(ArgumentError) { client.hsetex(HSETEX_KEY, "f1", "v1", "f2", ex: HSETEX_TTL_SECONDS) }
+    assert_raises(ArgumentError) { client.hsetex(HSETEX_KEY, "f1") }
+    assert_nil client.captured_type
+  end
+
+  def test_hsetex_deprecated_form
+    client = FakeClient.new(1)
+    result = nil
+
+    _, warning = capture_io { result = client.hsetex(HSETEX_KEY, "f1", "v1", HSETEX_TTL_SECONDS) }
+
+    assert_equal 1, result
+    assert_equal [HSETEX_KEY, "EX", HSETEX_TTL_SECONDS, "FIELDS", 1, "f1", "v1"], client.captured_arguments
+    assert_match HSETEX_DEPRECATION, warning
+    assert_includes warning, __FILE__
+  end
+
+  def test_hsetex_deprecated_form_array_value
+    client = FakeClient.new(1)
+
+    _, warning = capture_io { client.hsetex(HSETEX_KEY, "f1", ["v1"], HSETEX_TTL_SECONDS) }
+
+    assert_equal [HSETEX_KEY, "EX", HSETEX_TTL_SECONDS, "FIELDS", 1, "f1", ["v1"]], client.captured_arguments
+    assert_match HSETEX_DEPRECATION, warning
+  end
+
+  def test_hsetex_three_attrs_with_pair_array
+    client = FakeClient.new(1)
+
+    _, warning = capture_io { client.hsetex(HSETEX_KEY, %w[f1 v1], "f2", "v2") }
+
+    assert_equal [HSETEX_KEY, *HSETEX_FIELDS_ARGS], client.captured_arguments
+    assert_empty warning
+  end
+
+  def test_hsetex_deprecated_form_with_options
+    %i[nx xx fnx fxx ex px exat pxat keepttl].each do |option|
+      client = FakeClient.new(1)
+
+      _, warning = capture_io do
+        assert_raises(ArgumentError, option.inspect) do
+          client.hsetex(HSETEX_KEY, "f1", "v1", HSETEX_TTL_SECONDS, option => false)
+        end
+      end
+
+      assert_nil client.captured_type, option.inspect
+      assert_empty warning, option.inspect
+    end
   end
 end
