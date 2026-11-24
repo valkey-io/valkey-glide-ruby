@@ -8,7 +8,6 @@ module Helper
       msg.include?("Unexpected") && msg.include?("INKEYS")
     end
 
-    # Probes whether the server's search module supports the valkey-search 1.3 features.
     def self.probe_search_1_3_capability(client)
       probe_index = "__glide_rb_search_1_3_probe_#{SecureRandom.hex}"
       begin

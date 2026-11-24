@@ -20,7 +20,6 @@ module Helper
       @client&.close
     end
 
-    # Skips unless the search module supports the valkey-search 1.3 features.
     def skip_unless_search_1_3!
       skip "search module is pre-1.3 (search.emulate-release unavailable); 1.3 tests skip on this build" unless @capable
     end
