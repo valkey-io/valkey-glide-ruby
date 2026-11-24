@@ -89,7 +89,7 @@ class Valkey
       # @param [Boolean, nil] nx - set only when the key does not exist
       # @param [Boolean, nil] xx - set only when the key exists
       # @param [String, nil] ifne - set only when the key does not exist or its current value is not
-      #   equal to this comparison value; requires Valkey 9.2 or later.
+      #   equal to this comparison value; Since Valkey 9.2.
       # @param [Boolean, nil] keepttl - retain the key's time to live
       # @param [Boolean, nil] get - return the previous value
       #
