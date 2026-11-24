@@ -8,6 +8,13 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added support for valkey-search 1.3 in the `FT.*` API: ([#412](https://github.com/valkey-io/valkey-glide-ruby/pull/412))
+  - `ft_hybrid(index, search_arm, vsim_arm, options = nil)` with `HybridSearchArm.new(query, scorer: nil, yield_score_as: nil)`, `HybridVsimArm.new(field, vector, k: nil, ef_runtime: nil, shard_k_ratio: nil, yield_score_as: nil, filter: nil)`, `HybridVsimFilter.new(expression, policy: nil, batch_size: nil)`, `HybridCombine.rrf(constant: nil, window: nil, yield_score_as: nil)`, `HybridCombine.linear(alpha: nil, beta: nil, window: nil, yield_score_as: nil)`, `HybridCombine.function(expr, window: nil, yield_score_as: nil)`, `HybridOptions.new(combine: nil, load_all: false, load_fields: nil, clauses: nil, with_cursor: nil, local_only: false, timeout: nil, params: nil, dialect: nil)`, and the `HybridFilterPolicy` constants `ADHOC` and `BATCHES`
+  - `ft_cursor_read(index, cursor_id, count: nil)`, `ft_cursor_del(index, cursor_id)`, and `WithCursor.new(count: nil, maxidle: nil)` for `AggregateOptions` and `HybridOptions`
+  - `in_keys:`, `count:`, `with_scores:` and `scorer:` on `SearchOptions` and `ft_search`, and a `score` attribute on `SearchResult::Document`
+  - `add_scores:`, `scorer:` and `with_cursor:` on `AggregateOptions` and `ft_aggregate`, `LoadField.new(field_identifier, as: nil)` in `load:`, and the `Reducer.to_list(property, as: nil)`, `Reducer.first_value(property, by: nil, order: nil, as: nil)` and `Reducer.random_sample(property, size, as: nil)` reducers
+  - `FLOAT16` and `BFLOAT16` vector types, `unf:` on sortable `TextField`, `TagField` and `NumericField`, and `filter:`, `score_field:` and `no_highlight:` on `CreateOptions`
+
 ### Changed
 
 ### Removed

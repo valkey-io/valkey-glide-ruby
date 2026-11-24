@@ -336,6 +336,12 @@ jobs:
         env:
           STANDALONE_ENDPOINTS: ${{ env.MODULES_STANDALONE_ENDPOINT }}
 
+      - name: Run valkey-search FT.* module tests
+        run: bundle exec rake test:modules
+        env:
+          MODULES_STANDALONE_ENDPOINT: ${{ env.MODULES_STANDALONE_ENDPOINT }}
+          MODULES_CLUSTER_ENDPOINTS: ${{ env.MODULES_CLUSTER_ENDPOINTS }}
+
       - name: Stop containers
         if: always()
         run: |
