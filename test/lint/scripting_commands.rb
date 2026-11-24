@@ -67,6 +67,29 @@ module Lint
       assert_includes error.message.downcase, "custom error message"
     end
 
+    SERVER_ERROR_CODE_CLASSES = {
+      "NOSCRIPT" => Valkey::NoScriptError,
+      "WRONGTYPE" => Valkey::WrongTypeError,
+      "OOM" => Valkey::OutOfMemoryError,
+      "NOPERM" => Valkey::PermissionError,
+      "READONLY" => Valkey::ReadOnlyError,
+      "MASTERDOWN" => Valkey::ConnectionError,
+      "WRONGPASS" => Valkey::CannotConnectError,
+      "EXECABORT" => Valkey::ExecAbortError
+    }.freeze
+
+    # Guards the glide-core kind names that error mapping depends on: a rename
+    # there would otherwise turn these into a plain CommandError unnoticed.
+    def test_eval_server_error_code_mapping
+      SERVER_ERROR_CODE_CLASSES.each do |code, klass|
+        script = "return {err='#{code} some detail'}"
+        error = assert_raises(Valkey::BaseError, code) { r.eval(script) }
+
+        assert_instance_of klass, error, code
+        assert_equal "#{code} some detail", error.message
+      end
+    end
+
     # evalsha tests
 
     def test_evalsha_basic

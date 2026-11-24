@@ -885,9 +885,9 @@ class Valkey
 
       case error[:command_error_type]
       when RequestErrorType::EXECABORT
-        raise Valkey.error_for(error[:command_error_message], default: ExecAbortError)
+        raise Valkey.make_server_reply_error(error[:command_error_message], default: ExecAbortError)
       when RequestErrorType::UNSPECIFIED
-        raise Valkey.error_for(error[:command_error_message])
+        raise Valkey.make_server_reply_error(error[:command_error_message])
       when RequestErrorType::TIMEOUT
         raise TimeoutError, error[:command_error_message]
       when RequestErrorType::DISCONNECT
@@ -956,7 +956,7 @@ class Valkey
                     else
                       response_item[:string_value].read_string(response_item[:string_value_len])
                     end
-        Valkey.error_for(error_msg)
+        Valkey.make_server_reply_error(error_msg)
       else
         raise "Unsupported response type: #{response_item[:response_type]}"
       end

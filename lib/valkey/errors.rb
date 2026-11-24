@@ -54,10 +54,10 @@ class Valkey
 
   class SubscriptionError < BaseError; end
 
-  # Server error codes mapped to the same classes redis-rb raises through
+  # Server error codes mapped to the classes redis-rb raises through
   # redis-client's `CommandError::ERRORS` and `Redis::Client::ERROR_MAPPING`.
-  # Authentication failures surface as {CannotConnectError}, and MASTERDOWN as
-  # {ConnectionError}, exactly as in redis-rb.
+  # EXECABORT is deliberate: redis-client has no entry for it and raises a plain
+  # `CommandError`, so {ExecAbortError} is a subclass of what redis-rb raises.
   SERVER_ERROR_CLASSES = {
     "EXECABORT" => ExecAbortError,
     "WRONGPASS" => CannotConnectError,
@@ -91,6 +91,10 @@ class Valkey
     "PermissionDenied" => "NOPERM"
   }.freeze
 
+  GLIDE_PREFIX_PATTERN = /\AAn error was signalled by the server:\s*/
+  GLIDE_KIND_PATTERN = /\AAn error was signalled by the server:\s*-\s*(\w+)(?::\s*(.*))?\z/m
+  EXTENSION_PATTERN = /\A([A-Za-z][A-Za-z0-9_]*): (.*)\z/m
+
   # Marks an exception built from a server error reply, as opposed to one raised
   # for a transport failure. The two can share a class - MASTERDOWN and a dropped
   # connection both raise {ConnectionError} - so internal code can tell them apart.
@@ -102,11 +106,15 @@ class Valkey
   # error code the same way redis-client does and using the server's original
   # error text as the message. Unknown codes yield `default`.
   #
+  # Restoring the server's text from glide-core's rendering is temporary: it can
+  # go once glide-core exposes the server error code, see
+  # https://github.com/valkey-io/valkey-glide/issues/7309.
+  #
   # @param [String] message the error message returned by the server
   # @param [Class] default the class used when the code is not recognised
   # @return [BaseError]
   # @api private
-  def self.error_for(message, default: CommandError)
+  def self.make_server_reply_error(message, default: CommandError)
     message = normalize_server_error(message)
     SERVER_ERROR_CLASSES.fetch(server_error_code(message), default).new(message).extend(ServerReply)
   end
@@ -115,12 +123,15 @@ class Valkey
   def self.normalize_server_error(message)
     message = message.to_s.strip
 
-    if (match = message.match(/\AAn error was signalled by the server:\s*-\s*(\w+)(?::\s*(.*))?\z/m)) &&
-       (code = GLIDE_ERROR_KIND_CODES[match[1]])
-      return [code, match[2]].compact.join(" ").strip
+    if (match = message.match(GLIDE_KIND_PATTERN)) && (code = GLIDE_ERROR_KIND_CODES[match[1]])
+      # Cluster pipelines repeat glide-core's prefix inside the detail.
+      detail = match[2].to_s.sub(GLIDE_PREFIX_PATTERN, "")
+      return [code, detail].reject(&:empty?).join(" ")
     end
 
-    if (match = message.match(/\A([A-Z][A-Z0-9_]*): (.*)\z/m))
+    # Extension codes may be mixed case (valkey-search's `Invalid: ...`), so only
+    # glide-core's own `...Error` names are left alone.
+    if (match = message.match(EXTENSION_PATTERN)) && !match[1].end_with?("Error")
       return "#{match[1]} #{match[2]}".strip
     end
 
@@ -138,5 +149,6 @@ class Valkey
   end
 
   private_class_method :normalize_server_error, :server_error_code
-  private_constant :SERVER_ERROR_CLASSES, :GLIDE_ERROR_KIND_CODES
+  private_constant :SERVER_ERROR_CLASSES, :GLIDE_ERROR_KIND_CODES, :GLIDE_PREFIX_PATTERN,
+                   :GLIDE_KIND_PATTERN, :EXTENSION_PATTERN
 end

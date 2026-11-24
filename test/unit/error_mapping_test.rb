@@ -2,6 +2,8 @@
 
 require "test_helper"
 
+# Unit tests for mapping server error replies to specific error classes and for
+# how pipelines, transactions and WATCH treat those errors versus transport failures.
 class ErrorMappingTest < Minitest::Test
   def test_maps_server_codes_like_redis_rb
     {
@@ -14,7 +16,7 @@ class ErrorMappingTest < Minitest::Test
       "WRONGPASS invalid username-password pair" => Valkey::CannotConnectError,
       "ERR unknown command" => Valkey::CommandError
     }.each do |message, klass|
-      error = Valkey.error_for(message)
+      error = Valkey.make_server_reply_error(message)
 
       assert_instance_of klass, error, message
       assert_equal message, error.message
@@ -22,7 +24,7 @@ class ErrorMappingTest < Minitest::Test
   end
 
   def test_restores_server_text_from_glide_extension_errors
-    error = Valkey.error_for("WRONGTYPE: Operation against a key holding the wrong kind of value")
+    error = Valkey.make_server_reply_error("WRONGTYPE: Operation against a key holding the wrong kind of value")
 
     assert_instance_of Valkey::WrongTypeError, error
     assert_equal "WRONGTYPE Operation against a key holding the wrong kind of value", error.message
@@ -30,14 +32,21 @@ class ErrorMappingTest < Minitest::Test
 
   def test_restores_server_text_from_glide_kind_names
     {
-      "NoScriptError" => ["NOSCRIPT", Valkey::NoScriptError],
-      "PermissionDenied" => ["NOPERM", Valkey::PermissionError],
-      "ReadOnly" => ["READONLY", Valkey::ReadOnlyError],
-      "MasterDown" => ["MASTERDOWN", Valkey::ConnectionError],
       "ResponseError" => ["ERR", Valkey::CommandError],
-      "BusyLoadingError" => ["LOADING", Valkey::CommandError]
+      "ExecAbortError" => ["EXECABORT", Valkey::ExecAbortError],
+      "BusyLoadingError" => ["LOADING", Valkey::CommandError],
+      "NoScriptError" => ["NOSCRIPT", Valkey::NoScriptError],
+      "Moved" => ["MOVED", Valkey::CommandError],
+      "Ask" => ["ASK", Valkey::CommandError],
+      "TryAgain" => ["TRYAGAIN", Valkey::CommandError],
+      "ClusterDown" => ["CLUSTERDOWN", Valkey::CommandError],
+      "CrossSlot" => ["CROSSSLOT", Valkey::CommandError],
+      "MasterDown" => ["MASTERDOWN", Valkey::ConnectionError],
+      "ReadOnly" => ["READONLY", Valkey::ReadOnlyError],
+      "NotBusy" => ["NOTBUSY", Valkey::CommandError],
+      "PermissionDenied" => ["NOPERM", Valkey::PermissionError]
     }.each do |kind, (code, klass)|
-      error = Valkey.error_for("An error was signalled by the server: - #{kind}: some detail")
+      error = Valkey.make_server_reply_error("An error was signalled by the server: - #{kind}: some detail")
 
       assert_instance_of klass, error, kind
       assert_equal "#{code} some detail", error.message
@@ -45,40 +54,69 @@ class ErrorMappingTest < Minitest::Test
   end
 
   def test_glide_kind_without_detail
-    error = Valkey.error_for("An error was signalled by the server:- NoScriptError")
+    error = Valkey.make_server_reply_error("An error was signalled by the server:- NoScriptError")
 
     assert_instance_of Valkey::NoScriptError, error
     assert_equal "NOSCRIPT", error.message
   end
 
+  def test_strips_repeated_glide_prefix_from_detail
+    error = Valkey.make_server_reply_error(
+      "An error was signalled by the server: - ResponseError: An error was signalled by the server: Library not found"
+    )
+
+    assert_equal "ERR Library not found", error.message
+  end
+
+  def test_glide_kind_with_only_the_repeated_prefix_returns_the_code
+    error = Valkey.make_server_reply_error(
+      "An error was signalled by the server: - NoScriptError: An error was signalled by the server: "
+    )
+
+    assert_equal "NOSCRIPT", error.message
+  end
+
+  def test_restores_server_text_from_mixed_case_extension_errors
+    error = Valkey.make_server_reply_error("Invalid: query string syntax")
+
+    assert_instance_of Valkey::CommandError, error
+    assert_equal "Invalid query string syntax", error.message
+  end
+
+  def test_leaves_glide_originated_errors_untouched
+    ["PipelineResponseError: slot failed", "IoError: broken pipe"].each do |message|
+      assert_equal message, Valkey.make_server_reply_error(message).message
+    end
+  end
+
   def test_leaves_other_messages_untouched
     message = "Received error for address `127.0.0.1:6380`: something"
 
-    assert_equal message, Valkey.error_for(message).message
+    assert_equal message, Valkey.make_server_reply_error(message).message
   end
 
   def test_maps_error_code_nested_in_script_errors
-    message = "ERR Error running script (call to f_abc): @user_script:1: -WRONGTYPE Operation against a key"
+    error = Valkey.make_server_reply_error(
+      "An error was signalled by the server: - ResponseError: Error running script (call to f_abc): " \
+      "@user_script:1: -WRONGTYPE Operation against a key"
+    )
 
-    assert_instance_of Valkey::WrongTypeError, Valkey.error_for(message)
+    assert_instance_of Valkey::WrongTypeError, error
+    assert_equal "ERR Error running script (call to f_abc): @user_script:1: -WRONGTYPE Operation against a key",
+                 error.message
   end
 
   def test_maps_execabort
     assert_instance_of Valkey::ExecAbortError,
-                       Valkey.error_for("EXECABORT Transaction discarded because of previous errors.")
-  end
-
-  def test_only_server_replies_are_marked
-    assert_kind_of Valkey::ServerReply, Valkey.error_for("READONLY You can't write against a read only replica.")
-    refute_kind_of Valkey::ServerReply, Valkey::ConnectionError.new("connection dropped")
+                       Valkey.make_server_reply_error("EXECABORT Transaction discarded because of previous errors.")
   end
 
   def test_reply_blocks_skip_every_error_class
     errors = [
-      Valkey.error_for("READONLY nope"),
-      Valkey.error_for("MASTERDOWN nope"),
-      Valkey.error_for("WRONGPASS nope"),
-      Valkey.error_for("ERR nope")
+      Valkey.make_server_reply_error("READONLY nope"),
+      Valkey.make_server_reply_error("MASTERDOWN nope"),
+      Valkey.make_server_reply_error("WRONGPASS nope"),
+      Valkey.make_server_reply_error("ERR nope")
     ]
     blocks = Array.new(errors.size + 1, Valkey::Utils::Boolify)
 
@@ -89,7 +127,7 @@ class ErrorMappingTest < Minitest::Test
   end
 
   def test_reconvert_queued_replies_skips_every_error_class
-    errors = [Valkey.error_for("READONLY nope"), Valkey.error_for("MASTERDOWN nope")]
+    errors = [Valkey.make_server_reply_error("READONLY nope"), Valkey.make_server_reply_error("MASTERDOWN nope")]
     queued = errors.map { [Valkey::RequestType::EXPIRE, %w[k 1], nil] }
 
     results = Valkey.allocate.send(:reconvert_queued_replies, errors, queued)
@@ -98,7 +136,8 @@ class ErrorMappingTest < Minitest::Test
   end
 
   def test_exec_returns_server_replies_that_map_to_connection_errors
-    client = multi_client { raise Valkey.error_for("READONLY You can't write against a read only replica.") }
+    error = Valkey.make_server_reply_error("READONLY You can't write against a read only replica.")
+    client = multi_client { raise error }
 
     assert_instance_of Valkey::ReadOnlyError, client.exec.first
   end
@@ -109,14 +148,36 @@ class ErrorMappingTest < Minitest::Test
     assert_raises(Valkey::ConnectionError) { client.exec }
   end
 
-  def test_discard_swallows_server_replies_but_not_transport_failures
-    assert_nil multi_client { raise Valkey.error_for("MASTERDOWN Link with MASTER is down") }.discard
+  def test_discard_swallows_server_replies
+    assert_nil multi_client { raise Valkey.make_server_reply_error("MASTERDOWN Link with MASTER is down") }.discard
+  end
+
+  def test_discard_does_not_swallow_transport_failures
     assert_raises(Valkey::ConnectionError) { multi_client { raise Valkey::ConnectionError, "dropped" }.discard }
   end
 
-  def test_error_for_uses_the_default_class_for_unrecognised_codes
-    assert_instance_of Valkey::ExecAbortError, Valkey.error_for("reworded by glide-core", default: Valkey::ExecAbortError)
-    assert_instance_of Valkey::CommandError, Valkey.error_for("reworded by glide-core")
+  def test_exec_without_multi_returns_nil_on_server_reply
+    client = Valkey.allocate
+    client.define_singleton_method(:send_command) do |*_args, **_opts, &_block|
+      raise Valkey.make_server_reply_error("ERR EXEC without MULTI")
+    end
+
+    assert_nil client.exec
+  end
+
+  def test_exec_without_multi_does_not_swallow_transport_failures
+    client = Valkey.allocate
+    client.define_singleton_method(:send_command) do |*_args, **_opts, &_block|
+      raise Valkey::ConnectionError, "connection dropped"
+    end
+
+    assert_raises(Valkey::ConnectionError) { client.exec }
+  end
+
+  def test_make_server_reply_error_uses_the_default_class_for_unrecognised_codes
+    error = Valkey.make_server_reply_error("reworded by glide-core", default: Valkey::ExecAbortError)
+
+    assert_instance_of Valkey::ExecAbortError, error
   end
 
   def test_internal_helpers_are_not_public
@@ -131,7 +192,7 @@ class ErrorMappingTest < Minitest::Test
     client = watch_client(calls)
 
     assert_raises(Valkey::ConnectionError) do
-      client.watch("key") { raise Valkey.error_for("MASTERDOWN Link with MASTER is down") }
+      client.watch("key") { raise Valkey.make_server_reply_error("MASTERDOWN Link with MASTER is down") }
     end
     assert_includes calls, Valkey::RequestType::UNWATCH
   end
