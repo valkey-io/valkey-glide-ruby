@@ -217,7 +217,7 @@ class Valkey
       #       Valkey::Search::HybridVsimArm.new("vec", query_vector_bytes, k: 10, yield_score_as: "vs"),
       #       Valkey::Search::HybridOptions.new(
       #         combine: Valkey::Search::HybridCombine.rrf(constant: 60),
-      #         load_fields: ["title"],
+      #         load: ["title"],
       #         with_cursor: Valkey::Search::WithCursor.new(count: 10)))
       #
       # ### Limitations
@@ -241,6 +241,8 @@ class Valkey
       # @param [Valkey::Search::HybridVsimArm] vsim_arm - the vector similarity search arm
       # @param [Valkey::Search::HybridOptions, nil] options - the optional
       #   arguments for FT.HYBRID's aggregate-suffix tail
+      # @param [Hash] kwargs - the same options as keywords, as an alternative
+      #   to +options+ (forwarded to {Valkey::Search::HybridOptions})
       #
       # @return [Array] an array of field-name/value mappings for each
       #   matching document, after both arms' results have been fused and
@@ -250,15 +252,16 @@ class Valkey
       #   instead matches FT.AGGREGATE's own WITHCURSOR shape: a two-element
       #   array of `[rows, cursor_id]`.
       #
-      # @raise [ArgumentError] when used inside a batch, or when an argument
-      #   is not an instance of its expected class
+      # @raise [ArgumentError] when used inside a batch, when an argument
+      #   is not an instance of its expected class, or when options are
+      #   passed both positionally and as keywords
       #
       # @see https://valkey.io/commands/ft.hybrid/
-      def ft_hybrid(index, search_arm, vsim_arm, options = nil)
+      def ft_hybrid(index, search_arm, vsim_arm, options = nil, **kwargs)
         ft_assert_supported!("ft_hybrid", flatten_map_check: false)
         ft_assert_type!(search_arm, Valkey::Search::HybridSearchArm, "ft_hybrid search_arm")
         ft_assert_type!(vsim_arm, Valkey::Search::HybridVsimArm, "ft_hybrid vsim_arm")
-        ft_assert_type!(options, Valkey::Search::HybridOptions, "ft_hybrid options", allow_nil: true)
+        options = ft_resolve_options(Valkey::Search::HybridOptions, options, kwargs, label: "ft_hybrid")
         command_args = ["FT.HYBRID", index]
         command_args.concat(search_arm.to_args)
         generated_vsim_param = nil

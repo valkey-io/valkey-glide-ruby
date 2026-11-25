@@ -337,20 +337,21 @@ class Valkey
     # @example
     #   Valkey::Search::HybridOptions.new(
     #     combine: Valkey::Search::HybridCombine.rrf(constant: 60),
-    #     load_fields: ["title"],
+    #     load: ["title"],
     #     with_cursor: Valkey::Search::WithCursor.new(count: 10))
     class HybridOptions
-      attr_reader :combine, :load_all, :load_fields, :clauses, :with_cursor,
+      attr_reader :combine, :load, :clauses, :with_cursor,
                   :local_only, :timeout, :params, :dialect
 
       # @param combine [HybridCombine, nil] controls how the SEARCH and VSIM
       #   arms' scores are fused. If omitted, the server's own default applies.
-      # @param load_all [Boolean] loads every field declared in the index,
-      #   plus both arms' score aliases automatically (`LOAD *`)
-      # @param load_fields [Array<String, LoadField>, nil] loads only the
-      #   fields passed here. Must NOT include either arm's yield_score_as
-      #   alias — the server rejects that outright even though the alias is
-      #   otherwise freely reachable from clauses. With no LOAD clause at all,
+      # @param load [Array<String, LoadField>, :all, String, nil] the LOAD
+      #   fields, as for {AggregateOptions}. `:all` or `"*"` loads every
+      #   field declared in the index, plus both arms' score aliases
+      #   automatically (`LOAD *`). An Array loads only the fields passed
+      #   here, and must NOT include either arm's yield_score_as alias — the
+      #   server rejects that outright even though the alias is otherwise
+      #   freely reachable from clauses. With no LOAD clause at all,
       #   FT.HYBRID's default reply is the document key and the fused score.
       # @param clauses [Array<AggregateClause>, nil] FILTER, LIMIT, GROUPBY,
       #   SORTBY and APPLY clauses, reusing {AggregateClause} and its
@@ -376,11 +377,10 @@ class Valkey
       #   either taken as literal text or rejected, never replaced.
       # @param dialect [Integer, nil] FT.HYBRID is fixed at dialect 2
       #   server-side; passing any other value is rejected by the server
-      def initialize(combine: nil, load_all: false, load_fields: nil, clauses: nil,
+      def initialize(combine: nil, load: nil, clauses: nil,
                      with_cursor: nil, local_only: false, timeout: nil, params: nil, dialect: nil)
         @combine = combine
-        @load_all = load_all
-        @load_fields = load_fields
+        @load = load
         @clauses = clauses
         @with_cursor = with_cursor
         @local_only = local_only
@@ -410,17 +410,25 @@ class Valkey
       def to_args(generated_vsim_param: nil)
         args = []
         args << HybridKeywords::LOCALONLY if @local_only
-        if @load_all
-          args.push("LOAD", "*")
-        else
-          args.concat(Search.load_fields_to_args(@load_fields))
-        end
+        append_load(args)
         args.push(HybridKeywords::TIMEOUT, @timeout) unless @timeout.nil?
         args.concat(Search.params_to_args(merge_params(generated_vsim_param), params_keyword: HybridKeywords::PARAMS))
         @clauses&.each { |clause| args.concat(clause.to_args) }
         args.concat(@with_cursor.to_args) unless @with_cursor.nil?
         args.push(HybridKeywords::DIALECT, @dialect) unless @dialect.nil?
         args
+      end
+
+      private
+
+      def append_load(args)
+        case @load
+        when nil then nil
+        when :all, "*" then args.push("LOAD", "*")
+        when Array
+          args.concat(Search.load_fields_to_args(@load))
+        else raise ArgumentError, "load must be an Array of fields/LoadField, :all, or nil"
+        end
       end
     end
   end

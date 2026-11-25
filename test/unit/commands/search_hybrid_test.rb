@@ -132,17 +132,25 @@ class HybridOptionsTest < Minitest::Test
     assert_equal [], Valkey::Search::HybridOptions.new.to_args
   end
 
-  def test_load_all
-    assert_equal %w[LOAD *], Valkey::Search::HybridOptions.new(load_all: true).to_args
+  def test_load_all_symbol
+    assert_equal %w[LOAD *], Valkey::Search::HybridOptions.new(load: :all).to_args
+  end
+
+  def test_load_all_star
+    assert_equal %w[LOAD *], Valkey::Search::HybridOptions.new(load: "*").to_args
   end
 
   def test_load_fields
-    args = Valkey::Search::HybridOptions.new(load_fields: %w[title price]).to_args
+    args = Valkey::Search::HybridOptions.new(load: %w[title price]).to_args
     assert_equal ["LOAD", 2, "title", "price"], args
   end
 
+  def test_load_rejects_unsupported_type
+    assert_raises(ArgumentError) { Valkey::Search::HybridOptions.new(load: 1).to_args }
+  end
+
   def test_local_only_emitted_first_regardless_of_field_order
-    args = Valkey::Search::HybridOptions.new(local_only: true, load_fields: ["title"], dialect: 2).to_args
+    args = Valkey::Search::HybridOptions.new(local_only: true, load: ["title"], dialect: 2).to_args
     assert_equal ["LOCALONLY", "LOAD", 1, "title", "DIALECT", 2], args
   end
 
@@ -184,7 +192,7 @@ class HybridOptionsTest < Minitest::Test
   def test_local_only_params_and_clauses_order
     args = Valkey::Search::HybridOptions.new(
       local_only: true,
-      load_fields: ["title"],
+      load: ["title"],
       params: { "q" => "value" },
       clauses: [Valkey::Search::Limit.new(0, 10)]
     ).to_args
@@ -230,7 +238,7 @@ class HybridArgvParityTest < Minitest::Test
       Valkey::Search::HybridVsimArm.new("vec", "$qv", k: 10, yield_score_as: "vs"),
       Valkey::Search::HybridOptions.new(
         combine: Valkey::Search::HybridCombine.rrf(constant: 60),
-        load_fields: ["title"],
+        load: ["title"],
         with_cursor: Valkey::Search::WithCursor.new(count: 10)
       )
     )
@@ -321,6 +329,27 @@ class HybridArgvParityTest < Minitest::Test
   def test_hash_options_raise_argument_error
     err = assert_raises(ArgumentError) { FakeClient.new.ft_hybrid("idx", search_arm, vsim_arm, { with_cursor: 1 }) }
     assert_match(/options must be a Valkey::Search::HybridOptions, got Hash/, err.message)
+  end
+
+  def test_keyword_options_match_options_object
+    via_object = FakeClient.new
+    via_object.ft_hybrid("idx", search_arm, vsim_arm, Valkey::Search::HybridOptions.new(load: ["title"], timeout: 100))
+    via_keywords = FakeClient.new
+    via_keywords.ft_hybrid("idx", search_arm, vsim_arm, load: ["title"], timeout: 100)
+    assert_equal via_object.captured, via_keywords.captured
+  end
+
+  def test_keyword_options_apply_combine
+    client = FakeClient.new
+    client.ft_hybrid("idx", search_arm, vsim_arm, combine: Valkey::Search::HybridCombine.rrf(constant: 60))
+    assert_includes client.captured, "RRF"
+  end
+
+  def test_options_object_and_keywords_together_raise_argument_error
+    err = assert_raises(ArgumentError) do
+      FakeClient.new.ft_hybrid("idx", search_arm, vsim_arm, Valkey::Search::HybridOptions.new, timeout: 100)
+    end
+    assert_match(/either as a Valkey::Search::HybridOptions object or as keyword arguments, not both/, err.message)
   end
 
   def test_swapped_arms_raise_argument_error
