@@ -348,7 +348,7 @@ module Lint
       end
 
       assert_raises(Valkey::CommandError) { future.value }
-      assert_instance_of Valkey::CommandError, result[0]
+      assert_instance_of Valkey::WrongTypeError, result[0]
       assert_equal 'not_a_list', result[1]
     end
 
