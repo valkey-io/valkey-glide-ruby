@@ -13,6 +13,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Changed
 
 - Deprecated `hsetex(key, field, value, seconds)` in favor of `hsetex(key, field, value, ex: seconds)`; the deprecated form warns when called and will be removed in the next major release. ([#447](https://github.com/valkey-io/valkey-glide-ruby/pull/447))
+- Changed server error replies to raise `Valkey::NoScriptError`, `Valkey::WrongTypeError`, `Valkey::OutOfMemoryError` and `Valkey::PermissionError` with the server's own error text as the message, as redis-rb does; `READONLY`, `MASTERDOWN` and `WRONGPASS` replies now raise `Valkey::ReadOnlyError`, `Valkey::ConnectionError` and `Valkey::CannotConnectError` instead of `Valkey::CommandError`. **Breaking.** ([#414](https://github.com/valkey-io/valkey-glide-ruby/pull/414))
 
 ### Removed
 

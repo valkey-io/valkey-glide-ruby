@@ -67,7 +67,7 @@ class Valkey
     #   command (block raised, or the batch failed partway through)
     # @raise [FutureNotReady] if called before the pipeline/multi block has
     #   returned and its batch has been sent
-    # @raise [CommandError] if this slot's reply was itself an inline error
+    # @raise [BaseError] if this slot's reply was itself an inline error
     #   (e.g. WRONGTYPE inside a batch) - matches Valkey#convert_response's
     #   "no rollback on runtime error" semantics.
     def value

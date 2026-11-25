@@ -25,7 +25,7 @@ class Valkey
       #   queued command (e.g. WRONGTYPE) raises and the array is
       #   discarded, even though the server already committed the other
       #   commands. Pass `exception: false` to get the array back instead,
-      #   with the failing command's slot holding a {Valkey::CommandError}.
+      #   with the failing command's slot holding a {Valkey::BaseError}.
       #   A queue-time abort (e.g. a syntax/arity error) still always raises
       #   {Valkey::ExecAbortError}, since nothing ran in that case. This
       #   kwarg only applies to the block form - the imperative `multi` (no
@@ -86,7 +86,9 @@ class Valkey
       # Using a block is optional, but is recommended for automatic cleanup.
       #
       # An `#unwatch` is automatically issued if an exception is raised within the
-      # block that is a subclass of StandardError and is not a ConnectionError.
+      # block that is a subclass of StandardError and is not a ConnectionError
+      # caused by a lost connection. A server error reply that maps to a
+      # ConnectionError (e.g. MASTERDOWN) still triggers the `#unwatch`.
       #
       # @example With a block
       #   valkey.watch("key") do
@@ -119,10 +121,10 @@ class Valkey
         if block_given?
           begin
             yield(self)
-          rescue ConnectionError
-            raise
-          rescue StandardError
-            unwatch
+          rescue StandardError => e
+            # A transport failure leaves nothing to unwatch, but a server error
+            # reply (e.g. MASTERDOWN) keeps the connection, and its WATCH, open.
+            unwatch unless e.is_a?(ConnectionError) && !e.is_a?(ServerReply)
             raise
           end
         else
@@ -158,7 +160,7 @@ class Valkey
               result = send_command(RequestType::EXEC)
               # If EXEC returns an error object (from array), it's already handled
               result.is_a?(Array) ? reconvert_queued_replies(result, queued_commands) : result
-            rescue CommandError => e
+            rescue CommandError, ServerReply => e
               # If EXEC itself raises an error (like when transaction is aborted),
               # return an array with the error to match expected behavior in tests
               [e]
@@ -173,7 +175,7 @@ class Valkey
           # we normalize this to simply return nil.
           begin
             send_command(RequestType::EXEC)
-          rescue CommandError
+          rescue CommandError, ServerReply
             nil
           end
         end
@@ -187,7 +189,7 @@ class Valkey
       # @see #exec
       def discard
         send_command(RequestType::DISCARD)
-      rescue CommandError
+      rescue CommandError, ServerReply
         # DISCARD without MULTI is treated similarly to EXEC without MULTI:
         # ignore the server error and return nil.
         nil
@@ -227,7 +229,7 @@ class Valkey
           # Leave an inline error slot alone - Boolify would otherwise
           # coerce it to `true` (mirrors the same guard in
           # Valkey#send_batch_commands).
-          next value if value.is_a?(CommandError)
+          next value if value.is_a?(BaseError)
 
           command_type, _args, block = queued_commands[i]
           if block
