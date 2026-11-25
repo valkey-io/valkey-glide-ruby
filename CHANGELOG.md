@@ -9,6 +9,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Added support for SET IFNE with Valkey 9.2 or later. ([#440](https://github.com/valkey-io/valkey-glide-ruby/pull/440))
+- Added support for SET IFEQ with Valkey 8.1 or later. ([#449](https://github.com/valkey-io/valkey-glide-ruby/pull/449))
 
 ### Changed
 
