@@ -31,6 +31,32 @@ class TestStringCommandsUnit < Minitest::Test
     assert_set(%w[key new])
   end
 
+  def test_set_with_ifeq
+    assert_set(%w[key new IFEQ current], ifeq: "current")
+  end
+
+  def test_set_with_ifeq_and_get
+    assert_set(%w[key new IFEQ current GET], ifeq: "current", get: true)
+  end
+
+  def test_set_with_ifeq_values
+    [
+      [%w[current], "[\"current\"]"],
+      [false, "false"],
+      [0, "0"],
+      ["", ""]
+    ].each do |comparison, expected_sent_comparison|
+      assert_set(["key", "new", "IFEQ", expected_sent_comparison], ifeq: comparison)
+    end
+
+    binary_comparison = "\xFF\x00".b
+    assert_set(["key", "new", "IFEQ", binary_comparison], ifeq: binary_comparison) do |client|
+      sent_comparison = client.captured_arguments.last
+      assert_equal Encoding::BINARY, sent_comparison.encoding
+      assert_equal binary_comparison.bytes, sent_comparison.bytes
+    end
+  end
+
   def test_set_with_ifne
     assert_set(%w[key new IFNE current], ifne: "current")
   end
