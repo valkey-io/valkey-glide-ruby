@@ -106,10 +106,6 @@ class Valkey
   # error code the same way redis-client does and using the server's original
   # error text as the message. Unknown codes yield `default`.
   #
-  # Restoring the server's text from glide-core's rendering is temporary: it can
-  # go once glide-core exposes the server error code, see
-  # https://github.com/valkey-io/valkey-glide/issues/7309.
-  #
   # @param [String] message the error message returned by the server
   # @param [Class] default the class used when the code is not recognised
   # @return [BaseError]
@@ -119,6 +115,11 @@ class Valkey
     SERVER_ERROR_CLASSES.fetch(server_error_code(message), default).new(message).extend(ServerReply)
   end
 
+  # Restores the server's `CODE detail` text from glide-core's rendering.
+  #
+  # Temporary: this can go once glide-core exposes the server error code, see
+  # https://github.com/valkey-io/valkey-glide/issues/7309.
+  #
   # @api private
   def self.normalize_server_error(message)
     message = message.to_s.strip
