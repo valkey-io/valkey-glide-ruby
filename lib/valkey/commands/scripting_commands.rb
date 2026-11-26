@@ -205,7 +205,7 @@ class Valkey
       # @example Handle script not found error
       #   begin
       #     valkey.evalsha("nonexistent_sha", keys: [], args: [])
-      #   rescue Valkey::CommandError => e
+      #   rescue Valkey::NoScriptError => e
       #     puts "Script not found: #{e.message}"
       #   end
       # @example Positional form, matching redis-rb's evalsha(sha, keys, argv)
@@ -222,7 +222,8 @@ class Valkey
       # @return [Object] the result of the script execution
       #
       # @raise [ArgumentError] if SHA1 hash format is invalid
-      # @raise [CommandError] if script is not found or execution fails
+      # @raise [NoScriptError] if the script is not in the server's script cache
+      # @raise [CommandError] if execution fails
       def evalsha(sha, *rest, keys: nil, args: nil)
         # Validate SHA1 hash parameter
         raise ArgumentError, "sha1 hash must be a string" unless sha.is_a?(String)
