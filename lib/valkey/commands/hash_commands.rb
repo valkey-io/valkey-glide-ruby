@@ -60,9 +60,9 @@ class Valkey
       #
       # @return [Array<String, nil>] the value of the field, or nil if the field does not exist
       #
-      # @see https://valkey.io/commands/hgetdel/
+      # @since Valkey 9.1
       #
-      # Since Valkey 9.1.
+      # @see https://valkey.io/commands/hgetdel/
       def hgetdel(key, *fields)
         fields.flatten!(1)
         send_command(RequestType::HGETDEL, [key, "FIELDS", fields.length, *fields])

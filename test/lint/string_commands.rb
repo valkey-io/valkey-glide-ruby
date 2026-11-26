@@ -212,10 +212,13 @@ module Lint
     def test_delifeq_not_matching
       target_version("9.0")
 
+      # key does not exist
       assert_equal false, r.delifeq("foo", "value")
 
       r.set("foo", "value")
-      assert_equal false, r.delifeq("foo", "other")
+
+      # value not equal, key is not deleted
+      assert_equal false, r.delifeq("foo", "other_value")
       assert_equal "value", r.get("foo")
     end
 

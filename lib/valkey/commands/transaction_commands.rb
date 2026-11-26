@@ -210,10 +210,20 @@ class Valkey
       # coercion can't distinguish it from a raw `customCommand(["SETNX", ...])`), so
       # `setnx` passes `&Utils::Boolify` itself (string_commands.rb) - covered by `if block`.
       BOOLEAN_REQUEST_TYPES = [
-        RequestType::EXPIRE, RequestType::EXPIRE_AT, RequestType::PEXPIRE, RequestType::PEXPIRE_AT,
-        RequestType::PERSIST, RequestType::SISMEMBER, RequestType::S_MOVE, RequestType::PFADD,
-        RequestType::RENAME_NX, RequestType::MOVE, RequestType::COPY, RequestType::MSET_NX,
-        RequestType::DEL_IF_EQ
+        RequestType::COPY,
+        RequestType::DEL_EX,
+        RequestType::DEL_IF_EQ,
+        RequestType::EXPIRE_AT,
+        RequestType::EXPIRE,
+        RequestType::MOVE,
+        RequestType::MSET_NX,
+        RequestType::PERSIST,
+        RequestType::PEXPIRE_AT,
+        RequestType::PEXPIRE,
+        RequestType::PFADD,
+        RequestType::RENAME_NX,
+        RequestType::S_MOVE,
+        RequestType::SISMEMBER
       ].freeze
 
       private

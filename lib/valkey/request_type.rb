@@ -395,6 +395,7 @@ class Valkey
     STRLEN = 1521
     SUBSTR = 1522
     DEL_IF_EQ = 1523
+    DEL_EX = 1524
 
     # Transaction commands
     DISCARD = 1601

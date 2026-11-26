@@ -17,7 +17,7 @@ class Valkey
       @in_multi = false
     end
 
-    # `route:` is accepted and ignored. It exists for signature parity with
+    # `:route` is accepted and ignored. It exists for signature parity with
     # Valkey#send_command, since any command reaching a pipeline through #call
     # passes it, but a batch is dispatched as one unit so a per-command route
     # cannot be honored. Batch-level routing is tracked in issue #137.
@@ -53,7 +53,7 @@ class Valkey
     end
 
     # ---------------------------------------------------------------------
-    # Signature overrides that strip the `route:` kwarg from methods that
+    # Signature overrides that strip the `:route` kwarg from methods that
     # carry it in the shared Commands module. Individual pipelined commands
     # cannot be routed.
     #

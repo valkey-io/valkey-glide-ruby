@@ -633,7 +633,7 @@ class Valkey
     protocol_name(protocol) != "RESP2"
   end
 
-  # Merges `url:` components under the explicit options. An explicit nil (or an
+  # Merges `:url` components under the explicit options. An explicit nil (or an
   # empty host) counts as unset, so it cannot mask the URL value, as in redis-client.
   def merge_url_options(options)
     explicit = options.except(:url)
@@ -974,7 +974,7 @@ class Valkey
     end
   end
 
-  # Parses and validates the `pubsub:` option into the connection JSON.
+  # Parses and validates the `:pubsub` option into the connection JSON.
   #
   # @example pubsub_configs:
   #   {

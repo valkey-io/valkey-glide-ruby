@@ -325,17 +325,47 @@ class Valkey
       #   valkey.delifeq("key", "value")
       #     # => true
       #
-      # @param [String] key
-      # @param [String] value the comparison value; the key is only deleted on an exact match
+      # @param [String] key - the key to delete
+      # @param [String] value - the value to compare against the key
       #
-      # @return [Boolean] true when the key was deleted; false when the key does not
-      #   exist or its value did not match
+      # @return [Boolean] `true` if `key` was deleted, `false` otherwise
+      #
+      # @since Valkey 9.0
       #
       # @see https://valkey.io/commands/delifeq/
-      #
-      # Since Valkey 9.0.
       def delifeq(key, value)
         send_command(RequestType::DEL_IF_EQ, [key, value.to_s])
+      end
+
+      # Delete `key` if its value meets the given condition.
+      #
+      # @example Delete if the value is equal
+      #   valkey.set("key", "value")
+      #   valkey.delex("key", ifeq: "value")
+      #     # => true
+      #
+      # @example Delete if the value is not equal
+      #   valkey.set("key", "value")
+      #   valkey.delex("key", ifne: "value")
+      #     # => false
+      #
+      # @param [String] key - the key to delete
+      # @param [String, nil] ifeq - delete only if the value equals this value
+      # @param [String, nil] ifne - delete only if the value does not equal this value
+      #
+      # @return [Boolean] `true` if `key` was deleted, `false` otherwise
+      #
+      # @raise [Valkey::CommandError] if neither or both of `:ifeq` and `:ifne` are given
+      #
+      # @since Valkey 9.2
+      #
+      # @see https://valkey.io/commands/delex/
+      def delex(key, ifeq: nil, ifne: nil)
+        args = [key]
+        args << "IFEQ" << ifeq.to_s unless ifeq.nil?
+        args << "IFNE" << ifne.to_s unless ifne.nil?
+
+        send_command(RequestType::DEL_EX, args)
       end
 
       # Get the value of key and optionally set its expiration.

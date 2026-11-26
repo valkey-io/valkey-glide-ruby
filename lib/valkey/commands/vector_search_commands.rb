@@ -34,7 +34,7 @@ class Valkey
       #
       # In cluster mode the index definition is per-node, so FT.CREATE is
       # broadcast to every primary (otherwise a query routed to another shard
-      # fails with "Index with name '...' not found"). Pass an explicit `route:`
+      # fails with "Index with name '...' not found"). Pass an explicit `:route`
       # to override.
       #
       # @param [String] index - the index name
