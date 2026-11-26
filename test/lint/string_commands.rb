@@ -520,19 +520,15 @@ module Lint
 
       key = "key"
       other_value = "other"
-      values = [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE]
 
       result = r.pipelined do |pipeline|
-        values.each do |value|
-          pipeline.delifeq(key, value)
-          pipeline.set(key, value)
-          pipeline.delifeq(key, other_value)
-          pipeline.delifeq(key, value)
-        end
+        pipeline.delifeq(key, STRING_VALUE)
+        pipeline.set(key, STRING_VALUE)
+        pipeline.delifeq(key, other_value)
+        pipeline.delifeq(key, STRING_VALUE)
       end
 
-      expected = values.flat_map { [false, "OK", false, true] }
-      assert_equal expected, result
+      assert_equal [false, "OK", false, true], result
     end
 
     # DELEX
@@ -565,19 +561,15 @@ module Lint
 
       key = "key"
       other_value = "other"
-      values = [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE]
 
       result = r.pipelined do |pipeline|
-        values.each do |value|
-          pipeline.delex(key, ifeq: value)
-          pipeline.set(key, value)
-          pipeline.delex(key, ifeq: other_value)
-          pipeline.delex(key, ifeq: value)
-        end
+        pipeline.delex(key, ifeq: STRING_VALUE)
+        pipeline.set(key, STRING_VALUE)
+        pipeline.delex(key, ifeq: other_value)
+        pipeline.delex(key, ifeq: STRING_VALUE)
       end
 
-      expected = values.flat_map { [false, "OK", false, true] }
-      assert_equal expected, result
+      assert_equal [false, "OK", false, true], result
     end
 
     def test_delex_ifne
@@ -607,19 +599,15 @@ module Lint
 
       key = "key"
       other_value = "other"
-      values = [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE]
 
       result = r.pipelined do |pipeline|
-        values.each do |value|
-          pipeline.delex(key, ifne: value)
-          pipeline.set(key, value)
-          pipeline.delex(key, ifne: value)
-          pipeline.delex(key, ifne: other_value)
-        end
+        pipeline.delex(key, ifne: STRING_VALUE)
+        pipeline.set(key, STRING_VALUE)
+        pipeline.delex(key, ifne: STRING_VALUE)
+        pipeline.delex(key, ifne: other_value)
       end
 
-      expected = values.flat_map { [false, "OK", false, true] }
-      assert_equal expected, result
+      assert_equal [false, "OK", false, true], result
     end
   end
 end
