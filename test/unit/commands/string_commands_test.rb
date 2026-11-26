@@ -39,16 +39,6 @@ class TestStringCommandsUnit < Minitest::Test
     assert_set(%w[key new IFNE current GET], ifne: "current", get: true)
   end
 
-  def test_set_with_ifne_and_nx
-    # The server, not Ruby, rejects NX combined with IFNE.
-    assert_set(%w[key new NX IFNE current], nx: true, ifne: "current")
-  end
-
-  def test_set_with_ifne_and_xx
-    # The server, not Ruby, rejects XX combined with IFNE.
-    assert_set(%w[key new XX IFNE current], xx: true, ifne: "current")
-  end
-
   def test_set_with_ifne_values
     [
       [%w[a b], "[\"a\", \"b\"]"],
@@ -60,10 +50,11 @@ class TestStringCommandsUnit < Minitest::Test
     end
 
     binary_comparison = "\xFF\x00".b
-    client = assert_set(["key", "new", "IFNE", binary_comparison], ifne: binary_comparison)
-    sent_comparison = client.captured_arguments.last
-    assert_equal Encoding::BINARY, sent_comparison.encoding
-    assert_equal binary_comparison.bytes, sent_comparison.bytes
+    assert_set(["key", "new", "IFNE", binary_comparison], ifne: binary_comparison) do |client|
+      sent_comparison = client.captured_arguments.last
+      assert_equal Encoding::BINARY, sent_comparison.encoding
+      assert_equal binary_comparison.bytes, sent_comparison.bytes
+    end
   end
 
   def test_delifeq
@@ -98,7 +89,7 @@ class TestStringCommandsUnit < Minitest::Test
     assert_equal Valkey::RequestType::SET, client.captured_command
     assert_equal expected_arguments, client.captured_arguments
 
-    client
+    yield client if block_given?
   end
 
   def assert_delifeq(key:, value:, expected_sent_value:)

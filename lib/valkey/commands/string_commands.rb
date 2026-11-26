@@ -96,8 +96,6 @@ class Valkey
       # @return [String, nil] `"OK"` on write; `nil` when `:nx`, `:xx`, or `:ifne` skipped the write.
       #   With `get: true`, the previous value, or `nil` when the key did not exist.
       #
-      # @raise [Valkey::CommandError] if `:ifne` is combined with `:nx` or `:xx`, or used on a non-string key
-      #
       # @see https://valkey.io/commands/set/
       def set(key, value, ex: nil, px: nil, exat: nil, pxat: nil, nx: nil, xx: nil, ifne: nil, keepttl: nil, get: nil)
         # A non-String value (e.g. an Array) must become ONE opaque value here, not

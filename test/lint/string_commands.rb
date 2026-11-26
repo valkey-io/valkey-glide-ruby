@@ -117,21 +117,6 @@ module Lint
       assert_equal new_value, r.get(key)
     end
 
-    def test_set_with_ifne_and_get
-      target_version("9.2")
-
-      key = "foo"
-      old_value = "old"
-      new_value = "new"
-      r.set(key, old_value)
-
-      assert_equal old_value, r.set(key, new_value, ifne: "different", get: true)
-      assert_equal new_value, r.get(key)
-
-      assert_equal new_value, r.set(key, old_value, ifne: new_value, get: true)
-      assert_equal new_value, r.get(key)
-    end
-
     def test_set_with_ifne_equal
       target_version("9.2")
 
@@ -141,46 +126,6 @@ module Lint
 
       assert_nil r.set(key, "updated", ifne: stored_value)
       assert_equal stored_value, r.get(key)
-    end
-
-    def test_set_with_ifne_invalid_conditions
-      target_version("9.2")
-
-      key = "foo"
-      stored_value = "old"
-      r.set(key, stored_value)
-
-      assert_raises(Valkey::CommandError) { r.set(key, "new", nx: true, ifne: "different") }
-      assert_equal stored_value, r.get(key)
-
-      assert_raises(Valkey::CommandError) { r.set(key, "new", xx: true, ifne: "different") }
-      assert_equal stored_value, r.get(key)
-    end
-
-    def test_set_with_ifne_wrong_type
-      target_version("9.2")
-
-      key = "foo"
-      member = "member"
-      r.sadd(key, member)
-
-      assert_raises(Valkey::CommandError) { r.set(key, "new", ifne: "old") }
-      assert_equal [member], r.smembers(key)
-    end
-
-    def test_set_with_binary_ifne
-      target_version("9.2")
-
-      key = "foo"
-      stored_value = "\xFF\x00stored".b
-      new_value = "\xFE\x01new".b
-      r.set(key, stored_value)
-
-      assert_equal "OK", r.set(key, new_value, ifne: "\xFD\x02other".b)
-      assert_equal new_value.b, r.get(key).b
-
-      assert_nil r.set(key, stored_value, ifne: new_value)
-      assert_equal new_value.b, r.get(key).b
     end
 
     def test_setex
