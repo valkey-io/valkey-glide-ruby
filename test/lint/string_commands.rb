@@ -96,6 +96,38 @@ module Lint
       end
     end
 
+    def test_set_with_ifne
+      target_version("9.2")
+
+      key = "foo"
+      new_value = "updated"
+      r.set(key, "value")
+
+      assert_equal "OK", r.set(key, new_value, ifne: "other")
+      assert_equal new_value, r.get(key)
+    end
+
+    def test_set_with_ifne_missing_key
+      target_version("9.2")
+
+      key = "foo"
+      new_value = "updated"
+
+      assert_equal "OK", r.set(key, new_value, ifne: "other")
+      assert_equal new_value, r.get(key)
+    end
+
+    def test_set_with_ifne_equal
+      target_version("9.2")
+
+      key = "foo"
+      stored_value = "value"
+      r.set(key, stored_value)
+
+      assert_nil r.set(key, "updated", ifne: stored_value)
+      assert_equal stored_value, r.get(key)
+    end
+
     def test_setex
       assert r.setex("foo", 1, "bar")
       assert_equal "bar", r.get("foo")

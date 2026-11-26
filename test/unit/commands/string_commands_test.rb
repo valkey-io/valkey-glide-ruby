@@ -27,6 +27,36 @@ class TestStringCommandsUnit < Minitest::Test
     end
   end
 
+  def test_set
+    assert_set(%w[key new])
+  end
+
+  def test_set_with_ifne
+    assert_set(%w[key new IFNE current], ifne: "current")
+  end
+
+  def test_set_with_ifne_and_get
+    assert_set(%w[key new IFNE current GET], ifne: "current", get: true)
+  end
+
+  def test_set_with_ifne_values
+    [
+      [%w[a b], "[\"a\", \"b\"]"],
+      [false, "false"],
+      [0, "0"],
+      ["", ""]
+    ].each do |comparison, expected_sent_comparison|
+      assert_set(["key", "new", "IFNE", expected_sent_comparison], ifne: comparison)
+    end
+
+    binary_comparison = "\xFF\x00".b
+    assert_set(["key", "new", "IFNE", binary_comparison], ifne: binary_comparison) do |client|
+      sent_comparison = client.captured_arguments.last
+      assert_equal Encoding::BINARY, sent_comparison.encoding
+      assert_equal binary_comparison.bytes, sent_comparison.bytes
+    end
+  end
+
   def test_delifeq
     assert_delifeq(key: "key", value: "value", expected_sent_value: "value")
   end
@@ -50,6 +80,17 @@ class TestStringCommandsUnit < Minitest::Test
   end
 
   private
+
+  def assert_set(expected_arguments, **options)
+    reply = "OK"
+    client = FakeClient.new(reply: reply)
+
+    assert_same reply, client.set("key", "new", **options)
+    assert_equal Valkey::RequestType::SET, client.captured_command
+    assert_equal expected_arguments, client.captured_arguments
+
+    yield client if block_given?
+  end
 
   def assert_delifeq(key:, value:, expected_sent_value:)
     client = FakeClient.new(reply: 0)

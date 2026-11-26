@@ -76,6 +76,10 @@ class Valkey
 
       # Set the string value of a key.
       #
+      # @example Set a string value
+      #   valkey.set("key", "value")
+      #     # => "OK"
+      #
       # @param [String] key
       # @param [String] value
       # @param [Integer, nil] ex - expiration time in seconds
@@ -84,11 +88,16 @@ class Valkey
       # @param [Integer, nil] pxat - Unix expiration time in milliseconds
       # @param [Boolean, nil] nx - set only when the key does not exist
       # @param [Boolean, nil] xx - set only when the key exists
+      # @param [String, nil] ifne - set only when the key does not exist or its current value is not
+      #   equal to this comparison value; Since Valkey 9.2.
       # @param [Boolean, nil] keepttl - retain the key's time to live
       # @param [Boolean, nil] get - return the previous value
       #
-      # @return [String, nil] `"OK"` on write; `nil` when `:nx` or `:xx` skipped the write.
-      def set(key, value, ex: nil, px: nil, exat: nil, pxat: nil, nx: nil, xx: nil, keepttl: nil, get: nil)
+      # @return [String, nil] `"OK"` on write; `nil` when `:nx`, `:xx`, or `:ifne` skipped the write.
+      #   With `get: true`, the previous value, or `nil` when the key did not exist.
+      #
+      # @see https://valkey.io/commands/set/
+      def set(key, value, ex: nil, px: nil, exat: nil, pxat: nil, nx: nil, xx: nil, ifne: nil, keepttl: nil, get: nil)
         # A non-String value (e.g. an Array) must become ONE opaque value here, not
         # get flattened as if it were a multi-value list -- see build_command_args's
         # flat_map fix for why this must happen before command_args is built.
@@ -99,6 +108,7 @@ class Valkey
         args << "PXAT" << Integer(pxat) if pxat
         args << "NX" if nx
         args << "XX" if xx
+        args << "IFNE" << ifne.to_s unless ifne.nil?
         args << "KEEPTTL" if keepttl
         args << "GET" if get
 
