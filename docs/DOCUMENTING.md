@@ -22,3 +22,4 @@ Writing guidelines:
 - Add `@since` with the minimum Valkey version.
 - Add `@see` with link to `https://valkey.io/commands` for commands.
 - Use YARD tags instead of handwritten `Parameters` or `Returns` sections.
+- Do not add `@raise` for validation owned by Valkey or GLIDE Core.

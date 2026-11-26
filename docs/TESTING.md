@@ -42,6 +42,7 @@ end
 
 - Unit and integration tests have different purposes and cover different parts of the client.
 - Each assertion must verify behavior owned by the layer under test.
+- Tests must cover behavior owned by the Ruby client, not validation owned by Valkey or GLIDE Core. For example, do not test that Valkey rejects `SET` with both `XX` and `IFNE`; Ruby only forwards those options.
 
 ### Unit tests
 
