@@ -93,49 +93,24 @@ class TestStringCommandsUnit < Minitest::Test
     end
   end
 
-  # DELEX
-  # ---------------------------------------------------------------------------------------------
-
-  def test_delex_ifeq
+  def test_delex
     assert_delex(key: "key", options: { ifeq: STRING_VALUE }, expected_args: ["key", "IFEQ", STRING_ARG])
-  end
-
-  def test_delex_ifne
     assert_delex(key: "key", options: { ifne: STRING_VALUE }, expected_args: ["key", "IFNE", STRING_ARG])
-  end
-
-  def test_delex_binary_value
     assert_delex(key: "key", options: { ifeq: BINARY_VALUE }, expected_args: ["key", "IFEQ", BINARY_ARG])
-  end
-
-  def test_delex_non_string_value
     assert_delex(key: "key", options: { ifeq: ARRAY_VALUE }, expected_args: ["key", "IFEQ", ARRAY_ARG])
   end
 
-  def test_delex_propagates_client_error
-    error = Valkey::CommandError.new("error")
-    client = FakeClient.new(error: error)
-    assert_same error, assert_raises(Valkey::CommandError) { client.delex("key", ifeq: STRING_VALUE) }
-  end
-
-  # DELIFEQ
-  # ---------------------------------------------------------------------------------------------
-
   def test_delifeq
     assert_delifeq(key: "key", value: STRING_VALUE, expected_args: STRING_ARG)
-  end
-
-  def test_delifeq_binary_value
     assert_delifeq(key: "key", value: BINARY_VALUE, expected_args: BINARY_ARG)
-  end
-
-  def test_delifeq_non_string_value
     assert_delifeq(key: "key", value: ARRAY_VALUE, expected_args: ARRAY_ARG)
   end
 
-  def test_delifeq_propagates_client_error
+  def test_propagates_client_error
     error = Valkey::CommandError.new("error")
     client = FakeClient.new(error: error)
+
+    assert_same error, assert_raises(Valkey::CommandError) { client.delex("key", ifeq: STRING_VALUE) }
     assert_same error, assert_raises(Valkey::CommandError) { client.delifeq("key", STRING_VALUE) }
   end
 
