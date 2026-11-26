@@ -691,8 +691,6 @@ class Valkey
 
       # Field-value pairs always expand to an even number of command arguments, while the
       # deprecated hsetex(key, field, value, seconds) form always expands to an odd number.
-      # Counting the expansion, instead of the raw arguments, keeps legacy calls that pass an
-      # Array or Hash as the field or value on the legacy path.
       def _hsetex_legacy_call?(attrs)
         attrs.size == 3 && attrs.sum { |attr| _command_arg_count(attr) }.odd?
       end

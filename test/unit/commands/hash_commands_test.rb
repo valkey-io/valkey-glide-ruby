@@ -115,11 +115,18 @@ class TestHashCommandsUnit < Minitest::Test
   end
 
   def test_hsetex_odd_attrs
-    client = FakeClient.new(1)
+    [
+      %w[f1 v1 f2 v2 f3],
+      %w[f1],
+      [%w[f1 v1], "f2"]
+    ].each do |attrs|
+      client = FakeClient.new(1)
 
-    assert_raises(ArgumentError) { client.hsetex(HSETEX_KEY, "f1", "v1", "f2", ex: HSETEX_TTL_SECONDS) }
-    assert_raises(ArgumentError) { client.hsetex(HSETEX_KEY, "f1") }
-    assert_nil client.captured_type
+      error = assert_raises(ArgumentError, attrs.inspect) { client.hsetex(HSETEX_KEY, *attrs) }
+
+      assert_match(/requires field-value pairs/, error.message, attrs.inspect)
+      assert_nil client.captured_type, attrs.inspect
+    end
   end
 
   def test_hsetex_deprecated_form
