@@ -24,3 +24,4 @@ Writing guidelines:
 - Use YARD tags instead of handwritten `Parameters` or `Returns` sections.
 - Do not add `@raise` for validation owned by Valkey or GLIDE Core.
 - Order tags according to `Tags/Order` in [`.yard-lint.yml`](../.yard-lint.yml).
+- Use `:name` to reference keyword parameters (e.g. `:nx`).
