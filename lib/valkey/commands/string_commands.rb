@@ -355,8 +355,6 @@ class Valkey
       #
       # @return [Boolean] `true` if `key` was deleted, `false` otherwise
       #
-      # @raise [Valkey::CommandError] if neither or both of `:ifeq` and `:ifne` are given
-      #
       # @since Valkey 9.2
       #
       # @see https://valkey.io/commands/delex/

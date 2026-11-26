@@ -2,6 +2,10 @@
 
 module Lint
   module StringCommands
+    STRING_VALUE = "value"
+    BINARY_VALUE = "\x00\xFF".b.freeze
+    ARRAY_VALUE = %w[a b].freeze
+
     def test_set_and_get
       r.set("foo", "s1")
 
@@ -199,48 +203,6 @@ module Lint
         assert_equal "bar", r.getdel("foo")
         assert_nil r.get("foo")
       end
-    end
-
-    def test_delifeq
-      target_version("9.0")
-
-      assert_delifeq(key: "key", value: "value")
-      assert_delifeq(key: "non-string", value: %w[a b])
-      assert_delifeq(key: "binary", value: "\x00\xFF".b)
-    end
-
-    def test_delifeq_not_matching
-      target_version("9.0")
-
-      # key does not exist
-      assert_equal false, r.delifeq("foo", "value")
-
-      r.set("foo", "value")
-
-      # value not equal, key is not deleted
-      assert_equal false, r.delifeq("foo", "other_value")
-      assert_equal "value", r.get("foo")
-    end
-
-    def test_delifeq_raises
-      target_version("9.0")
-
-      r.sadd("foo", "member")
-
-      assert_raises(Valkey::CommandError) { r.delifeq("foo", "value") }
-    end
-
-    def test_delifeq_in_pipeline
-      target_version("9.0")
-
-      r.set("foo", "value")
-
-      result = r.pipelined do |pipeline|
-        pipeline.delifeq("foo", "value")
-        pipeline.delifeq("foo", "other")
-      end
-
-      assert_equal [true, false], result
     end
 
     def test_getset
@@ -528,12 +490,136 @@ module Lint
                    ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4, with_match_len: true))
     end
 
-    private
+    # DELIFEQ
+    # ---------------------------------------------------------------------------------------------
 
-    def assert_delifeq(key:, value:)
-      r.set(key, value)
-      assert_equal true, r.delifeq(key, value)
-      assert_nil r.get(key)
+    def test_delifeq
+      target_version("9.0")
+
+      key = "key"
+      other_value = "other"
+
+      [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE].each do |value|
+        # key does not exist
+        assert_equal false, r.delifeq(key, value)
+
+        r.set(key, value)
+
+        # value not equal, key is not deleted
+        assert_equal false, r.delifeq(key, other_value)
+        assert_equal value.to_s, r.get(key)
+
+        # value equal, key is deleted
+        assert_equal true, r.delifeq(key, value)
+        assert_equal false, r.exists?(key)
+      end
+    end
+
+    def test_delifeq_in_pipeline
+      target_version("9.0")
+
+      key = "key"
+      other_value = "other"
+      values = [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE]
+
+      result = r.pipelined do |pipeline|
+        values.each do |value|
+          pipeline.delifeq(key, value)
+          pipeline.set(key, value)
+          pipeline.delifeq(key, other_value)
+          pipeline.delifeq(key, value)
+        end
+      end
+
+      expected = values.flat_map { [false, "OK", false, true] }
+      assert_equal expected, result
+    end
+
+    # DELEX
+    # ---------------------------------------------------------------------------------------------
+
+    def test_delex_ifeq
+      target_version("9.2")
+
+      key = "key"
+      other_value = "other"
+
+      [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE].each do |value|
+        # key does not exist
+        assert_equal false, r.delex(key, ifeq: value)
+
+        r.set(key, value)
+
+        # value not equal, key is not deleted
+        assert_equal false, r.delex(key, ifeq: other_value)
+        assert_equal value.to_s, r.get(key)
+
+        # value equal, key is deleted
+        assert_equal true, r.delex(key, ifeq: value)
+        assert_equal false, r.exists?(key)
+      end
+    end
+
+    def test_delex_ifeq_in_pipeline
+      target_version("9.2")
+
+      key = "key"
+      other_value = "other"
+      values = [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE]
+
+      result = r.pipelined do |pipeline|
+        values.each do |value|
+          pipeline.delex(key, ifeq: value)
+          pipeline.set(key, value)
+          pipeline.delex(key, ifeq: other_value)
+          pipeline.delex(key, ifeq: value)
+        end
+      end
+
+      expected = values.flat_map { [false, "OK", false, true] }
+      assert_equal expected, result
+    end
+
+    def test_delex_ifne
+      target_version("9.2")
+
+      key = "key"
+      other_value = "other"
+
+      [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE].each do |value|
+        # key does not exist
+        assert_equal false, r.delex(key, ifne: value)
+
+        r.set(key, value)
+
+        # value equal, key is not deleted
+        assert_equal false, r.delex(key, ifne: value)
+        assert_equal value.to_s, r.get(key)
+
+        # value not equal, key is deleted
+        assert_equal true, r.delex(key, ifne: other_value)
+        assert_equal false, r.exists?(key)
+      end
+    end
+
+    def test_delex_ifne_in_pipeline
+      target_version("9.2")
+
+      key = "key"
+      other_value = "other"
+      values = [STRING_VALUE, BINARY_VALUE, ARRAY_VALUE]
+
+      result = r.pipelined do |pipeline|
+        values.each do |value|
+          pipeline.delex(key, ifne: value)
+          pipeline.set(key, value)
+          pipeline.delex(key, ifne: value)
+          pipeline.delex(key, ifne: other_value)
+        end
+      end
+
+      expected = values.flat_map { [false, "OK", false, true] }
+      assert_equal expected, result
     end
   end
 end

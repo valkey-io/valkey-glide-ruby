@@ -4,7 +4,7 @@ This document is the authoritative documentation reference for Valkey GLIDE Ruby
 
 ## API Documentations
 
-All public API must be documented following YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md). Specific rules are defined in [`.yard-lint.yml`](./.yard-lint.yml), and we use `yard-lint` as our linter. It requires Ruby 3.3+.
+All public API must be documented following YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md). Specific rules are defined in [`.yard-lint.yml`](../.yard-lint.yml), and we use `yard-lint` as our linter. It requires Ruby 3.3+.
 
 ```bash
 bundle exec rake lint:yard

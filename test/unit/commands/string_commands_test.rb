@@ -7,6 +7,16 @@ require "valkey/commands/string_commands"
 
 # Unit tests for string command request construction.
 class TestStringCommandsUnit < Minitest::Test
+  # Input values
+  STRING_VALUE = "value"
+  BINARY_VALUE = "\x00\xFF".b.freeze
+  ARRAY_VALUE = %w[a b].freeze
+
+  # Expected arguments. Commands must use `to_s` to stringify values.
+  STRING_ARG = "value"
+  BINARY_ARG = "\x00\xFF".b.freeze
+  ARRAY_ARG = "[\"a\", \"b\"]"
+
   # Minimal command receiver that records dispatched requests.
   class FakeClient
     include Valkey::Commands::StringCommands
@@ -83,26 +93,50 @@ class TestStringCommandsUnit < Minitest::Test
     end
   end
 
+  # DELEX
+  # ---------------------------------------------------------------------------------------------
+
+  def test_delex_ifeq
+    assert_delex(key: "key", options: { ifeq: STRING_VALUE }, expected_args: ["key", "IFEQ", STRING_ARG])
+  end
+
+  def test_delex_ifne
+    assert_delex(key: "key", options: { ifne: STRING_VALUE }, expected_args: ["key", "IFNE", STRING_ARG])
+  end
+
+  def test_delex_binary_value
+    assert_delex(key: "key", options: { ifeq: BINARY_VALUE }, expected_args: ["key", "IFEQ", BINARY_ARG])
+  end
+
+  def test_delex_non_string_value
+    assert_delex(key: "key", options: { ifeq: ARRAY_VALUE }, expected_args: ["key", "IFEQ", ARRAY_ARG])
+  end
+
+  def test_delex_propagates_client_error
+    error = Valkey::CommandError.new("error")
+    client = FakeClient.new(error: error)
+    assert_same error, assert_raises(Valkey::CommandError) { client.delex("key", ifeq: STRING_VALUE) }
+  end
+
+  # DELIFEQ
+  # ---------------------------------------------------------------------------------------------
+
   def test_delifeq
-    assert_delifeq(key: "key", value: "value", expected_sent_value: "value")
+    assert_delifeq(key: "key", value: STRING_VALUE, expected_args: STRING_ARG)
+  end
+
+  def test_delifeq_binary_value
+    assert_delifeq(key: "key", value: BINARY_VALUE, expected_args: BINARY_ARG)
   end
 
   def test_delifeq_non_string_value
-    # non-string values are stringified
-    assert_delifeq(key: "key", value: %w[a b], expected_sent_value: "[\"a\", \"b\"]")
-  end
-
-  def test_delifeq_stringifies_nil_value
-    assert_delifeq(key: "key", value: nil, expected_sent_value: "")
+    assert_delifeq(key: "key", value: ARRAY_VALUE, expected_args: ARRAY_ARG)
   end
 
   def test_delifeq_propagates_client_error
     error = Valkey::CommandError.new("error")
     client = FakeClient.new(error: error)
-
-    raised_error = assert_raises(Valkey::CommandError) { client.delifeq("key", "value") }
-
-    assert_same error, raised_error
+    assert_same error, assert_raises(Valkey::CommandError) { client.delifeq("key", STRING_VALUE) }
   end
 
   private
@@ -118,13 +152,19 @@ class TestStringCommandsUnit < Minitest::Test
     yield client if block_given?
   end
 
-  def assert_delifeq(key:, value:, expected_sent_value:)
+  def assert_delex(key:, options:, expected_args:)
+    client = FakeClient.new(reply: true)
+
+    assert_equal true, client.delex(key, **options)
+    assert_equal Valkey::RequestType::DEL_EX, client.captured_command
+    assert_equal expected_args, client.captured_arguments
+  end
+
+  def assert_delifeq(key:, value:, expected_args:)
     client = FakeClient.new(reply: 0)
 
     assert_equal 0, client.delifeq(key, value)
     assert_equal Valkey::RequestType::DEL_IF_EQ, client.captured_command
-    assert_equal [key, expected_sent_value], client.captured_arguments
-
-    client
+    assert_equal [key, expected_args], client.captured_arguments
   end
 end
