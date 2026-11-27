@@ -7,15 +7,13 @@ require "valkey/commands/string_commands"
 
 # Unit tests for string command request construction.
 class TestStringCommandsUnit < Minitest::Test
-  # Input values
-  STRING_VALUE = "value"
-  BINARY_VALUE = "\x00\xFF".b.freeze
-  ARRAY_VALUE = %w[a b].freeze
-
-  # Expected arguments. Commands must use `to_s` to stringify values.
-  STRING_ARG = "value"
-  BINARY_ARG = "\x00\xFF".b.freeze
-  ARRAY_ARG = "[\"a\", \"b\"]"
+  ARRAY = %w[a b].freeze
+  ARRAY_STRING = "[\"a\", \"b\"]"
+  BYTES = "\x00\xFF".b.freeze
+  INTEGER = 10
+  KEY = "key"
+  OK = "OK"
+  STRING = "value"
 
   # Minimal command receiver that records dispatched requests.
   class FakeClient
@@ -37,109 +35,101 @@ class TestStringCommandsUnit < Minitest::Test
     end
   end
 
-  def test_set
-    assert_set(%w[key new])
-  end
-
-  def test_set_with_ifeq
-    assert_set(%w[key new IFEQ current], ifeq: "current")
-  end
-
-  def test_set_with_ifeq_and_get
-    assert_set(%w[key new IFEQ current GET], ifeq: "current", get: true)
-  end
-
-  def test_set_with_ifeq_values
-    [
-      [%w[current], "[\"current\"]"],
-      [false, "false"],
-      [0, "0"],
-      ["", ""]
-    ].each do |comparison, expected_sent_comparison|
-      assert_set(["key", "new", "IFEQ", expected_sent_comparison], ifeq: comparison)
-    end
-
-    binary_comparison = "\xFF\x00".b
-    assert_set(["key", "new", "IFEQ", binary_comparison], ifeq: binary_comparison) do |client|
-      sent_comparison = client.captured_arguments.last
-      assert_equal Encoding::BINARY, sent_comparison.encoding
-      assert_equal binary_comparison.bytes, sent_comparison.bytes
-    end
-  end
-
-  def test_set_with_ifne
-    assert_set(%w[key new IFNE current], ifne: "current")
-  end
-
-  def test_set_with_ifne_and_get
-    assert_set(%w[key new IFNE current GET], ifne: "current", get: true)
-  end
-
-  def test_set_with_ifne_values
-    [
-      [%w[a b], "[\"a\", \"b\"]"],
-      [false, "false"],
-      [0, "0"],
-      ["", ""]
-    ].each do |comparison, expected_sent_comparison|
-      assert_set(["key", "new", "IFNE", expected_sent_comparison], ifne: comparison)
-    end
-
-    binary_comparison = "\xFF\x00".b
-    assert_set(["key", "new", "IFNE", binary_comparison], ifne: binary_comparison) do |client|
-      sent_comparison = client.captured_arguments.last
-      assert_equal Encoding::BINARY, sent_comparison.encoding
-      assert_equal binary_comparison.bytes, sent_comparison.bytes
-    end
-  end
-
   def test_delex
-    assert_delex(key: "key", options: { ifeq: STRING_VALUE }, expected_args: ["key", "IFEQ", STRING_ARG])
-    assert_delex(key: "key", options: { ifne: STRING_VALUE }, expected_args: ["key", "IFNE", STRING_ARG])
-    assert_delex(key: "key", options: { ifeq: BINARY_VALUE }, expected_args: ["key", "IFEQ", BINARY_ARG])
-    assert_delex(key: "key", options: { ifeq: ARRAY_VALUE }, expected_args: ["key", "IFEQ", ARRAY_ARG])
+    assert_delex(KEY, ifeq: STRING, expected: [KEY, "IFEQ", STRING])
+    assert_delex(KEY, ifeq: BYTES, expected: [KEY, "IFEQ", BYTES])
+    assert_delex(KEY, ifeq: ARRAY, expected: [KEY, "IFEQ", ARRAY_STRING])
+
+    assert_delex(KEY, ifne: STRING, expected: [KEY, "IFNE", STRING])
+    assert_delex(KEY, ifne: BYTES, expected: [KEY, "IFNE", BYTES])
+    assert_delex(KEY, ifne: ARRAY, expected: [KEY, "IFNE", ARRAY_STRING])
   end
 
   def test_delifeq
-    assert_delifeq(key: "key", value: STRING_VALUE, expected_args: STRING_ARG)
-    assert_delifeq(key: "key", value: BINARY_VALUE, expected_args: BINARY_ARG)
-    assert_delifeq(key: "key", value: ARRAY_VALUE, expected_args: ARRAY_ARG)
+    assert_delifeq(KEY, STRING, expected: [KEY, STRING])
+    assert_delifeq(KEY, BYTES, expected: [KEY, BYTES])
+    assert_delifeq(KEY, ARRAY, expected: [KEY, ARRAY_STRING])
+  end
+
+  def test_set
+    # values
+    assert_set(KEY, STRING, expected: [KEY, STRING])
+    assert_set(KEY, BYTES, expected: [KEY, BYTES])
+    assert_set(KEY, ARRAY, expected: [KEY, ARRAY_STRING])
+
+    # expiration
+    assert_set(KEY, STRING, ex: INTEGER, expected: [KEY, STRING, "EX", INTEGER])
+    assert_set(KEY, STRING, px: INTEGER, expected: [KEY, STRING, "PX", INTEGER])
+    assert_set(KEY, STRING, exat: INTEGER, expected: [KEY, STRING, "EXAT", INTEGER])
+    assert_set(KEY, STRING, pxat: INTEGER, expected: [KEY, STRING, "PXAT", INTEGER])
+    assert_set(KEY, STRING, keepttl: true, expected: [KEY, STRING, "KEEPTTL"])
+
+    # existence conditions
+    assert_set(KEY, STRING, nx: true, expected: [KEY, STRING, "NX"])
+    assert_set(KEY, STRING, xx: true, expected: [KEY, STRING, "XX"])
+
+    # value conditions
+    assert_set(KEY, STRING, ifeq: STRING, expected: [KEY, STRING, "IFEQ", STRING])
+    assert_set(KEY, STRING, ifeq: BYTES, expected: [KEY, STRING, "IFEQ", BYTES])
+    assert_set(KEY, STRING, ifeq: ARRAY, expected: [KEY, STRING, "IFEQ", ARRAY_STRING])
+    assert_set(KEY, STRING, ifne: STRING, expected: [KEY, STRING, "IFNE", STRING])
+    assert_set(KEY, STRING, ifne: BYTES, expected: [KEY, STRING, "IFNE", BYTES])
+    assert_set(KEY, STRING, ifne: ARRAY, expected: [KEY, STRING, "IFNE", ARRAY_STRING])
+
+    # get
+    assert_set(KEY, STRING, get: true, expected: [KEY, STRING, "GET"])
+
+    # false flags are omitted
+    assert_set(KEY, STRING, nx: false, xx: false, keepttl: false, get: false, expected: [KEY, STRING])
+
+    # combined options
+    assert_set(
+      KEY, STRING,
+      get: true, ifeq: STRING, ex: INTEGER,
+      expected: [KEY, STRING, "EX", INTEGER, "IFEQ", STRING, "GET"]
+    )
+    assert_set(
+      KEY, STRING,
+      get: true, xx: true, keepttl: true,
+      expected: [KEY, STRING, "XX", "KEEPTTL", "GET"]
+    )
   end
 
   def test_propagates_client_error
     error = Valkey::CommandError.new("error")
     client = FakeClient.new(error: error)
 
-    assert_same error, assert_raises(Valkey::CommandError) { client.delex("key", ifeq: STRING_VALUE) }
-    assert_same error, assert_raises(Valkey::CommandError) { client.delifeq("key", STRING_VALUE) }
+    assert_same error, assert_raises(Valkey::CommandError) { client.delex(KEY, ifeq: STRING) }
+    assert_same error, assert_raises(Valkey::CommandError) { client.delifeq(KEY, STRING) }
+    assert_same error, assert_raises(Valkey::CommandError) { client.set(KEY, STRING, ifeq: STRING) }
   end
 
   private
 
-  def assert_set(expected_arguments, **options)
-    reply = "OK"
-    client = FakeClient.new(reply: reply)
-
-    assert_same reply, client.set("key", "new", **options)
-    assert_equal Valkey::RequestType::SET, client.captured_command
-    assert_equal expected_arguments, client.captured_arguments
-
-    yield client if block_given?
-  end
-
-  def assert_delex(key:, options:, expected_args:)
+  # Assert that `delex` called with the given arguments sends the expected command arguments.
+  def assert_delex(*args, expected:, **options)
     client = FakeClient.new(reply: true)
 
-    assert_equal true, client.delex(key, **options)
+    assert_equal true, client.delex(*args, **options)
     assert_equal Valkey::RequestType::DEL_EX, client.captured_command
-    assert_equal expected_args, client.captured_arguments
+    assert_equal expected, client.captured_arguments
   end
 
-  def assert_delifeq(key:, value:, expected_args:)
-    client = FakeClient.new(reply: 0)
+  # Assert that `delifeq` called with the given arguments sends the expected command arguments.
+  def assert_delifeq(*args, expected:)
+    client = FakeClient.new(reply: true)
 
-    assert_equal 0, client.delifeq(key, value)
+    assert_equal true, client.delifeq(*args)
     assert_equal Valkey::RequestType::DEL_IF_EQ, client.captured_command
-    assert_equal [key, expected_args], client.captured_arguments
+    assert_equal expected, client.captured_arguments
+  end
+
+  # Assert that `set` called with the given arguments sends the expected command arguments.
+  def assert_set(*args, expected:, **options)
+    client = FakeClient.new(reply: OK)
+
+    assert_equal OK, client.set(*args, **options)
+    assert_equal Valkey::RequestType::SET, client.captured_command
+    assert_equal expected, client.captured_arguments
   end
 end
