@@ -2,18 +2,20 @@
 
 module Lint
   module StringCommands
-    # Values for testing.
     ARRAY = %w[a b].freeze
     BYTES = "\x00\xFF".b.freeze
-    KEY = "key"
-    OK = "OK"
-    OTHER = "other"
     STRING = "value"
-    TTL_SECONDS = 60
-    TTL_MILLISECONDS = TTL_SECONDS * 1000
+    OTHER = "other"
 
     # Maps values to the corresponding response string.
     VALUE_MAP = [STRING, BYTES, ARRAY].to_h { |value| [value, value.to_s] }.freeze
+
+    KEY = "key"
+    OK = "OK"
+
+    # Must be long enough for test to complete before expiry.
+    TTL_SECONDS = 60
+    TTL_MILLISECONDS = TTL_SECONDS * 1000
 
     def test_setex
       assert r.setex("foo", 1, "bar")

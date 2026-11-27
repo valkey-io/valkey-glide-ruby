@@ -11,9 +11,10 @@ class TestStringCommandsUnit < Minitest::Test
   ARRAY_STRING = "[\"a\", \"b\"]"
   BYTES = "\x00\xFF".b.freeze
   INTEGER = 10
+  STRING = "value"
+
   KEY = "key"
   OK = "OK"
-  STRING = "value"
 
   # Minimal command receiver that records dispatched requests.
   class FakeClient
