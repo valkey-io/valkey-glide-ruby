@@ -360,20 +360,80 @@ class Valkey
         send_command(RequestType::HVALS, [key])
       end
 
-      # Set the string value of a hash field and set its expiration time in seconds.
+      # Set the value of one or more hash fields, and optionally their expiration and set conditions.
       #
       # @example
-      #   valkey.hsetex("hash", "field", "value", 60)
+      #   valkey.hsetex("hash", "f1", "v1", "f2", "v2")
+      #     # => 1
+      # @example Set fields from a hash with an expiration in seconds
+      #   valkey.hsetex("hash", { "f1" => "v1", "f2" => "v2" }, ex: 60)
+      #     # => 1
+      # @example Set a field only if the hash already exists
+      #   valkey.hsetex("hash", "f1", "v1", xx: true, px: 1500)
+      #     # => 1
+      # @example Set fields only if none of them exist in the hash
+      #   valkey.hsetex("hash", "f1", "v1", "f3", "v3", fnx: true)
+      #     # => 0
+      # @example Update a field and keep its time to live
+      #   valkey.hsetex("hash", "f1", "v2", keepttl: true)
       #     # => 1
       #
       # @param [String] key
-      # @param [String] field
-      # @param [String] value
-      # @param [Integer] seconds - expiration time in seconds
+      # @param [Array<String>, Hash{String => String}] attrs - field-value pairs, an array of them, or a hash
+      # @param [Boolean, nil] nx - set only when the key does not exist. Requires Valkey 9.1.
+      # @param [Boolean, nil] xx - set only when the key exists. Requires Valkey 9.1.
+      # @param [Boolean, nil] fnx - set only when none of the fields exist
+      # @param [Boolean, nil] fxx - set only when all of the fields exist
+      # @param [Integer, nil] ex - expiration time in seconds
+      # @param [Integer, nil] px - expiration time in milliseconds
+      # @param [Integer, nil] exat - Unix time at which the fields expire, in seconds
+      # @param [Integer, nil] pxat - Unix time at which the fields expire, in milliseconds
+      # @param [Boolean, nil] keepttl - retain the time to live already associated with the fields
       #
-      # @return [Integer] the number of fields that were added
-      def hsetex(key, field, value, seconds)
-        send_command(RequestType::HSETEX, [key, "EX", Integer(seconds), "FIELDS", 1, field, value])
+      # @return [Integer] `1` if all the fields were set, `0` if a set condition was not met
+      #
+      # @raise [ArgumentError] if `attrs` does not contain complete field-value pairs, or if the deprecated
+      #   form is called with options
+      #
+      # @since Valkey 9.0
+      #
+      # @see https://valkey.io/commands/hsetex/
+      #
+      # @note The form `hsetex(key, field, value, seconds)` is deprecated and will be removed in the next
+      #   major release. It sets one field with an expiration in seconds, does not accept options, and warns
+      #   when called. Use `hsetex(key, field, value, ex: seconds)` instead.
+      def hsetex(key, *attrs, nx: nil, xx: nil, fnx: nil, fxx: nil,
+                 ex: nil, px: nil, exat: nil, pxat: nil, keepttl: nil)
+        # TODO: Remove the deprecated hsetex(key, field, value, seconds) form in the next major release.
+        if _hsetex_legacy_call?(attrs)
+          unless [nx, xx, fnx, fxx, ex, px, exat, pxat, keepttl].all?(&:nil?)
+            raise ArgumentError, "hsetex(key, field, value, seconds) does not accept options; " \
+                                 "use hsetex(key, field, value, ex: seconds, ...) instead"
+          end
+
+          warn("hsetex(key, field, value, seconds) is deprecated; use hsetex(key, field, value, ex: seconds) " \
+               "instead", uplevel: 1)
+          field, value, seconds = attrs
+          return send_command(RequestType::HSETEX, [key, "EX", Integer(seconds), "FIELDS", 1, field, value])
+        end
+
+        attrs = attrs.first.flatten if attrs.size == 1 && attrs.first.is_a?(Hash)
+        attrs.flatten!(1)
+        raise ArgumentError, "hsetex requires field-value pairs, got #{attrs.length} arguments" if attrs.length.odd?
+
+        args = [key]
+        args << "NX" if nx
+        args << "XX" if xx
+        args << "FNX" if fnx
+        args << "FXX" if fxx
+        args << "EX" << Integer(ex) if ex
+        args << "PX" << Integer(px) if px
+        args << "EXAT" << Integer(exat) if exat
+        args << "PXAT" << Integer(pxat) if pxat
+        args << "KEEPTTL" if keepttl
+        args.push("FIELDS", attrs.length / 2, *attrs)
+
+        send_command(RequestType::HSETEX, args)
       end
 
       # Get the value of one or more hash fields and optionally set their expiration time.
@@ -625,6 +685,23 @@ class Valkey
         args = [key, "FIELDS", fields.length, *fields]
 
         send_command(RequestType::HPEXPIRETIME, args)
+      end
+
+      private
+
+      # Field-value pairs always expand to an even number of command arguments, while the
+      # deprecated hsetex(key, field, value, seconds) form always expands to an odd number.
+      def _hsetex_legacy_call?(attrs)
+        attrs.size == 3 && attrs.sum { |attr| _command_arg_count(attr) }.odd?
+      end
+
+      # Mirrors how Valkey#build_command_args expands one argument.
+      def _command_arg_count(arg)
+        case arg
+        when Hash then arg.size * 2
+        when Array then arg.size
+        else 1
+        end
       end
     end
   end

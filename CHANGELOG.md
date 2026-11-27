@@ -8,6 +8,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Added support for `hsetex(key, *attrs, ...)` with multiple fields and the `fnx:`, `fxx:`, `ex:`, `px:`, `exat:`, `pxat:`, and `keepttl:` options matching redis-rb, and the `nx:` and `xx:` key conditions with Valkey 9.1 or later. ([#447](https://github.com/valkey-io/valkey-glide-ruby/pull/447))
 - Added support for SET IFNE with Valkey 9.2 or later. ([#440](https://github.com/valkey-io/valkey-glide-ruby/pull/440))
 - Added support for SET IFEQ with Valkey 8.1 or later. ([#449](https://github.com/valkey-io/valkey-glide-ruby/pull/449))
 - Added support for valkey-search 1.3 in the `FT.*` API: ([#412](https://github.com/valkey-io/valkey-glide-ruby/pull/412))
@@ -19,6 +20,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Deprecated `hsetex(key, field, value, seconds)` in favor of `hsetex(key, field, value, ex: seconds)`; the deprecated form warns when called and will be removed in the next major release. ([#447](https://github.com/valkey-io/valkey-glide-ruby/pull/447))
 - Changed server error replies to raise `Valkey::NoScriptError`, `Valkey::WrongTypeError`, `Valkey::OutOfMemoryError` and `Valkey::PermissionError` with the server's own error text as the message, as redis-rb does; `READONLY`, `MASTERDOWN` and `WRONGPASS` replies now raise `Valkey::ReadOnlyError`, `Valkey::ConnectionError` and `Valkey::CannotConnectError` instead of `Valkey::CommandError`. **Breaking.** ([#414](https://github.com/valkey-io/valkey-glide-ruby/pull/414))
 
 ### Removed
