@@ -2,6 +2,7 @@
 
 require "fileutils"
 require "json"
+require "securerandom"
 require "timeout"
 
 module ValkeyTests
@@ -50,7 +51,7 @@ module ValkeyTests
     end
 
     # Helper method to wait for spans to be exported with retry logic
-    def wait_for_spans(span_file_path, expected_span_names, expected_counts: nil, timeout: DEFAULT_TIMEOUT)
+    def wait_for_spans(span_file_path, expected_span_names, expected_counts: nil, timeout: DEFAULT_TIMEOUT, trace_id: nil)
       start_time = Time.now
 
       loop do
@@ -62,7 +63,7 @@ module ValkeyTests
             raise "Timeout waiting for spans. Span file #{span_file_path} does not exist or is empty"
           end
 
-          span_names = read_span_names(span_file_path)
+          span_names = read_span_names(span_file_path, trace_id: trace_id)
           actual_counts = count_spans(span_names, expected_span_names)
 
           raise "Timeout waiting for spans. Expected #{expected_counts}, but found #{actual_counts}" if expected_counts
@@ -74,7 +75,7 @@ module ValkeyTests
         # Check if file exists and is readable
         if File.exist?(span_file_path) && File.size(span_file_path).positive?
           begin
-            span_names = read_span_names(span_file_path)
+            span_names = read_span_names(span_file_path, trace_id: trace_id)
 
             if check_spans_ready(span_names, expected_span_names, expected_counts)
               return true # Success!
@@ -88,16 +89,22 @@ module ValkeyTests
       end
     end
 
-    # Read span names from file
-    def read_span_names(file_path)
-      span_names = []
-      File.readlines(file_path).each do |line|
-        span = JSON.parse(line)
-        span_names << span["name"]
-      rescue JSON::ParserError
-        # Skip malformed lines
+    # Read span names from file. When trace_id is given, only spans of that trace are returned,
+    # so spans flushed late by earlier tests (the exporter is process-global) are ignored.
+    def read_span_names(file_path, trace_id: nil)
+      read_spans(file_path, trace_id: trace_id).map { |span| span["name"] }
+    end
+
+    # Registers a parent span context provider with a unique trace id, so every span created by
+    # the calling test carries that trace id and can be told apart from spans of other tests.
+    # The provider is reset in teardown.
+    def use_unique_trace
+      trace_id = SecureRandom.hex(16)
+      span_id = SecureRandom.hex(8)
+      ::Valkey::OpenTelemetry.set_parent_span_context_provider do
+        { trace_id: trace_id, span_id: span_id, trace_flags: 1, tracestate: nil }
       end
-      span_names
+      trace_id
     end
 
     # Check if expected spans are present
@@ -126,13 +133,14 @@ module ValkeyTests
 
     # Read full span objects (not just names) from the exported file, so tests can
     # assert on trace_id/parent_span_id to prove parent-context propagation.
-    def read_spans(file_path)
+    def read_spans(file_path, trace_id: nil)
       spans = []
       File.readlines(file_path).each do |line|
         spans << JSON.parse(line)
       rescue JSON::ParserError
         # Skip malformed lines
       end
+      spans = spans.select { |span| span["trace_id"] == trace_id } if trace_id
       spans
     end
 
@@ -240,6 +248,7 @@ module ValkeyTests
 
       # Clean up before test
       cleanup_test_files
+      trace_id = use_unique_trace
 
       client = ::Valkey.new(host: "localhost", port: 6379)
 
@@ -254,12 +263,13 @@ module ValkeyTests
         TRACES_FILE,
         %w[SET GET],
         expected_counts: { "SET" => 1, "GET" => 1 },
-        timeout: 10.0
+        timeout: 10.0,
+        trace_id: trace_id
       )
 
       # Verify file was created and contains spans
       assert File.exist?(TRACES_FILE)
-      span_names = read_span_names(TRACES_FILE)
+      span_names = read_span_names(TRACES_FILE, trace_id: trace_id)
 
       assert_includes span_names, "SET"
       assert_includes span_names, "GET"
@@ -273,6 +283,7 @@ module ValkeyTests
       assert ::Valkey::OpenTelemetry.initialized?
 
       cleanup_test_files
+      trace_id = use_unique_trace
 
       client = ::Valkey.new(host: "localhost", port: 6379)
 
@@ -289,10 +300,11 @@ module ValkeyTests
         TRACES_FILE,
         %w[SET GET PING DEL],
         expected_counts: { "SET" => 5, "GET" => 5, "PING" => 1, "DEL" => 1 },
-        timeout: 10.0
+        timeout: 10.0,
+        trace_id: trace_id
       )
 
-      span_names = read_span_names(TRACES_FILE)
+      span_names = read_span_names(TRACES_FILE, trace_id: trace_id)
 
       assert_equal 5, span_names.count("SET")
       assert_equal 5, span_names.count("GET")
@@ -306,6 +318,7 @@ module ValkeyTests
       assert ::Valkey::OpenTelemetry.initialized?
 
       cleanup_test_files
+      trace_id = use_unique_trace
 
       client = ::Valkey.new(host: "localhost", port: 6379)
 
@@ -326,10 +339,11 @@ module ValkeyTests
         TRACES_FILE,
         ["Batch"],
         expected_counts: { "Batch" => 1 },
-        timeout: 10.0
+        timeout: 10.0,
+        trace_id: trace_id
       )
 
-      span_names = read_span_names(TRACES_FILE)
+      span_names = read_span_names(TRACES_FILE, trace_id: trace_id)
 
       assert_includes span_names, "Batch"
       assert_equal 1, span_names.count("Batch")
@@ -373,9 +387,9 @@ module ValkeyTests
       client.set("otel_parent_ctx_key", "value")
       client.close
 
-      wait_for_spans(TRACES_FILE, %w[SET], expected_counts: { "SET" => 1 }, timeout: 10.0)
+      wait_for_spans(TRACES_FILE, %w[SET], expected_counts: { "SET" => 1 }, timeout: 10.0, trace_id: trace_id)
 
-      span = read_spans(TRACES_FILE).find { |s| s["name"] == "SET" }
+      span = read_spans(TRACES_FILE, trace_id: trace_id).find { |s| s["name"] == "SET" }
       refute_nil span, "expected a SET span to be exported"
       assert_equal trace_id, span["trace_id"]
       assert_equal span_id, span["parent_span_id"]
@@ -403,9 +417,9 @@ module ValkeyTests
       end
       client.close
 
-      wait_for_spans(TRACES_FILE, ["Batch"], expected_counts: { "Batch" => 1 }, timeout: 10.0)
+      wait_for_spans(TRACES_FILE, ["Batch"], expected_counts: { "Batch" => 1 }, timeout: 10.0, trace_id: trace_id)
 
-      span = read_spans(TRACES_FILE).find { |s| s["name"] == "Batch" }
+      span = read_spans(TRACES_FILE, trace_id: trace_id).find { |s| s["name"] == "Batch" }
       refute_nil span, "expected a Batch span to be exported"
       assert_equal trace_id, span["trace_id"]
       assert_equal span_id, span["parent_span_id"]
