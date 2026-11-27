@@ -163,12 +163,14 @@ class TestHashCommandsUnit < Minitest::Test
     %i[nx xx fnx fxx ex px exat pxat keepttl].each do |option|
       client = FakeClient.new(1)
 
+      error = nil
       _, warning = capture_io do
-        assert_raises(ArgumentError, option.inspect) do
+        error = assert_raises(ArgumentError, option.inspect) do
           client.hsetex(HSETEX_KEY, "f1", "v1", HSETEX_TTL_SECONDS, option => false)
         end
       end
 
+      assert_match(/does not accept options/, error.message, option.inspect)
       assert_nil client.captured_type, option.inspect
       assert_empty warning, option.inspect
     end
