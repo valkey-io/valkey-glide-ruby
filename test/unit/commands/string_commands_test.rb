@@ -40,16 +40,17 @@ class TestStringCommandsUnit < Minitest::Test
     assert_delex(KEY, ifeq: STRING, expected: [KEY, "IFEQ", STRING])
     assert_delex(KEY, ifeq: BYTES, expected: [KEY, "IFEQ", BYTES])
     assert_delex(KEY, ifeq: ARRAY, expected: [KEY, "IFEQ", ARRAY_STRING])
-
     assert_delex(KEY, ifne: STRING, expected: [KEY, "IFNE", STRING])
     assert_delex(KEY, ifne: BYTES, expected: [KEY, "IFNE", BYTES])
     assert_delex(KEY, ifne: ARRAY, expected: [KEY, "IFNE", ARRAY_STRING])
+    assert_delex(KEY, ifeq: nil, ifne: nil, expected: [KEY])
   end
 
   def test_delifeq
     assert_delifeq(KEY, STRING, expected: [KEY, STRING])
     assert_delifeq(KEY, BYTES, expected: [KEY, BYTES])
     assert_delifeq(KEY, ARRAY, expected: [KEY, ARRAY_STRING])
+    assert_delifeq(KEY, nil, expected: [KEY, ""])
   end
 
   def test_set
@@ -57,6 +58,7 @@ class TestStringCommandsUnit < Minitest::Test
     assert_set(KEY, STRING, expected: [KEY, STRING])
     assert_set(KEY, BYTES, expected: [KEY, BYTES])
     assert_set(KEY, ARRAY, expected: [KEY, ARRAY_STRING])
+    assert_set(KEY, nil, expected: [KEY, ""])
 
     # expiration
     assert_set(KEY, STRING, ex: INTEGER, expected: [KEY, STRING, "EX", INTEGER])
@@ -64,10 +66,14 @@ class TestStringCommandsUnit < Minitest::Test
     assert_set(KEY, STRING, exat: INTEGER, expected: [KEY, STRING, "EXAT", INTEGER])
     assert_set(KEY, STRING, pxat: INTEGER, expected: [KEY, STRING, "PXAT", INTEGER])
     assert_set(KEY, STRING, keepttl: true, expected: [KEY, STRING, "KEEPTTL"])
+    assert_set(KEY, STRING, ex: false, px: false, exat: false, pxat: false, keepttl: false, expected: [KEY, STRING])
+    assert_set(KEY, STRING, ex: nil, px: nil, exat: nil, pxat: nil, keepttl: nil, expected: [KEY, STRING])
 
     # existence conditions
     assert_set(KEY, STRING, nx: true, expected: [KEY, STRING, "NX"])
     assert_set(KEY, STRING, xx: true, expected: [KEY, STRING, "XX"])
+    assert_set(KEY, STRING, nx: false, xx: false, expected: [KEY, STRING])
+    assert_set(KEY, STRING, nx: nil, xx: nil, expected: [KEY, STRING])
 
     # value conditions
     assert_set(KEY, STRING, ifeq: STRING, expected: [KEY, STRING, "IFEQ", STRING])
@@ -76,12 +82,12 @@ class TestStringCommandsUnit < Minitest::Test
     assert_set(KEY, STRING, ifne: STRING, expected: [KEY, STRING, "IFNE", STRING])
     assert_set(KEY, STRING, ifne: BYTES, expected: [KEY, STRING, "IFNE", BYTES])
     assert_set(KEY, STRING, ifne: ARRAY, expected: [KEY, STRING, "IFNE", ARRAY_STRING])
+    assert_set(KEY, STRING, ifeq: nil, ifne: nil, expected: [KEY, STRING])
 
     # get
     assert_set(KEY, STRING, get: true, expected: [KEY, STRING, "GET"])
-
-    # false flags are omitted
-    assert_set(KEY, STRING, nx: false, xx: false, keepttl: false, get: false, expected: [KEY, STRING])
+    assert_set(KEY, STRING, get: false, expected: [KEY, STRING])
+    assert_set(KEY, STRING, get: nil, expected: [KEY, STRING])
 
     # combined options
     assert_set(
