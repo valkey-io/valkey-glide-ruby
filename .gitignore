@@ -74,3 +74,5 @@ Gemfile.lock
 *.pem
 *.crt
 *.key
+
+.module-ci-local-scratch/
