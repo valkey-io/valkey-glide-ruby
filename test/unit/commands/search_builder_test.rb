@@ -153,6 +153,30 @@ class TestSearchBuilder < Minitest::Test
     assert_raises(ArgumentError) { Valkey::Search::CreateOptions.new(on: :bogus) }
   end
 
+  def test_create_options_filter
+    opts = Valkey::Search::CreateOptions.new(filter: "@price > 0")
+    assert_equal ["FILTER", "@price > 0"], opts.to_args
+  end
+
+  def test_create_options_rejects_empty_filter
+    assert_raises(ArgumentError) { Valkey::Search::CreateOptions.new(filter: "") }
+  end
+
+  def test_create_options_score_field
+    opts = Valkey::Search::CreateOptions.new(score_field: "popularity")
+    assert_equal %w[SCORE_FIELD popularity], opts.to_args
+  end
+
+  def test_create_options_no_highlight
+    opts = Valkey::Search::CreateOptions.new(no_highlight: true)
+    assert_equal ["NOHL"], opts.to_args
+  end
+
+  def test_create_options_filter_score_field_no_highlight_order
+    opts = Valkey::Search::CreateOptions.new(filter: "@x>0", score_field: "pop", no_highlight: true)
+    assert_equal ["FILTER", "@x>0", "SCORE_FIELD", "pop", "NOHL"], opts.to_args
+  end
+
   # ---- ft_create dispatch ----
 
   def test_ft_create_builder_with_kwargs_options
@@ -266,6 +290,40 @@ class TestSearchBuilder < Minitest::Test
   def test_vector_field_type_case_insensitive
     field = Valkey::Search::VectorField.flat("v", dim: 4, metric: :l2, type: "float32")
     assert_includes field.to_args, "FLOAT32"
+  end
+
+  def test_vector_field_accepts_float16_and_bfloat16
+    float16 = Valkey::Search::VectorField.flat("v", dim: 4, metric: :l2, type: "FLOAT16")
+    assert_includes float16.to_args, "FLOAT16"
+    bfloat16 = Valkey::Search::VectorField.flat("v", dim: 4, metric: :l2, type: "BFLOAT16")
+    assert_includes bfloat16.to_args, "BFLOAT16"
+  end
+
+  def test_text_field_unf_requires_sortable
+    assert_raises(ArgumentError) { Valkey::Search::TextField.new("t", unf: true) }
+  end
+
+  def test_text_field_unf_emitted_right_after_sortable
+    field = Valkey::Search::TextField.new("t", sortable: true, unf: true, no_stem: true)
+    assert_equal %w[t TEXT NOSTEM SORTABLE UNF], field.to_args
+  end
+
+  def test_tag_field_unf_requires_sortable
+    assert_raises(ArgumentError) { Valkey::Search::TagField.new("c", unf: true) }
+  end
+
+  def test_tag_field_unf_emitted_right_after_sortable
+    field = Valkey::Search::TagField.new("c", sortable: true, unf: true)
+    assert_equal %w[c TAG SORTABLE UNF], field.to_args
+  end
+
+  def test_numeric_field_unf_requires_sortable
+    assert_raises(ArgumentError) { Valkey::Search::NumericField.new("n", unf: true) }
+  end
+
+  def test_numeric_field_unf_emitted_right_after_sortable
+    field = Valkey::Search::NumericField.new("n", sortable: true, unf: true)
+    assert_equal %w[n NUMERIC SORTABLE UNF], field.to_args
   end
 
   # ---- Dispatch coverage through ft_create ----

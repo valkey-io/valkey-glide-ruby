@@ -96,6 +96,67 @@ module Lint
       end
     end
 
+    def test_set_with_ifne
+      target_version("9.2")
+
+      key = "foo"
+      new_value = "updated"
+      r.set(key, "value")
+
+      assert_equal "OK", r.set(key, new_value, ifne: "other")
+      assert_equal new_value, r.get(key)
+    end
+
+    def test_set_with_ifne_missing_key
+      target_version("9.2")
+
+      key = "foo"
+      new_value = "updated"
+
+      assert_equal "OK", r.set(key, new_value, ifne: "other")
+      assert_equal new_value, r.get(key)
+    end
+
+    def test_set_with_ifne_equal
+      target_version("9.2")
+
+      key = "foo"
+      stored_value = "value"
+      r.set(key, stored_value)
+
+      assert_nil r.set(key, "updated", ifne: stored_value)
+      assert_equal stored_value, r.get(key)
+    end
+
+    def test_set_with_ifeq
+      target_version("8.1")
+
+      key = "foo"
+      r.set(key, "current")
+
+      assert_equal "OK", r.set(key, "updated", ifeq: "current")
+      assert_equal "updated", r.get(key)
+    end
+
+    def test_set_with_ifeq_not_equal
+      target_version("8.1")
+
+      key = "foo"
+      r.set(key, "current")
+
+      assert_nil r.set(key, "updated", ifeq: "other")
+      assert_equal "current", r.get(key)
+    end
+
+    def test_set_with_ifeq_missing_key
+      target_version("8.1")
+
+      key = "foo"
+
+      assert_nil r.set(key, "updated", ifeq: "current")
+      assert_nil r.get(key)
+    end
+
     def test_setex
       assert r.setex("foo", 1, "bar")
       assert_equal "bar", r.get("foo")

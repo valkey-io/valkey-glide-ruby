@@ -41,6 +41,66 @@ class Valkey
         new("COUNT", as: as)
       end
 
+      # TOLIST — collects all values for +property+ across the records in a
+      # group into a single array, removing duplicates and nil values. If a
+      # value is itself an array, it is flattened one level before being
+      # added. Values are returned in the order they were first encountered
+      # (valkey-search 1.3.0, #932).
+      #
+      # @example
+      #   Valkey::Search::Reducer.to_list("@color", as: "colors")
+      #
+      # @param [String] property - the property whose values are collected
+      # @param [String, nil] as - optional AS alias
+      def self.to_list(property, as: nil)
+        new("TOLIST", property, as: as)
+      end
+
+      # FIRST_VALUE — returns the value of +property+ from a single record
+      # in the group. Without +by+, the first record encountered wins. With
+      # +by+, the record whose +by+ property is smallest (+order: :asc+,
+      # the default) or largest (+order: :desc+) wins; ties keep the
+      # first-encountered record (valkey-search 1.3.0, #946).
+      #
+      # @example
+      #   Valkey::Search::Reducer.first_value("@title", as: "any_title")
+      #   Valkey::Search::Reducer.first_value("@title", by: "@price", order: :desc, as: "most_expensive_title")
+      #
+      # @param [String] property - the property whose value is returned
+      # @param [String, nil] by - the property used to choose the winning
+      #   record. Required if +order+ is given.
+      # @param [Symbol, nil] order - :asc (default on the server when +by+ is
+      #   set without +order+) or :desc
+      # @param [String, nil] as - optional AS alias
+      #
+      # @raise [ArgumentError] if +order+ is given without +by+
+      def self.first_value(property, by: nil, order: nil, as: nil)
+        raise ArgumentError, "first_value: order requires by to be set" if !order.nil? && by.nil?
+
+        args = [property]
+        unless by.nil?
+          args.push("BY", by)
+          args.push(Search.lookup_token(Search::SORT_ORDERS, order, "sort order")) unless order.nil?
+        end
+        new("FIRST_VALUE", *args, as: as)
+      end
+
+      # RANDOM_SAMPLE — returns a uniform random sample of up to +size+
+      # values of +property+ from the records in a group, using reservoir
+      # sampling (valkey-search 1.3.0, #949).
+      #
+      # @example
+      #   Valkey::Search::Reducer.random_sample("@score", 5, as: "score_sample")
+      #
+      # @param [String] property - the property to sample values from
+      # @param [Integer] size - the maximum number of values to sample. Must
+      #   be a non-negative integer no greater than 1000; the server
+      #   rejects values outside this range.
+      # @param [String, nil] as - optional AS alias
+      def self.random_sample(property, size, as: nil)
+        new("RANDOM_SAMPLE", property, size.to_s, as: as)
+      end
+
       # Defines Reducer.count_distinct/.sum/.min/.max/.avg/.stddev, each taking a
       # single property, from {Search::REDUCER_FUNCTIONS} (skipping COUNT, which
       # takes no property and is defined explicitly above). One definition per
@@ -237,16 +297,38 @@ class Valkey
     #
     # @see https://valkey.io/commands/ft.aggregate/
     class AggregateOptions
+      attr_reader :with_cursor
+
       # @param [Array<AggregateClause>] clauses - ordered pipeline clauses
-      # @param [Array<String>, :all, nil] load - LOAD fields, or :all for `LOAD *`
+      # @param [Array<String, LoadField>, :all, nil] load - LOAD fields
+      #   (plain field identifiers and/or {LoadField} entries to rename via
+      #   AS — valkey-search 1.3.0; see {LoadField}'s docs for the
+      #   compatibility gate), or :all for `LOAD *`
       # @param [Hash, nil] params - query parameters (PARAMS)
       # @param [Boolean] verbatim - emit VERBATIM
       # @param [Boolean] in_order - emit INORDER
       # @param [Integer, nil] slop - emit `SLOP <n>`
       # @param [Integer, nil] dialect - emit `DIALECT <n>` (only 2 is valid)
       # @param [Integer, nil] timeout - emit `TIMEOUT <ms>`
+      # @param [Boolean] add_scores - exposes the relevance score as a
+      #   pipeline field named `__score` (valkey-search 1.3.0). `__score`
+      #   can then be referenced like any other pipeline field in a
+      #   {LoadField}, {Apply} expression, or a {SortBy} key.
+      # @param [String, nil] scorer - the scoring function used to compute
+      #   `__score` (valkey-search 1.3.0). `"BM25STD"` is currently the only
+      #   registered value. Has no visible effect unless combined with
+      #   `add_scores: true` (or inspected indirectly via a SORTBY on `__score`).
+      # @param [WithCursor, nil] with_cursor - requests a paged reply instead
+      #   of the whole result set at once. The reply shape becomes a
+      #   two-element array of `[rows, cursor_id]`. A paged query, and every
+      #   subsequent {Valkey::Commands::VectorSearchCommands#ft_cursor_read}/`#ft_cursor_del`
+      #   against the cursor it opens, always reads from the PRIMARY of the
+      #   index's slot regardless of ReadFrom — a cursor is a
+      #   per-process, node-local server resource. A plain aggregate without
+      #   `with_cursor` is unaffected and still prefers replicas as normal.
       def initialize(clauses: nil, load: nil, params: nil, verbatim: false,
-                     in_order: false, slop: nil, dialect: nil, timeout: nil)
+                     in_order: false, slop: nil, dialect: nil, timeout: nil,
+                     add_scores: false, scorer: nil, with_cursor: nil)
         @clauses = clauses || []
         unless @clauses.all?(AggregateClause)
           raise ArgumentError, "aggregate clauses must be Valkey::Search::AggregateClause objects"
@@ -259,6 +341,9 @@ class Valkey
         @slop = slop
         @dialect = Search.normalize_dialect(dialect)
         @timeout = timeout
+        @add_scores = add_scores
+        @scorer = scorer
+        @with_cursor = with_cursor
       end
 
       # @return [Array] FT.AGGREGATE option tokens (after `index query`), in wire order
@@ -272,6 +357,9 @@ class Valkey
         args.concat(Search.params_tokens(@params))
         args.push("DIALECT", @dialect) unless @dialect.nil?
         @clauses.each { |clause| args.concat(clause.to_args) }
+        args << "ADDSCORES" if @add_scores
+        args.push("SCORER", @scorer) unless @scorer.nil?
+        args.concat(@with_cursor.to_args) unless @with_cursor.nil?
         args
       end
 
@@ -282,8 +370,8 @@ class Valkey
         when nil then nil
         when :all, "*" then args.push("LOAD", "*")
         when Array
-          args.push("LOAD", @load.length, *@load) unless @load.empty?
-        else raise ArgumentError, "load must be an Array of fields, :all, or nil"
+          args.concat(Search.load_fields_to_args(@load))
+        else raise ArgumentError, "load must be an Array of fields/LoadField, :all, or nil"
         end
       end
     end
