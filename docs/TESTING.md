@@ -12,6 +12,7 @@ This document is the authoritative testing reference for the Valkey GLIDE Ruby c
 - Within each group, order positive tests first, followed by negative tests and edge cases.
 - Start with `test_<command_or_feature>`, which contains the basic positive-case assertions. Follow it with separate negative and edge-case tests.
 - Use the format `test_<command_or_feature>_<condition_or_context>`.
+- Use header and divider comments where appropriate to break up long test files into sections.
 
 Example:
 

@@ -346,41 +346,6 @@ module Lint
                    ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4, with_match_len: true))
     end
 
-    # DELIFEQ
-    # ---------------------------------------------------------------------------------------------
-
-    def test_delifeq
-      target_version("9.0")
-
-      VALUE_MAP.each do |value, expected|
-        # key does not exist
-        assert_equal false, r.delifeq(KEY, value)
-
-        r.set(KEY, value)
-
-        # value not equal, key is not deleted
-        assert_equal false, r.delifeq(KEY, OTHER)
-        assert_equal expected, r.get(KEY)
-
-        # value equal, key is deleted
-        assert_equal true, r.delifeq(KEY, value)
-        assert_equal false, r.exists?(KEY)
-      end
-    end
-
-    def test_delifeq_in_pipeline
-      target_version("9.0")
-
-      result = r.pipelined do |pipeline|
-        pipeline.delifeq(KEY, STRING)
-        pipeline.set(KEY, STRING)
-        pipeline.delifeq(KEY, OTHER)
-        pipeline.delifeq(KEY, STRING)
-      end
-
-      assert_equal [false, OK, false, true], result
-    end
-
     # DELEX
     # ---------------------------------------------------------------------------------------------
 
@@ -443,6 +408,41 @@ module Lint
         pipeline.set(KEY, STRING)
         pipeline.delex(KEY, ifne: STRING)
         pipeline.delex(KEY, ifne: OTHER)
+      end
+
+      assert_equal [false, OK, false, true], result
+    end
+
+    # DELIFEQ
+    # ---------------------------------------------------------------------------------------------
+
+    def test_delifeq
+      target_version("9.0")
+
+      VALUE_MAP.each do |value, expected|
+        # key does not exist
+        assert_equal false, r.delifeq(KEY, value)
+
+        r.set(KEY, value)
+
+        # value not equal, key is not deleted
+        assert_equal false, r.delifeq(KEY, OTHER)
+        assert_equal expected, r.get(KEY)
+
+        # value equal, key is deleted
+        assert_equal true, r.delifeq(KEY, value)
+        assert_equal false, r.exists?(KEY)
+      end
+    end
+
+    def test_delifeq_in_pipeline
+      target_version("9.0")
+
+      result = r.pipelined do |pipeline|
+        pipeline.delifeq(KEY, STRING)
+        pipeline.set(KEY, STRING)
+        pipeline.delifeq(KEY, OTHER)
+        pipeline.delifeq(KEY, STRING)
       end
 
       assert_equal [false, OK, false, true], result
