@@ -52,6 +52,47 @@ end
 - Tests should not cover Core or server behavior.
 - Mocking and stubbing are allowed but should remain simple. If a test requires extensive mocking, consider skipping it and flagging the gap for human review.
 
+#### [Command Unit Tests](/test/unit/commands/string_commands_test.rb)
+
+> [!NOTE]
+> These guidelines are a work in progress.
+
+Command unit tests check that each command method sends the correct arguments to glide-core and returns its response.
+
+What they test:
+
+- Request type and command syntax (e.g. `DELEX IFEQ comparison-value`).
+- Conversion of Ruby values to arguments (e.g. `value.to_s` or `Integer(expiry)`).
+- That replies from `send_command` are returned and errors are raised unchanged.
+
+What they do not test:
+
+- Validation performed by glide-core or Valkey.
+- Whether the server accepts a command.
+- Reply conversion done by glide-core (e.g. Boolean replies).
+
+In general, command unit tests should cover test cases for each argument:
+
+| Argument type    | Behavior                                                        | Test cases                                             |
+| ---------------- | --------------------------------------------------------------- | ------------------------------------------------------ |
+| Key              | Not converted – passed directly.                                | Text string, binary string                             |
+| String           | Converted with `to_s`.                                          | Text string, binary string, non-string                 |
+| Integer          | Converted with `Integer()`.                                     | Integer, numeric string                                |
+| Optional boolean | Added if `true` and omitted if `false` or `nil`.                | `true`, `false`, `nil`                                 |
+| Optional string  | Added if non-`nil` and omitted if `nil`. Converted with `to_s`. | Text string, binary string, non-string, `false`, `nil` |
+| Optional integer | Omitted if `nil`. Converted with `Integer()`.                   | Integer, numeric string, `nil`                         |
+
+In addition, command unit tests should also verify that:
+
+- Errors raised by glide-core or the server are propagated to the caller.
+- If several options are specified, they are sent in the correct order, even if they are passed in a different order.
+
+Structure:
+
+- Use one test method per command, named `test_<command>`, in alphabetical order.
+- If the command has many options, group them into paragraphs for readability.
+- Use shared constants and helper methods to reduce duplication and improve readability.
+
 ### Integration tests
 
 - Integration tests exercise the Ruby client from a user's point of view and verify public API contracts against a server.

@@ -8,13 +8,11 @@ require "valkey/commands/string_commands"
 # Unit tests for string command request construction.
 class TestStringCommandsUnit < Minitest::Test
   ARRAY = %w[a b].freeze
-  ARRAY_STRING = "[\"a\", \"b\"]"
+  ARRAY_STR =  "[\"a\", \"b\"]"
   BYTES = "\x00\xFF".b.freeze
   INTEGER = 10
-  STRING = "value"
-
-  KEY = "key"
-  OK = "OK"
+  INTEGER_STR = "10"
+  TEXT = "value"
 
   # Minimal command receiver that records dispatched requests.
   class FakeClient
@@ -37,68 +35,75 @@ class TestStringCommandsUnit < Minitest::Test
   end
 
   def test_delex
-    assert_delex(KEY, ifeq: STRING, expected: [KEY, "IFEQ", STRING])
-    assert_delex(KEY, ifeq: BYTES, expected: [KEY, "IFEQ", BYTES])
-    assert_delex(KEY, ifeq: ARRAY, expected: [KEY, "IFEQ", ARRAY_STRING])
-    assert_delex(KEY, ifne: STRING, expected: [KEY, "IFNE", STRING])
-    assert_delex(KEY, ifne: BYTES, expected: [KEY, "IFNE", BYTES])
-    assert_delex(KEY, ifne: ARRAY, expected: [KEY, "IFNE", ARRAY_STRING])
-    assert_delex(KEY, ifeq: nil, ifne: nil, expected: [KEY])
+    assert_delex(TEXT, ifeq: TEXT, expected: [TEXT, "IFEQ", TEXT])
+    assert_delex(BYTES, ifne: TEXT, expected: [BYTES, "IFNE", TEXT])
+
+    assert_delex(TEXT, ifeq: BYTES, expected: [TEXT, "IFEQ", BYTES])
+    assert_delex(TEXT, ifeq: ARRAY, expected: [TEXT, "IFEQ", ARRAY_STR])
+    assert_delex(TEXT, ifeq: nil, expected: [TEXT])
+
+    assert_delex(TEXT, ifne: BYTES, expected: [TEXT, "IFNE", BYTES])
+    assert_delex(TEXT, ifne: ARRAY, expected: [TEXT, "IFNE", ARRAY_STR])
+    assert_delex(TEXT, ifne: nil, expected: [TEXT])
   end
 
   def test_delifeq
-    assert_delifeq(KEY, STRING, expected: [KEY, STRING])
-    assert_delifeq(KEY, BYTES, expected: [KEY, BYTES])
-    assert_delifeq(KEY, ARRAY, expected: [KEY, ARRAY_STRING])
-    assert_delifeq(KEY, nil, expected: [KEY, ""])
+    assert_delifeq(TEXT, TEXT, expected: [TEXT, TEXT])
+    assert_delifeq(BYTES, TEXT, expected: [BYTES, TEXT])
+
+    assert_delifeq(TEXT, BYTES, expected: [TEXT, BYTES])
+    assert_delifeq(TEXT, ARRAY, expected: [TEXT, ARRAY_STR])
+    assert_delifeq(TEXT, nil, expected: [TEXT, ""])
   end
 
   def test_set
-    # values
-    assert_set(KEY, STRING, expected: [KEY, STRING])
-    assert_set(KEY, BYTES, expected: [KEY, BYTES])
-    assert_set(KEY, ARRAY, expected: [KEY, ARRAY_STRING])
-    assert_set(KEY, nil, expected: [KEY, ""])
+    assert_set(TEXT, TEXT, expected: [TEXT, TEXT])
+    assert_set(BYTES, TEXT, expected: [BYTES, TEXT])
 
-    # expiration
-    assert_set(KEY, STRING, ex: INTEGER, expected: [KEY, STRING, "EX", INTEGER])
-    assert_set(KEY, STRING, px: INTEGER, expected: [KEY, STRING, "PX", INTEGER])
-    assert_set(KEY, STRING, exat: INTEGER, expected: [KEY, STRING, "EXAT", INTEGER])
-    assert_set(KEY, STRING, pxat: INTEGER, expected: [KEY, STRING, "PXAT", INTEGER])
-    assert_set(KEY, STRING, keepttl: true, expected: [KEY, STRING, "KEEPTTL"])
-    assert_set(KEY, STRING, ex: false, px: false, exat: false, pxat: false, keepttl: false, expected: [KEY, STRING])
-    assert_set(KEY, STRING, ex: nil, px: nil, exat: nil, pxat: nil, keepttl: nil, expected: [KEY, STRING])
+    assert_set(TEXT, BYTES, expected: [TEXT, BYTES])
+    assert_set(TEXT, ARRAY, expected: [TEXT, ARRAY_STR])
+    assert_set(TEXT, nil, expected: [TEXT, ""])
 
-    # existence conditions
-    assert_set(KEY, STRING, nx: true, expected: [KEY, STRING, "NX"])
-    assert_set(KEY, STRING, xx: true, expected: [KEY, STRING, "XX"])
-    assert_set(KEY, STRING, nx: false, xx: false, expected: [KEY, STRING])
-    assert_set(KEY, STRING, nx: nil, xx: nil, expected: [KEY, STRING])
+    assert_set(TEXT, TEXT, ex: INTEGER, expected: [TEXT, TEXT, "EX", INTEGER])
+    assert_set(TEXT, TEXT, ex: INTEGER_STR, expected: [TEXT, TEXT, "EX", INTEGER])
+    assert_set(TEXT, TEXT, px: INTEGER, expected: [TEXT, TEXT, "PX", INTEGER])
+    assert_set(TEXT, TEXT, px: INTEGER_STR, expected: [TEXT, TEXT, "PX", INTEGER])
+    assert_set(TEXT, TEXT, exat: INTEGER, expected: [TEXT, TEXT, "EXAT", INTEGER])
+    assert_set(TEXT, TEXT, exat: INTEGER_STR, expected: [TEXT, TEXT, "EXAT", INTEGER])
+    assert_set(TEXT, TEXT, pxat: INTEGER, expected: [TEXT, TEXT, "PXAT", INTEGER])
+    assert_set(TEXT, TEXT, pxat: INTEGER_STR, expected: [TEXT, TEXT, "PXAT", INTEGER])
+    assert_set(TEXT, TEXT, keepttl: true, expected: [TEXT, TEXT, "KEEPTTL"])
+    assert_set(TEXT, TEXT, ex: false, px: false, exat: false, pxat: false, keepttl: false, expected: [TEXT, TEXT])
+    assert_set(TEXT, TEXT, ex: nil, px: nil, exat: nil, pxat: nil, keepttl: nil, expected: [TEXT, TEXT])
 
-    # value conditions
-    assert_set(KEY, STRING, ifeq: STRING, expected: [KEY, STRING, "IFEQ", STRING])
-    assert_set(KEY, STRING, ifeq: BYTES, expected: [KEY, STRING, "IFEQ", BYTES])
-    assert_set(KEY, STRING, ifeq: ARRAY, expected: [KEY, STRING, "IFEQ", ARRAY_STRING])
-    assert_set(KEY, STRING, ifne: STRING, expected: [KEY, STRING, "IFNE", STRING])
-    assert_set(KEY, STRING, ifne: BYTES, expected: [KEY, STRING, "IFNE", BYTES])
-    assert_set(KEY, STRING, ifne: ARRAY, expected: [KEY, STRING, "IFNE", ARRAY_STRING])
-    assert_set(KEY, STRING, ifeq: nil, ifne: nil, expected: [KEY, STRING])
+    assert_set(TEXT, TEXT, nx: true, expected: [TEXT, TEXT, "NX"])
+    assert_set(TEXT, TEXT, xx: true, expected: [TEXT, TEXT, "XX"])
+    assert_set(TEXT, TEXT, nx: false, xx: false, expected: [TEXT, TEXT])
+    assert_set(TEXT, TEXT, nx: nil, xx: nil, expected: [TEXT, TEXT])
 
-    # get
-    assert_set(KEY, STRING, get: true, expected: [KEY, STRING, "GET"])
-    assert_set(KEY, STRING, get: false, expected: [KEY, STRING])
-    assert_set(KEY, STRING, get: nil, expected: [KEY, STRING])
+    assert_set(TEXT, TEXT, ifeq: TEXT, expected: [TEXT, TEXT, "IFEQ", TEXT])
+    assert_set(TEXT, TEXT, ifeq: BYTES, expected: [TEXT, TEXT, "IFEQ", BYTES])
+    assert_set(TEXT, TEXT, ifeq: ARRAY, expected: [TEXT, TEXT, "IFEQ", ARRAY_STR])
+    assert_set(TEXT, TEXT, ifne: TEXT, expected: [TEXT, TEXT, "IFNE", TEXT])
+    assert_set(TEXT, TEXT, ifne: BYTES, expected: [TEXT, TEXT, "IFNE", BYTES])
+    assert_set(TEXT, TEXT, ifne: ARRAY, expected: [TEXT, TEXT, "IFNE", ARRAY_STR])
+    assert_set(TEXT, TEXT, ifeq: false, expected: [TEXT, TEXT, "IFEQ", "false"])
+    assert_set(TEXT, TEXT, ifne: false, expected: [TEXT, TEXT, "IFNE", "false"])
+    assert_set(TEXT, TEXT, ifeq: nil, ifne: nil, expected: [TEXT, TEXT])
 
-    # combined options
+    assert_set(TEXT, TEXT, get: true, expected: [TEXT, TEXT, "GET"])
+    assert_set(TEXT, TEXT, get: false, expected: [TEXT, TEXT])
+    assert_set(TEXT, TEXT, get: nil, expected: [TEXT, TEXT])
+
     assert_set(
-      KEY, STRING,
-      get: true, ifeq: STRING, ex: INTEGER,
-      expected: [KEY, STRING, "EX", INTEGER, "IFEQ", STRING, "GET"]
+      TEXT, TEXT,
+      get: true, ifeq: TEXT, ex: INTEGER,
+      expected: [TEXT, TEXT, "EX", INTEGER, "IFEQ", TEXT, "GET"]
     )
     assert_set(
-      KEY, STRING,
+      TEXT, TEXT,
       get: true, xx: true, keepttl: true,
-      expected: [KEY, STRING, "XX", "KEEPTTL", "GET"]
+      expected: [TEXT, TEXT, "XX", "KEEPTTL", "GET"]
     )
   end
 
@@ -106,37 +111,33 @@ class TestStringCommandsUnit < Minitest::Test
     error = Valkey::CommandError.new("error")
     client = FakeClient.new(error: error)
 
-    assert_same error, assert_raises(Valkey::CommandError) { client.delex(KEY, ifeq: STRING) }
-    assert_same error, assert_raises(Valkey::CommandError) { client.delifeq(KEY, STRING) }
-    assert_same error, assert_raises(Valkey::CommandError) { client.set(KEY, STRING, ifeq: STRING) }
+    assert_same error, assert_raises(Valkey::CommandError) { client.delex(TEXT, ifeq: TEXT) }
+    assert_same error, assert_raises(Valkey::CommandError) { client.delifeq(TEXT, TEXT) }
+    assert_same error, assert_raises(Valkey::CommandError) { client.set(TEXT, TEXT, ifeq: TEXT) }
   end
 
   private
 
-  # Assert that `delex` called with the given arguments sends the expected command arguments.
   def assert_delex(*args, expected:, **options)
-    client = FakeClient.new(reply: true)
-
-    assert_equal true, client.delex(*args, **options)
-    assert_equal Valkey::RequestType::DEL_EX, client.captured_command
-    assert_equal expected, client.captured_arguments
+    assert_command(:delex, Valkey::RequestType::DEL_EX, *args, expected: expected, **options)
   end
 
-  # Assert that `delifeq` called with the given arguments sends the expected command arguments.
   def assert_delifeq(*args, expected:)
-    client = FakeClient.new(reply: true)
-
-    assert_equal true, client.delifeq(*args)
-    assert_equal Valkey::RequestType::DEL_IF_EQ, client.captured_command
-    assert_equal expected, client.captured_arguments
+    assert_command(:delifeq, Valkey::RequestType::DEL_IF_EQ, *args, expected: expected)
   end
 
-  # Assert that `set` called with the given arguments sends the expected command arguments.
   def assert_set(*args, expected:, **options)
-    client = FakeClient.new(reply: OK)
+    assert_command(:set, Valkey::RequestType::SET, *args, expected: expected, **options)
+  end
 
-    assert_equal OK, client.set(*args, **options)
-    assert_equal Valkey::RequestType::SET, client.captured_command
+  # Assert that calling the command with the given arguments sends the
+  # expected request type and argument and returns the reply unchanged.
+  def assert_command(command, request_type, *args, expected:, **options)
+    reply = Object.new
+    client = FakeClient.new(reply: reply)
+
+    assert_same reply, client.public_send(command, *args, **options)
+    assert_equal request_type, client.captured_command
     assert_equal expected, client.captured_arguments
   end
 end
