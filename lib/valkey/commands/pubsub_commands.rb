@@ -23,7 +23,7 @@ class Valkey
     #
     # * Inline: messages are queued on the connection and read with {#get_pubsub_message} or
     #   {#try_get_pubsub_message}.
-    # * Callback: a `callback:` proc receives every message instead, along with an arbitrary `context:`.
+    # * Callback: a `:callback` proc receives every message instead, along with an arbitrary `:context`.
     # * Lazy: the `_lazy` subscribe and unsubscribe methods return without waiting for the server to confirm
     #   the change; read back {#get_subscriptions} to see the subscriptions the server actually has.
     # @example PubSub with callback

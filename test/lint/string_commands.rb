@@ -2,160 +2,20 @@
 
 module Lint
   module StringCommands
-    def test_set_and_get
-      r.set("foo", "s1")
+    ARRAY = %w[a b].freeze
+    BYTES = "\x00\xFF".b.freeze
+    STRING = "value"
+    OTHER = "other"
 
-      assert_equal "s1", r.get("foo")
-    end
+    # Maps values to the corresponding response string.
+    VALUE_MAP = [STRING, BYTES, ARRAY].to_h { |value| [value, value.to_s] }.freeze
 
-    def test_set_and_get_with_newline_characters
-      r.set("foo", "1\n")
+    KEY = "key"
+    OK = "OK"
 
-      assert_equal "1\n", r.get("foo")
-    end
-
-    def test_set_and_get_with_non_string_value
-      value = %w[a b]
-
-      r.set("foo", value)
-
-      assert_equal value.to_s, r.get("foo")
-    end
-
-    def test_set_and_get_with_ascii_characters
-      (0..255).each do |i|
-        str = "#{i.chr}---#{i.chr}"
-        r.set("foo", str)
-
-        assert_equal str, r.get("foo")
-      end
-    end
-
-    def test_set_with_ex
-      r.set("foo", "bar", ex: 2)
-
-      assert_in_range 0..2, r.ttl("foo")
-    end
-
-    def test_set_with_px
-      r.set("foo", "bar", px: 2000)
-      assert_in_range 0..2, r.ttl("foo")
-    end
-
-    def test_set_with_exat
-      target_version "6.2" do
-        r.set("foo", "bar", exat: Time.now.to_i + 2)
-        assert_in_range 0..2, r.ttl("foo")
-      end
-    end
-
-    def test_set_with_pxat
-      target_version "6.2" do
-        r.set("foo", "bar", pxat: (1000 * Time.now.to_i) + 2000)
-        assert_in_range 0..2, r.ttl("foo")
-      end
-    end
-
-    def test_set_with_nx
-      r.set("foo", "qux", nx: true)
-      assert !r.set("foo", "bar", nx: true)
-      assert_equal "qux", r.get("foo")
-
-      r.del("foo")
-      assert r.set("foo", "bar", nx: true)
-      assert_equal "bar", r.get("foo")
-    end
-
-    def test_set_with_xx
-      r.set("foo", "qux")
-      assert r.set("foo", "bar", xx: true)
-      assert_equal "bar", r.get("foo")
-
-      r.del("foo")
-      assert !r.set("foo", "bar", xx: true)
-    end
-
-    def test_set_with_keepttl
-      target_version "6.0.0" do
-        r.set("foo", "qux", ex: 2)
-        assert_in_range 0..2, r.ttl("foo")
-        r.set("foo", "bar", keepttl: true)
-        assert_in_range 0..2, r.ttl("foo")
-      end
-    end
-
-    def test_set_with_get
-      target_version "6.2" do
-        r.set("foo", "qux")
-
-        assert_equal "qux", r.set("foo", "bar", get: true)
-        assert_equal "bar", r.get("foo")
-
-        assert_nil r.set("baz", "bar", get: true)
-        assert_equal "bar", r.get("baz")
-      end
-    end
-
-    def test_set_with_ifne
-      target_version("9.2")
-
-      key = "foo"
-      new_value = "updated"
-      r.set(key, "value")
-
-      assert_equal "OK", r.set(key, new_value, ifne: "other")
-      assert_equal new_value, r.get(key)
-    end
-
-    def test_set_with_ifne_missing_key
-      target_version("9.2")
-
-      key = "foo"
-      new_value = "updated"
-
-      assert_equal "OK", r.set(key, new_value, ifne: "other")
-      assert_equal new_value, r.get(key)
-    end
-
-    def test_set_with_ifne_equal
-      target_version("9.2")
-
-      key = "foo"
-      stored_value = "value"
-      r.set(key, stored_value)
-
-      assert_nil r.set(key, "updated", ifne: stored_value)
-      assert_equal stored_value, r.get(key)
-    end
-
-    def test_set_with_ifeq
-      target_version("8.1")
-
-      key = "foo"
-      r.set(key, "current")
-
-      assert_equal "OK", r.set(key, "updated", ifeq: "current")
-      assert_equal "updated", r.get(key)
-    end
-
-    def test_set_with_ifeq_not_equal
-      target_version("8.1")
-
-      key = "foo"
-      r.set(key, "current")
-
-      assert_nil r.set(key, "updated", ifeq: "other")
-      assert_equal "current", r.get(key)
-    end
-
-    def test_set_with_ifeq_missing_key
-      target_version("8.1")
-
-      key = "foo"
-
-      assert_nil r.set(key, "updated", ifeq: "current")
-      assert_nil r.get(key)
-    end
+    # Must be long enough for test to complete before expiry.
+    TTL_SECONDS = 60
+    TTL_MILLISECONDS = TTL_SECONDS * 1000
 
     def test_setex
       assert r.setex("foo", 1, "bar")
@@ -199,45 +59,6 @@ module Lint
         assert_equal "bar", r.getdel("foo")
         assert_nil r.get("foo")
       end
-    end
-
-    def test_delifeq
-      target_version("9.0")
-
-      assert_delifeq(key: "key", value: "value")
-      assert_delifeq(key: "non-string", value: %w[a b])
-      assert_delifeq(key: "binary", value: "\x00\xFF".b)
-    end
-
-    def test_delifeq_not_matching
-      target_version("9.0")
-
-      assert_equal false, r.delifeq("foo", "value")
-
-      r.set("foo", "value")
-      assert_equal false, r.delifeq("foo", "other")
-      assert_equal "value", r.get("foo")
-    end
-
-    def test_delifeq_raises
-      target_version("9.0")
-
-      r.sadd("foo", "member")
-
-      assert_raises(Valkey::CommandError) { r.delifeq("foo", "value") }
-    end
-
-    def test_delifeq_in_pipeline
-      target_version("9.0")
-
-      r.set("foo", "value")
-
-      result = r.pipelined do |pipeline|
-        pipeline.delifeq("foo", "value")
-        pipeline.delifeq("foo", "other")
-      end
-
-      assert_equal [true, false], result
     end
 
     def test_getset
@@ -525,12 +346,228 @@ module Lint
                    ], "len" => 6 }, r.lcs('{1}key1', '{1}key2', idx: true, min_match_len: 4, with_match_len: true))
     end
 
-    private
+    # DELEX
+    # ---------------------------------------------------------------------------------------------
 
-    def assert_delifeq(key:, value:)
-      r.set(key, value)
-      assert_equal true, r.delifeq(key, value)
-      assert_nil r.get(key)
+    def test_delex_ifeq
+      target_version("9.2")
+
+      VALUE_MAP.each do |value, expected|
+        # key does not exist
+        assert_equal false, r.delex(KEY, ifeq: value)
+
+        r.set(KEY, value)
+
+        # value not equal, key is not deleted
+        assert_equal false, r.delex(KEY, ifeq: OTHER)
+        assert_equal expected, r.get(KEY)
+
+        # value equal, key is deleted
+        assert_equal true, r.delex(KEY, ifeq: value)
+        assert_equal false, r.exists?(KEY)
+      end
+    end
+
+    def test_delex_ifeq_in_pipeline
+      target_version("9.2")
+
+      result = r.pipelined do |pipeline|
+        pipeline.delex(KEY, ifeq: STRING)
+        pipeline.set(KEY, STRING)
+        pipeline.delex(KEY, ifeq: OTHER)
+        pipeline.delex(KEY, ifeq: STRING)
+      end
+
+      assert_equal [false, OK, false, true], result
+    end
+
+    def test_delex_ifne
+      target_version("9.2")
+
+      VALUE_MAP.each do |value, expected|
+        # key does not exist
+        assert_equal false, r.delex(KEY, ifne: value)
+
+        r.set(KEY, value)
+
+        # value equal, key is not deleted
+        assert_equal false, r.delex(KEY, ifne: value)
+        assert_equal expected, r.get(KEY)
+
+        # value not equal, key is deleted
+        assert_equal true, r.delex(KEY, ifne: OTHER)
+        assert_equal false, r.exists?(KEY)
+      end
+    end
+
+    def test_delex_ifne_in_pipeline
+      target_version("9.2")
+
+      result = r.pipelined do |pipeline|
+        pipeline.delex(KEY, ifne: STRING)
+        pipeline.set(KEY, STRING)
+        pipeline.delex(KEY, ifne: STRING)
+        pipeline.delex(KEY, ifne: OTHER)
+      end
+
+      assert_equal [false, OK, false, true], result
+    end
+
+    # DELIFEQ
+    # ---------------------------------------------------------------------------------------------
+
+    def test_delifeq
+      target_version("9.0")
+
+      VALUE_MAP.each do |value, expected|
+        # key does not exist
+        assert_equal false, r.delifeq(KEY, value)
+
+        r.set(KEY, value)
+
+        # value not equal, key is not deleted
+        assert_equal false, r.delifeq(KEY, OTHER)
+        assert_equal expected, r.get(KEY)
+
+        # value equal, key is deleted
+        assert_equal true, r.delifeq(KEY, value)
+        assert_equal false, r.exists?(KEY)
+      end
+    end
+
+    def test_delifeq_in_pipeline
+      target_version("9.0")
+
+      result = r.pipelined do |pipeline|
+        pipeline.delifeq(KEY, STRING)
+        pipeline.set(KEY, STRING)
+        pipeline.delifeq(KEY, OTHER)
+        pipeline.delifeq(KEY, STRING)
+      end
+
+      assert_equal [false, OK, false, true], result
+    end
+
+    # SET
+    # ---------------------------------------------------------------------------------------------
+
+    def test_set
+      VALUE_MAP.each do |value, expected|
+        assert_equal OK, r.set(KEY, value)
+        assert_equal expected, r.get(KEY)
+      end
+    end
+
+    def test_set_ex
+      assert_equal OK, r.set(KEY, STRING, ex: TTL_SECONDS)
+      assert_in_range 1..TTL_SECONDS, r.ttl(KEY)
+    end
+
+    def test_set_px
+      assert_equal OK, r.set(KEY, STRING, px: TTL_MILLISECONDS)
+      assert_in_range 1..TTL_MILLISECONDS, r.pttl(KEY)
+    end
+
+    def test_set_exat
+      assert_equal OK, r.set(KEY, STRING, exat: Time.now.to_i + TTL_SECONDS)
+      assert_in_range 1..TTL_SECONDS, r.ttl(KEY)
+    end
+
+    def test_set_pxat
+      assert_equal OK, r.set(KEY, STRING, pxat: (Time.now.to_f * 1000).to_i + TTL_MILLISECONDS)
+      assert_in_range 1..TTL_MILLISECONDS, r.pttl(KEY)
+    end
+
+    def test_set_nx
+      # key does not exist, key is set
+      assert_equal OK, r.set(KEY, STRING, nx: true)
+      assert_equal STRING, r.get(KEY)
+
+      # key exists, key is not set
+      assert_nil r.set(KEY, OTHER, nx: true)
+      assert_equal STRING, r.get(KEY)
+    end
+
+    def test_set_xx
+      # key does not exist, key is not set
+      assert_nil r.set(KEY, STRING, xx: true)
+      assert_equal false, r.exists?(KEY)
+
+      r.set(KEY, STRING)
+
+      # key exists, key is set
+      assert_equal OK, r.set(KEY, OTHER, xx: true)
+      assert_equal OTHER, r.get(KEY)
+    end
+
+    def test_set_ifeq
+      target_version("8.1")
+
+      VALUE_MAP.each do |value, expected|
+        # key does not exist, key is not set
+        assert_nil r.set(KEY, OTHER, ifeq: value)
+        assert_equal false, r.exists?(KEY)
+
+        r.set(KEY, value)
+
+        # value not equal, key is not set
+        assert_nil r.set(KEY, OTHER, ifeq: OTHER)
+        assert_equal expected, r.get(KEY)
+
+        # value equal, key is set
+        assert_equal OK, r.set(KEY, OTHER, ifeq: value)
+        assert_equal OTHER, r.get(KEY)
+
+        r.del(KEY)
+      end
+    end
+
+    def test_set_ifne
+      target_version("9.2")
+
+      VALUE_MAP.each do |value, expected|
+        # key does not exist, key is set
+        assert_equal OK, r.set(KEY, OTHER, ifne: value)
+        assert_equal OTHER, r.get(KEY)
+
+        r.set(KEY, value)
+
+        # value equal, key is not set
+        assert_nil r.set(KEY, OTHER, ifne: value)
+        assert_equal expected, r.get(KEY)
+
+        # value not equal, key is set
+        assert_equal OK, r.set(KEY, OTHER, ifne: OTHER)
+        assert_equal OTHER, r.get(KEY)
+
+        r.del(KEY)
+      end
+    end
+
+    def test_set_keepttl
+      r.set(KEY, STRING, ex: TTL_SECONDS)
+
+      assert_equal OK, r.set(KEY, OTHER, keepttl: true)
+      assert_equal OTHER, r.get(KEY)
+      assert_in_range 1..TTL_SECONDS, r.ttl(KEY)
+    end
+
+    def test_set_get
+      # key does not exist, returns nil
+      assert_nil r.set(KEY, STRING, get: true)
+      assert_equal STRING, r.get(KEY)
+
+      # key exists, returns the previous value
+      assert_equal STRING, r.set(KEY, OTHER, get: true)
+      assert_equal OTHER, r.get(KEY)
+    end
+
+    def test_set_combined_options
+      r.set(KEY, STRING)
+
+      assert_equal STRING, r.set(KEY, OTHER, ex: TTL_SECONDS, xx: true, get: true)
+      assert_equal OTHER, r.get(KEY)
+      assert_in_range 1..TTL_SECONDS, r.ttl(KEY)
     end
   end
 end

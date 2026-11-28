@@ -602,7 +602,7 @@ module Lint
 
     def test_multi_exec_boolean_coercion
       skip("MULTI/EXEC not supported in cluster mode") if cluster_mode?
-      target_version("9.0")
+      target_version("9.2")
 
       r.set("expire", "value")
       r.set("expireat", "value")
@@ -615,6 +615,7 @@ module Lint
       r.set("move", "value")
       r.set("copy-source", "value")
       r.set("delifeq", "value")
+      r.set("delex", "value")
 
       r.multi
       r.expire("expire", 60)
@@ -630,6 +631,7 @@ module Lint
       r.copy("copy-source", "copy-destination")
       r.msetnx("msetnx", "value")
       r.delifeq("delifeq", "value")
+      r.delex("delex", ifeq: "value")
 
       result = r.exec
       assert_equal Valkey::Commands::TransactionCommands::BOOLEAN_REQUEST_TYPES.size, result.size

@@ -127,9 +127,9 @@ class Valkey
       # @return [Integer] a status code: `1` the member is in the set, `0` the key
       #   exists but the member is not in it, `-1` the key does not exist
       #
-      # @see https://valkey.io/commands/sismember/
+      # @since Valkey 9.2
       #
-      # Since Valkey 9.2.
+      # @see https://valkey.io/commands/sismember/
       def sismember_if_exists(key, member)
         # &Utils::Noop opts out of BOOLEAN_REQUEST_TYPES reconversion in multi
         send_command(RequestType::SISMEMBER, [key, member, "XX"], &Utils::Noop)

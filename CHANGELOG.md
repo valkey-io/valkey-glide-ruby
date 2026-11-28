@@ -10,6 +10,7 @@ GLIDE Ruby follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Added support for SET IFNE with Valkey 9.2 or later. ([#440](https://github.com/valkey-io/valkey-glide-ruby/pull/440))
 - Added support for SET IFEQ with Valkey 8.1 or later. ([#449](https://github.com/valkey-io/valkey-glide-ruby/pull/449))
+- Added support for `DELEX` with Valkey 9.2 or later. ([#451](https://github.com/valkey-io/valkey-glide-ruby/pull/451))
 - Added support for valkey-search 1.3 in the `FT.*` API: ([#412](https://github.com/valkey-io/valkey-glide-ruby/pull/412))
   - `ft_hybrid(index, search_arm, vsim_arm, options = nil, **kwargs)` with `HybridSearchArm.new(query, scorer: nil, yield_score_as: nil)`, `HybridVsimArm.new(field, vector, k: nil, ef_runtime: nil, shard_k_ratio: nil, yield_score_as: nil, filter: nil)`, `HybridVsimFilter.new(expression, policy: nil, batch_size: nil)`, `HybridCombine.rrf(constant: nil, window: nil, yield_score_as: nil)`, `HybridCombine.linear(alpha: nil, beta: nil, window: nil, yield_score_as: nil)`, `HybridCombine.function(expr, window: nil, yield_score_as: nil)`, `HybridOptions.new(combine: nil, load: nil, clauses: nil, with_cursor: nil, local_only: false, timeout: nil, params: nil, dialect: nil)`, and the `HybridFilterPolicy` constants `ADHOC` and `BATCHES`
   - `ft_cursor_read(index, cursor_id, count: nil)`, `ft_cursor_del(index, cursor_id)`, and `WithCursor.new(count: nil, maxidle: nil)` for `AggregateOptions` and `HybridOptions`

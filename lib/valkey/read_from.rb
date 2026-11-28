@@ -2,7 +2,7 @@
 
 class Valkey
   #
-  # This module defines constants for the `read_from:` connection option values.
+  # This module defines constants for the `:read_from` connection option values.
   module ReadFrom
     PRIMARY = "Primary"
     PREFER_REPLICA = "PreferReplica"

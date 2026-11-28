@@ -16,6 +16,7 @@ Valkey General Language Independent Driver for the Enterprise (GLIDE) is the off
 
 - **Valkey GLIDE Documentations**: [glide.valkey.io](https://glide.valkey.io/)
 - **Supported Valkey Commands**: [GLIDE supported commands](https://glide.valkey.io/commands/supported-commands/)
+- **Migrating from redis-rb**: [Migration guide](docs/migration.md)
 - **Supported engine versions**: [valkey-glide README: Supported Engine Versions](https://github.com/valkey-io/valkey-glide/blob/main/README.md#supported-engine-versions)
 
 ## Supported Engine Versions

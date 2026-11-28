@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
 class Valkey
-  # Represents a cluster routing directive. Passed as `route:` to commands
+  # Represents a cluster routing directive. Passed as `:route` to commands
   # that support explicit cluster routing (no-key commands like DBSIZE, INFO,
   # PING, FLUSHALL, FUNCTION_*, etc.).
   #
-  # When `route:` is provided the command response type depends on the route:
+  # When `:route` is provided the command response type depends on the route:
   # single-node routes return the value directly, multi-node routes return a
   # Hash of `"host:port" => value`.
   #

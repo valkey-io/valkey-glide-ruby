@@ -4,7 +4,7 @@ This document is the authoritative documentation reference for Valkey GLIDE Ruby
 
 ## API Documentations
 
-All public API must be documented following YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md). Specific rules are defined in [`.yard-lint.yml`](./.yard-lint.yml), and we use `yard-lint` as our linter. It requires Ruby 3.3+.
+All public API must be documented following YARD's [Getting Started Guide](https://rubydoc.info/gems/yard/file/docs/GettingStarted.md). Specific rules are defined in [`.yard-lint.yml`](../.yard-lint.yml), and we use `yard-lint` as our linter. It requires Ruby 3.3+.
 
 ```bash
 bundle exec rake lint:yard
@@ -19,7 +19,9 @@ Writing guidelines:
 - Format parameter descriptions as `@param [Type] name - description`. Omit the separator when no description is needed.
 - Use `@return [void]` when a method has no meaningful return value.
 - Add `@raise` for errors that callers are expected to handle, not all possible errors.
-- Add `@since` with the minimum Valkey version.
+- Add `@since Valkey X.Y` if the command requires a minimum Valkey version newer than the [minimum version supported by Valkey GLIDE](https://glide.valkey.io/overview/#supported-engine-versions).
 - Add `@see` with link to `https://valkey.io/commands` for commands.
 - Use YARD tags instead of handwritten `Parameters` or `Returns` sections.
 - Do not add `@raise` for validation owned by Valkey or GLIDE Core.
+- Order tags according to `Tags/Order` in [`.yard-lint.yml`](../.yard-lint.yml).
+- Use `:name` to reference keyword parameters (e.g. `:nx`).
